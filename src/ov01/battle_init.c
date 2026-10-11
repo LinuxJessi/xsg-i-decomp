@@ -1042,7 +1042,26 @@ void monsGainInit(void)
 
 INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", monsGainSet);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", itemGrpChk);
+int itemGrpChk(int group, int item)
+{
+    switch (group) {
+    case 0:
+        if (item < 73) break;
+        return 0;
+    case 1:
+        if (item < 116) break;
+        return 0;
+    case 2:
+        if (item < 179) break;
+        return 0;
+    case 3:
+        if (item < 181) break;
+        return 0;
+    default:
+        return 0;
+    }
+    return 1;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", statEffProc);
 
