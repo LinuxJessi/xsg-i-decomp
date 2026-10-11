@@ -496,7 +496,7 @@ def main():
         assembly_path = a.manifest.resolve().parent / f'build/c/{n}.o.s'
         native_storage = {}
         if assembly_path.is_file():
-            from data_gate import emitted_storage
+            from storage_directives import emitted_storage
             native_storage = emitted_storage(assembly_path.read_text())
         owned = {}        # input section of the C object -> (original section, lo, hi)
         storage_symbols = {}  # cc1-proven local/global NOBITS identities -> exact input span
