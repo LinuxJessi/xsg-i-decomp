@@ -724,7 +724,20 @@ int scenarioSrcGet(void)
     return (int)scenarioPtr.source;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", scenarioDstGet);
+/*
+ * The destination entry `offset` steps past the current index: entries are
+ * 40 bytes apart in dest (`(i * 4 + i) * 8`), and anything at or past entry
+ * 13 or at or past count gives NULL.
+ */
+unsigned char *scenarioDstGet(int offset)
+{
+    int index = scenarioPtr.index + offset;
+
+    if (index >= 13 || index >= scenarioPtr.count) {
+        return 0;
+    }
+    return scenarioPtr.dest + index * 40;
+}
 
 int scenarioBatNext(void)
 {
