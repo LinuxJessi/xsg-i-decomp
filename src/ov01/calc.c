@@ -610,7 +610,34 @@ INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcDmgItem);
 
 INCLUDE_ASM("asm/nonmatchings/ov01/calc", tgtFindFirst);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/calc", tgtFindChk);
+/*
+ * The battle command tgtFindFirst (this TU, still asm) passes on to
+ * tgtFindChk, as far as either reads it: tgtFindFirst resolves +0x00
+ * through dataTecGet and +0x08 through dataItmGet, takes the target from
+ * +0x04, and branches on mode 3 (an item, as in sndConvSpid's mode 3).
+ */
+typedef struct TgtCmd {
+    int tecId;          /* +0x00 */
+    ObjectTask *target; /* +0x04 */
+    int itmId;          /* +0x08 */
+    int mode;           /* +0x0C: 3 = item */
+} TgtCmd;
+
+/*
+ * calcAtkChk (this TU, still asm): unit, target and technique id. Its
+ * return type is narrower than int: tgtFindChk calls it with jal and returns
+ * through its own epilogue, which a same-width int return would turn into a
+ * sibling call (`j calcAtkChk`). Every narrow width gives the same bytes here.
+ */
+extern short calcAtkChk(ObjectTask *unit, ObjectTask *target, int tecId);
+
+int tgtFindChk(ObjectTask *unit, ObjectTask *target, TgtCmd *cmd)
+{
+    if (cmd->mode != 3) {
+        return calcAtkChk(unit, target, cmd->tecId);
+    }
+    return 1;
+}
 
 /*
  * tgtFindFirst's own candidate table (this TU, still asm): tgtNum entries
