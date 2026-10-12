@@ -3,10 +3,22 @@
  */
 #include "common.h"
 #include "shared.h"
+#include "ov10/cgp.h"
 
 extern char *strcat(char *destination, const char *source);
 extern char *strcpy(char *destination, const char *source);
 extern int xglCdReadFile(const char *name, void *buffer, int mode, int flags);
+extern int printf(const char *format, ...);
+extern void xglSoundEffectNormalID(int sound_id, int variant);
+extern void xglMatrixTrans(Matrix4 destination, Matrix4 source, const float translation[4]);
+extern void nmlModelSetRenderLevel(int level);
+extern void nmlModelSetTexture(const void *texture);
+extern void nmlModelSetPlace(Matrix4 matrix);
+extern void nmlModelEntry(u32 model);
+extern int tutopage;       /* 0x00A487C8 */
+extern u32 tulex_tbl[];    /* 0x00A57DB0, 2 entries */
+extern void *tuxtx_tbl[];  /* 0x00A57DB8, 2 entries */
+extern u32 lex;            /* 0x00A57DA8 */
 
 /* "data\carddata\tuto\" */
 char datapath[0x14] = "data\\carddata\\tuto\\";
@@ -74,7 +86,7 @@ static const char *tutoxtx_tbl[64] = {
 const char D_00A4E498[8] = ".xtx";
 static void *tuxtx;
 
-void CardTutorialFileLoad(int tutorialIndex)
+int CardTutorialFileLoad(int tutorialIndex)
 {
     char path[0x80];
 
@@ -82,12 +94,124 @@ void CardTutorialFileLoad(int tutorialIndex)
     strcpy(path, datapath);
     strcat(path, tutoxtx_tbl[tutorialIndex]);
     strcat(path, D_00A4E498);
-    xglCdReadFile(path, tuxtx, 0, 1);
+    return xglCdReadFile(path, tuxtx, 0, 1);
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov10/card_tutorial", CardTutorialInit);
+/* Two-entry, NULL-terminated list of tutorial base names; the original pair is at 0x00A4E4B0 ({"Tutorial", NULL}). */
+typedef struct {
+    const char *name[2];
+} TutorialNameList;
 
-INCLUDE_ASM("asm/nonmatchings/ov10/card_tutorial", CardTutorialProc);
+extern const TutorialNameList D_00A4E4B0;
+extern const char D_00A4E4B8[];   /* "Tu_000.lex" at 0x00A4E4B8 */
+extern const char D_00A4E4C8[];   /* ".lex" at 0x00A4E4C8 */
+
+void CardTutorialInit(void)
+{
+    char path[0x80];
+    char *buffer;
+    int count;
+    int i;
+    TutorialNameList names;
+
+    buffer = (char *)0x01a00000;
+    tutopage = 0;
+    lex = (u32)buffer;
+    names = D_00A4E4B0;
+
+    memset(path, 0, sizeof(path));
+    strcpy(path, datapath);
+    strcat(path, D_00A4E4B8);
+    count = xglCdReadFile(path, (void *)0x01a00000, 0, 1);
+    if (count > 0) {
+        buffer += count;
+        buffer = (char *)(((unsigned int)buffer + 15) & ~15u);
+    }
+
+    for (i = 0; i < 2 && names.name[i] != 0; i++) {
+        memset(path, 0, sizeof(path));
+        strcpy(path, datapath);
+        strcat(path, names.name[i]);
+        strcat(path, D_00A4E4C8);
+        tulex_tbl[i] = (u32)buffer;
+        count = xglCdReadFile(path, buffer, 0, 1);
+        if (count > 0) {
+            buffer += count;
+            buffer = (char *)(((unsigned int)buffer + 15) & ~15u);
+        }
+
+        memset(path, 0, sizeof(path));
+        strcpy(path, datapath);
+        strcat(path, names.name[i]);
+        strcat(path, D_00A4E498);
+        tuxtx_tbl[i] = buffer;
+        count = xglCdReadFile(path, buffer, 0, 1);
+        if (count > 0) {
+            buffer += count;
+            buffer = (char *)(((unsigned int)buffer + 15) & ~15u);
+        }
+    }
+
+    tuxtx = buffer;
+    CardTutorialFileLoad(0);
+}
+
+/* Translation {1.2f, -1.82f, 0.0f, 1.0f} as two packed doublewords. */
+typedef struct CardTutorialTranslation {
+    u64 words[2];
+} CardTutorialTranslation;
+extern const CardTutorialTranslation D_00A4E4D0;
+extern const char D_00A4E4E0[];
+
+int CardTutorialProc(CardGameWork *work)
+{
+    Matrix4 source;
+    Matrix4 placed;
+    CardTutorialTranslation translation = D_00A4E4D0;
+    unsigned short pressed;
+
+    xglMatrixUnit(source);
+    pressed = work->command.input[0].pressed;
+    if (pressed & 0x8) {
+        xglSoundEffectNormalID(1, 0);
+        tutopage++;
+        if (tutopage >= 47) {
+            printf(D_00A4E4E0);
+            return 0;
+        }
+        if (tutoxtx_tbl[tutopage] == 0) {
+            return 0;
+        }
+        if (CardTutorialFileLoad(tutopage) < 0) {
+            return 0;
+        }
+        pressed = work->command.input[0].pressed;
+    }
+    if (pressed & 0x4) {
+        tutopage--;
+        if (tutopage < 0) {
+            tutopage = 0;
+        } else {
+            xglSoundEffectNormalID(2, 0);
+            CardTutorialFileLoad(tutopage);
+            pressed = work->command.input[0].pressed;
+        }
+    }
+    if (pressed & 0x800) {
+        return 0;
+    }
+    xglMatrixTrans(placed, source, (const float *)translation.words);
+    nmlModelSetTexture(tuxtx_tbl[0]);
+    nmlModelSetPlace(placed);
+    nmlModelSetRenderLevel(2);
+    nmlModelEntry(tulex_tbl[0]);
+    xglMatrixUnit(source);
+    source[3][2] = -1.0f;
+    nmlModelSetPlace(source);
+    nmlModelSetTexture(tuxtx);
+    nmlModelEntry(lex);
+    return 1;
+}
 
 
 
