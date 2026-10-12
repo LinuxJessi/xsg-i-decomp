@@ -82,9 +82,10 @@ def original_text(reference, original_path, start, end, destination, cwd, obj, a
 
     The disassembler also names some plain constants as symbols: `lui $3,
     %hi(D_FFFF)` / `addiu $3, $3, %lo(D_FFFF)` loads 65535, not an address. A
-    `D_<address>` operand outside every loaded section of the original and below
-    the lowest program address is such a constant; it keeps its original
-    immediate, so the reference carries no relocation the C object cannot have.
+    `D_<address>` operand outside every loaded section of the original is a
+    numeric operand, including hardware addresses and packed register values.
+    It keeps its original immediate, so the reference carries no invented
+    relocation the C object cannot have.
     This local report assembly never replaces build scaffolding or C source.
     """
     original = Elf(original_path.read_bytes())
@@ -132,7 +133,7 @@ def original_text(reference, original_path, start, end, destination, cwd, obj, a
 
         def numeric_constant(line):
             value = int(line[8], 16)
-            if value >= 0x100000 or any(s.addr <= value < s.addr + s.size for s in loaded):
+            if any(s.addr <= value < s.addr + s.size for s in loaded):
                 return line[0]
             va, data, word = original_word(line)
             if word >> 26 in (0x0c, 0x0d, 0x0e, 0x0f):          # andi, ori, xori, lui
