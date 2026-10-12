@@ -964,7 +964,22 @@ int dataThinkDataSet(int thinkNo, const void *data)
     return 0;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataThinkFileLoad);
+/* dataThinkLoad: defined below in this TU. */
+void dataThinkLoad(int thinkNo);
+
+/* Load the remapped behavior file (dataThinkLoad) and select its number. */
+int dataThinkFileLoad(int thinkNo)
+{
+    int mappedNo;
+
+    mappedNo = thinkMapGet(thinkNo);
+    if (mappedNo != -1) {
+        dataThinkLoad(mappedNo);
+        thinkNoSet(mappedNo);
+        return 1;
+    }
+    return 0;
+}
 
 static char *thinkName;
 static char *thinkNameBase;
