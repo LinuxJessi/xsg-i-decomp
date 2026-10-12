@@ -2202,6 +2202,76 @@
      ],
      "also_referenced_by_c": []
     }
+   ],
+   ".lit4": [
+    {
+     "also_referenced_by_c": [
+      "D_004D8798",
+      "D_004D879C",
+      "D_004D87A0",
+      "D_004D87A4",
+      "D_004D87A8",
+      "D_004D87AC",
+      "D_004D87B0",
+      "D_004D87B4",
+      "D_004D87B8",
+      "D_004D87BC",
+      "D_004D87C0",
+      "D_004D87C4"
+     ],
+     "c_owned_symbols": [
+      "D_004D87C8",
+      "D_004D87CC"
+     ],
+     "generated": [
+      "0x004d87c8",
+      "0x004d87d0"
+     ],
+     "generated_by": [
+      "RebuildQuantizeTable"
+     ],
+     "range": [
+      "0x004d87c8",
+      "0x004d87d0"
+     ]
+    },
+    {
+     "also_referenced_by_c": [],
+     "c_owned_symbols": [
+      "D_004D87EC",
+      "D_004D87F0"
+     ],
+     "generated": [
+      "0x004d87ec",
+      "0x004d87f4"
+     ],
+     "generated_by": [
+      "xglJpegDecode"
+     ],
+     "range": [
+      "0x004d87ec",
+      "0x004d87f4"
+     ]
+    }
+   ],
+   ".rodata": [
+    {
+     "also_referenced_by_c": [],
+     "c_owned_symbols": [
+      "jtbl_004D25B0"
+     ],
+     "generated": [
+      "0x004d25b0",
+      "0x004d2628"
+     ],
+     "generated_by": [
+      "xglJpegDecode"
+     ],
+     "range": [
+      "0x004d25b0",
+      "0x004d2628"
+     ]
+    }
    ]
   },
   "main/tu098": {
@@ -2846,6 +2916,96 @@
    ],
    ".lit4": [
     {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        0,
+        4
+       ],
+       "range": [
+        "0x004d885c",
+        "0x004d8860"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D885C"
+     ],
+     "generated": [
+      "0x004d885c",
+      "0x004d8860"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d885c",
+      "0x004d8860"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        4,
+        8
+       ],
+       "range": [
+        "0x004d8860",
+        "0x004d8864"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D8860"
+     ],
+     "generated": [
+      "0x004d8860",
+      "0x004d8864"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d8860",
+      "0x004d8864"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        8,
+        12
+       ],
+       "range": [
+        "0x004d8864",
+        "0x004d8868"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D8864"
+     ],
+     "generated": [
+      "0x004d8864",
+      "0x004d8868"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d8864",
+      "0x004d8868"
+     ]
+    },
+    {
      "range": [
       "0x004d8868",
       "0x004d886c"
@@ -2869,8 +3029,8 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        0,
-        4
+        12,
+        16
        ]
       }
      ]
@@ -2899,10 +3059,730 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        4,
-        8
+        16,
+        20
        ]
       }
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        20,
+        24
+       ],
+       "range": [
+        "0x004d8870",
+        "0x004d8874"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D8870"
+     ],
+     "generated": [
+      "0x004d8870",
+      "0x004d8874"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d8870",
+      "0x004d8874"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        24,
+        28
+       ],
+       "range": [
+        "0x004d8874",
+        "0x004d8878"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D8874"
+     ],
+     "generated": [
+      "0x004d8874",
+      "0x004d8878"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d8874",
+      "0x004d8878"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        28,
+        32
+       ],
+       "range": [
+        "0x004d8878",
+        "0x004d887c"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D8878"
+     ],
+     "generated": [
+      "0x004d8878",
+      "0x004d887c"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d8878",
+      "0x004d887c"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        32,
+        36
+       ],
+       "range": [
+        "0x004d887c",
+        "0x004d8880"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D887C"
+     ],
+     "generated": [
+      "0x004d887c",
+      "0x004d8880"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d887c",
+      "0x004d8880"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        36,
+        40
+       ],
+       "range": [
+        "0x004d8880",
+        "0x004d8884"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D8880"
+     ],
+     "generated": [
+      "0x004d8880",
+      "0x004d8884"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d8880",
+      "0x004d8884"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        40,
+        44
+       ],
+       "range": [
+        "0x004d8884",
+        "0x004d8888"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D8884"
+     ],
+     "generated": [
+      "0x004d8884",
+      "0x004d8888"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d8884",
+      "0x004d8888"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        44,
+        48
+       ],
+       "range": [
+        "0x004d8888",
+        "0x004d888c"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D8888"
+     ],
+     "generated": [
+      "0x004d8888",
+      "0x004d888c"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d8888",
+      "0x004d888c"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        48,
+        52
+       ],
+       "range": [
+        "0x004d888c",
+        "0x004d8890"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D888C"
+     ],
+     "generated": [
+      "0x004d888c",
+      "0x004d8890"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d888c",
+      "0x004d8890"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        52,
+        56
+       ],
+       "range": [
+        "0x004d8890",
+        "0x004d8894"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D8890"
+     ],
+     "generated": [
+      "0x004d8890",
+      "0x004d8894"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d8890",
+      "0x004d8894"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        56,
+        60
+       ],
+       "range": [
+        "0x004d8894",
+        "0x004d8898"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D8894"
+     ],
+     "generated": [
+      "0x004d8894",
+      "0x004d8898"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d8894",
+      "0x004d8898"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        60,
+        64
+       ],
+       "range": [
+        "0x004d8898",
+        "0x004d889c"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D8898"
+     ],
+     "generated": [
+      "0x004d8898",
+      "0x004d889c"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d8898",
+      "0x004d889c"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        64,
+        68
+       ],
+       "range": [
+        "0x004d889c",
+        "0x004d88a0"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D889C"
+     ],
+     "generated": [
+      "0x004d889c",
+      "0x004d88a0"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d889c",
+      "0x004d88a0"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        68,
+        72
+       ],
+       "range": [
+        "0x004d88a0",
+        "0x004d88a4"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D88A0"
+     ],
+     "generated": [
+      "0x004d88a0",
+      "0x004d88a4"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d88a0",
+      "0x004d88a4"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        72,
+        76
+       ],
+       "range": [
+        "0x004d88a4",
+        "0x004d88a8"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D88A4"
+     ],
+     "generated": [
+      "0x004d88a4",
+      "0x004d88a8"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d88a4",
+      "0x004d88a8"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        76,
+        80
+       ],
+       "range": [
+        "0x004d88a8",
+        "0x004d88ac"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D88A8"
+     ],
+     "generated": [
+      "0x004d88a8",
+      "0x004d88ac"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d88a8",
+      "0x004d88ac"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        80,
+        84
+       ],
+       "range": [
+        "0x004d88ac",
+        "0x004d88b0"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D88AC"
+     ],
+     "generated": [
+      "0x004d88ac",
+      "0x004d88b0"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d88ac",
+      "0x004d88b0"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        84,
+        88
+       ],
+       "range": [
+        "0x004d88b0",
+        "0x004d88b4"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D88B0"
+     ],
+     "generated": [
+      "0x004d88b0",
+      "0x004d88b4"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d88b0",
+      "0x004d88b4"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        88,
+        92
+       ],
+       "range": [
+        "0x004d88b4",
+        "0x004d88b8"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D88B4"
+     ],
+     "generated": [
+      "0x004d88b4",
+      "0x004d88b8"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d88b4",
+      "0x004d88b8"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        92,
+        96
+       ],
+       "range": [
+        "0x004d88b8",
+        "0x004d88bc"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D88B8"
+     ],
+     "generated": [
+      "0x004d88b8",
+      "0x004d88bc"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d88b8",
+      "0x004d88bc"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        96,
+        100
+       ],
+       "range": [
+        "0x004d88bc",
+        "0x004d88c0"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D88BC"
+     ],
+     "generated": [
+      "0x004d88bc",
+      "0x004d88c0"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d88bc",
+      "0x004d88c0"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        100,
+        104
+       ],
+       "range": [
+        "0x004d88c0",
+        "0x004d88c4"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D88C0"
+     ],
+     "generated": [
+      "0x004d88c0",
+      "0x004d88c4"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d88c0",
+      "0x004d88c4"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        104,
+        108
+       ],
+       "range": [
+        "0x004d88c4",
+        "0x004d88c8"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D88C4"
+     ],
+     "generated": [
+      "0x004d88c4",
+      "0x004d88c8"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d88c4",
+      "0x004d88c8"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        108,
+        112
+       ],
+       "range": [
+        "0x004d88c8",
+        "0x004d88cc"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D88C8"
+     ],
+     "generated": [
+      "0x004d88c8",
+      "0x004d88cc"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d88c8",
+      "0x004d88cc"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        112,
+        116
+       ],
+       "range": [
+        "0x004d88cc",
+        "0x004d88d0"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D88CC"
+     ],
+     "generated": [
+      "0x004d88cc",
+      "0x004d88d0"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d88cc",
+      "0x004d88d0"
      ]
     },
     {
@@ -2930,10 +3810,42 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        8,
-        16
+        116,
+        124
        ]
       }
+     ]
+    }
+   ],
+   ".rodata": [
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        0,
+        20
+       ],
+       "range": [
+        "0x004d27e0",
+        "0x004d27f4"
+       ],
+       "section": ".rodata",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "jtbl_004D27E0"
+     ],
+     "generated": [
+      "0x004d27e0",
+      "0x004d27f4"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d27e0",
+      "0x004d27f4"
      ]
     }
    ]
@@ -5570,6 +6482,25 @@
        ],
        "credit": "verified"
       }
+     ]
+    }
+   ],
+   ".lit4": [
+    {
+     "also_referenced_by_c": [],
+     "c_owned_symbols": [
+      "D_004D8954"
+     ],
+     "generated": [
+      "0x004d8954",
+      "0x004d8958"
+     ],
+     "generated_by": [
+      "nmlPacketAddScreen"
+     ],
+     "range": [
+      "0x004d8954",
+      "0x004d8958"
      ]
     }
    ]
@@ -10789,6 +11720,66 @@
    ],
    ".rodata": [
     {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        1944,
+        1968
+       ],
+       "range": [
+        "0x004bf768",
+        "0x004bf780"
+       ],
+       "section": ".rodata",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004BF768"
+     ],
+     "generated": [
+      "0x004bf768",
+      "0x004bf780"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004bf768",
+      "0x004bf780"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        1968,
+        1996
+       ],
+       "range": [
+        "0x004bf780",
+        "0x004bf79c"
+       ],
+       "section": ".rodata",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004BF780"
+     ],
+     "generated": [
+      "0x004bf780",
+      "0x004bf79c"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004bf780",
+      "0x004bf79c"
+     ]
+    },
+    {
      "range": [
       "0x004bf7a0",
       "0x004bf7b0"
@@ -14097,7 +15088,10 @@
       "RUN_THRESHOLD_F",
       "VECTOR_RATE"
      ],
-     "also_referenced_by_c": [],
+     "also_referenced_by_c": [
+      "GameCfPlayerLoadResource_preCID",
+      "GameCfPlayerLoadResource_preCurry"
+     ],
      "c_input_spans": [
       {
        "section": ".sbss",
@@ -14121,6 +15115,96 @@
     }
    ],
    ".sdata": [
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        4912,
+        4920
+       ],
+       "range": [
+        "0x004d8a90",
+        "0x004d8a98"
+       ],
+       "section": ".sdata",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D8A90"
+     ],
+     "generated": [
+      "0x004d8a90",
+      "0x004d8a98"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d8a90",
+      "0x004d8a98"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        4920,
+        4928
+       ],
+       "range": [
+        "0x004d8a98",
+        "0x004d8aa0"
+       ],
+       "section": ".sdata",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D8A98"
+     ],
+     "generated": [
+      "0x004d8a98",
+      "0x004d8aa0"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d8a98",
+      "0x004d8aa0"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        4928,
+        4933
+       ],
+       "range": [
+        "0x004d8aa0",
+        "0x004d8aa5"
+       ],
+       "section": ".sdata",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D8AA0"
+     ],
+     "generated": [
+      "0x004d8aa0",
+      "0x004d8aa5"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d8aa0",
+      "0x004d8aa5"
+     ]
+    },
     {
      "range": [
       "0x004d8aa8",
@@ -35022,6 +36106,30 @@
       }
      ]
     }
+   ],
+   ".lit4": [
+    {
+     "also_referenced_by_c": [],
+     "c_owned_symbols": [
+      "D_004D7C40",
+      "D_004D7C44",
+      "D_004D7C48",
+      "D_004D7C4C"
+     ],
+     "generated": [
+      "0x004d7c40",
+      "0x004d7c50"
+     ],
+     "generated_by": [
+      "DefocusMainType07",
+      "DefocusMainType08",
+      "DefocusMainType11"
+     ],
+     "range": [
+      "0x004d7c40",
+      "0x004d7c50"
+     ]
+    }
    ]
   },
   "main/tu126": {
@@ -35041,24 +36149,56 @@
      "c_owned_symbols": [
       "D_004C0300"
      ],
-     "also_referenced_by_c": []
+     "also_referenced_by_c": [
+      "D_004C04B0"
+     ]
     },
     {
-     "range": [
-      "0x004c0600",
-      "0x004c0618"
+     "also_referenced_by_c": [
+      "D_004C0528",
+      "D_004C0538",
+      "D_004C0548"
+     ],
+     "c_owned_symbols": [
+      "D_004C04D0",
+      "D_004C04E0",
+      "D_004C04F0",
+      "D_004C0500",
+      "D_004C0510"
      ],
      "generated": [
-      "0x004c0600",
+      "0x004c04d0",
+      "0x004c0528"
+     ],
+     "generated_by": [
+      "PauseMenuPage3"
+     ],
+     "range": [
+      "0x004c04d0",
+      "0x004c0528"
+     ]
+    },
+    {
+     "also_referenced_by_c": [],
+     "c_owned_symbols": [
+      "D_004C0558",
+      "jtbl_004C0570",
+      "jtbl_004C05A0",
+      "jtbl_004C05D0",
+      "jtbl_004C0600"
+     ],
+     "generated": [
+      "0x004c0558",
       "0x004c0618"
      ],
      "generated_by": [
-      "GameDebugMenu"
+      "GameDebugMenu",
+      "PauseMenuPage3"
      ],
-     "c_owned_symbols": [
-      "jtbl_004C0600"
-     ],
-     "also_referenced_by_c": []
+     "range": [
+      "0x004c0558",
+      "0x004c0618"
+     ]
     }
    ],
    ".sdata": [
@@ -35072,12 +36212,39 @@
       "0x004d9f00"
      ],
      "generated_by": [
-      "PauseMenuPage0"
+      "PauseMenuPage0",
+      "PauseMenuPage3"
      ],
      "c_owned_symbols": [
       "D_004D9EF8"
      ],
-     "also_referenced_by_c": []
+     "also_referenced_by_c": [
+      "D_004D9F18",
+      "D_004D9F20",
+      "D_004D9F28",
+      "D_004D9F30",
+      "D_004D9F38"
+     ]
+    },
+    {
+     "also_referenced_by_c": [
+      "D_004D9F48",
+      "DebugMenuResourceSizeAdd"
+     ],
+     "c_owned_symbols": [
+      "D_004D9F40"
+     ],
+     "generated": [
+      "0x004d9f40",
+      "0x004d9f47"
+     ],
+     "generated_by": [
+      "PauseMenuPage3"
+     ],
+     "range": [
+      "0x004d9f40",
+      "0x004d9f48"
+     ]
     }
    ]
   },
@@ -36061,6 +37228,96 @@
        ]
       }
      ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        216,
+        320
+       ],
+       "range": [
+        "0x004c19b8",
+        "0x004c1a20"
+       ],
+       "section": ".rodata",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004C19B8"
+     ],
+     "generated": [
+      "0x004c19b8",
+      "0x004c1a20"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004c19b8",
+      "0x004c1a20"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        320,
+        432
+       ],
+       "range": [
+        "0x004c1a20",
+        "0x004c1a90"
+       ],
+       "section": ".rodata",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "jtbl_004C1A20"
+     ],
+     "generated": [
+      "0x004c1a20",
+      "0x004c1a90"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004c1a20",
+      "0x004c1a90"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        432,
+        532
+       ],
+       "range": [
+        "0x004c1a90",
+        "0x004c1af4"
+       ],
+       "section": ".rodata",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "jtbl_004C1A90"
+     ],
+     "generated": [
+      "0x004c1a90",
+      "0x004c1af4"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004c1a90",
+      "0x004c1af4"
+     ]
     }
    ],
    ".sbss": [
@@ -36081,7 +37338,10 @@
       "rubyX2",
       "rubyY"
      ],
-     "also_referenced_by_c": []
+     "also_referenced_by_c": [
+      "cnvCW",
+      "cnvCH"
+     ]
     }
    ],
    ".sdata": [
@@ -36531,19 +37791,45 @@
       "jtbl_004C1B00",
       "D_004C1B18",
       "D_004C1B30",
-      "jtbl_004C1B50"
+      "jtbl_004C1B50",
+      "jtbl_004C1B70",
+      "jtbl_004C1B90",
+      "jtbl_004C1BB0",
+      "jtbl_004C1C00"
      ],
      "generated": [
       "0x004c1b00",
-      "0x004c1b64"
+      "0x004c1c48"
      ],
      "generated_by": [
+      "TWIN_popCF",
+      "TWIN_popScene",
+      "TWIN_update2",
       "TWSYS_draw",
       "TWSYS_update"
      ],
      "range": [
       "0x004c1b00",
-      "0x004c1b70"
+      "0x004c1c48"
+     ]
+    },
+    {
+     "also_referenced_by_c": [],
+     "c_owned_symbols": [
+      "jtbl_004C1C80",
+      "jtbl_004C1CC0",
+      "jtbl_004C1D00"
+     ],
+     "generated": [
+      "0x004c1c80",
+      "0x004c1d18"
+     ],
+     "generated_by": [
+      "TMENU_updateDefault"
+     ],
+     "range": [
+      "0x004c1c80",
+      "0x004c1d18"
      ]
     }
    ],
@@ -36627,6 +37913,25 @@
      "range": [
       "0x004da420",
       "0x004da428"
+     ]
+    }
+   ],
+   ".lit4": [
+    {
+     "also_referenced_by_c": [],
+     "c_owned_symbols": [
+      "D_004D7C98"
+     ],
+     "generated": [
+      "0x004d7c98",
+      "0x004d7c9c"
+     ],
+     "generated_by": [
+      "TWIN_create2"
+     ],
+     "range": [
+      "0x004d7c98",
+      "0x004d7c9c"
      ]
     }
    ]
@@ -37080,7 +38385,9 @@
       "0x004dff60",
       "0x004dffa0"
      ],
-     "generated_by": [],
+     "generated_by": [
+      "endCallback"
+     ],
      "c_owned_symbols": [
       "fname_67"
      ],
@@ -37117,7 +38424,6 @@
    ],
    ".data": [
     {
-     "also_referenced_by_c": [],
      "c_input_spans": [
       {
        "credit": "verified",
@@ -37153,16 +38459,13 @@
       "0x0036b640",
       "0x0036b6e0"
      ],
-     "generated_by": [
-      "e_test"
-     ],
+     "generated_by": [],
      "range": [
       "0x0036b640",
       "0x0036b6e0"
      ]
     },
     {
-     "also_referenced_by_c": [],
      "c_input_spans": [
       {
        "credit": "verified",
@@ -37198,16 +38501,13 @@
       "0x0036bed0",
       "0x0036bf40"
      ],
-     "generated_by": [
-      "e_test"
-     ],
+     "generated_by": [],
      "range": [
       "0x0036bed0",
       "0x0036bf40"
      ]
     },
     {
-     "also_referenced_by_c": [],
      "c_input_spans": [
       {
        "credit": "verified",
@@ -37243,9 +38543,7 @@
       "0x0036bf40",
       "0x0036bfc0"
      ],
-     "generated_by": [
-      "e_test"
-     ],
+     "generated_by": [],
      "range": [
       "0x0036bf40",
       "0x0036bfc0"
@@ -37254,7 +38552,6 @@
    ],
    ".lit4": [
     {
-     "also_referenced_by_c": [],
      "c_owned_symbols": [
       "progress_percent"
      ],
@@ -37262,18 +38559,31 @@
       "0x004d7d3c",
       "0x004d7d40"
      ],
-     "generated_by": [
-      "endCallback"
-     ],
+     "generated_by": [],
      "range": [
       "0x004d7d3c",
       "0x004d7d40"
+     ],
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        0,
+        4
+       ],
+       "range": [
+        "0x004d7d3c",
+        "0x004d7d40"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
      ]
     }
    ],
    ".rodata": [
     {
-     "also_referenced_by_c": [],
      "c_input_spans": [
       {
        "credit": "verified",
@@ -37298,16 +38608,13 @@
       "0x004c2ae8",
       "0x004c2af8"
      ],
-     "generated_by": [
-      "eModelTest"
-     ],
+     "generated_by": [],
      "range": [
       "0x004c2ae8",
       "0x004c2af8"
      ]
     },
     {
-     "also_referenced_by_c": [],
      "c_input_spans": [
       {
        "credit": "verified",
@@ -37332,16 +38639,13 @@
       "0x004c2d38",
       "0x004c2d48"
      ],
-     "generated_by": [
-      "eModelTest"
-     ],
+     "generated_by": [],
      "range": [
       "0x004c2d38",
       "0x004c2d48"
      ]
     },
     {
-     "also_referenced_by_c": [],
      "c_input_spans": [
       {
        "credit": "verified",
@@ -37366,16 +38670,13 @@
       "0x004c2d48",
       "0x004c2d60"
      ],
-     "generated_by": [
-      "eModelTest"
-     ],
+     "generated_by": [],
      "range": [
       "0x004c2d48",
       "0x004c2d60"
      ]
     },
     {
-     "also_referenced_by_c": [],
      "c_input_spans": [
       {
        "anonymous_emission": true,
@@ -37399,12 +38700,40 @@
       "0x004c2d60",
       "0x004c2d7c"
      ],
-     "generated_by": [
-      "endCallback"
-     ],
+     "generated_by": [],
      "range": [
       "0x004c2d60",
       "0x004c2d7c"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        96,
+        116
+       ],
+       "range": [
+        "0x004c2fb0",
+        "0x004c2fc4"
+       ],
+       "section": ".rodata",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "jtbl_004C2FB0"
+     ],
+     "generated": [
+      "0x004c2fb0",
+      "0x004c2fc4"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004c2fb0",
+      "0x004c2fc4"
      ]
     }
    ],
@@ -37418,7 +38747,9 @@
       "0x004dc5c4",
       "0x004dc5c8"
      ],
-     "generated_by": [],
+     "generated_by": [
+      "endCallback"
+     ],
      "c_owned_symbols": [
       "size_68"
      ],
@@ -37455,7 +38786,6 @@
    ],
    ".sdata": [
     {
-     "also_referenced_by_c": [],
      "c_input_spans": [
       {
        "credit": "verified",
@@ -37480,9 +38810,7 @@
       "0x004da80c",
       "0x004da810"
      ],
-     "generated_by": [
-      "e_test"
-     ],
+     "generated_by": [],
      "range": [
       "0x004da80c",
       "0x004da810"
@@ -37518,21 +38846,23 @@
    ],
    ".rodata": [
     {
-     "range": [
-      "0x004c2fd0",
-      "0x004c2fe0"
+     "also_referenced_by_c": [],
+     "c_owned_symbols": [
+      "D_004C2FD0",
+      "jtbl_004C2FE0"
      ],
      "generated": [
       "0x004c2fd0",
-      "0x004c2fe0"
+      "0x004c31a8"
      ],
      "generated_by": [
-      "OpenCloseMain"
+      "OpenCloseMain",
+      "eCursolMain"
      ],
-     "c_owned_symbols": [
-      "D_004C2FD0"
-     ],
-     "also_referenced_by_c": []
+     "range": [
+      "0x004c2fd0",
+      "0x004c31b0"
+     ]
     }
    ]
   },
@@ -39525,6 +40855,606 @@
    ],
    ".lit4": [
     {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        0,
+        4
+       ],
+       "range": [
+        "0x004d7da8",
+        "0x004d7dac"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D7DA8"
+     ],
+     "generated": [
+      "0x004d7da8",
+      "0x004d7dac"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d7da8",
+      "0x004d7dac"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        4,
+        8
+       ],
+       "range": [
+        "0x004d7dac",
+        "0x004d7db0"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D7DAC"
+     ],
+     "generated": [
+      "0x004d7dac",
+      "0x004d7db0"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d7dac",
+      "0x004d7db0"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        8,
+        12
+       ],
+       "range": [
+        "0x004d7db0",
+        "0x004d7db4"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D7DB0"
+     ],
+     "generated": [
+      "0x004d7db0",
+      "0x004d7db4"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d7db0",
+      "0x004d7db4"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        12,
+        16
+       ],
+       "range": [
+        "0x004d7db4",
+        "0x004d7db8"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D7DB4"
+     ],
+     "generated": [
+      "0x004d7db4",
+      "0x004d7db8"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d7db4",
+      "0x004d7db8"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        16,
+        20
+       ],
+       "range": [
+        "0x004d7db8",
+        "0x004d7dbc"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D7DB8"
+     ],
+     "generated": [
+      "0x004d7db8",
+      "0x004d7dbc"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d7db8",
+      "0x004d7dbc"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        20,
+        24
+       ],
+       "range": [
+        "0x004d7dbc",
+        "0x004d7dc0"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D7DBC"
+     ],
+     "generated": [
+      "0x004d7dbc",
+      "0x004d7dc0"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d7dbc",
+      "0x004d7dc0"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        24,
+        28
+       ],
+       "range": [
+        "0x004d7dc0",
+        "0x004d7dc4"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D7DC0"
+     ],
+     "generated": [
+      "0x004d7dc0",
+      "0x004d7dc4"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d7dc0",
+      "0x004d7dc4"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        28,
+        32
+       ],
+       "range": [
+        "0x004d7dc4",
+        "0x004d7dc8"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D7DC4"
+     ],
+     "generated": [
+      "0x004d7dc4",
+      "0x004d7dc8"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d7dc4",
+      "0x004d7dc8"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        32,
+        36
+       ],
+       "range": [
+        "0x004d7dc8",
+        "0x004d7dcc"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D7DC8"
+     ],
+     "generated": [
+      "0x004d7dc8",
+      "0x004d7dcc"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d7dc8",
+      "0x004d7dcc"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        36,
+        40
+       ],
+       "range": [
+        "0x004d7dcc",
+        "0x004d7dd0"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D7DCC"
+     ],
+     "generated": [
+      "0x004d7dcc",
+      "0x004d7dd0"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d7dcc",
+      "0x004d7dd0"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        40,
+        44
+       ],
+       "range": [
+        "0x004d7dd0",
+        "0x004d7dd4"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D7DD0"
+     ],
+     "generated": [
+      "0x004d7dd0",
+      "0x004d7dd4"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d7dd0",
+      "0x004d7dd4"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        44,
+        48
+       ],
+       "range": [
+        "0x004d7dd4",
+        "0x004d7dd8"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D7DD4"
+     ],
+     "generated": [
+      "0x004d7dd4",
+      "0x004d7dd8"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d7dd4",
+      "0x004d7dd8"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        48,
+        52
+       ],
+       "range": [
+        "0x004d7dd8",
+        "0x004d7ddc"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D7DD8"
+     ],
+     "generated": [
+      "0x004d7dd8",
+      "0x004d7ddc"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d7dd8",
+      "0x004d7ddc"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        52,
+        56
+       ],
+       "range": [
+        "0x004d7ddc",
+        "0x004d7de0"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D7DDC"
+     ],
+     "generated": [
+      "0x004d7ddc",
+      "0x004d7de0"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d7ddc",
+      "0x004d7de0"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        56,
+        60
+       ],
+       "range": [
+        "0x004d7de0",
+        "0x004d7de4"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D7DE0"
+     ],
+     "generated": [
+      "0x004d7de0",
+      "0x004d7de4"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d7de0",
+      "0x004d7de4"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        60,
+        64
+       ],
+       "range": [
+        "0x004d7de4",
+        "0x004d7de8"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D7DE4"
+     ],
+     "generated": [
+      "0x004d7de4",
+      "0x004d7de8"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d7de4",
+      "0x004d7de8"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        64,
+        68
+       ],
+       "range": [
+        "0x004d7de8",
+        "0x004d7dec"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D7DE8"
+     ],
+     "generated": [
+      "0x004d7de8",
+      "0x004d7dec"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d7de8",
+      "0x004d7dec"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        68,
+        72
+       ],
+       "range": [
+        "0x004d7dec",
+        "0x004d7df0"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D7DEC"
+     ],
+     "generated": [
+      "0x004d7dec",
+      "0x004d7df0"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d7dec",
+      "0x004d7df0"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        72,
+        76
+       ],
+       "range": [
+        "0x004d7df0",
+        "0x004d7df4"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D7DF0"
+     ],
+     "generated": [
+      "0x004d7df0",
+      "0x004d7df4"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d7df0",
+      "0x004d7df4"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        76,
+        80
+       ],
+       "range": [
+        "0x004d7df4",
+        "0x004d7df8"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D7DF4"
+     ],
+     "generated": [
+      "0x004d7df4",
+      "0x004d7df8"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d7df4",
+      "0x004d7df8"
+     ]
+    },
+    {
      "range": [
       "0x004d7df8",
       "0x004d7e08"
@@ -39593,6 +41523,36 @@
      ]
     },
     {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        24,
+        48
+       ],
+       "range": [
+        "0x004c3840",
+        "0x004c3858"
+       ],
+       "section": ".rodata",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004C3840"
+     ],
+     "generated": [
+      "0x004c3840",
+      "0x004c3858"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004c3840",
+      "0x004c3858"
+     ]
+    },
+    {
      "range": [
       "0x004c3930",
       "0x004c3944"
@@ -39616,14 +41576,74 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        32,
-        52
+        48,
+        68
        ]
       }
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        72,
+        88
+       ],
+       "range": [
+        "0x004c3950",
+        "0x004c3960"
+       ],
+       "section": ".rodata",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004C3950"
+     ],
+     "generated": [
+      "0x004c3950",
+      "0x004c3960"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004c3950",
+      "0x004c3960"
      ]
     }
    ],
    ".sdata": [
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        24,
+        29
+       ],
+       "range": [
+        "0x004da930",
+        "0x004da935"
+       ],
+       "section": ".sdata",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004DA930"
+     ],
+     "generated": [
+      "0x004da930",
+      "0x004da935"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004da930",
+      "0x004da935"
+     ]
+    },
     {
      "range": [
       "0x004da948",
@@ -40133,6 +42153,28 @@
       "0x004daab4"
      ]
     }
+   ],
+   ".rodata": [
+    {
+     "also_referenced_by_c": [
+      "D_004C4858",
+      "D_004C4870"
+     ],
+     "c_owned_symbols": [
+      "jtbl_004C4910"
+     ],
+     "generated": [
+      "0x004c4910",
+      "0x004c4a04"
+     ],
+     "generated_by": [
+      "tskFileData"
+     ],
+     "range": [
+      "0x004c4910",
+      "0x004c4a10"
+     ]
+    }
    ]
   },
   "main/tu169": {
@@ -40173,6 +42215,11 @@
         "size": 24
        }
       }
+     ],
+     "also_referenced_by_c": [],
+     "generated": [
+      "0x00532A78",
+      "0x00532A90"
      ]
     },
     {
@@ -40211,6 +42258,11 @@
         "size": 128
        }
       }
+     ],
+     "also_referenced_by_c": [],
+     "generated": [
+      "0x00532A90",
+      "0x00532B10"
      ]
     },
     {
@@ -40238,6 +42290,11 @@
         "sort"
        ]
       }
+     ],
+     "also_referenced_by_c": [],
+     "generated": [
+      "0x00532B10",
+      "0x00533310"
      ]
     },
     {
@@ -40276,6 +42333,11 @@
         "size": 6144
        }
       }
+     ],
+     "also_referenced_by_c": [],
+     "generated": [
+      "0x00533310",
+      "0x00534B10"
      ]
     }
    ],
@@ -41216,6 +43278,66 @@
         "D_004C5418"
        ]
       }
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        320,
+        368
+       ],
+       "range": [
+        "0x004c5450",
+        "0x004c5480"
+       ],
+       "section": ".rodata",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "jtbl_004C5450"
+     ],
+     "generated": [
+      "0x004c5450",
+      "0x004c5480"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004c5450",
+      "0x004c5480"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        368,
+        392
+       ],
+       "range": [
+        "0x004c54f0",
+        "0x004c5508"
+       ],
+       "section": ".rodata",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "jtbl_004C54F0"
+     ],
+     "generated": [
+      "0x004c54f0",
+      "0x004c5508"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004c54f0",
+      "0x004c5508"
      ]
     }
    ],
@@ -46200,6 +48322,38 @@
    ],
    ".rodata": [
     {
+     "also_referenced_by_c": [],
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "object_range": [
+        48,
+        72
+       ],
+       "range": [
+        "0x004c77c0",
+        "0x004c77d8"
+       ],
+       "section": ".rodata",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "jtbl_004C77C0"
+     ],
+     "generated": [
+      "0x004c77c0",
+      "0x004c77d8"
+     ],
+     "generated_by": [
+      "subMenuShopEquipCheck"
+     ],
+     "range": [
+      "0x004c77c0",
+      "0x004c77d8"
+     ]
+    },
+    {
      "range": [
       "0x004c7858",
       "0x004c7880"
@@ -46220,6 +48374,54 @@
       "D_004C7A78",
       "D_004C7A88",
       "D_004C7A98"
+     ],
+     "c_input_spans": [
+      {
+       "object_range": [
+        0,
+        40
+       ],
+       "range": [
+        "0x004c7858",
+        "0x004c7880"
+       ],
+       "section": ".rodata",
+       "symbols": [
+        "D_004C7858"
+       ]
+      }
+     ]
+    },
+    {
+     "also_referenced_by_c": [],
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "object_range": [
+        80,
+        148
+       ],
+       "range": [
+        "0x004c7a20",
+        "0x004c7a64"
+       ],
+       "section": ".rodata",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "jtbl_004C7A20"
+     ],
+     "generated": [
+      "0x004c7a20",
+      "0x004c7a64"
+     ],
+     "generated_by": [
+      "MenuShopParaSet"
+     ],
+     "range": [
+      "0x004c7a20",
+      "0x004c7a64"
      ]
     }
    ],
@@ -46345,6 +48547,49 @@
      "also_referenced_by_c": []
     },
     {
+     "also_referenced_by_c": [
+      "D_004C90F0"
+     ],
+     "c_owned_symbols": [
+      "jtbl_004C8EF0",
+      "jtbl_004C8FD0"
+     ],
+     "generated": [
+      "0x004c8ef0",
+      "0x004c90f0"
+     ],
+     "generated_by": [
+      "MenuTecExMain",
+      "MenuTecStatusMain"
+     ],
+     "range": [
+      "0x004c8ef0",
+      "0x004c90f0"
+     ]
+    },
+    {
+     "also_referenced_by_c": [
+      "D_004C91D8",
+      "D_004C91F0",
+      "D_004C9200",
+      "D_004C9210"
+     ],
+     "c_owned_symbols": [
+      "jtbl_004C9100"
+     ],
+     "generated": [
+      "0x004c9100",
+      "0x004c91a0"
+     ],
+     "generated_by": [
+      "MenuTecListMain"
+     ],
+     "range": [
+      "0x004c9100",
+      "0x004c91a0"
+     ]
+    },
+    {
      "range": [
       "0x004c9238",
       "0x004c9250"
@@ -46377,7 +48622,8 @@
       "jtbl_004C9250"
      ],
      "also_referenced_by_c": [
-      "D_004C92E8"
+      "D_004C92E8",
+      "D_004C9308"
      ]
     }
    ],
@@ -46416,7 +48662,15 @@
       "D_004DB448",
       "D_004DB450"
      ],
-     "also_referenced_by_c": []
+     "also_referenced_by_c": [
+      "D_004DB458",
+      "D_004DB4E8",
+      "D_004DB4F0",
+      "D_004DB4F8",
+      "D_004DB500",
+      "D_004DB508",
+      "D_004DB510"
+     ]
     },
     {
      "range": [
@@ -46428,6 +48682,7 @@
       "0x004db51c"
      ],
      "generated_by": [
+      "MenuTec",
       "MenuTecDataGet"
      ],
      "c_owned_symbols": [
@@ -46435,8 +48690,13 @@
      ],
      "also_referenced_by_c": [
       "MenuTecPas",
+      "MenuTecInfo",
       "MenuTecMenu",
+      "MenuTecEx",
       "MenuTecL1R1",
+      "MenuTecStatus",
+      "MenuTecList",
+      "MenuTecList2",
       "MenuTecSetWin"
      ]
     }
@@ -46733,6 +48993,36 @@
         8
        ]
       }
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        8,
+        12
+       ],
+       "range": [
+        "0x004d7e84",
+        "0x004d7e88"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D7E84"
+     ],
+     "generated": [
+      "0x004d7e84",
+      "0x004d7e88"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d7e84",
+      "0x004d7e88"
      ]
     }
    ],
@@ -48410,8 +50700,8 @@
         "0x004ca2b8"
        ],
        "object_range": [
-        40,
-        96
+        0,
+        56
        ],
        "symbols": [
         "D_004CA280"
@@ -48440,8 +50730,8 @@
         "0x004ca2d8"
        ],
        "object_range": [
-        96,
-        128
+        56,
+        88
        ],
        "symbols": [
         "D_004CA2B8"
@@ -48470,8 +50760,8 @@
         "0x004ca2f8"
        ],
        "object_range": [
-        128,
-        160
+        88,
+        120
        ],
        "symbols": [
         "D_004CA2D8"
@@ -48500,13 +50790,43 @@
         "0x004ca320"
        ],
        "object_range": [
-        160,
-        200
+        120,
+        160
        ],
        "symbols": [
         "D_004CA2F8"
        ]
       }
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        160,
+        192
+       ],
+       "range": [
+        "0x004ca320",
+        "0x004ca340"
+       ],
+       "section": ".rodata",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "jtbl_004CA320"
+     ],
+     "generated": [
+      "0x004ca320",
+      "0x004ca340"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004ca320",
+      "0x004ca340"
      ]
     },
     {
@@ -48533,8 +50853,8 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        208,
-        240
+        192,
+        224
        ]
       }
      ]
@@ -48563,8 +50883,8 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        240,
-        272
+        224,
+        256
        ]
       }
      ]
@@ -48593,8 +50913,8 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        272,
-        304
+        256,
+        288
        ]
       }
      ]
@@ -48623,8 +50943,8 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        304,
-        328
+        288,
+        312
        ]
       }
      ]
@@ -48650,8 +50970,8 @@
         "0x004ca3c8"
        ],
        "object_range": [
-        0,
-        16
+        312,
+        328
        ],
        "symbols": [
         "D_004CA3B8"
@@ -48680,8 +51000,8 @@
         "0x004ca3e0"
        ],
        "object_range": [
-        16,
-        40
+        328,
+        352
        ],
        "symbols": [
         "D_004CA3C8"
@@ -48713,8 +51033,8 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        336,
-        356
+        352,
+        372
        ]
       }
      ]
@@ -48742,6 +51062,25 @@
      "range": [
       "0x004ca470",
       "0x004ca4d0"
+     ]
+    }
+   ],
+   ".lit4": [
+    {
+     "also_referenced_by_c": [],
+     "c_owned_symbols": [
+      "D_004D7F54"
+     ],
+     "generated": [
+      "0x004d7f54",
+      "0x004d7f58"
+     ],
+     "generated_by": [
+      "InitMapTrap"
+     ],
+     "range": [
+      "0x004d7f54",
+      "0x004d7f58"
      ]
     }
    ]
@@ -48916,6 +51255,186 @@
    ],
    ".lit4": [
     {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        0,
+        4
+       ],
+       "range": [
+        "0x004d8004",
+        "0x004d8008"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D8004"
+     ],
+     "generated": [
+      "0x004d8004",
+      "0x004d8008"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d8004",
+      "0x004d8008"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        4,
+        8
+       ],
+       "range": [
+        "0x004d8008",
+        "0x004d800c"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D8008"
+     ],
+     "generated": [
+      "0x004d8008",
+      "0x004d800c"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d8008",
+      "0x004d800c"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        8,
+        12
+       ],
+       "range": [
+        "0x004d800c",
+        "0x004d8010"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D800C"
+     ],
+     "generated": [
+      "0x004d800c",
+      "0x004d8010"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d800c",
+      "0x004d8010"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        12,
+        16
+       ],
+       "range": [
+        "0x004d8010",
+        "0x004d8014"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D8010"
+     ],
+     "generated": [
+      "0x004d8010",
+      "0x004d8014"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d8010",
+      "0x004d8014"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        16,
+        20
+       ],
+       "range": [
+        "0x004d8014",
+        "0x004d8018"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D8014"
+     ],
+     "generated": [
+      "0x004d8014",
+      "0x004d8018"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d8014",
+      "0x004d8018"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        20,
+        24
+       ],
+       "range": [
+        "0x004d8018",
+        "0x004d801c"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D8018"
+     ],
+     "generated": [
+      "0x004d8018",
+      "0x004d801c"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d8018",
+      "0x004d801c"
+     ]
+    },
+    {
      "range": [
       "0x004d8034",
       "0x004d8038"
@@ -48939,8 +51458,8 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        0,
-        4
+        24,
+        28
        ]
       }
      ]
@@ -48969,8 +51488,8 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        4,
-        8
+        28,
+        32
        ]
       }
      ]
@@ -48999,8 +51518,8 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        8,
-        12
+        32,
+        36
        ]
       }
      ]
@@ -49029,10 +51548,250 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        12,
-        16
+        36,
+        40
        ]
       }
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        40,
+        44
+       ],
+       "range": [
+        "0x004d8044",
+        "0x004d8048"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D8044"
+     ],
+     "generated": [
+      "0x004d8044",
+      "0x004d8048"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d8044",
+      "0x004d8048"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        44,
+        48
+       ],
+       "range": [
+        "0x004d8048",
+        "0x004d804c"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D8048"
+     ],
+     "generated": [
+      "0x004d8048",
+      "0x004d804c"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d8048",
+      "0x004d804c"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        48,
+        52
+       ],
+       "range": [
+        "0x004d804c",
+        "0x004d8050"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D804C"
+     ],
+     "generated": [
+      "0x004d804c",
+      "0x004d8050"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d804c",
+      "0x004d8050"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        52,
+        56
+       ],
+       "range": [
+        "0x004d8050",
+        "0x004d8054"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D8050"
+     ],
+     "generated": [
+      "0x004d8050",
+      "0x004d8054"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d8050",
+      "0x004d8054"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        56,
+        60
+       ],
+       "range": [
+        "0x004d8054",
+        "0x004d8058"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D8054"
+     ],
+     "generated": [
+      "0x004d8054",
+      "0x004d8058"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d8054",
+      "0x004d8058"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        60,
+        64
+       ],
+       "range": [
+        "0x004d8058",
+        "0x004d805c"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D8058"
+     ],
+     "generated": [
+      "0x004d8058",
+      "0x004d805c"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d8058",
+      "0x004d805c"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        64,
+        68
+       ],
+       "range": [
+        "0x004d805c",
+        "0x004d8060"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D805C"
+     ],
+     "generated": [
+      "0x004d805c",
+      "0x004d8060"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d805c",
+      "0x004d8060"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        68,
+        72
+       ],
+       "range": [
+        "0x004d8060",
+        "0x004d8064"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D8060"
+     ],
+     "generated": [
+      "0x004d8060",
+      "0x004d8064"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d8060",
+      "0x004d8064"
      ]
     }
    ],
@@ -49095,6 +51854,36 @@
         116
        ]
       }
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        128,
+        192
+       ],
+       "range": [
+        "0x004cabe0",
+        "0x004cac20"
+       ],
+       "section": ".rodata",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "jtbl_004CABE0"
+     ],
+     "generated": [
+      "0x004cabe0",
+      "0x004cac20"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004cabe0",
+      "0x004cac20"
      ]
     }
    ],
@@ -50205,124 +52994,37 @@
    ],
    ".lit4": [
     {
-     "range": [
-      "0x004d80fc",
-      "0x004d8100"
-     ],
-     "generated": [
-      "0x004d80fc",
-      "0x004d8100"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004D80FC"
-     ],
      "c_input_spans": [
       {
-       "section": ".lit4",
-       "range": [
-        "0x004d80fc",
-        "0x004d8100"
-       ],
-       "symbols": [],
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
         0,
-        4
-       ]
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004d8100",
-      "0x004d8104"
-     ],
-     "generated": [
-      "0x004d8100",
-      "0x004d8104"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004D8100"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".lit4",
-       "range": [
-        "0x004d8100",
-        "0x004d8104"
+        64
        ],
-       "symbols": [],
-       "anonymous_emission": true,
-       "credit": "verified",
-       "object_range": [
-        4,
-        8
-       ]
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004d8104",
-      "0x004d8108"
-     ],
-     "generated": [
-      "0x004d8104",
-      "0x004d8108"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004D8104"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".lit4",
        "range": [
-        "0x004d8104",
-        "0x004d8108"
+        "0x004d80fc",
+        "0x004d813c"
        ],
-       "symbols": [],
-       "anonymous_emission": true,
-       "credit": "verified",
-       "object_range": [
-        8,
-        12
-       ]
+       "section": ".lit4",
+       "symbols": []
       }
-     ]
-    },
-    {
-     "range": [
-      "0x004d8134",
-      "0x004d813c"
      ],
-     "generated": [
-      "0x004d8134",
-      "0x004d813c"
-     ],
-     "generated_by": [],
      "c_owned_symbols": [
+      "D_004D80FC",
+      "D_004D8100",
+      "D_004D8104",
       "D_004D8134",
       "D_004D8138"
      ],
-     "c_input_spans": [
-      {
-       "section": ".lit4",
-       "range": [
-        "0x004d8134",
-        "0x004d813c"
-       ],
-       "symbols": [],
-       "anonymous_emission": true,
-       "credit": "verified",
-       "object_range": [
-        12,
-        20
-       ]
-      }
+     "generated": [
+      "0x004d80fc",
+      "0x004d813c"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d80fc",
+      "0x004d813c"
      ]
     }
    ],
@@ -50355,6 +53057,36 @@
         48
        ]
       }
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        48,
+        57
+       ],
+       "range": [
+        "0x004cad90",
+        "0x004cad99"
+       ],
+       "section": ".rodata",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004CAD90"
+     ],
+     "generated": [
+      "0x004cad90",
+      "0x004cad99"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004cad90",
+      "0x004cad99"
      ]
     }
    ]
@@ -50959,36 +53691,29 @@
   "main/tu204": {
    ".bss": [
     {
-     "range": [
-      "0x00585180",
-      "0x00585200"
-     ],
-     "generated": [
-      "0x00585180",
-      "0x00585200"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "wpos",
-      "wvec"
-     ],
      "also_referenced_by_c": [],
      "c_input_spans": [
       {
-       "section": ".bss",
-       "range": [
-        "0x00585180",
-        "0x00585200"
-       ],
        "object_range": [
         0,
-        128
+        192
        ],
+       "range": [
+        "0x00585140",
+        "0x00585200"
+       ],
+       "section": ".bss",
        "symbols": [
+        "cpos",
         "wpos",
         "wvec"
        ]
       }
+     ],
+     "c_owned_symbols": [
+      "cpos",
+      "wpos",
+      "wvec"
      ],
      "c_storage_aliases": [
       {
@@ -51000,29 +53725,368 @@
         "size": 64
        },
        "storage_owner_proof": {
-        "owner_name": "wpos",
-        "owner_address": "0x00585180",
-        "owner_size": 16,
-        "input_section": ".bss",
-        "input_offset": 0,
-        "input_extent": 16,
-        "linked_output_section": ".bss",
-        "binding": "LOCAL",
-        "type": "NOTYPE",
-        "symbol_size": 0,
-        "source_sha256": "08e0286d926872bb69cdf45e9a01af69e210145e49c94fb737fed5aad6789463",
         "assembly_sha256": "2cf9853701ad92ca8df0bb078153e358127a1bb739bd3be05c8f0b7e4256ee00",
+        "binding": "LOCAL",
+        "carve_map_sha256": "",
+        "input_extent": 16,
+        "input_offset": 0,
+        "input_section": ".bss",
+        "linked_elf_sha256": "35af32052fe903a240cb3ff93003ff097c321956f1797898d9195a9c1ad7afc5",
+        "linked_output_section": ".bss",
+        "original_elf_sha256": "412d448de31505c03ad474cc63d500b3b4f8c48d49d32bd24c89fe5b21af0fb2",
+        "owner_address": "0x00585180",
+        "owner_name": "wpos",
+        "owner_size": 16,
         "raw_object_sha256": "8bba7e7c0693582ca5a40c306c401a711b3f0d6dfcf6eb56a315945461bc1fa8",
         "selected_object_sha256": "8db6ed7b2c31127159a57005231a921084448a952cc7f5930d42de2210e91bac",
-        "carve_map_sha256": "",
-        "original_elf_sha256": "412d448de31505c03ad474cc63d500b3b4f8c48d49d32bd24c89fe5b21af0fb2",
-        "linked_elf_sha256": "35af32052fe903a240cb3ff93003ff097c321956f1797898d9195a9c1ad7afc5"
+        "source_sha256": "08e0286d926872bb69cdf45e9a01af69e210145e49c94fb737fed5aad6789463",
+        "symbol_size": 0,
+        "type": "NOTYPE"
        }
       }
+     ],
+     "generated": [
+      "0x00585140",
+      "0x00585200"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x00585140",
+      "0x00585200"
      ]
     }
    ],
    ".lit4": [
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        0,
+        4
+       ],
+       "range": [
+        "0x004d81fc",
+        "0x004d8200"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D81FC"
+     ],
+     "generated": [
+      "0x004d81fc",
+      "0x004d8200"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d81fc",
+      "0x004d8200"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        4,
+        8
+       ],
+       "range": [
+        "0x004d8200",
+        "0x004d8204"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D8200"
+     ],
+     "generated": [
+      "0x004d8200",
+      "0x004d8204"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d8200",
+      "0x004d8204"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        8,
+        12
+       ],
+       "range": [
+        "0x004d8204",
+        "0x004d8208"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D8204"
+     ],
+     "generated": [
+      "0x004d8204",
+      "0x004d8208"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d8204",
+      "0x004d8208"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        12,
+        16
+       ],
+       "range": [
+        "0x004d8208",
+        "0x004d820c"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D8208"
+     ],
+     "generated": [
+      "0x004d8208",
+      "0x004d820c"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d8208",
+      "0x004d820c"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        16,
+        20
+       ],
+       "range": [
+        "0x004d820c",
+        "0x004d8210"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D820C"
+     ],
+     "generated": [
+      "0x004d820c",
+      "0x004d8210"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d820c",
+      "0x004d8210"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        20,
+        24
+       ],
+       "range": [
+        "0x004d8210",
+        "0x004d8214"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D8210"
+     ],
+     "generated": [
+      "0x004d8210",
+      "0x004d8214"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d8210",
+      "0x004d8214"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        24,
+        28
+       ],
+       "range": [
+        "0x004d8214",
+        "0x004d8218"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D8214"
+     ],
+     "generated": [
+      "0x004d8214",
+      "0x004d8218"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d8214",
+      "0x004d8218"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        28,
+        32
+       ],
+       "range": [
+        "0x004d8218",
+        "0x004d821c"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D8218"
+     ],
+     "generated": [
+      "0x004d8218",
+      "0x004d821c"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d8218",
+      "0x004d821c"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        32,
+        36
+       ],
+       "range": [
+        "0x004d821c",
+        "0x004d8220"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D821C"
+     ],
+     "generated": [
+      "0x004d821c",
+      "0x004d8220"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d821c",
+      "0x004d8220"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        36,
+        40
+       ],
+       "range": [
+        "0x004d8220",
+        "0x004d8224"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D8220"
+     ],
+     "generated": [
+      "0x004d8220",
+      "0x004d8224"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d8220",
+      "0x004d8224"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        40,
+        44
+       ],
+       "range": [
+        "0x004d8224",
+        "0x004d8228"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D8224"
+     ],
+     "generated": [
+      "0x004d8224",
+      "0x004d8228"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d8224",
+      "0x004d8228"
+     ]
+    },
     {
      "range": [
       "0x004d8228",
@@ -51047,8 +54111,8 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        0,
-        4
+        44,
+        48
        ]
       }
      ]
@@ -51077,8 +54141,8 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        4,
-        8
+        48,
+        52
        ]
       }
      ]
@@ -51107,8 +54171,8 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        8,
-        12
+        52,
+        56
        ]
       }
      ]
@@ -51137,8 +54201,8 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        12,
-        16
+        56,
+        60
        ]
       }
      ]
@@ -51167,8 +54231,8 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        16,
-        20
+        60,
+        64
        ]
       }
      ]
@@ -51197,8 +54261,8 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        20,
-        24
+        64,
+        68
        ]
       }
      ]
@@ -51227,8 +54291,8 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        24,
-        28
+        68,
+        72
        ]
       }
      ]
@@ -51257,8 +54321,8 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        28,
-        32
+        72,
+        76
        ]
       }
      ]
@@ -51287,8 +54351,8 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        32,
-        36
+        76,
+        80
        ]
       }
      ]
@@ -51392,34 +54456,42 @@
      ]
     },
     {
-     "range": [
-      "0x004dc61c",
-      "0x004dc620"
-     ],
-     "generated": [
-      "0x004dc61c",
-      "0x004dc620"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "cry"
-     ],
      "also_referenced_by_c": [],
      "c_input_spans": [
       {
-       "section": ".sbss",
-       "range": [
-        "0x004dc61c",
-        "0x004dc620"
-       ],
        "object_range": [
         4,
-        8
+        24
        ],
+       "range": [
+        "0x004dc614",
+        "0x004dc628"
+       ],
+       "section": ".sbss",
        "symbols": [
-        "cry"
+        "pCamera",
+        "crx",
+        "cry",
+        "crvx",
+        "crvy"
        ]
       }
+     ],
+     "c_owned_symbols": [
+      "pCamera",
+      "crx",
+      "cry",
+      "crvx",
+      "crvy"
+     ],
+     "generated": [
+      "0x004dc614",
+      "0x004dc628"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004dc614",
+      "0x004dc628"
      ]
     },
     {
@@ -51445,8 +54517,8 @@
         "0x004dc634"
        ],
        "object_range": [
-        8,
-        16
+        24,
+        32
        ],
        "symbols": [
         "pAct",
@@ -51554,25 +54626,28 @@
    ],
    ".lit4": [
     {
-     "range": [
-      "0x004d8250",
-      "0x004d8260"
-     ],
-     "generated": [
-      "0x004d8250",
-      "0x004d8260"
-     ],
-     "generated_by": [
-      "HairTest"
+     "also_referenced_by_c": [
+      "D_004D824C"
      ],
      "c_owned_symbols": [
       "D_004D8250",
       "D_004D8254",
       "D_004D8258",
-      "D_004D825C"
+      "D_004D825C",
+      "D_004D8260",
+      "D_004D8264"
      ],
-     "also_referenced_by_c": [
-      "D_004D824C"
+     "generated": [
+      "0x004d8250",
+      "0x004d8268"
+     ],
+     "generated_by": [
+      "HairTest",
+      "__JNT_computeMatrix"
+     ],
+     "range": [
+      "0x004d8250",
+      "0x004d8268"
      ]
     }
    ],
@@ -51734,17 +54809,26 @@
     {
      "also_referenced_by_c": [],
      "c_owned_symbols": [
+      "D_004D826C",
+      "D_004D8270",
+      "D_004D8274",
+      "D_004D8278",
+      "D_004D827C",
+      "D_004D8280",
+      "D_004D8284",
+      "D_004D8288",
       "D_004D828C"
      ],
      "generated": [
-      "0x004d828c",
+      "0x004d826c",
       "0x004d8290"
      ],
      "generated_by": [
+      "InitTest_002DBE88",
       "ColliTest"
      ],
      "range": [
-      "0x004d828c",
+      "0x004d826c",
       "0x004d8290"
      ]
     }
@@ -51899,7 +54983,8 @@
         "_eftBuffer"
        ]
       }
-     ]
+     ],
+     "also_referenced_by_c": []
     },
     {
      "range": [
@@ -51929,7 +55014,8 @@
         "_scheduler"
        ]
       }
-     ]
+     ],
+     "also_referenced_by_c": []
     },
     {
      "range": [
@@ -51959,7 +55045,8 @@
         "_lineData"
        ]
       }
-     ]
+     ],
+     "also_referenced_by_c": []
     },
     {
      "range": [
@@ -51989,7 +55076,8 @@
         "_ptAlloc"
        ]
       }
-     ]
+     ],
+     "also_referenced_by_c": []
     },
     {
      "range": [
@@ -52019,7 +55107,8 @@
         "_battleData"
        ]
       }
-     ]
+     ],
+     "also_referenced_by_c": []
     },
     {
      "range": [
@@ -52049,7 +55138,8 @@
         "_battlePrm"
        ]
       }
-     ]
+     ],
+     "also_referenced_by_c": []
     },
     {
      "range": [
@@ -52079,7 +55169,8 @@
         "_battleActor"
        ]
       }
-     ]
+     ],
+     "also_referenced_by_c": []
     }
    ],
    ".data": [
@@ -52226,6 +55317,66 @@
      ]
     },
     {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        40,
+        44
+       ],
+       "range": [
+        "0x004d82e0",
+        "0x004d82e4"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D82E0"
+     ],
+     "generated": [
+      "0x004d82e0",
+      "0x004d82e4"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d82e0",
+      "0x004d82e4"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        44,
+        48
+       ],
+       "range": [
+        "0x004d82e4",
+        "0x004d82e8"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D82E4"
+     ],
+     "generated": [
+      "0x004d82e4",
+      "0x004d82e8"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d82e4",
+      "0x004d82e8"
+     ]
+    },
+    {
      "range": [
       "0x004d82e8",
       "0x004d82ec"
@@ -52246,8 +55397,8 @@
         "0x004d82ec"
        ],
        "object_range": [
-        40,
-        44
+        48,
+        52
        ],
        "symbols": [],
        "anonymous_emission": true
@@ -52278,8 +55429,8 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        44,
-        48
+        52,
+        56
        ]
       }
      ]
@@ -52308,8 +55459,8 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        48,
-        52
+        56,
+        60
        ]
       }
      ]
@@ -52335,8 +55486,8 @@
         "0x004d831c"
        ],
        "object_range": [
-        52,
-        56
+        60,
+        64
        ],
        "symbols": [],
        "anonymous_emission": true
@@ -52364,8 +55515,8 @@
         "0x004d8358"
        ],
        "object_range": [
-        56,
-        60
+        64,
+        68
        ],
        "symbols": [],
        "anonymous_emission": true
@@ -58263,9 +61414,99 @@
        ]
       }
      ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        16,
+        20
+       ],
+       "range": [
+        "0x004d836c",
+        "0x004d8370"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D836C"
+     ],
+     "generated": [
+      "0x004d836c",
+      "0x004d8370"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d836c",
+      "0x004d8370"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        20,
+        24
+       ],
+       "range": [
+        "0x004d8370",
+        "0x004d8374"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D8370"
+     ],
+     "generated": [
+      "0x004d8370",
+      "0x004d8374"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d8370",
+      "0x004d8374"
+     ]
     }
    ],
    ".rodata": [
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        80,
+        116
+       ],
+       "range": [
+        "0x004cc8b0",
+        "0x004cc8d4"
+       ],
+       "section": ".rodata",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "jtbl_004CC8B0"
+     ],
+     "generated": [
+      "0x004cc8b0",
+      "0x004cc8d4"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004cc8b0",
+      "0x004cc8d4"
+     ]
+    },
     {
      "range": [
       "0x004cc940",
@@ -58726,6 +61967,25 @@
       "0x004dbfdc"
      ]
     }
+   ],
+   ".rodata": [
+    {
+     "also_referenced_by_c": [],
+     "c_owned_symbols": [
+      "jtbl_004CD090"
+     ],
+     "generated": [
+      "0x004cd090",
+      "0x004cd0c0"
+     ],
+     "generated_by": [
+      "readConstantPool"
+     ],
+     "range": [
+      "0x004cd090",
+      "0x004cd0c0"
+     ]
+    }
    ]
   },
   "main/tu224": {
@@ -59143,6 +62403,36 @@
     }
    ],
    ".rodata": [
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        15488,
+        15512
+       ],
+       "range": [
+        "0x004cd8b0",
+        "0x004cd8c8"
+       ],
+       "section": ".rodata",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "jtbl_004CD8B0"
+     ],
+     "generated": [
+      "0x004cd8b0",
+      "0x004cd8c8"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004cd8b0",
+      "0x004cd8c8"
+     ]
+    },
     {
      "range": [
       "0x004cd8c8",
@@ -72381,6 +75671,96 @@
    ],
    ".lit4": [
     {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        0,
+        4
+       ],
+       "range": [
+        "0x004d8420",
+        "0x004d8424"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D8420"
+     ],
+     "generated": [
+      "0x004d8420",
+      "0x004d8424"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d8420",
+      "0x004d8424"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        4,
+        8
+       ],
+       "range": [
+        "0x004d8424",
+        "0x004d8428"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D8424"
+     ],
+     "generated": [
+      "0x004d8424",
+      "0x004d8428"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d8424",
+      "0x004d8428"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        8,
+        12
+       ],
+       "range": [
+        "0x004d8428",
+        "0x004d842c"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D8428"
+     ],
+     "generated": [
+      "0x004d8428",
+      "0x004d842c"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d8428",
+      "0x004d842c"
+     ]
+    },
+    {
      "range": [
       "0x004d842c",
       "0x004d8430"
@@ -72404,8 +75784,8 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        0,
-        4
+        12,
+        16
        ]
       }
      ]
@@ -72434,8 +75814,8 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        4,
-        8
+        16,
+        20
        ]
       }
      ]
@@ -72464,10 +75844,100 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        8,
-        12
+        20,
+        24
        ]
       }
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        24,
+        28
+       ],
+       "range": [
+        "0x004d8438",
+        "0x004d843c"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D8438"
+     ],
+     "generated": [
+      "0x004d8438",
+      "0x004d843c"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d8438",
+      "0x004d843c"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        28,
+        32
+       ],
+       "range": [
+        "0x004d843c",
+        "0x004d8440"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D843C"
+     ],
+     "generated": [
+      "0x004d843c",
+      "0x004d8440"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d843c",
+      "0x004d8440"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        32,
+        36
+       ],
+       "range": [
+        "0x004d8440",
+        "0x004d8444"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D8440"
+     ],
+     "generated": [
+      "0x004d8440",
+      "0x004d8444"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d8440",
+      "0x004d8444"
      ]
     },
     {
@@ -72494,8 +75964,8 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        12,
-        16
+        36,
+        40
        ]
       }
      ]
@@ -72524,8 +75994,8 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        16,
-        20
+        40,
+        44
        ]
       }
      ]
@@ -72554,8 +76024,8 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        20,
-        24
+        44,
+        48
        ]
       }
      ]
@@ -72812,6 +76282,68 @@
         4
        ]
       }
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        4,
+        8
+       ],
+       "range": [
+        "0x004d847c",
+        "0x004d8480"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D847C"
+     ],
+     "generated": [
+      "0x004d847c",
+      "0x004d8480"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d847c",
+      "0x004d8480"
+     ]
+    }
+   ],
+   ".rodata": [
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        0,
+        24
+       ],
+       "range": [
+        "0x004d1820",
+        "0x004d1838"
+       ],
+       "section": ".rodata",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "jtbl_004D1820"
+     ],
+     "generated": [
+      "0x004d1820",
+      "0x004d1838"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d1820",
+      "0x004d1838"
      ]
     }
    ]
@@ -73355,6 +76887,79 @@
       "0x004dc248"
      ]
     }
+   ],
+   ".lit4": [
+    {
+     "also_referenced_by_c": [
+      "D_004D850C"
+     ],
+     "c_owned_symbols": [
+      "D_004D8500",
+      "D_004D8504",
+      "D_004D8508"
+     ],
+     "generated": [
+      "0x004d8500",
+      "0x004d850c"
+     ],
+     "generated_by": [
+      "FCV_getPackVal2s"
+     ],
+     "range": [
+      "0x004d8500",
+      "0x004d850c"
+     ]
+    },
+    {
+     "also_referenced_by_c": [
+      "D_004D8514",
+      "D_004D8518",
+      "D_004D851C",
+      "D_004D8520",
+      "D_004D8524",
+      "D_004D8528"
+     ],
+     "c_owned_symbols": [
+      "D_004D8510"
+     ],
+     "generated": [
+      "0x004d8510",
+      "0x004d8514"
+     ],
+     "generated_by": [
+      "FCV2_getVal"
+     ],
+     "range": [
+      "0x004d8510",
+      "0x004d8514"
+     ]
+    }
+   ],
+   ".rodata": [
+    {
+     "also_referenced_by_c": [],
+     "c_owned_symbols": [
+      "jtbl_004D1920",
+      "jtbl_004D1940",
+      "jtbl_004D1960",
+      "jtbl_004D1980",
+      "jtbl_004D19A0",
+      "jtbl_004D19C0",
+      "jtbl_004D19E0"
+     ],
+     "generated": [
+      "0x004d1920",
+      "0x004d19f4"
+     ],
+     "generated_by": [
+      "FCV2_getPackVal",
+      "FCV_getPackVal2f"
+     ],
+     "range": [
+      "0x004d1920",
+      "0x004d1a00"
+     ]
+    }
    ]
   },
   "main/tu261": {
@@ -73509,19 +77114,32 @@
     {
      "also_referenced_by_c": [],
      "c_owned_symbols": [
+      "D_004D8578",
+      "D_004D857C",
+      "D_004D8580",
+      "D_004D8584",
+      "D_004D8588",
+      "D_004D858C",
+      "D_004D8590",
+      "D_004D8594",
+      "D_004D8598",
+      "D_004D859C",
+      "D_004D85A0",
+      "D_004D85A4",
       "D_004D85A8",
       "D_004D85AC"
      ],
      "generated": [
-      "0x004d85a8",
+      "0x004d8578",
       "0x004d85b0"
      ],
      "generated_by": [
       "LOOK_eyeL_cont",
-      "LOOK_eyeR_cont"
+      "LOOK_eyeR_cont",
+      "LOOK_head_cont"
      ],
      "range": [
-      "0x004d85a8",
+      "0x004d8578",
       "0x004d85b0"
      ]
     }
@@ -73806,6 +77424,66 @@
        ]
       }
      ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        20,
+        24
+       ],
+       "range": [
+        "0x004d85ec",
+        "0x004d85f0"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D85EC"
+     ],
+     "generated": [
+      "0x004d85ec",
+      "0x004d85f0"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d85ec",
+      "0x004d85f0"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        24,
+        28
+       ],
+       "range": [
+        "0x004d85f0",
+        "0x004d85f4"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D85F0"
+     ],
+     "generated": [
+      "0x004d85f0",
+      "0x004d85f4"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d85f0",
+      "0x004d85f4"
+     ]
     }
    ],
    ".rodata": [
@@ -74027,6 +77705,30 @@
      "range": [
       "0x004dc3b8",
       "0x004dc3bd"
+     ]
+    }
+   ],
+   ".lit4": [
+    {
+     "also_referenced_by_c": [],
+     "c_owned_symbols": [
+      "D_004D8804",
+      "D_004D8808",
+      "D_004D880C",
+      "D_004D8810",
+      "D_004D8814",
+      "D_004D8818"
+     ],
+     "generated": [
+      "0x004d8804",
+      "0x004d881c"
+     ],
+     "generated_by": [
+      "UnduCheckSubCrossCheck"
+     ],
+     "range": [
+      "0x004d8804",
+      "0x004d881c"
      ]
     }
    ]
@@ -98276,7 +101978,11 @@
       "name_1",
       "path_0"
      ],
-     "also_referenced_by_c": [],
+     "also_referenced_by_c": [
+      "prm_8",
+      "dmyActor_12",
+      "prm_13"
+     ],
      "c_input_spans": [
       {
        "section": ".bss",
@@ -98325,7 +102031,8 @@
       "0x00586100"
      ],
      "generated_by": [
-      "execFileSelect"
+      "execFileSelect",
+      "initFileSelect"
      ],
      "c_owned_symbols": [
       "cfs"
@@ -98456,6 +102163,126 @@
         8
        ]
       }
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        8,
+        12
+       ],
+       "range": [
+        "0x004d82a0",
+        "0x004d82a4"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D82A0"
+     ],
+     "generated": [
+      "0x004d82a0",
+      "0x004d82a4"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d82a0",
+      "0x004d82a4"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        12,
+        16
+       ],
+       "range": [
+        "0x004d82a4",
+        "0x004d82a8"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D82A4"
+     ],
+     "generated": [
+      "0x004d82a4",
+      "0x004d82a8"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d82a4",
+      "0x004d82a8"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        16,
+        20
+       ],
+       "range": [
+        "0x004d82a8",
+        "0x004d82ac"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D82A8"
+     ],
+     "generated": [
+      "0x004d82a8",
+      "0x004d82ac"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d82a8",
+      "0x004d82ac"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        20,
+        24
+       ],
+       "range": [
+        "0x004d82ac",
+        "0x004d82b0"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D82AC"
+     ],
+     "generated": [
+      "0x004d82ac",
+      "0x004d82b0"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d82ac",
+      "0x004d82b0"
      ]
     }
    ],
@@ -98867,18 +102694,23 @@
       "CallMethod",
       "CallMethod_I",
       "CallMethod_II",
+      "SCRIPT_exec2",
       "SCRIPT_execEntered",
       "SCRIPT_execTalkto",
       "SCRIPT_execTouchto",
       "SCRIPT_load",
       "SCRIPT_load2",
       "XTK_findFile",
+      "createTalkTask",
       "funcObserver"
      ],
      "c_owned_symbols": [
       "scriptDB"
      ],
-     "also_referenced_by_c": [],
+     "also_referenced_by_c": [
+      "D_004DEDF0",
+      "dbgWind"
+     ],
      "c_input_spans": [
       {
        "section": ".bss",
@@ -98994,6 +102826,216 @@
        ]
       }
      ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        48,
+        64
+       ],
+       "range": [
+        "0x004c1e90",
+        "0x004c1ea0"
+       ],
+       "section": ".rodata",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004C1E90"
+     ],
+     "generated": [
+      "0x004c1e90",
+      "0x004c1ea0"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004c1e90",
+      "0x004c1ea0"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        64,
+        88
+       ],
+       "range": [
+        "0x004c1eb0",
+        "0x004c1ec8"
+       ],
+       "section": ".rodata",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004C1EB0"
+     ],
+     "generated": [
+      "0x004c1eb0",
+      "0x004c1ec8"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004c1eb0",
+      "0x004c1ec8"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        88,
+        112
+       ],
+       "range": [
+        "0x004c1ec8",
+        "0x004c1ee0"
+       ],
+       "section": ".rodata",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004C1EC8"
+     ],
+     "generated": [
+      "0x004c1ec8",
+      "0x004c1ee0"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004c1ec8",
+      "0x004c1ee0"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        112,
+        128
+       ],
+       "range": [
+        "0x004c1ee0",
+        "0x004c1ef0"
+       ],
+       "section": ".rodata",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004C1EE0"
+     ],
+     "generated": [
+      "0x004c1ee0",
+      "0x004c1ef0"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004c1ee0",
+      "0x004c1ef0"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        128,
+        144
+       ],
+       "range": [
+        "0x004c1ef0",
+        "0x004c1f00"
+       ],
+       "section": ".rodata",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004C1EF0"
+     ],
+     "generated": [
+      "0x004c1ef0",
+      "0x004c1f00"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004c1ef0",
+      "0x004c1f00"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        144,
+        208
+       ],
+       "range": [
+        "0x004c1f00",
+        "0x004c1f40"
+       ],
+       "section": ".rodata",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004C1F00"
+     ],
+     "generated": [
+      "0x004c1f00",
+      "0x004c1f40"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004c1f00",
+      "0x004c1f40"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        208,
+        236
+       ],
+       "range": [
+        "0x004c1f40",
+        "0x004c1f5c"
+       ],
+       "section": ".rodata",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "jtbl_004C1F40"
+     ],
+     "generated": [
+      "0x004c1f40",
+      "0x004c1f5c"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004c1f40",
+      "0x004c1f5c"
+     ]
     }
    ],
    ".sbss": [
@@ -99010,18 +103052,23 @@
       "CallMethod",
       "CallMethod_I",
       "CallMethod_II",
+      "SCRIPT_exec2",
       "SCRIPT_execEntered",
       "SCRIPT_execTalkto",
       "SCRIPT_execTouchto",
       "SCRIPT_load",
       "SCRIPT_load2",
       "XTK_findFile",
+      "createTalkTask",
       "funcObserver"
      ],
      "c_owned_symbols": [
       "currentScriptDB"
      ],
-     "also_referenced_by_c": [],
+     "also_referenced_by_c": [
+      "fileSelect",
+      "lightFileNum"
+     ],
      "c_input_spans": [
       {
        "credit": "verified",
@@ -99144,6 +103191,36 @@
      ]
     },
     {
+     "c_input_spans": [
+      {
+       "object_range": [
+        20,
+        24
+       ],
+       "range": [
+        "0x004da448",
+        "0x004da44c"
+       ],
+       "section": ".sdata",
+       "symbols": [
+        "s_nScriptEventSkipEntry"
+       ]
+      }
+     ],
+     "c_owned_symbols": [
+      "s_nScriptEventSkipEntry"
+     ],
+     "generated": [
+      "0x004da448",
+      "0x004da44c"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004da448",
+      "0x004da44c"
+     ]
+    },
+    {
      "range": [
       "0x004da44c",
       "0x004da45c"
@@ -99167,8 +103244,8 @@
         "0x004da45c"
        ],
        "object_range": [
-        20,
-        36
+        24,
+        40
        ],
        "symbols": [
         "s_nScriptCfTime",
@@ -99300,6 +103377,156 @@
         "size": 6
        }
       }
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        80,
+        88
+       ],
+       "range": [
+        "0x004da480",
+        "0x004da488"
+       ],
+       "section": ".sdata",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004DA480"
+     ],
+     "generated": [
+      "0x004da480",
+      "0x004da488"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004da480",
+      "0x004da488"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        88,
+        96
+       ],
+       "range": [
+        "0x004da488",
+        "0x004da490"
+       ],
+       "section": ".sdata",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004DA488"
+     ],
+     "generated": [
+      "0x004da488",
+      "0x004da490"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004da488",
+      "0x004da490"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        112,
+        117
+       ],
+       "range": [
+        "0x004da490",
+        "0x004da495"
+       ],
+       "section": ".sdata",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004DA490"
+     ],
+     "generated": [
+      "0x004da490",
+      "0x004da495"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004da490",
+      "0x004da495"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        96,
+        104
+       ],
+       "range": [
+        "0x004da4a0",
+        "0x004da4a8"
+       ],
+       "section": ".sdata",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004DA4A0"
+     ],
+     "generated": [
+      "0x004da4a0",
+      "0x004da4a8"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004da4a0",
+      "0x004da4a8"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        104,
+        112
+       ],
+       "range": [
+        "0x004da4a8",
+        "0x004da4b0"
+       ],
+       "section": ".sdata",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004DA4A8"
+     ],
+     "generated": [
+      "0x004da4a8",
+      "0x004da4b0"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004da4a8",
+      "0x004da4b0"
      ]
     },
     {
@@ -146684,23 +150911,10 @@
   "main/tu116": {
    ".data": [
     {
-     "also_referenced_by_c": [],
-     "c_input_spans": [
-      {
-       "credit": "verified",
-       "object_range": [
-        0,
-        172080
-       ],
-       "range": [
-        "0x00338680",
-        "0x003626b0"
-       ],
-       "section": ".data",
-       "symbols": [
-        "GameLoopState"
-       ]
-      }
+     "also_referenced_by_c": [
+      "str_0",
+      "str_1",
+      "TestEnv_2_00338620"
      ],
      "c_owned_symbols": [
       "GameLoopState"
@@ -146709,7 +150923,25 @@
       "0x00338680",
       "0x003626b0"
      ],
-     "generated_by": [],
+     "generated_by": [
+      "GameDrawSync",
+      "GameModeCfEvent",
+      "GameModeDebugMenu",
+      "GameModeEvtDebug",
+      "GameModeEvtTools",
+      "GameModePause",
+      "GamePopSaveDataUser",
+      "GamePushSaveDataUser",
+      "GameStateRestore",
+      "GameStateRestoreCameraLight",
+      "GameStateSave",
+      "GameStateSaveCameraLight",
+      "Game_Data_Pop",
+      "MenuGameDataPush",
+      "actTalkAfter",
+      "checkTalk",
+      "checkTalkPoint"
+     ],
      "range": [
       "0x00338680",
       "0x003626b0"
@@ -146718,7 +150950,10 @@
    ],
    ".sbss": [
     {
-     "also_referenced_by_c": [],
+     "also_referenced_by_c": [
+      "shopNo",
+      "GameCFSoundMenuPurgeFlag"
+     ],
      "c_input_spans": [
       {
        "credit": "verified",
@@ -146743,7 +150978,9 @@
       "0x004dc510",
       "0x004dc518"
      ],
-     "generated_by": [],
+     "generated_by": [
+      "checkAttr"
+     ],
      "range": [
       "0x004dc510",
       "0x004dc518"
@@ -146752,37 +150989,160 @@
    ],
    ".sdata": [
     {
-     "also_referenced_by_c": [],
+     "also_referenced_by_c": [
+      "D_004D8A60"
+     ],
      "c_input_spans": [
       {
-       "credit": "verified",
+       "anonymous_emission": true,
+       "object_range": [
+        8,
+        16
+       ],
+       "range": [
+        "0x004d8a70",
+        "0x004d8a78"
+       ],
+       "section": ".sdata",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D8A70"
+     ],
+     "generated": [
+      "0x004d8a70",
+      "0x004d8a78"
+     ],
+     "generated_by": [
+      "checkTalkPoint"
+     ],
+     "range": [
+      "0x004d8a70",
+      "0x004d8a78"
+     ]
+    },
+    {
+     "also_referenced_by_c": [
+      "D_004D8A60"
+     ],
+     "c_input_spans": [
+      {
        "object_range": [
         0,
-        2
+        1
        ],
        "range": [
         "0x004d8a78",
-        "0x004d8a7a"
+        "0x004d8a79"
        ],
        "section": ".sdata",
        "symbols": [
-        "SnapDrawCreditFlag",
-        "UseTestPath"
+        "SnapDrawCreditFlag"
        ]
       }
      ],
      "c_owned_symbols": [
-      "SnapDrawCreditFlag",
-      "UseTestPath"
+      "SnapDrawCreditFlag"
      ],
      "generated": [
       "0x004d8a78",
-      "0x004d8a7a"
+      "0x004d8a79"
      ],
      "generated_by": [],
      "range": [
       "0x004d8a78",
-      "0x004d8a7a"
+      "0x004d8a79"
+     ]
+    },
+    {
+     "also_referenced_by_c": [
+      "D_004D8A60"
+     ],
+     "c_input_spans": [
+      {
+       "object_range": [
+        1,
+        8
+       ],
+       "range": [
+        "0x004d8a79",
+        "0x004d8a80"
+       ],
+       "section": ".sdata",
+       "symbols": [
+        "UseTestPath"
+       ],
+       "zero_padding_tail": 6
+      }
+     ],
+     "c_owned_symbols": [
+      "UseTestPath"
+     ],
+     "generated": [
+      "0x004d8a79",
+      "0x004d8a80"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d8a79",
+      "0x004d8a80"
+     ]
+    }
+   ],
+   ".lit4": [
+    {
+     "also_referenced_by_c": [],
+     "c_owned_symbols": [
+      "D_004D7B80",
+      "D_004D7B84"
+     ],
+     "generated": [
+      "0x004d7b80",
+      "0x004d7b88"
+     ],
+     "generated_by": [
+      "checkTalk"
+     ],
+     "range": [
+      "0x004d7b80",
+      "0x004d7b88"
+     ]
+    },
+    {
+     "also_referenced_by_c": [],
+     "c_owned_symbols": [
+      "D_004D7B90",
+      "D_004D7B94",
+      "D_004D7B98"
+     ],
+     "generated": [
+      "0x004d7b90",
+      "0x004d7b9c"
+     ],
+     "generated_by": [
+      "checkItemBox"
+     ],
+     "range": [
+      "0x004d7b90",
+      "0x004d7b9c"
+     ]
+    },
+    {
+     "also_referenced_by_c": [],
+     "c_owned_symbols": [
+      "D_004D7BA0"
+     ],
+     "generated": [
+      "0x004d7ba0",
+      "0x004d7ba4"
+     ],
+     "generated_by": [
+      "actSequenceClear"
+     ],
+     "range": [
+      "0x004d7ba0",
+      "0x004d7ba4"
      ]
     }
    ]
@@ -148603,6 +152963,31 @@
       }
      ]
     }
+   ],
+   ".lit4": [
+    {
+     "also_referenced_by_c": [],
+     "c_owned_symbols": [
+      "D_004D7C60",
+      "D_004D7C64",
+      "D_004D7C68",
+      "D_004D7C6C",
+      "D_004D7C70",
+      "D_004D7C74",
+      "D_004D7C78"
+     ],
+     "generated": [
+      "0x004d7c60",
+      "0x004d7c7c"
+     ],
+     "generated_by": [
+      "GameBgDrawType2Entry"
+     ],
+     "range": [
+      "0x004d7c60",
+      "0x004d7c7c"
+     ]
+    }
    ]
   },
   "main/tu133": {
@@ -148916,7 +153301,7 @@
      ],
      "generated": [
       "0x004c9850",
-      "0x004c9914"
+      "0x004c9918"
      ],
      "generated_by": [
       "MenuSkillStatusMain"
@@ -148924,11 +153309,46 @@
      "c_owned_symbols": [
       "jtbl_004C9850"
      ],
+     "also_referenced_by_c": []
+    },
+    {
      "also_referenced_by_c": [
       "D_004C99F8",
       "D_004C9A08",
-      "D_004C9A18",
+      "D_004C9A18"
+     ],
+     "c_owned_symbols": [
+      "jtbl_004C9960"
+     ],
+     "generated": [
+      "0x004c9960",
+      "0x004c99e8"
+     ],
+     "generated_by": [
+      "MenuSkillExMain"
+     ],
+     "range": [
+      "0x004c9960",
+      "0x004c99e8"
+     ]
+    },
+    {
+     "also_referenced_by_c": [
       "D_004C9A88"
+     ],
+     "c_owned_symbols": [
+      "jtbl_004C9A30"
+     ],
+     "generated": [
+      "0x004c9a30",
+      "0x004c9a88"
+     ],
+     "generated_by": [
+      "MenuSkillListMain"
+     ],
+     "range": [
+      "0x004c9a30",
+      "0x004c9a88"
      ]
     }
    ],
@@ -148954,6 +153374,7 @@
       "SkillDataBuf"
      ],
      "also_referenced_by_c": [
+      "D_004DB600",
       "D_004DB610",
       "D_004DB628",
       "D_004DB630",
@@ -149333,6 +153754,25 @@
         "size": 4
        }
       }
+     ]
+    }
+   ],
+   ".rodata": [
+    {
+     "also_referenced_by_c": [],
+     "c_owned_symbols": [
+      "jtbl_004CBE50"
+     ],
+     "generated": [
+      "0x004cbe50",
+      "0x004cbe78"
+     ],
+     "generated_by": [
+      "svAnalyzeChunk"
+     ],
+     "range": [
+      "0x004cbe50",
+      "0x004cbe78"
      ]
     }
    ]
@@ -152022,6 +156462,36 @@
      ]
     },
     {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        1792,
+        1908
+       ],
+       "range": [
+        "0x004c1440",
+        "0x004c14b4"
+       ],
+       "section": ".rodata",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "jtbl_004C1440"
+     ],
+     "generated": [
+      "0x004c1440",
+      "0x004c14b4"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004c1440",
+      "0x004c14b4"
+     ]
+    },
+    {
      "range": [
       "0x004c14b8",
       "0x004c1508"
@@ -152974,6 +157444,35 @@
   "main/tu162": {
    ".lit4": [
     {
+     "also_referenced_by_c": [],
+     "c_owned_symbols": [
+      "D_004D7D64",
+      "D_004D7D68",
+      "D_004D7D6C",
+      "D_004D7D70",
+      "D_004D7D74",
+      "D_004D7D78",
+      "D_004D7D7C",
+      "D_004D7D80",
+      "D_004D7D84",
+      "D_004D7D88",
+      "D_004D7D8C",
+      "D_004D7D90",
+      "D_004D7D94"
+     ],
+     "generated": [
+      "0x004d7d64",
+      "0x004d7d98"
+     ],
+     "generated_by": [
+      "tskMenuTai"
+     ],
+     "range": [
+      "0x004d7d64",
+      "0x004d7d98"
+     ]
+    },
+    {
      "range": [
       "0x004d7da0",
       "0x004d7da4"
@@ -153054,6 +157553,26 @@
       "TopInfo",
       "TopMenuWin",
       "TopFaceExWin"
+     ]
+    }
+   ],
+   ".rodata": [
+    {
+     "also_referenced_by_c": [],
+     "c_owned_symbols": [
+      "D_004C3640",
+      "D_004C3650"
+     ],
+     "generated": [
+      "0x004c3640",
+      "0x004c36c0"
+     ],
+     "generated_by": [
+      "tskMenuTai"
+     ],
+     "range": [
+      "0x004c3640",
+      "0x004c36c0"
      ]
     }
    ]
@@ -153154,6 +157673,66 @@
    ],
    ".lit4": [
     {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        0,
+        4
+       ],
+       "range": [
+        "0x004d7f58",
+        "0x004d7f5c"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D7F58"
+     ],
+     "generated": [
+      "0x004d7f58",
+      "0x004d7f5c"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d7f58",
+      "0x004d7f5c"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        4,
+        8
+       ],
+       "range": [
+        "0x004d7f5c",
+        "0x004d7f60"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D7F5C"
+     ],
+     "generated": [
+      "0x004d7f5c",
+      "0x004d7f60"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d7f5c",
+      "0x004d7f60"
+     ]
+    },
+    {
      "range": [
       "0x004d7f60",
       "0x004d7f64"
@@ -153214,6 +157793,156 @@
      ]
     },
     {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        8,
+        12
+       ],
+       "range": [
+        "0x004d7f68",
+        "0x004d7f6c"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D7F68"
+     ],
+     "generated": [
+      "0x004d7f68",
+      "0x004d7f6c"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d7f68",
+      "0x004d7f6c"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        12,
+        16
+       ],
+       "range": [
+        "0x004d7f6c",
+        "0x004d7f70"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D7F6C"
+     ],
+     "generated": [
+      "0x004d7f6c",
+      "0x004d7f70"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d7f6c",
+      "0x004d7f70"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        16,
+        20
+       ],
+       "range": [
+        "0x004d7f70",
+        "0x004d7f74"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D7F70"
+     ],
+     "generated": [
+      "0x004d7f70",
+      "0x004d7f74"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d7f70",
+      "0x004d7f74"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        20,
+        24
+       ],
+       "range": [
+        "0x004d7f74",
+        "0x004d7f78"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D7F74"
+     ],
+     "generated": [
+      "0x004d7f74",
+      "0x004d7f78"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d7f74",
+      "0x004d7f78"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        24,
+        28
+       ],
+       "range": [
+        "0x004d7f78",
+        "0x004d7f7c"
+       ],
+       "section": ".lit4",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004D7F78"
+     ],
+     "generated": [
+      "0x004d7f78",
+      "0x004d7f7c"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004d7f78",
+      "0x004d7f7c"
+     ]
+    },
+    {
      "range": [
       "0x004d7f7c",
       "0x004d7f80"
@@ -153269,8 +157998,8 @@
         "0x004ca4e0"
        ],
        "object_range": [
-        120,
-        136
+        152,
+        168
        ],
        "symbols": [
         "D_004CA4D0"
@@ -153361,8 +158090,8 @@
         "0x004ca520"
        ],
        "object_range": [
-        136,
-        160
+        168,
+        192
        ],
        "symbols": [
         "D_004CA508"
@@ -153391,8 +158120,8 @@
         "0x004ca530"
        ],
        "object_range": [
-        160,
-        176
+        192,
+        208
        ],
        "symbols": [
         "D_004CA520"
@@ -153421,8 +158150,8 @@
         "0x004ca550"
        ],
        "object_range": [
-        176,
-        208
+        208,
+        240
        ],
        "symbols": [
         "D_004CA530"
@@ -153451,8 +158180,8 @@
         "0x004ca568"
        ],
        "object_range": [
-        208,
-        232
+        240,
+        264
        ],
        "symbols": [
         "D_004CA550"
@@ -153481,8 +158210,8 @@
         "0x004ca578"
        ],
        "object_range": [
-        232,
-        248
+        264,
+        280
        ],
        "symbols": [
         "D_004CA568"
@@ -153514,10 +158243,40 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        256,
-        304
+        288,
+        336
        ]
       }
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "object_range": [
+        40,
+        72
+       ],
+       "range": [
+        "0x004ca5b0",
+        "0x004ca5d0"
+       ],
+       "section": ".rodata",
+       "symbols": [
+        "D_004CA5B0"
+       ]
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004CA5B0"
+     ],
+     "generated": [
+      "0x004ca5b0",
+      "0x004ca5d0"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004ca5b0",
+      "0x004ca5d0"
      ]
     },
     {
@@ -153535,8 +158294,8 @@
       {
        "credit": "uncredited_dependency",
        "object_range": [
-        40,
-        72
+        72,
+        104
        ],
        "range": [
         "0x004ca5d0",
@@ -153577,8 +158336,8 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        304,
-        336
+        336,
+        368
        ]
       }
      ]
@@ -153607,10 +158366,70 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        336,
-        380
+        368,
+        412
        ]
       }
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        416,
+        424
+       ],
+       "range": [
+        "0x004ca640",
+        "0x004ca648"
+       ],
+       "section": ".rodata",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004CA640"
+     ],
+     "generated": [
+      "0x004ca640",
+      "0x004ca648"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004ca640",
+      "0x004ca648"
+     ]
+    },
+    {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        424,
+        432
+       ],
+       "range": [
+        "0x004ca648",
+        "0x004ca650"
+       ],
+       "section": ".rodata",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "D_004CA648"
+     ],
+     "generated": [
+      "0x004ca648",
+      "0x004ca650"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004ca648",
+      "0x004ca650"
      ]
     },
     {
@@ -153628,8 +158447,8 @@
       {
        "credit": "uncredited_dependency",
        "object_range": [
-        72,
-        120
+        104,
+        152
        ],
        "range": [
         "0x004ca650",
@@ -160078,6 +164897,36 @@
      ]
     },
     {
+     "c_input_spans": [
+      {
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        672,
+        1088
+       ],
+       "range": [
+        "0x004c82f0",
+        "0x004c8490"
+       ],
+       "section": ".rodata",
+       "symbols": []
+      }
+     ],
+     "c_owned_symbols": [
+      "jtbl_004C82F0"
+     ],
+     "generated": [
+      "0x004c82f0",
+      "0x004c8490"
+     ],
+     "generated_by": [],
+     "range": [
+      "0x004c82f0",
+      "0x004c8490"
+     ]
+    },
+    {
      "range": [
       "0x004c8870",
       "0x004c8890"
@@ -160131,8 +164980,8 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        672,
-        684
+        1088,
+        1100
        ]
       }
      ]
@@ -161876,6 +166725,54 @@
         116
        ]
       }
+     ]
+    }
+   ]
+  },
+  "main/tu161": {
+   ".rodata": [
+    {
+     "also_referenced_by_c": [],
+     "c_owned_symbols": [
+      "jtbl_004C3310",
+      "jtbl_004C3350"
+     ],
+     "generated": [
+      "0x004c3310",
+      "0x004c337c"
+     ],
+     "generated_by": [
+      "eNumberMain"
+     ],
+     "range": [
+      "0x004c3310",
+      "0x004c3380"
+     ]
+    }
+   ]
+  },
+  "main/tu270": {
+   ".lit4": [
+    {
+     "also_referenced_by_c": [],
+     "c_owned_symbols": [
+      "D_004D8784",
+      "D_004D8788",
+      "D_004D878C",
+      "D_004D8790"
+     ],
+     "generated": [
+      "0x004d8784",
+      "0x004d8794"
+     ],
+     "generated_by": [
+      "MAP_createUnitPeer",
+      "SEQ_motionUnit",
+      "SEQ_rotateUnitSPL"
+     ],
+     "range": [
+      "0x004d8784",
+      "0x004d8794"
      ]
     }
    ]
