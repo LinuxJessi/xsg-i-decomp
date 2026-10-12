@@ -26,6 +26,10 @@ static unsigned char queue_top;
 static unsigned char queue_end;
 
 static unsigned char D_0093E120[17 * 2];
+extern unsigned char D_0093E0C0[];
+extern unsigned char base_0_00491770[];
+extern unsigned char n_1[];
+extern unsigned char n_2[];
 
 int sceMcOpen(int port, int slot, const char *name, int mode);
 int sceMcClose(int fd);
@@ -33,6 +37,11 @@ int sceMcRead(int fd, void *buffer, int size);
 int sceMcWrite(int fd, const void *buffer, int size);
 int sceMcSync(int mode, int *command, int *result);
 int sceMcGetInfo(int port, int slot, int *type, int *free, int *format);
+
+/* One queued memory-card request; the request routines fill the queue slot. */
+
+
+/* The caller's request parameters: file slot, name, data and size. */
 
 INCLUDE_ASM("asm/main/nonmatchings/xgl_mc", xglMcRequest);
 
@@ -180,7 +189,79 @@ void xglMcWriteMapName(char *buffer, int slot)
     buffer[227] = value % 10 + 'O';
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/xgl_mc", xglMcSetFullPath);
+unsigned char *xglMcSetFullPath(int card, int selector)
+{
+    signed char *dest;
+    const unsigned char *source;
+    const signed char *prefix_end;
+
+    dest = (signed char *)D_0093E0C0;
+    source = base_0_00491770;
+    while ((*dest = *source) != 0)
+    {
+        dest++;
+        source++;
+    }
+
+    if (card < 0)
+    {
+        *dest = '*';
+        dest++;
+    }
+    else
+    {
+        dest[1] = '0' + card % 10;
+        dest[0] = '0' + (card / 10) % 10;
+        dest += 2;
+    }
+
+    switch (selector)
+    {
+    case 0:
+        prefix_end = dest;
+        for (source = D_0093E0C0; source != (const unsigned char *)prefix_end; source++)
+        {
+            *dest = *source;
+            dest++;
+        }
+        *dest = 0;
+        break;
+    case 1:
+        {
+            source = n_1;
+        }
+        while ((*dest = *source) != 0)
+        {
+            dest++;
+            source++;
+        }
+        break;
+    case 2:
+        {
+            source = n_2;
+        }
+        while ((*dest = *source) != 0)
+        {
+            dest++;
+            source++;
+        }
+        break;
+    case -1:
+        *dest = 0;
+        break;
+    default:
+        *dest = '/';
+        dest++;
+        source = (const unsigned char *)selector;
+        while ((*dest = *source) != 0)
+        {
+            dest++;
+            source++;
+        }
+        break;
+    }
+    return D_0093E0C0;
+}
 
 INCLUDE_ASM("asm/main/nonmatchings/xgl_mc", execute);
 

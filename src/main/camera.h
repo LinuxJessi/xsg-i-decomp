@@ -14,6 +14,8 @@
  *  +6 first_key and +8 last_key are stored by CAMERA_rotateSPL itself.
  * Offset +0 is never touched by either body, so it is kept as opaque
  * reserved bytes, not a named semantic field. */
+#include "main/init_vm.h"
+
 typedef struct CameraSpline {
     unsigned char reserved0[4];
     unsigned short weight_mode;
@@ -294,14 +296,6 @@ extern CfCameraDefinition CfCameraDefine[33];
 /* Interpreter native-call storage, defined by main/tu226 init_vm.c.
  * Native callbacks receive arrays of these four-byte value slots for both
  * arguments and results; the method descriptor selects each member. */
-typedef union VMSlot {
-    int i;
-    float f;
-    void *ref;
-    unsigned char b;
-    short s;
-    unsigned short c;
-} VMSlot;
 
 typedef struct VMThreadP VMThread;
 

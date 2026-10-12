@@ -4,9 +4,94 @@
 
 #include "main/xgl_packet.h"
 
+#include "main/srs.h"
+
 typedef unsigned int Quadword __attribute__((mode(TI)));
 
 typedef struct Matrix { float elements[16]; } Matrix;
+
+typedef union SGsGifRecord {
+    Quadword quad;
+    unsigned long long dword[2];
+    int word[4];
+    unsigned short halfword[8];
+    float floatValue[4];
+} SGsGifRecord;
+
+typedef struct SGsPacket {
+    int count;              /* 0x0 */
+    int tagIndex;           /* 0x4 */
+    int loopCount;          /* 0x8 */
+    SGsGifRecord *base;     /* 0xC, starts at the scratchpad (0x70000000) */
+} SGsPacket;
+
+extern SGsPacket _packet;
+
+typedef struct SvModelPosition {
+    int x;
+    int y;
+    int z;
+    int alpha;
+} SvModelPosition;
+
+typedef struct SvModelDrawItem {
+    Matrix4 orientation;
+    Matrix4 cfMatrix;
+    unsigned char unmodeled_080[64];
+    Vector4 origin;
+    unsigned char unmodeled_0d0[48];
+    Vector4 scale;
+    unsigned char unmodeled_110[48];
+    SvModelPosition position;
+    unsigned char unmodeled_150[4];
+    float scaleMultiplier;
+    unsigned char unmodeled_158[10];
+    unsigned char blendMode;
+    unsigned char unmodeled_163[13];
+    void *model;
+    void *texture;
+    unsigned char unmodeled_178[16];
+    short renderType;
+    unsigned char unmodeled_18a[2];
+    unsigned int renderFlags;
+    unsigned char unmodeled_190[0x280 - 0x190];
+} SvModelDrawItem;
+
+extern Matrix _defMatLc;
+
+typedef struct SvParticleEffect {
+    unsigned char unmodeled_00[4];
+    const short *scriptWords;
+    unsigned char unmodeled_08[40];
+    Vector4 position;
+    unsigned char unmodeled_40[464 - 64];
+    const short *renderDomainA;
+    unsigned char unmodeled_1D4[12];
+    const short *renderDomainB;
+    unsigned char unmodeled_1E4[0x600 - 484];
+    short particleIndices[256];
+    unsigned char unmodeled_800[0x812 - 0x800];
+    unsigned short flags;
+} SvParticleEffect;
+
+typedef struct SvParticleDrawContext {
+    Matrix4 *place;
+    Vector4 *scale;
+    const Quadword *textureCoordinates;
+    const Quadword *gifRegisters;
+    float scaleMultiplier;
+    int drawVariant;
+} SvParticleDrawContext;
+
+extern Matrix4 _invView;
+
+extern Matrix4 _svUnitMatrix;
+
+extern const Quadword stqTbl_004CBEA0[4];
+
+extern const Quadword _svRegData;
+
+
 
 static int _draw3D = 0;
 
@@ -169,7 +254,7 @@ typedef struct SvScriptSlot {
     void *dataPtr;                        /* 0x20 */
 } SvScriptSlot;
 
-int svAnalyzeChunk(SvTypeList *typeList, void *chunk);
+static void svAnalyzeChunk(SvTypeList *typeList, void *chunk);
 
 static SvTypeList *svGetTypeList(int type);
 
@@ -276,20 +361,7 @@ static void svDrawSchedulerParticle(void);
  * its A+D address) or as four words (sw, SGsAddGifXYZ2).
  */
 
-typedef union SGsGifRecord {
-    Quadword quad;
-    unsigned long long dword[2];
-    int word[4];
-    unsigned short halfword[8];
-    float floatValue[4];
-} SGsGifRecord;
 
-typedef struct SGsPacket {
-    int count;              /* 0x0 */
-    int tagIndex;           /* 0x4 */
-    int loopCount;          /* 0x8 */
-    SGsGifRecord *base;     /* 0xC, starts at the scratchpad (0x70000000) */
-} SGsPacket;
 
 typedef struct SvImageParameter {
     unsigned long long texture;
@@ -598,7 +670,63 @@ static int svAddScript2(int typeListAddr, void *script)
   return index;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/sv_get_image_item", svAnalyzeChunk);
+typedef struct SvResourceChunk {
+    unsigned int byteSize;
+    unsigned char unmodeled_04[4];
+    short kind;
+    unsigned char unmodeled_0A[54];
+} SvResourceChunk;
+
+typedef struct SvResourceChunkFile {
+    SvResourceChunk *firstChunk;
+} SvResourceChunkFile;
+
+static int svAddImage(SvTypeList *typeList, void *chunk);
+static int svAddClut(SvTypeList *typeList, void *chunk);
+static int svAddModel(SvTypeList *typeList, void *chunk);
+static int svAddScript(SvTypeList *typeList, void *chunk);
+
+static void svAnalyzeChunk(SvTypeList *typeList, void *chunkFile)
+{
+    SvResourceChunkFile *file = chunkFile;
+    SvResourceChunk *chunk = file->firstChunk;
+
+    while (chunk->kind != 0) {
+        switch (chunk->kind) {
+        case 1:
+        case 2:
+            chunk++;
+            continue;
+        case 4:
+            svAddImage(typeList, chunk);
+            chunk = (SvResourceChunk *)((unsigned char *)chunk + chunk->byteSize);
+            break;
+        case 3:
+            svAddClut(typeList, chunk);
+            chunk = (SvResourceChunk *)((unsigned char *)chunk + chunk->byteSize);
+            break;
+        case 7:
+            svAddImage(typeList, chunk);
+            chunk = (SvResourceChunk *)((unsigned char *)chunk + chunk->byteSize);
+            break;
+        case 6:
+        case 9:
+            svAddModel(typeList, chunk);
+            chunk = (SvResourceChunk *)((unsigned char *)chunk + chunk->byteSize);
+            break;
+        case 5:
+            svAddScript(typeList, chunk);
+            chunk = (SvResourceChunk *)((unsigned char *)chunk + chunk->byteSize);
+            break;
+        case 10:
+            svAddScript2((int)typeList, chunk);
+            chunk = (SvResourceChunk *)((unsigned char *)chunk + chunk->byteSize);
+            break;
+        default:
+            return;
+        }
+    }
+}
 
 INCLUDE_ASM("asm/main/nonmatchings/sv_get_image_item", svInitImageMapper);
 
@@ -662,7 +790,53 @@ void svDeleteImageMapperData(int data)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/sv_get_image_item", svFileLoadScript);
+int svFileLoadScript(int cfId, int effectNo)
+{
+    int charNo;
+    int effectType;
+    SrsMemRes *resource;
+    int result;
+    int loadedSize;
+
+    srsAnalyzeEftNo(effectNo, &charNo, &effectType);
+    if (effectType == SRS_RES_EFFECT) {
+        return srsFileLoadCf(cfId, effectNo);
+    }
+    result = -1;
+    if (effectType == SRS_RES_BATTLE_IMAGE) {
+        if (_srsMemRes.battleImage != 0) {
+            int previousEffect = _srsMemRes.no[SRS_RES_BATTLE_IMAGE];
+            if (effectNo == previousEffect) {
+                return SRS_RES_BATTLE_IMAGE;
+            }
+            if (!sefIsFinishEffect2(previousEffect)) {
+                sefGetLoadQue();
+                sefSetLoadQue(effectNo);
+                return -1;
+            }
+            svDeleteImageMapper(SRS_RES_BATTLE_IMAGE);
+        }
+        resource = &_srsMemRes;
+        sefSetLoadQue(0);
+        if (resource->battleImage == 0) {
+            resource->battleImage = smAlloc(0x40000);
+            if (resource->battleImage == 0) {
+                return -1;
+            }
+        }
+        resource->no[SRS_RES_BATTLE_IMAGE] = effectNo;
+        resource->pending[SRS_RES_BATTLE_IMAGE] = 1;
+        loadedSize = srsLoadEffectData(resource->battleImage, effectNo);
+        if (loadedSize < 0) {
+            resource->pending[SRS_RES_BATTLE_IMAGE] = 0;
+            resource->no[SRS_RES_BATTLE_IMAGE] = 0;
+            return -1;
+        }
+        return SRS_RES_BATTLE_IMAGE;
+    }
+    return result;
+}
+
 
 INCLUDE_ASM("asm/main/nonmatchings/sv_get_image_item", svGetScript);
 
@@ -685,13 +859,139 @@ void SGsSendPacket(SGsPacketReset *packet)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/sv_get_image_item", SGsTexFlush);
+extern void nmlModelSetLight(void *localModelMatrix, void *lightMatrix);
+
+extern void nmlModelSetToumei(int enabled);
+
+extern void nmlModelSetAlpha(unsigned long long alpha);
+
+extern void nmlModelSetTexture(void *texture);
+
+extern void nmlModelSetPlace(void *place);
+
+extern void nmlModelEntryEffect(void *model);
+
+extern const unsigned long long alphaTbl_2[3];
+
+static inline void svResetTextureFlushPacket(SGsPacket *packet)
+{
+    packet->tagIndex = 0;
+    packet->loopCount = 1;
+    packet->base = (SGsGifRecord *)0x70000000;
+    packet->count = 0;
+}
+
+static inline void svResetGsPacket(SGsPacket *packet)
+{
+    packet->loopCount = 1;
+    packet->base = (SGsGifRecord *)0x70000000;
+    packet->tagIndex = 0;
+    packet->count = 0;
+}
+
+static inline void svAppendGsPacketHeader(SGsPacket *packet,
+                                         unsigned long long tag,
+                                         const unsigned long long registers)
+{
+    packet->base[packet->count].dword[0] = tag;
+    packet->base[packet->count].dword[1] = registers;
+    packet->count++;
+}
+
+static inline void svAppendGsAddressData(SGsPacket *packet,
+                                         unsigned long long address,
+                                         unsigned long long value)
+{
+    packet->base[packet->count].dword[0] = value;
+    packet->base[packet->count].dword[1] = address;
+    packet->count++;
+}
+
+static inline void svBeginGsRegisterPacket(SGsPacket *packet,
+                                           SGsGifRecord *scratchpad,
+                                           unsigned short loopCount)
+{
+    unsigned long long gifRegisters = 14;
+    unsigned long long gifTag = 0x1000000000008000ULL | loopCount;
+
+    packet->count = 1;
+    packet->base = scratchpad;
+    scratchpad[0].dword[0] = gifTag;
+    scratchpad[0].dword[1] = gifRegisters;
+}
+
+static inline void svAppendFirstGsRegister(SGsPacket *packet,
+                                           unsigned int address,
+                                           unsigned long long value)
+{
+    packet->base[packet->count].dword[0] = value;
+    packet->loopCount = 1;
+    packet->tagIndex = 0;
+    packet->base[packet->count].dword[1] = address;
+    packet->count++;
+}
+
+static inline void svAppendGsRegister(SGsPacket *packet,
+                                      unsigned long long value,
+                                      unsigned int address)
+{
+    packet->base[packet->count].dword[0] = value;
+    packet->base[packet->count].dword[1] = address;
+    packet->count++;
+}
+
+static inline unsigned long long svPackModelAlpha(unsigned char blendMode,
+                                                 int alphaValue)
+{
+    unsigned long long alphaHigh = (unsigned long long)alphaValue << 32;
+    return alphaTbl_2[blendMode] | alphaHigh;
+}
+
+void SGsTexFlush(void)
+{
+    SGsPacket *packet = &_packet;
+    unsigned long long gifRegisters;
+    unsigned long long gifTag;
+
+    svResetTextureFlushPacket(packet);
+    gifRegisters = 14;
+    gifTag = 0x1000000000008001ULL;
+    svAppendGsPacketHeader(packet, gifTag, gifRegisters);
+    svAppendGsAddressData(packet, 63, 1);
+    SGsSendPacket((SGsPacketReset *)packet);
+}
 
 INCLUDE_ASM("asm/main/nonmatchings/sv_get_image_item", SGsInitEnv);
 
-INCLUDE_ASM("asm/main/nonmatchings/sv_get_image_item", SGsSetZTestEnv);
+void SGsSetZTestEnv(int enable)
+{
+    SGsPacket *packet = &_packet;
+    unsigned long long gifRegisters;
+    unsigned long long gifTag;
 
-INCLUDE_ASM("asm/main/nonmatchings/sv_get_image_item", SGsRestoreEnv);
+    svResetGsPacket(packet);
+    gifRegisters = 14;
+    gifTag = 0x1000000000008001ULL;
+    svAppendGsPacketHeader(packet, gifTag, gifRegisters);
+    if (enable != 0) {
+        svAppendGsAddressData(packet, 71, 0x5000d);
+    } else {
+        svAppendGsAddressData(packet, 71, 0x2000d);
+    }
+    SGsSendPacket((SGsPacketReset *)&_packet);
+}
+
+void SGsRestoreEnv(void)
+{
+    SGsGifRecord *scratchpad = (SGsGifRecord *)0x70000000;
+    SGsPacket *packet = &_packet;
+
+    svBeginGsRegisterPacket(packet, scratchpad, 2);
+    svAppendFirstGsRegister(packet, 78, 0x31000000);
+    svAppendGsRegister(packet, 0, 20);
+    SGsSendPacket((SGsPacketReset *)packet);
+    nmlModelSetLight(&_defMatLcMod, &_defMatLn);
+}
 
 static void sefInitClipViewVolume(void *view) {
     __asm__ __volatile__("lqc2 vf12, 0(%0)\n\tlqc2 vf13, 16(%0)\n\tlqc2 vf14, 32(%0)\n\tlqc2 vf15, 48(%0)\n\tlqc2 vf16, 64(%0)\n\tlqc2 vf17, 80(%0)\n\tlqc2 vf18, 96(%0)\n\tlqc2 vf19, 112(%0)\n\tnop" :  : "r"(view) : "memory");
@@ -748,13 +1048,177 @@ static void svRotMatrixScale(void *dst, const void *src)
         : : "r"(dst), "r"(base), "r"(contrib), "r"(scale) : "memory");
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/sv_get_image_item", svDrawModel);
+void svDrawModel(SvModelDrawItem *item, void *place)
+{
+    Matrix lightMatrix;
+    const Matrix *sourceLight;
+    unsigned long long alpha;
+
+    if (item->blendMode == 0 && item->position.alpha == 128) {
+        alpha = 0;
+    } else {
+        alpha = svPackModelAlpha(item->blendMode, item->position.alpha);
+        nmlModelSetSortOffset(-5.0f);
+    }
+    nmlModelSetFogCancel();
+    sourceLight = item->blendMode == 0 ? &_defMatLcMod : &_defMatLc;
+    /* SDK-shaped four-quadword copy; both global source matrices and
+     * the ABI-aligned stack matrix have 16-byte-aligned bases. */
+    __asm__ __volatile__(
+        "lq $8, 0(%2)\n\t"
+        "lq $9, 16(%2)\n\t"
+        "lq $10, 32(%2)\n\t"
+        "lq $11, 48(%2)\n\t"
+        "sq $8, 0(%1)\n\t"
+        "sq $9, 16(%1)\n\t"
+        "sq $10, 32(%1)\n\t"
+        "sq $11, 48(%1)"
+        : "=m"(lightMatrix)
+        : "r"(&lightMatrix), "r"(sourceLight), "m"(*sourceLight)
+        : "$8", "$9", "$10", "$11", "memory");
+    /* Convert the model's integer position to the light matrix's final
+     * row; W carries alpha and the xyz-only scale leaves it untouched. */
+    {
+        float *positionRow = &lightMatrix.elements[12];
+        const SvModelPosition *position = &item->position;
+        float positionScale;
+
+        __asm__ __volatile__("" : : "r"(position), "r"(positionRow));
+        positionScale = 1.0f / 128.0f;
+
+        __asm__ __volatile__(
+            "mfc1 $8, %2\n\t"
+            "qmtc2 $8, vf1\n\t"
+            "lqc2 vf2, 0(%1)\n\t"
+            "vitof0.xyzw vf2xyzw, vf2xyzw\n\t"
+            "vmulx.xyz vf2xyz, vf2xyz, vf1x\n\t"
+            "sqc2 vf2, 0(%0)"
+            : : "r"(positionRow), "r"(position), "f"(positionScale)
+            : "$8", "memory");
+    }
+    nmlModelSetLight(&lightMatrix, &_defMatLn);
+    nmlModelSetSpecularOff(1);
+    if (item->renderFlags & 1) {
+        nmlModelSetRenderStatus(256);
+    }
+    if (alpha != 0) {
+        nmlModelSetToumei(1);
+        nmlModelSetAlpha(alpha);
+    }
+    if (item->texture != 0) {
+        nmlModelSetTexture(item->texture);
+    }
+    nmlModelSetClip(1);
+    nmlModelSetPlace(place);
+    nmlModelEntryEffect(item->model);
+}
 
 INCLUDE_ASM("asm/main/nonmatchings/sv_get_image_item", sefDrawParticle2);
 
 INCLUDE_ASM("asm/main/nonmatchings/sv_get_image_item", sefDrawParticle);
 
-INCLUDE_ASM("asm/main/nonmatchings/sv_get_image_item", sefDrawParticleList);
+void sefDrawParticleList(SvParticleEffect *effect)
+{
+    Matrix4 modelPlace;
+    SvParticleDrawContext context;
+    SGsPacket *packet;
+    int is2D;
+    int drawMode;
+    int drawVariant;
+    SvModelDrawItem *particles;
+    short *particleIndex;
+    short quadRenderType;
+    int available;
+
+    is2D = 0;
+    drawMode = _draw3D;
+    if (*effect->renderDomainA == 3 || *effect->renderDomainB == 3) {
+        is2D = 1;
+    }
+    drawVariant = 0;
+    if (effect->scriptWords != 0) {
+        drawVariant = effect->scriptWords[-1];
+    }
+    packet = &_packet;
+    particles = (SvModelDrawItem *)sevGetPtAllocator2(0);
+    if (drawMode != 1 || is2D != 0) {
+        if (drawMode != 1 && is2D == 1) {
+            _nEffect2D++;
+            _imageMapper.referenceImages[_nowImage].words[1]++;
+        } else {
+            if (drawMode == 0) {
+                _imageMapper.referenceImages[_nowImage].words[0]++;
+            }
+            context.textureCoordinates = stqTbl_004CBEA0;
+            context.gifRegisters = &_svRegData;
+            context.drawVariant = drawVariant;
+            __asm__ __volatile__(
+                "lqc2 vf16, 0(%0)\n\tlqc2 vf17, 16(%0)\n\t"
+                "lqc2 vf18, 32(%0)\n\tlqc2 vf19, 48(%0)"
+                : : "r"(&_invView) : "memory");
+            __asm__ __volatile__(
+                "lqc2 vf13, 0(%0)\n\tlqc2 vf14, 16(%0)\n\tlqc2 vf15, 32(%0)"
+                : : "r"(&_svUnitMatrix) : "memory");
+            packet->loopCount = 1;
+            packet->base = (SGsGifRecord *)0x70000000;
+            packet->count = 0;
+            available = 64;
+            quadRenderType = 4;
+            packet->tagIndex = 0;
+            particleIndex = effect->particleIndices;
+            {
+                int remaining = 255;
+
+                while (remaining >= 0) {
+                    int index = *particleIndex;
+
+                    if (index >= 0) {
+                        SvModelDrawItem *item = &particles[index];
+
+                        if (item->position.alpha != 0) {
+                            switch (drawMode) {
+                            case 2:
+                                if (item->renderType == 6) {
+                                    svRotMatrixScale(&modelPlace, item);
+                                    svDrawModel(item, &modelPlace);
+                                }
+                                break;
+                            case 1:
+                                if (item->renderType == quadRenderType) {
+                                    available--;
+                                    sefDrawParticle2D(item, packet, context.textureCoordinates);
+                                    if (available == 0) {
+                                        available = 64;
+                                        SGsSendPacket((SGsPacketReset *)packet);
+                                    }
+                                }
+                                break;
+                            case 0:
+                                if (item->renderType == quadRenderType) {
+                                    context.scale = &item->scale;
+                                    if (context.drawVariant == 0) {
+                                        sefDrawParticle(item, &item->origin, packet, &context);
+                                    } else {
+                                        sefDrawParticle2(item, &item->origin, packet, &context);
+                                    }
+                                    available--;
+                                    if (available == 0) {
+                                        available = 64;
+                                        SGsSendPacket((SGsPacketReset *)packet);
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                    }
+                    remaining--;
+                    particleIndex++;
+                }
+            }
+            SGsSendPacket((SGsPacketReset *)packet);
+        }
+    }
+}
 
 INCLUDE_ASM("asm/main/nonmatchings/sv_get_image_item", sefDrawParticleListCf);
 
@@ -823,7 +1287,41 @@ void svDrawScheduler(void)
     svDrawSchedulerParticle();
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/sv_get_image_item", svDrawScheduler3D);
+void SGsInitEnv(void);
+void SGsRestoreEnv(void);
+extern void MEfObjExec1st(void);
+
+void svDrawScheduler3D(void)
+{
+    int type;
+
+    _draw3D = 2;
+    svInitRefImage();
+    SGsInitEnv();
+    if (_imageMapper.typeLists[SRS_RES_IMAGE].entryCount > 0) {
+        _nowImage = SRS_RES_IMAGE;
+        svDrawSchedulerBlk(SRS_RES_IMAGE, 0);
+    }
+    _nowImage = SRS_RES_WEAPON;
+    svDrawSchedulerBlk(SRS_RES_WEAPON, 0);
+    _nowImage = SRS_RES_COMBO;
+    svDrawSchedulerBlk(SRS_RES_COMBO, 0);
+    _nowImage = SRS_RES_BATTLE_IMAGE;
+    svDrawSchedulerBlk(SRS_RES_BATTLE_IMAGE, 0);
+    _nowImage = SRS_RES_CF_IMAGE;
+    svDrawSchedulerBlk(SRS_RES_CF_IMAGE, 0);
+    for (type = SRS_RES_EFFECT; type < SRS_RES_COUNT; type++) {
+        if (_imageMapper.typeLists[type].entryCount > 0) {
+            short effectNumber = _srsMemRes.no[type];
+            if (effectNumber > 0) {
+                _nowImage = type;
+                svDrawSchedulerBlk(SRS_RES_EFFECT, effectNumber);
+            }
+        }
+    }
+    MEfObjExec1st();
+    SGsRestoreEnv();
+}
 
 void SGsInitGifPacket(SGsPacket *packet)
 {

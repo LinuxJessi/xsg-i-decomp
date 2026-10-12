@@ -234,7 +234,7 @@ typedef struct {
 } DropShadowSourceVertex;
 
 typedef struct {
-    u64 dma_tag;
+    GifCommandData dma_tag;
     u32 vif_nop;
     u32 packet_tag_0c;
     u32 test_environment_control;
@@ -259,10 +259,27 @@ typedef struct {
 } ActShadowMatrix;
 
 typedef struct {
-    u8 unmodeled_00[0x9a0];
+    float temporary[4];
+    Vector4 outer_offset;
+    Vector4 inner_offset;
+    Vector4 axial_offset;
+    u8 unmodeled_40[0x10];
+    Vector4 perpendicular;
+    Matrix4 model;
+    Matrix4 flatten;
+    Matrix4 translated_end;
+    Matrix4 first_world;
+    Matrix4 second_world;
+    Vector4 vertices[128];
     DropShadowSourceVertex source_vertices[128];
     u8 back_shadow_status[16];
     DropShadowBackEntry back_shadow_entries[16];
+    u8 unmodeled_12b0[8];
+    u8 camera_index;
+    u8 unmodeled_12b9[2];
+    u8 alpha;
+    u8 unmodeled_12bc[4];
+    ActDropShadowPacket packet;
 } ActDropShadowWorkspace;
 
 extern void xglMatrixMul(Matrix4 destination, Matrix4 left, Matrix4 right);
@@ -437,6 +454,49 @@ typedef struct {
     CircleShadowPoint points[8];
 } CircleShadowPacket;
 
+/* Owner type from src/main/xgl_2.h:10-15; include-layer transport is pending. */
+
+/* Private partial layouts: DrawDropShadowSub accesses actor +0x14/+0x91/+0xa0/
+   +0x4dc/+0x824, and aligned matrices at scratch +0x60/+0xa0/+0xe0/
+   +0x120/+0x160. Their defining-owner header transport remains pending. */
+typedef struct {
+    u8 unmodeled_000[0x10];
+    float position[4];
+    u8 unmodeled_020[0x71];
+    u8 shadow_alpha;
+    u8 unmodeled_092[0xe];
+    Vector4 light_direction;
+    u8 unmodeled_0b0[0x42c];
+    float height_override;
+    u8 unmodeled_4e0[0x344];
+    Matrix *shadow_matrices;
+} ActDropShadowSubMatrixActor;
+
+typedef struct {
+    float temporary[4];
+    Vector4 outer_offset;
+    Vector4 inner_offset;
+    Vector4 axial_offset;
+    u8 unmodeled_40[0x10];
+    Vector4 perpendicular;
+    Matrix model;
+    Matrix flatten;
+    Matrix translated_end;
+    Matrix first_world;
+    Matrix second_world;
+    Vector4 vertices[128];
+    DropShadowSourceVertex source_vertices[128];
+    u8 back_shadow_status[16];
+    DropShadowBackEntry back_shadow_entries[16];
+    u8 unmodeled_12b0[8];
+    u8 camera_index;
+    u8 unmodeled_12b9[2];
+    u8 alpha;
+    u8 unmodeled_12bc[4];
+    ActDropShadowPacket packet;
+} ActDropShadowSubMatrixWorkspace;
+
+
 typedef struct {
     float temporary[4];
     float transform[4][4];
@@ -481,6 +541,34 @@ typedef struct {
     ActShadowQuadword qwords[4];
 } ActShadowMatrixStorage;
 
+/* The actor owns aligned matrices; Zelda uses their native whole-row copies. */
+typedef struct {
+    u8 unmodeled_000[0x14];
+    float base_height;
+    u8 unmodeled_018[0x88];
+    float direction[3];
+    u8 unmodeled_0ac[0x430];
+    float height_override;
+    u8 unmodeled_4e0[0x344];
+    Matrix *shadow_matrices;
+} ActZeldaStorageActor;
+
+typedef struct {
+    Vector4 translation;
+    Matrix matrix;
+    Matrix transform;
+    Vector4 vertices[5];
+    ActZeldaShadowPoint projected[5];
+    float height;
+    float angle;
+    float radius;
+    u32 camera_index;
+    ActZeldaShadowPacket packet;
+} ActZeldaStorageScratchpad;
+
+
+/* Original aligned matrices at scratchpad +0x60 and +0xa0. */
+
 static u8 TestEnv_3_00478D80[0x30] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x51,
@@ -502,8 +590,25 @@ static const u8 D_004D1DA0[56] = {
     0x02, 0x06, 0x0a, 0x0e, 0x06, 0x00, 0x0e, 0x08,
 };
 
-static u8 *DrawDropShadowSub(ActShadowActor *actor,
-                             ActDropShadowWorkspace *work, u8 *contacts);
+typedef union {
+    struct {
+        signed char end_width;
+        signed char midpoint_width;
+    } segment;
+    struct {
+        signed char offset;
+        signed char axis;
+    } terminal;
+} DropShadowContactPayload;
+
+typedef struct {
+    u8 matrix_index;
+    DropShadowContactPayload payload;
+} DropShadowContactRecord;
+
+
+static DropShadowContactRecord *DrawDropShadowSub(ActDropShadowSubMatrixActor *actor,
+                             ActDropShadowSubMatrixWorkspace *work, DropShadowContactRecord *contacts);
 
 typedef struct {
     u8 unmodeled_00[0x20];
@@ -529,7 +634,7 @@ static void DrawCircleShadow(void *actor);
 
 static void DrawDropCircle(ActShadowActor *actor);
 
-static void DrawDropShadow(ActShadowActor *actor);
+static void DrawDropShadow(void *actor);
 
 extern ActShadowLight *xglStudioGetLight2(void);
 
@@ -613,6 +718,7 @@ static void Footstep(ActShadowActor *actor)
         }
     }
 }
+
 
 INCLUDE_ASM("asm/main/nonmatchings/act_3", DrawCircleShadow);
 
@@ -721,7 +827,53 @@ static void DrawZeldaShadowSub(ActShadowScratchpad *scratchpad,
     nmlModelDirectSend(1, (u8 *)&scratchpad->packet, 0x12);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/act_3", DrawZeldaShadow);
+extern float atan2f(float x, float z);
+extern float D_004D85F4;
+
+static void DrawZeldaShadow(void *actor_pointer)
+{
+    ActZeldaStorageActor *actor = actor_pointer;
+    ActZeldaStorageScratchpad *scratchpad =
+        (ActZeldaStorageScratchpad *)0x70000000;
+    int camera_index;
+    float *direction;
+
+    if (actor->height_override == -1000.0f) {
+        scratchpad->height = actor->base_height + 0.02f;
+    } else {
+        scratchpad->height = actor->height_override + 0.02f;
+    }
+    for (camera_index = 0; camera_index < 8; camera_index++) {
+        if (xglStudioGetCamera2(camera_index)->active == 1) {
+            break;
+        }
+    }
+    scratchpad->camera_index = camera_index;
+    {
+        Matrix *destination = &scratchpad->matrix;
+        Matrix *matrix = actor->shadow_matrices;
+        /* Four aligned copies use the original scratch data register. */
+        __asm__ __volatile__(
+            "lq $2,0(%1)\n\t"
+            "sq $2,0(%0)\n\t"
+            "lq $2,16(%1)\n\t"
+            "sq $2,16(%0)\n\t"
+            "lq $2,32(%1)\n\t"
+            "sq $2,32(%0)\n\t"
+            "lq $2,48(%1)\n\t"
+            "sq $2,48(%0)"
+            : : "r"(destination), "r"(matrix) : "$2", "memory");
+    }
+    direction = actor->direction;
+    scratchpad->radius = __builtin_sqrtf(1.0f - direction[1] * direction[1]) * 0.5f;
+    if (scratchpad->radius < D_004D85F4) {
+        scratchpad->radius = D_004D85F4;
+    }
+    scratchpad->angle = atan2f(-direction[0], -direction[2]);
+    /* Preserve the helper's existing interface pending owner-header transport. */
+    DrawZeldaShadowSub((void *)scratchpad, (void *)&actor->shadow_matrices[30]);
+    DrawZeldaShadowSub((void *)scratchpad, (void *)&actor->shadow_matrices[20]);
+}
 
 static int DrawDropShadowSubChk(ActDropShadowWorkspace *shadow, u8 *quad_indices,
                                int source_index, int quad_count)
@@ -894,9 +1046,12 @@ static void DrawDropShadowSubFront(ActDropShadowFrontState *shadow, int count)
     }
 }
 
+
 INCLUDE_ASM("asm/main/nonmatchings/act_3", DrawDropShadowSub);
 
+
 INCLUDE_ASM("asm/main/nonmatchings/act_3", DrawDropShadow);
+
 
 INCLUDE_ASM("asm/main/nonmatchings/act_3", DrawDropCircle);
 

@@ -334,4 +334,34 @@ typedef struct UnitFloatCall {
     float value;
 } UnitFloatCall;
 
+typedef struct UnitArgsRow {
+    int word[4];
+} UnitArgsRow;
+
+/*
+ * setArgs__IIIII stores four words per row at 16-byte strides from +0x1a0
+ * of the unit's native peer.
+ */
+typedef struct UnitArgsPeer {
+    unsigned char unmodeled_00[0x1a0];
+    UnitArgsRow rows[1]; /* +0x1a0 */
+} UnitArgsPeer;
+
+typedef struct UnitArgsRowCall {
+    u8 *object;
+    int row;
+    int word[4];
+} UnitArgsRowCall;
+
+typedef struct UnitFloatArray {
+    unsigned char unmodeled_00[4];
+    unsigned int length; /* +0x4 */
+    float *data;         /* +0x8 */
+} UnitFloatArray;
+
+typedef struct UnitFilterParamCall {
+    u8 *object;
+    UnitFloatArray *values;
+} UnitFilterParamCall;
+
 #endif

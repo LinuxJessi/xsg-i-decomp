@@ -12,6 +12,12 @@ typedef struct SplinePoint {
     float z;
 } SplinePoint;
 
+enum {
+    SPL_LINEAR_TERM,
+    SPL_QUADRATIC_TERM,
+    SPL_CUBIC_TERM
+};
+
 /* The first twenty bytes of a camera spline, before its coefficient tables. */
 typedef struct SplineState {
     unsigned char unmodeled_00[4];
@@ -21,7 +27,19 @@ typedef struct SplineState {
     unsigned short sample_count;
     unsigned int component_count;
     const float *samples;
+    float coefficients[3][96];
 } SplineState;
+
+/* Five 128-byte float tables at the start of EE scratchpad memory. */
+struct SplineWorkspace {
+    float interval[32];
+    float slope[32];
+    float diagonal[32];
+    float right_hand_side[32];
+    float second_derivative[32];
+};
+
+extern float D_004D84FC;
 
 static void setWeightLen(SplinePoint *points, int count);
 static void setWeightLen2(SplinePoint *points, int count);

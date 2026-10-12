@@ -1,5 +1,15 @@
 #include "common.h"
 
+#include "msg_init.h"
+static void _copyCTRLCode(unsigned char **destination, unsigned char **source);
+
+
+extern const char D_004DA418[];
+
+extern int cnvCW;
+
+extern unsigned int cnvCH;
+
 typedef struct Mif2Argument {
     int type;
     union {
@@ -104,13 +114,6 @@ static MsgFuncEntry mfunc[] = {
  * for the per-entry pointers stored inside that workspace.
  */
 
-typedef struct MsgBuffer {
-    int active;
-    unsigned int capacity;
-    unsigned char **entry_table;
-    unsigned char *cursor;
-    unsigned char workspace[0x800];
-} MsgBuffer;
 
 MsgBuffer msg_buffer[8];
 
@@ -127,19 +130,6 @@ extern int PARSE_int(const char *str, int len, int base);
  * handed out so far.
  */
 
-typedef struct MsgQueue {
-    unsigned char *buffer;
-    unsigned char unmodeled_04[4];
-    short head;
-    short tail;
-    short size;
-    short count;
-    short width;
-    short last;
-    short limit;
-    unsigned char unmodeled_22[6];
-    int label;
-} MsgQueue;
 
 struct MsgPrintContext {
     unsigned char unmodeled_00[0x16];
@@ -501,7 +491,80 @@ static void rubyFont(RubyFontContext *context, unsigned int command)
     return;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/msg_init", MIF2_ruby);
+char *MIF2_ruby(char *out, int argc, const Mif2Argument *args)
+{
+    const char *text = args[0].value.text;
+    int callback = (int)rubyFont;
+    int ch;
+    int width;
+
+    *out++ = 0x17;
+    *out++ = callback >> 16;
+    *out++ = callback >> 8;
+    *out++ = callback;
+    *out++ = 0;
+    *out++ = 0;
+    *out++ = 0;
+    *out++ = 0;
+    while ((ch = (unsigned char)*text++) != '/' && ch != 0) {
+        *out++ = ch;
+    }
+    *out++ = '/';
+    if (ch == 0) {
+        text--;
+    }
+    *out++ = '[';
+    {
+        int ruby_width;
+        const char *cursor;
+        const unsigned char character_map[96] = {
+            0x00, 0x07, 0x11, 0x08, 0x12, 0x09, 0x13, 0x0a, 0x14, 0x0b, 0x15, 0x16, 0x56, 0x17, 0x57, 0x18,
+            0x58, 0x19, 0x59, 0x1a, 0x5a, 0x1b, 0x5b, 0x1c, 0x5c, 0x1d, 0x5d, 0x1e, 0x5e, 0x1f, 0x5f, 0x20,
+            0x60, 0x21, 0x61, 0x0f, 0x22, 0x62, 0x23, 0x63, 0x24, 0x64, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a,
+            0x6a, 0xea, 0x2b, 0x6b, 0xeb, 0x2c, 0x6c, 0xec, 0x2d, 0x6d, 0xed, 0x2e, 0x6e, 0xee, 0x2f, 0x30,
+            0x31, 0x32, 0x33, 0x0c, 0x34, 0x0d, 0x35, 0x0e, 0x36, 0x37, 0x38, 0x39, 0x3a, 0x3b, 0x00, 0x3c,
+            0x00, 0x00, 0x06, 0x3d, 0x53, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+        };
+        for (ruby_width = 0, cursor = text; (ch = (unsigned char)*cursor++) != 0; ) {
+            ruby_width++;
+            if (ch >= 0xa0) {
+                ch = (unsigned char)*cursor++;
+                if (ch >= 0xa3 && ch <= 0xa5) {
+                    if (character_map[ch - 0xa0] & 0x40) {
+                        ruby_width++;
+                    }
+                }
+            }
+        }
+        width = ruby_width + 0x10000000;
+    }
+    *out++ = 0x17;
+    *out++ = callback >> 16;
+    *out++ = callback >> 8;
+    *out++ = callback;
+    *out++ = width >> 24;
+    *out++ = width >> 16;
+    *out++ = width >> 8;
+    *out++ = width;
+    *out++ = 0x18;
+    *out++ = 1;
+    while ((ch = (unsigned char)*text++) != '/' && ch != 0) {
+        *out++ = ch;
+    }
+    *out++ = 0x18;
+    *out++ = 0;
+    *out++ = 0x17;
+    *out++ = callback >> 16;
+    *out++ = callback >> 8;
+    *out++ = callback;
+    *out++ = 0x20;
+    *out++ = 0;
+    *out++ = 0;
+    *out++ = 0;
+    *out++ = ']';
+    *out = 0;
+    return out;
+}
 
 char *MIF2_font(char *out, int argc, const Mif2Argument *args)
 {
@@ -640,7 +703,94 @@ static MsgFuncEntry *findMsgFunc(const char *name)
     return 0;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/msg_init", MSG_convert);
+unsigned int MSG_convert(unsigned char *destination, int capacity, const char *text, int length)
+{
+    char bracket[256];
+    const char *tokens[8];
+    Mif2Argument args[8];
+    unsigned char *output;
+    unsigned char *input;
+    unsigned char *end;
+    int width = 0;
+
+    cnvCH = 0;
+    cnvCW = 0;
+    input = (unsigned char *)text;
+    if (length < 0)
+        length = strlen(text);
+    end = input + length;
+    output = destination;
+    while (input < end) {
+        int code = *input++;
+        if (code == '/') {
+            if (*input == '[') {
+                char *closing = matchBracket(input);
+                if (closing) {
+                    char *token;
+                    int span;
+                    input++;
+                    span = (unsigned char *)closing - input;
+                    strncpy(bracket, (const char *)input, span);
+                    input = (unsigned char *)closing + 1;
+                    bracket[span] = 0;
+                    token = STR_tokenGetNext(bracket, D_004DA418);
+                    while (token) {
+                        int argc = 0;
+                        MsgFuncEntry *entry = findMsgFunc(token);
+                        if (entry) {
+                            int type;
+                            token = STR_tokenGetNext(0, D_004DA418);
+                            type = STR_tokenGetType();
+                            if (token) {
+                                tokens[argc++] = token;
+                                if (type != ')') {
+                                    do {
+                                        token = STR_tokenGetNext(0, D_004DA418);
+                                        type = STR_tokenGetType();
+                                        if (!token)
+                                            break;
+                                        tokens[argc++] = token;
+                                    } while (type != ')');
+                                }
+                            }
+                            MSG_setArgs(args, argc, tokens);
+                            {
+                                char *(*handler)(char *, int, const Mif2Argument *) = entry->handler;
+                                unsigned int address = (unsigned int)handler;
+                                if (address - 0x1F0000U <= 0x1E0FFFFU && !(address & 3))
+                                    output = (unsigned char *)handler((char *)output, argc, args);
+                            }
+                            if (!token)
+                                break;
+                        } else {
+                            do {
+                                *output = *token++;
+                            } while (*output++);
+                            output--;
+                        }
+                        token = STR_tokenGetNext(0, D_004DA418);
+                    }
+                }
+            } else {
+                *output++ = code;
+            }
+        } else if (code == '\n') {
+            if (cnvCW < width)
+                cnvCW = width;
+            *output++ = code;
+        } else if (code < 32) {
+            input--;
+            _copyCTRLCode(&output, &input);
+        } else {
+            *output++ = code;
+            if (code >= 142)
+                *output++ = *input++;
+            width++;
+        }
+    }
+    *output = 0;
+    return cnvCH;
+}
 
 void MBUF_init(void)
 {
@@ -676,13 +826,161 @@ MsgBuffer *MBUF_create2(void)
     return buffer;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/msg_init", MBUF_create);
+MsgBuffer *MBUF_create(int entry_size, int entry_count)
+{
+    int slot = -1;
+    int i;
+    MsgBuffer *buffer;
+    unsigned char *workspace;
+
+    for (i = 0; i < 8; i++) {
+        buffer = &msg_buffer[i];
+        if (!(buffer->active & 1)) {
+            slot = i;
+            break;
+        }
+    }
+    if (slot < 0) {
+        return 0;
+    }
+    buffer = &msg_buffer[slot];
+    entry_size = ((entry_size + 3) / 4) * 4;
+    workspace = buffer->workspace;
+    buffer->active = 1;
+    buffer->capacity = 0;
+    buffer->entry_table = (unsigned char **)workspace;
+    buffer->cursor = workspace + entry_count * 4;
+    for (i = 0; i < entry_count; i++) {
+        *buffer->cursor = 0;
+        buffer->entry_table[i] = buffer->cursor;
+        buffer->cursor += entry_size;
+    }
+    return buffer;
+}
 
 void MBUF_dispose(int *mbuf)
 {
     mbuf[0] = 0;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/msg_init", _copyCTRLCode);
+static void _copyCTRLCode(unsigned char **destination, unsigned char **source)
+{
+    unsigned char *input = *source;
+    unsigned char *output = *destination;
+    int code = *input++;
 
-INCLUDE_ASM("asm/main/nonmatchings/msg_init", _skipCTRLCode);
+    *output++ = code;
+    switch (code) {
+    case 6:
+    case 12:
+    case 15:
+        *output++ = *input++;
+        /* fall through */
+    case 18:
+        *output++ = *input++;
+        /* fall through */
+    case 1:
+    case 2:
+    case 3:
+    case 4:
+    case 5:
+    case 13:
+    case 24:
+        *output++ = *input++;
+        break;
+    case 8:
+        code = *input++;
+        if (code & 1) {
+            *output++ = *input++;
+            *output++ = *input++;
+        }
+        if (code & 2) {
+            *output++ = *input++;
+            *output++ = *input++;
+        }
+        if (code & 4) {
+            *output++ = *input++;
+            *output++ = *input++;
+            *output++ = *input++;
+        }
+        break;
+    case 14:
+        *output++ = *input++;
+        *output++ = *input++;
+        *output++ = *input++;
+        *output++ = *input++;
+        *output++ = *input++;
+        break;
+    case 23:
+        *output++ = *input++;
+        *output++ = *input++;
+        *output++ = *input++;
+        *output++ = *input++;
+        *output++ = *input++;
+        *output++ = *input++;
+        *output++ = *input++;
+        break;
+    case 25:
+        if (*input) {
+            ctrlCodeFlags |= 1;
+        } else {
+            ctrlCodeFlags &= ~1;
+        }
+        *output++ = *input++;
+        break;
+    }
+    *destination = output;
+    *source = input;
+}
+
+static void _skipCTRLCode(unsigned char **source)
+{
+    unsigned char *cursor = *source;
+    unsigned char code = *cursor++;
+
+    switch (code) {
+    case 8:
+        code = *cursor++;
+        if (code & 1) {
+            cursor += 2;
+        }
+        if (code & 2) {
+            cursor += 2;
+        }
+        if (!(code & 4)) {
+            break;
+        }
+        /* fall through */
+    case 6:
+    case 12:
+    case 15:
+        cursor += 3;
+        break;
+    case 14:
+        cursor += 5;
+        break;
+    case 18:
+        cursor += 2;
+        break;
+    case 23:
+        cursor += 9;
+        break;
+    case 25:
+        if (*cursor) {
+            ctrlCodeFlags |= 1;
+        } else {
+            ctrlCodeFlags &= ~1;
+        }
+        /* fall through */
+    case 1:
+    case 2:
+    case 3:
+    case 4:
+    case 5:
+    case 13:
+    case 24:
+        cursor++;
+        break;
+    }
+    *source = cursor;
+}

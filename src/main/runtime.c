@@ -8,6 +8,10 @@
 
 /* Runtime native lookup pairs: method signature followed by its entry point. */
 
+#define RUNTIME_UMN_BOX_OFFSET 0x1025C
+
+#define RUNTIME_UMN_BOX_SLOTS 128
+
 typedef struct RuntimeNativeBinding {
     const char *signature;
     void (*entry)();
@@ -2897,7 +2901,31 @@ static char *getPartyDataOfs(unsigned int selector)
     return selected + offset;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/runtime", Java_xeno_util_Runtime_getPartyData__I);
+void Java_xeno_util_Runtime_getPartyData__I(JThread *thread, int *arguments, int *result)
+{
+    int width = (unsigned int)*arguments >> 24;
+    void *data = getPartyDataOfs(*arguments);
+    unsigned char *bytes = data;
+    short *halfwords = data;
+    int *words = data;
+    long long *wide_words = data;
+
+    switch (width) {
+    case 0:
+    default:
+        *result = *bytes;
+        break;
+    case 1:
+        *result = *halfwords;
+        break;
+    case 2:
+        *result = *words;
+        break;
+    case 3:
+        *result = *wide_words;
+        break;
+    }
+}
 
 void Java_xeno_util_Runtime_setPartyData__II(JThread *thread,
                                            IntPairCall *arguments)
@@ -3023,11 +3051,81 @@ void Java_xeno_util_Runtime_battleChangeParty__I(JThread *thread, int *arguments
     PartyBattleChange(cid2bic(*arguments));
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/runtime", Java_xeno_util_Runtime_setIdLightCol__IIFFF);
+/* Native argument and result words share the VM operand-slot storage. */
 
-INCLUDE_ASM("asm/main/nonmatchings/runtime", Java_xeno_util_Runtime_setIdLightDir__IIFFF);
+typedef struct RuntimeIdLightSet {
+    unsigned char unmodeled_00[0xF0];
+} RuntimeIdLightSet;
 
-INCLUDE_ASM("asm/main/nonmatchings/runtime", Java_xeno_util_Runtime_setIdLightVec__IIFFF);
+extern RuntimeIdLightSet GameIdLight[];
+
+extern void xglLightIntensityAmbient(void *light, const void *intensity);
+extern void xglLightIntensityParallel(void *light, unsigned int index,
+                                      const void *intensity);
+extern void xglLightAngle(void *light, unsigned int index, const Vector4 *angle);
+extern void xglLightDirection(void *light, unsigned int index,
+                              const Vector4 *direction);
+
+static inline void runtimeLightVector(Vector4 *value, float x, float y, float z)
+{
+    value->x = x;
+    value->y = y;
+    value->z = z;
+    value->w = 1.0f;
+}
+
+void Java_xeno_util_Runtime_setIdLightCol__IIFFF(JThread *thread,
+                                               VMSlot *arguments,
+                                               VMSlot *result)
+{
+    Vector4 color;
+    int slot = arguments[0].i;
+    int light = arguments[1].i;
+
+    runtimeLightVector(&color, arguments[2].f, arguments[3].f, arguments[4].f);
+    if (slot > 0) {
+        slot--;
+    }
+    if (light == 0) {
+        xglLightIntensityAmbient(&GameIdLight[slot], &color);
+    } else {
+        xglLightIntensityParallel(&GameIdLight[slot], light - 1, &color);
+    }
+}
+
+void Java_xeno_util_Runtime_setIdLightDir__IIFFF(JThread *thread,
+                                               VMSlot *arguments,
+                                               VMSlot *result)
+{
+    Vector4 angle;
+    int slot = arguments[0].i;
+    int light = arguments[1].i;
+
+    runtimeLightVector(&angle, arguments[2].f, arguments[3].f, arguments[4].f);
+    if (slot > 0) {
+        slot--;
+    }
+    if (light > 0) {
+        xglLightAngle(&GameIdLight[slot], light - 1, &angle);
+    }
+}
+
+void Java_xeno_util_Runtime_setIdLightVec__IIFFF(JThread *thread,
+                                               VMSlot *arguments,
+                                               VMSlot *result)
+{
+    Vector4 direction;
+    int slot = arguments[0].i;
+    int light = arguments[1].i;
+
+    runtimeLightVector(&direction, arguments[2].f, arguments[3].f, arguments[4].f);
+    if (slot > 0) {
+        slot--;
+    }
+    if (light > 0) {
+        xglLightDirection(&GameIdLight[slot], light - 1, &direction);
+    }
+}
 
 void Java_xeno_util_Runtime_setWindParam__IFFFF(JThread *thread,
                                               RuntimeWindCall *arguments)
@@ -3096,7 +3194,65 @@ void Java_xeno_util_Runtime_mpeg2AfterCrossFade__I(JThread *thread, int *argumen
     nmlModelSetMpeg2CrossFadeTime(time);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/runtime", Java_xeno_util_Runtime_mailFlag__I);
+void Java_xeno_util_Runtime_mailFlag__I(JThread *thread, int *arguments, int *result)
+{
+    int value = 0;
+    unsigned char *mail = UmnMailDataGet(*arguments & 0xFFFFFF);
+
+    switch (*arguments >> 24) {
+    case 0:
+        value = mail[0] & 1;
+        break;
+    case 1: {
+        unsigned int flags = mail[0];
+
+        value = (flags >> 1) & 1;
+        break;
+    }
+    case 2:
+        value = mail[1] == 0 ? 0 : (mail[1] & 0x80) ? 2 : 1;
+        break;
+    case 3:
+        value = (mail[0] & 0x30) >> 4;
+        break;
+    case 4:
+        mail[0] |= 1;
+        UmnMailBoxSet(*arguments & 0xFFFFFF);
+        xglSoundEffectNormalID(36, 0);
+        Vibration_Set_Weak(30);
+        break;
+    case 5: {
+        signed char *boxes = (signed char *)(SaveData + RUNTIME_UMN_BOX_OFFSET);
+        int count = 0;
+        int i;
+
+        for (i = 0; i < RUNTIME_UMN_BOX_SLOTS; i++) {
+            if (boxes[i] >= 0) {
+                count++;
+            } else {
+                break;
+            }
+        }
+        switch (*arguments & 0xFFFFFF) {
+        case 0:
+            value = count;
+            break;
+        case 1:
+            boxes = (signed char *)(SaveData + RUNTIME_UMN_BOX_OFFSET);
+            value = 0;
+            for (i = 0; i < count; i++) {
+                mail = UmnMailDataGet(boxes[i]);
+                if ((mail[0] & 2) == 0) {
+                    value++;
+                }
+            }
+            break;
+        }
+        break;
+    }
+    }
+    *result = value;
+}
 
 void Java_xeno_util_Runtime_mailExec__I(JThread *thread, int *arguments,
                                         unsigned int *result)

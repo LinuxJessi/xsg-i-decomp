@@ -6,18 +6,21 @@
 #define SRC_MAIN_FIND_NATIVE_METHOD_H
 
 #include "shared.h"
-#include "main/find_native_method.h"
-#include "main/init_vm.h"
 
 typedef signed char s8;
+typedef struct JavaClass JavaClass;
+
 typedef struct ClassNameKey ClassNameKey;
 
 extern void *xmalloc(int size, int type);
+
+void *newObject(SceneClass *scene_class);
 
 /*
  * Partial view of the element-type descriptor newArray and lookupArray use.
  * Only the members those functions touch are modeled.
  */
+#ifndef INCLUDE_MAIN_FIND_NATIVE_METHOD_H
 typedef struct ElementType {
     u8 unmodeled_00[4];
     ClassNameKey *name; /* +0x4: lookupArray reads the class-name bytes */
@@ -28,13 +31,16 @@ typedef struct ElementType {
     s8 typeCode; /* +0x39: signed character supplied to the primitive name format */
     u8 elementSize;       /* +0x3a: per-element byte size for byte-sized elements */
 } ElementType;
+#endif
 
 extern JavaClass *lookupArray(ElementType *elementType);
 
 /* Header word every heap object newObject creates begins with. */
+#ifndef INCLUDE_MAIN_FIND_NATIVE_METHOD_H
 typedef struct ObjectHeader {
     void *classPointer;
 } ObjectHeader;
+#endif
 
 /* Header every heap array newArray creates begins with. */
 typedef struct ArrayHeader {

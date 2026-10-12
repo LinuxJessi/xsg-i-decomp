@@ -5,6 +5,15 @@
 #ifndef SRC_MAIN_MENU_1_H
 #define SRC_MAIN_MENU_1_H
 
+/* The menu parameter result exposes HP/EP maxima and current values. */
+struct MenuCharParameters {
+    short maxHp;
+    short maxEp;
+    unsigned char unmodeled_04[0x34 - 0x04];
+    short hp;
+    short ep;
+};
+
 /*
  * MenuTextGet returns a pointer to a per-entry text record of three string
  * pointers. The leading word is the display name: the fallback record

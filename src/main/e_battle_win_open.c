@@ -15,6 +15,19 @@ typedef struct BattleWinOpenParam4 {
 
 int BW3BattleOrDataBase = 0;
 
+typedef struct BattleWinOpen2Params {
+    int x;
+    int y;
+    int style;
+    int width;
+    const char *text;
+    const char *title;
+} BattleWinOpen2Params;
+
+
+
+int eMessageNextGyouMaxGet(const char *text);
+
 BattleWindow *BW = 0;
 
 BattleWindow2 *BW2 = 0;
@@ -70,7 +83,58 @@ void eBattleWinMain(BattleWinTask *task)
     task->selection = mode;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/e_battle_win_open", eBattleWinOpen2);
+void eBattleWinOpen2(BattleWinOpen2Params *param)
+{
+    BattleWindow2 *window;
+    BattleWindow2 *height_window;
+    BattleWindow2 *message_window;
+    const char *text;
+    int line_width;
+    int max_width;
+    int lines;
+
+    WindowDXSet(&BW2->window);
+    window = BW2;
+    window->window.x = param->x;
+    window->window.y = param->y;
+    window->window.style = param->style;
+    window->window.width = param->width;
+    if (param->width < 0) {
+        line_width = 0;
+        max_width = 0;
+        text = param->text;
+        while (*text != 0) {
+            if (*text == '\n') {
+                max_width = max_width < line_width ? line_width : max_width;
+                text++;
+                line_width = 0;
+            } else {
+                line_width++;
+                text++;
+            }
+        }
+        max_width = max_width < line_width ? line_width : max_width;
+        window->text_offset = ((unsigned int)(param->width - 6) >> 1) -
+                           max_width * 9 / 2;
+    } else {
+        window->text_offset = 0;
+    }
+    lines = eMessageNextGyouMaxGet(param->text);
+    height_window = BW2;
+    height_window->window.ribbon_initialized = 1;
+    height_window->window.height = lines * 24 + 6;
+    BW2->window.tag_id = param->title;
+    eMessageSet(&BW2->message, param->text);
+    message_window = BW2;
+    message_window->message.mode = 32;
+    message_window->message.y = message_window->window.y + 3;
+    message_window->message.extent = message_window->window.style + 2;
+    message_window->message.x = message_window->window.x + message_window->text_offset + 3;
+    BW2->window.state = 1;
+    WindowDXMain(&BW2->window);
+    BW2->window.state = 3;
+    BW2->active = 1;
+}
 
 int eBattleWinMain2(void)
 {

@@ -3,15 +3,8 @@
 
 #include "shared.h"
 
-/*
- * FCV2Value is the curve FCV2_getValue samples: a cursor into its key table,
- * the same two-bit type code FCV_getFKeyType returns (1 = constant sample,
- * 3 = sampled spline), and either the constant itself or the base of its key
- * table, aliased in the same word (FCV2_getValue, VA 0x0030d740).
- * FCV2_getVal (VA 0x0030d428, still ASM) compares and subtracts a float
- * argument in $f12; FCV2_getValue never writes $f12 before its tail call, so
- * `frame` is its own parameter, forwarded unchanged.
- */
+#include "main/jni.h"
+
 typedef struct FCV2Value {
     u16 cursor;
     u16 type;

@@ -20,22 +20,79 @@
  * pointer-width slot evidenced only by other callers) are unknown here and
  * receive no member. All accesses below name explicit original byte offsets.
  */
+extern Vector4 s_inMainCameraPos;
+
+extern Vector4 s_inMainCameraAng;
+
+extern int s_nModel;
+
+extern int s_nBlocks;
+
+extern int s_nDirect;
+
+extern int s_nBlocksAlpha;
+
+extern int s_nBlocksAlphaLast;
+
+extern int s_nAnotherStudio;
+
+extern int s_nUseStealth;
+
+extern int s_nUseGnosys;
+
+extern int s_nMapAlphaEntry;
+
+extern int s_nMainCameraWarp;
+
+typedef struct NmlAlphaGroup {
+    unsigned char unmodeled_00[4];
+    float sortDistance;
+    unsigned char unmodeled_08[8];
+} NmlAlphaGroup;
+
+extern NmlAlphaGroup s_aAlphaGroup[];
+
+extern float s_fSortOffset;
+
 typedef union {
     float f;
     int i;
 } LayoutSlot;
 
+typedef struct NmlPartPixelAlpha {
+    short alpha;
+    short partId;
+} NmlPartPixelAlpha;
+
 typedef union {
     LayoutSlot slots[200];
     struct {
-        unsigned char unmodeled_000[0x238];
+        Matrix4 lightDirection; /* +0x0 */
+        Matrix4 lightColor; /* +0x40 */
+        Matrix4 place; /* +0x80 */
+        Matrix4 inversePlace; /* +0xc0 */
+        Vector4 pointPosition[4]; /* +0x100 */
+        Vector4 pointColor[4]; /* +0x140 */
+        unsigned char unmodeled_180[0x1c0 - 0x180];
+        Vector4 fogColor; /* +0x1c0 */
+        Vector4 fogPara; /* +0x1d0 */
+        unsigned char unmodeled_1e0[0x200 - 0x1e0];
+        Vector4 multiplyColor; /* +0x200 */
+        unsigned char unmodeled_210[0x238 - 0x210];
         int pixelAlpha;                     /* +0x238, full-width pixel-alpha word */
         unsigned char unmodeled_23c[4];
         const char *texture;                /* +0x240 */
         int texfunc;                        /* +0x244 */
         u64 alpha;                          /* +0x248 */
         u32 render_status;                  /* +0x250 */
-        unsigned char unmodeled_254[0x2e0 - 0x254];
+        int parent; /* +0x254 */
+        unsigned char unmodeled_258[0x278 - 0x258];
+        int mapShadowPartCount; /* +0x278 */
+        int renderLevel; /* +0x27c */
+        unsigned char unmodeled_280[0x2b4 - 0x280];
+        int partPixelAlphaCount; /* +0x2b4 */
+        unsigned char unmodeled_2b8[0x2d0 - 0x2b8];
+        NmlPartPixelAlpha partPixelAlpha[4]; /* +0x2d0 */
         unsigned short mapShadowParts[8];    /* +0x2e0 */
     } fields;
 } LayoutStore;
@@ -104,10 +161,15 @@ extern LayoutStore s_inLayout;
 
 extern Vector4 s_inShadowVec;
 
+extern Vector4 s_inScale;
+
 extern Vector4 s_inGblPointC[];
 void xglVectorScaleXYZ(float scale, Vector4 *destination, const Vector4 *source);
 typedef unsigned int NmlPointQuadword __attribute__((mode(TI)));
 extern NmlPointQuadword s_inGblPointP[];
+extern NmlPointQuadword s_inGblFogCol[];
+extern Vector4 s_inGblFogPara;
+extern float s_aTexOffset[2];
 
 /* The four fade-control instances nmlModelSendSignalMovieStart initializes
  * through INIT_FADE_CONTROL; see the FadeControl comment above. */
@@ -175,7 +237,9 @@ extern int s_inBackBuffer[];
 typedef struct NmlModelBlock {
     char name[0x20];
     u32 flags;
-    unsigned char unmodeled_024[0x9c];
+    unsigned char unmodeled_024[0x2c - 0x24];
+    int partId; /* +0x2c */
+    unsigned char unmodeled_030[0xc0 - 0x30];
     u32 materialFlags;
 } NmlModelBlock;
 
@@ -187,10 +251,21 @@ typedef struct NmlModelBlock {
  * holds byte offsets from this record to individual NmlModelBlock records.
  */
 typedef struct NmlModel {
-    unsigned char unmodeled_000[0x44];
+    unsigned char unmodeled_000[0x40 - 0x0];
+    int partCount; /* +0x40 */
     int blockCount;
     unsigned char unmodeled_048[0x68];
     int blockOffsets[1];
 } NmlModel;
+
+/* Parent records reference render layouts; +8/+0xc are the two entry counters. */
+typedef struct NmlParentBuffer {
+    LayoutStore *layout;
+    unsigned char unmodeled_04[4];
+    int nonAlphaCount;
+    int alphaCount;
+} NmlParentBuffer;
+typedef NmlParentBuffer NmlParentBuf;
+extern NmlParentBuffer s_aParentBuf[];
 
 #endif /* SRC_MAIN_NML_MODEL_SET_H */

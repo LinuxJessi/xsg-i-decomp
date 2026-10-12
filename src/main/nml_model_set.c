@@ -3,6 +3,9 @@
 #include "shared.h"
 
 #include "nml_model_set.h"
+#include "main/xgl_studio.h"
+
+extern unsigned char s_aDispVisible[];
 
 int g_aSubWindow[4] = { 0 };
 
@@ -195,7 +198,9 @@ extern int D_0095DBC4[];
  */
 
 typedef struct {
-    unsigned char unmodeled_00[0x58];
+    unsigned char unmodeled_000[0xc - 0x0];
+    unsigned short stealthMode; /* +0xc */
+    unsigned char unmodeled_00e[0x58 - 0xe];
     int level;                 /* +0x58 */
     unsigned char unmodeled_5c[0x90 - 0x5c];
     float color[3];            /* +0x90 */
@@ -239,7 +244,7 @@ static void fade_set(FadeControl *, float *, int, int, int, int, int);
 /* nmlModelFogPara (above) is still INCLUDE_ASM; declare it so its caller
  * does not see an implicit declaration. */
 
-static void nmlModelFogPara(LayoutSlot *fog, float fogNear, float fogFar, float fogMin, float fogMax);
+static void nmlModelFogPara(Vector4 *fog, float fogNear, float fogFar, float fogMin, float fogMax);
 
 #define NML_RENDER_FOG 0x2u
 
@@ -601,7 +606,42 @@ static void INIT_MODELSYSTEM(void)
     CONSTRUCT_MODELSYSTEM();
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", FLUSH_MODELSYSTEM);
+static void FLUSH_MODELSYSTEM(void)
+{
+    StudioCamera *camera;
+
+    s_nPacketSignal = s_nPacketSignal + 1;
+    s_nBlocks = 1;
+    s_nModel = 0;
+    s_nDirect = 0;
+    s_nBlocksAlpha = 0;
+    s_nBlocksAlphaLast = 0;
+    s_nAnotherStudio = 0;
+    s_nUseStealth = 0;
+    s_nUseGnosys = 0;
+    s_nUseZwrite = 0;
+    s_nUseBackBuffer = 0;
+    s_nMapAlphaEntry = 0;
+    s_nFrameLockOff = 0;
+    camera = xglStudioSelectGetActiveCamera(0);
+    if (camera != 0) {
+        __asm__ __volatile__(
+            "lq $2, 0(%1)\n\t"
+            "sq $2, 0(%0)"
+            :
+            : "r"(&s_inMainCameraPos), "r"(&camera->position)
+            : "$2", "memory"
+        );
+        __asm__ __volatile__(
+            "lq $2, 0(%1)\n\t"
+            "sq $2, 0(%0)"
+            :
+            : "r"(&s_inMainCameraAng), "r"(&camera->rotation)
+            : "$2", "memory"
+        );
+        s_nMainCameraWarp = 0;
+    }
+}
 
 void nmlModelSetBackBufferClear(void)
 {
@@ -775,7 +815,21 @@ void nmlModelSetFadeOutCancel(int frames) {
     D_0095DB88[0] = (frames < 0) ? 0 : frames;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", nmlModelFadeDoit);
+void nmlModelFadeDoit(void)
+{
+    if (s_inFadeIn.cancelFrames != 0) {
+        s_inFadeIn.cancelFrames--;
+    }
+    if (s_inFadeOut.cancelFrames != 0) {
+        s_inFadeOut.cancelFrames--;
+    }
+    if (s_inActiveFadeIn.cancelFrames != 0) {
+        s_inActiveFadeIn.cancelFrames--;
+    }
+    if (s_inActiveFadeOut.cancelFrames != 0) {
+        s_inActiveFadeOut.cancelFrames--;
+    }
+}
 
 void nmlModelSetFadeDoit(void)
 {
@@ -907,7 +961,22 @@ void nmlModelSetSortOffset(float offset)
     s_fSortOffsetEntry = offset;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", nmlModelSetGlobalPointLight);
+void nmlModelSetGlobalPointLight(int index, const Vector4 *position, const Vector4 *color)
+{
+    if (index < 3U) {
+        NmlPointQuadword *point = &s_inGblPointP[index];
+
+        __asm__ __volatile__(
+            "lq $2, 0(%1)\n\t"
+            "sq $2, 0(%0)"
+            :
+            : "r"(point), "r"(position)
+            : "$2", "memory"
+        );
+        xglVectorScaleXYZ(128.0f, &s_inGblPointC[index], color);
+        s_inLayout.fields.render_status |= 0x02000000;
+    }
+}
 
 void nmlModelSetGlobalPointLightCol(int index, const Vector4 *color)
 {
@@ -917,11 +986,39 @@ void nmlModelSetGlobalPointLightCol(int index, const Vector4 *color)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", nmlModelSetGlobalPointLightPos);
+void nmlModelSetGlobalPointLightPos(unsigned int index, const NmlPointQuadword *position)
+{
+    if (index < 3) {
+        NmlPointQuadword *destination = &s_inGblPointP[index];
+        __asm__ __volatile__(
+            "lq $2, 0(%1)\n"
+            "sq $2, 0(%0)\n"
+            : : "r" (destination), "r" (position) : "$2", "memory");
+        s_inLayout.fields.render_status |= 0x02000000;
+    }
+}
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", nmlModelSetGlobalPointLightReset);
+void nmlModelSetGlobalPointLightReset(void)
+{
+    s_inLayout.fields.render_status &= 0xfdffffffu;
+    __asm__ __volatile__("sq $0, 0(%0)" : : "r"(s_inGblPointC) : "memory");
+    __asm__ __volatile__("sq $0, 16(%0)" : : "r"(s_inGblPointC) : "memory");
+    __asm__ __volatile__("sq $0, 32(%0)" : : "r"(s_inGblPointC) : "memory");
+    __asm__ __volatile__("sq $0, 48(%0)" : : "r"(s_inGblPointC) : "memory");
+}
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", nmlModelSetPointLight);
+void nmlModelSetPointLight(unsigned int index, const Vector4 *position, const Vector4 *color)
+{
+    if (index < 3) {
+        __asm__ __volatile__(
+            "lq $2, 0(%1)\n"
+            "sq $2, 0(%0)\n"
+            : : "r" (&s_inLayout.fields.pointPosition[index]), "r" (position)
+            : "$2", "memory");
+        xglVectorScaleXYZ(128.0f, &s_inLayout.fields.pointColor[index], color);
+        s_inLayout.fields.render_status |= 0x1000;
+    }
+}
 
 void nmlModelSetSpecularOff(int disableSpecular) {
     if (disableSpecular != 0) {
@@ -1006,7 +1103,24 @@ void nmlModelSetToumeiParts(int partId, float alpha)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", nmlModelSetFilter);
+void nmlModelSetFilter(int filter, float start, float end)
+{
+    s_inLayout.slots[0x234 / 4].i = filter;
+    if (start < 0.0f) {
+        start = 0.0f;
+    }
+    if (start > 128.0f) {
+        start = 128.0f;
+    }
+    s_inLayout.slots[0x1e0 / 4].f = start;
+    s_inLayout.slots[0x1e4 / 4].f = end;
+    if ((filter & 2) != 0) {
+        s_nUseStealth = 1;
+        if (GameLoopState.stealthMode == 2 && SCRIPT_getCfTime() < 2) {
+            s_nUseStealth = 0;
+        }
+    }
+}
 
 void nmlModelSetPixelAlpha(int alpha)
 {
@@ -1019,9 +1133,41 @@ void nmlModelSetPixelAlpha(int alpha)
     s_inLayout.fields.pixelAlpha = alpha;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", nmlModelSetPartsPixelAlpha);
+void nmlModelSetPartsPixelAlpha(int partId, int alpha)
+{
+    if (alpha <= 0) {
+        alpha = 1;
+    }
+    if (alpha >= 128) {
+        alpha = 127;
+    }
+    if (s_inLayout.fields.partPixelAlphaCount < 4) {
+        s_inLayout.fields.partPixelAlpha[s_inLayout.fields.partPixelAlphaCount].alpha = alpha;
+        s_inLayout.fields.partPixelAlpha[s_inLayout.fields.partPixelAlphaCount].partId = partId;
+        ++s_inLayout.fields.partPixelAlphaCount;
+    }
+}
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", nmlModelSetScale);
+void nmlModelSetScale(const Vector4 *scale)
+{
+    __asm__ __volatile__(
+        "lq $2, 0(%1)\n\t"
+        "sq $2, 0(%0)"
+        :
+        : "r"(&s_inScale), "r"(scale)
+        : "$2", "memory"
+    );
+    if (s_inScale.x < s_inScale.y) {
+        s_inScale.x = s_inScale.y;
+    }
+    if (s_inScale.x < s_inScale.z) {
+        s_inScale.x = s_inScale.z;
+    }
+    if (s_inScale.x < 1.0f) {
+        s_inScale.x = 1.0f;
+    }
+    s_inLayout.slots[0x22c / 4].f = s_inScale.x;
+}
 
 void nmlModelSetClip(int clip)
 {
@@ -1077,7 +1223,24 @@ void nmlModelSetToumei(int enabled)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", nmlModelSetLight);
+void nmlModelSetLight(const Matrix4 *direction, const Matrix4 *color)
+{
+    __asm__ __volatile__(
+        "lq $2, 0(%1)\n" "sq $2, 0(%0)\n"
+        "lq $2, 16(%1)\n" "sq $2, 16(%0)\n"
+        "lq $2, 32(%1)\n" "sq $2, 32(%0)\n"
+        "lq $2, 48(%1)\n" "sq $2, 48(%0)\n"
+        : : "r" (&s_inLayout.fields.lightDirection), "r" (direction)
+        : "$2", "memory");
+    __asm__ __volatile__(
+        "lq $2, 0(%1)\n" "sq $2, 0(%0)\n"
+        "lq $2, 16(%1)\n" "sq $2, 16(%0)\n"
+        "lq $2, 32(%1)\n" "sq $2, 32(%0)\n"
+        "lq $2, 48(%1)\n" "sq $2, 48(%0)\n"
+        : : "r" (&s_inLayout.fields.lightColor), "r" (color)
+        : "$2", "memory");
+    s_inLayout.fields.render_status |= 0x10;
+}
 
 void nmlModelSetTexture(const char *texture)
 {
@@ -1109,31 +1272,134 @@ void nmlModelSetMatrix(void *matrix)
     *(void **)&s_inLayout.slots[0x23c / 4] = matrix;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", nmlModelSetPlace);
+void nmlModelSetPlace(const Matrix4 *place)
+{
+    __asm__ __volatile__(
+        "lq $2, 0(%1)\n" "sq $2, 0(%0)\n"
+        "lq $2, 16(%1)\n" "sq $2, 16(%0)\n"
+        "lq $2, 32(%1)\n" "sq $2, 32(%0)\n"
+        "lq $2, 48(%1)\n" "sq $2, 48(%0)\n"
+        : : "r" (&s_inLayout.fields.place), "r" (place)
+        : "$2", "memory");
+    xglMatrixInverse(&s_inLayout.fields.inversePlace, place);
+    s_inLayout.fields.render_status |= 1;
+}
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", nmlModelSetTexOffset);
+void nmlModelSetTexOffset(const char *name, float offsetU, float offsetV)
+{
+    __builtin_memcpy(s_aTexName, name, sizeof(s_aTexName));
+    s_aTexName[31] = 0;
+    s_aTexOffset[0] = offsetU;
+    s_aTexOffset[1] = offsetV;
+}
 
 INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", nmlModelSetMatOffset);
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", nmlModelSetMulColor);
-
-INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", nmlModelSetFogCol);
-
-INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", nmlModelFogPara);
-
-void nmlModelSetFogDist(float fogNear, float fogFar, float fogMin, float fogMax)
+void nmlModelSetMulColor(const Vector4 *color)
 {
-    nmlModelFogPara(&s_inLayout.slots[0x1d0 / 4], fogNear, fogFar, fogMin, fogMax);
+    __asm__ __volatile__(
+        "lq $2, 0(%1)\n"
+        "sq $2, 0(%0)\n"
+        : : "r" (&s_inLayout.fields.multiplyColor), "r" (color)
+        : "$2", "memory");
+}
+
+void nmlModelSetFogCol(const Vector4 *color)
+{
+    __asm__ __volatile__(
+        "lq $2, 0(%1)\n" "sq $2, 0(%0)\n"
+        : : "r" (&s_inLayout.fields.fogColor), "r" (color)
+        : "$2", "memory");
     s_inLayout.fields.render_status |= NML_RENDER_FOG;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", nmlModelSetGlobalFogCol);
+static void nmlModelFogPara(Vector4 *fog, float fogNear, float fogFar, float fogMin, float fogMax)
+{
+    float shadeMax;
+    float shadeMin;
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", nmlModelSetGlobalFogDist);
+    shadeMax = (1.0f - fogMax) * 255.0f;
+    shadeMin = (1.0f - fogMin) * 255.0f;
+    if (shadeMax < 0.0f) {
+        shadeMax = 0.0f;
+    }
+    if (shadeMax > 255.0f) {
+        shadeMax = 255.0f;
+    }
+    if (shadeMin < 0.0f) {
+        shadeMin = 0.0f;
+    }
+    if (shadeMin > 255.0f) {
+        shadeMin = 255.0f;
+    }
+    fog->x = shadeMax;
+    fog->y = shadeMin;
+    fog->w = (fogFar * fogNear * (shadeMin - shadeMax)) / (fogFar - fogNear);
+    fog->z = ((((shadeMax - shadeMin) * (fogFar + fogNear)) / (fogFar - fogNear)) + (shadeMax + shadeMin)) * 0.5f;
+}
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", nmlModelGetFogPara);
+void nmlModelSetFogDist(float fogNear, float fogFar, float fogMin, float fogMax)
+{
+    nmlModelFogPara(&s_inLayout.fields.fogPara, fogNear, fogFar, fogMin, fogMax);
+    s_inLayout.fields.render_status |= NML_RENDER_FOG;
+}
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", nmlModelGetFogParaStudio);
+void nmlModelSetGlobalFogCol(const NmlPointQuadword *color)
+{
+    __asm__ __volatile__(
+        "lq $2, 0(%1)\n"
+        "sq $2, 0(%0)\n"
+        : : "r" (s_inGblFogCol), "r" (color) : "$2", "memory");
+    s_inLayout.fields.render_status |= 0x01000000;
+}
+
+void nmlModelSetGlobalFogDist(float fogNear, float fogFar, float fogMin, float fogMax)
+{
+    nmlModelFogPara(&s_inGblFogPara, fogNear, fogFar, fogMin, fogMax);
+    s_inLayout.fields.render_status |= 0x01000000;
+}
+
+unsigned int nmlModelGetFogPara(const Vector4 *position)
+{
+    const Vector4 *fog;
+    StudioCamera *camera;
+    Vector4 projected;
+    unsigned int result;
+
+    result = 0xff;
+    fog = &s_inGblFogPara;
+    if (s_inLayout.fields.render_status & NML_RENDER_FOG) {
+        fog = &s_inLayout.fields.fogPara;
+    }
+    camera = xglStudioSelectGetActiveCamera(LAYOUT_S32(0x27c));
+    if (camera != 0) {
+        _CurSetMatrix(camera->viewMatrix);
+        _CurRotTransPersFog(&projected, position, fog);
+        result = (unsigned int) projected.w;
+    }
+    return result;
+}
+
+unsigned int nmlModelGetFogParaStudio(const Vector4 *position, int studio)
+{
+    const Vector4 *fog;
+    StudioCamera *camera;
+    Vector4 projected;
+    unsigned int result;
+
+    result = 0xff;
+    fog = &s_inGblFogPara;
+    if ((s_inLayout.fields.render_status & 2) != 0) {
+        fog = &s_inLayout.fields.fogPara;
+    }
+    camera = xglStudioSelectGetActiveCamera(studio);
+    if (camera != 0) {
+        _CurSetMatrix(camera->viewMatrix);
+        _CurRotTransPersFog(&projected, position, fog);
+        result = (unsigned int) projected.w;
+    }
+    return result;
+}
 
 int nmlModelSetGlobalFogReset(void) {
     int renderStatus = s_inLayout.fields.render_status & 0xfeffffff;
@@ -1141,13 +1407,31 @@ int nmlModelSetGlobalFogReset(void) {
     return renderStatus;
 }
 
-int nmlModelSetFogCancel(void) {
+void nmlModelSetFogCancel(void) {
     int renderStatus = s_inLayout.fields.render_status | 0x2000;
     s_inLayout.fields.render_status = renderStatus;
-    return renderStatus;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", nmlModelInitPartsVisible);
+void nmlModelInitPartsVisible(NmlModel *model, int visible)
+{
+    int *blockOffsets;
+    int blockIndex;
+    NmlModelBlock *block;
+
+    if (nmlModelLexDataCheck(model) != 0) {
+        return;
+    }
+    blockOffsets = model->blockOffsets;
+    block = (NmlModelBlock *)((char *)model + blockOffsets[0]);
+    for (blockIndex = 0; blockIndex < model->blockCount; blockIndex++) {
+        block = (NmlModelBlock *)((char *)model + blockOffsets[blockIndex]);
+        if (visible != 0) {
+            block->flags = block->flags & ~NML_BLOCK_HIDDEN;
+        } else {
+            block->flags |= NML_BLOCK_HIDDEN;
+        }
+    }
+}
 
 void nmlModelSetMapEntry(void)
 {
@@ -1184,7 +1468,35 @@ void nmlModelSetMapLastInit(void)
     s_nMapLast = 0;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", nmlModelSetPartsVisible);
+void nmlModelSetPartsVisible(NmlModel *model, int partId, int visible)
+{
+    int *blockOffsets;
+    int blockIndex;
+    NmlModelBlock *block;
+    u32 hideBits;
+    u32 keepBits;
+
+    if (nmlModelLexDataCheck(model) != 0 || partId >= model->partCount) {
+        return;
+    }
+    blockOffsets = model->blockOffsets;
+    if ((((NmlModelBlock *)((char *)model + blockOffsets[0]))->materialFlags & NML_BLOCK_MATERIAL_NAMED_PARTS) != 0) {
+        hideBits = NML_BLOCK_HIDDEN;
+        keepBits = 0xffffffffu;
+        if (visible != 0) {
+            hideBits = 0;
+            keepBits = ~NML_BLOCK_HIDDEN;
+        }
+        for (blockIndex = 0; blockIndex < model->blockCount; blockIndex++) {
+            block = (NmlModelBlock *)((char *)model + blockOffsets[blockIndex]);
+            if (block->partId == partId) {
+                block->flags = (block->flags | hideBits) & keepBits;
+            }
+        }
+    } else if (visible == 0 && s_nDispVisible < 1023) {
+        s_aDispVisible[++s_nDispVisible] = (unsigned char) partId;
+    }
+}
 
 void nmlModelSetNameVisible(NmlModel *model, const char *name, int visible, int match)
 {
@@ -1298,21 +1610,95 @@ static void set_group_status(LayoutStore *layout, u32 *status)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", AlphaGroupSortEntry);
+static void AlphaGroupSortEntry(const Vector4 *position)
+{
+    StudioCamera *camera = xglStudioSelectGetActiveCamera(s_inLayout.fields.renderLevel);
+    float distance = 0.0f;
+    if (camera != 0) {
+        distance = _VectorLengthSQ(&camera->position, position);
+    }
+    s_aAlphaGroup[s_nAlphaGroup].sortDistance = distance + s_fSortOffset;
+}
 
 INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", AlphaGroupLastEntry);
 
 INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", AlphaGroupSort);
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", is_shadow_map_parts);
+static int is_shadow_map_parts(const LayoutStore *layout, int partId)
+{
+    int found = 0;
+    int count = layout->fields.mapShadowPartCount;
+    if (count != 0) {
+        int index;
+        for (index = 0; index < count; ++index) {
+            if (layout->fields.mapShadowParts[index] == partId) {
+                found = 1;
+                break;
+            }
+        }
+    }
+    return found;
+}
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", is_parts_transparency);
+static int is_parts_transparency(const NmlModelBlock *block)
+{
+    int index;
+    int found = 0;
+    for (index = 0; index < s_nToumeiNum; ++index) {
+        if (s_aToumeiId[index] == block->partId) {
+            found = 1;
+            break;
+        }
+    }
+    return found;
+}
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", is_block_last_entry);
+static int is_block_last_entry(const NmlModelBlock *block)
+{
+    int index;
+    int found = 0;
+    for (index = 0; index < s_nMapLast; ++index) {
+        if (block->partId == s_aMapLast[index]) {
+            found = 1;
+            break;
+        }
+    }
+    return found;
+}
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", parent_buf_entry);
+NmlParentBuffer *parent_buf_entry(void)
+{
+    NmlParentBuffer *entry = 0;
+    if (s_nParentBuf < 512) {
+        LayoutStore **layout;
+        int index;
+        entry = &s_aParentBuf[s_nParentBuf];
+        layout = &entry->layout;
+        *layout = 0;
+        index = s_nParentBuf;
+        s_aParentBuf[index].nonAlphaCount = 0;
+        s_nParentBuf = index + 1;
+        s_aParentBuf[index].alphaCount = 0;
+    }
+    return entry;
+}
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", parent_buf_search);
+static NmlParentBuf *parent_buf_search(int parent)
+{
+    NmlParentBuf *found;
+    int i;
+
+    found = 0;
+    for (i = s_nParentBuf - 1; i >= 0; i--) {
+        NmlParentBuf *record = &s_aParentBuf[i];
+
+        if (record->layout != 0 && record->layout->fields.parent == parent && parent != 0) {
+            found = record;
+            break;
+        }
+    }
+    return found;
+}
 
 static void set_circle_shadow_ratio(int scale)
 {
@@ -1421,7 +1807,17 @@ void nmlModelConstruct(void)
     s_inLayout.fields.render_status = 0;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", nmlModelInit);
+void nmlModelInit(void)
+{
+    INIT_MODELSYSTEM();
+    INIT_BACK_BUFFER();
+    INIT_ALPHA_GROUP();
+    INIT_PARENT_BUF();
+    INIT_MAP_HANDLE(s_inMapHandle);
+    nmlModelClear();
+    s_inLayout.fields.render_status = 0;
+    D_0095BB44[0] = 30;
+}
 
 void nmlModelClear(void) {
     CLEAR_LAYOUT_MODEL(&s_inLayout);

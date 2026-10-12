@@ -5,8 +5,8 @@
   "toolchains": {
     "ee-gcc2_96-realconv-lp7": {
       "cc_dir": "tool:ee-gcc2.96-realconv-lp7",
-      "cc1_sha256": "7599b7520faca316c40ba87c46479851dfbf9e83dce557c7757587bac7e6c55f",
-      "note": "pinned release ee-gcc2.96-realconv-lp7 (cc1 sha 7599b752...)",
+      "cc1_sha256": "d7602f6561123f078353b7a8d771ba046830a80f810e3fa33fe617ee7288456d",
+      "note": "pinned release ee-gcc2.96-realconv-lp7 (cc1 sha d7602f65...)",
       "approved": "user 2026-09-11 (single GCC 2.96 cc1)"
     },
     "LA29-vsqrt": {
@@ -2592,7 +2592,7 @@
       "compiler_profile": "ee-gcc2_96-realconv-lp7",
       "flags": [
         "-O2",
-        "-G0"
+        "-G8"
       ],
       "assembler": "LA29-vsqrt-nolabel-laimm (ee-legacy-binutils-la29-vsqrt-nolabel-laimm-v1, user-approved 2026-09-11, 2026-09-24, 2026-09-25)",
       "owners": {

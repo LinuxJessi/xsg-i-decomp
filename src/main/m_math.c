@@ -8,8 +8,7 @@
 
 
 extern float srsAtan2(float deltaX, float deltaZ);
-
-#include "sdv.h"
+extern const Vector4 McMathUnitVector;
 
 float MMathMakeRandom(void)
 {
@@ -631,9 +630,41 @@ Vector4 *MMathDivVectorS4(Vector4 *destination, const Vector4 *source, float sca
     return destination;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/m_math", MMathIsVectorEqual);
+short MMathIsVectorEqual(const Vector4 *first, const Vector4 *second)
+{
+    short equal;
 
-INCLUDE_ASM("asm/main/nonmatchings/m_math", MMathIsVectorEqual4);
+    __asm__ __volatile__(
+        "lq $8,0(%1)\n\t"
+        "lq $9,0(%2)\n\t"
+        "pxor $10,$8,$9\n\t"
+        "addi %0,$0,1\n\t"
+        "movn %0,$0,$10\n\t"
+        "pexew $10,$10\n\t"
+        "movn %0,$0,$10\n\t"
+        : "=&r"(equal)
+        : "r"(first), "r"(second)
+        : "$8", "$9", "$10");
+    return equal;
+}
+
+short MMathIsVectorEqual4(const Vector4 *first, const Vector4 *second)
+{
+    short equal;
+
+    __asm__ __volatile__(
+        "lq $8,0(%1)\n\t"
+        "lq $9,0(%2)\n\t"
+        "pxor $10,$8,$9\n\t"
+        "addi %0,$0,1\n\t"
+        "movn %0,$0,$10\n\t"
+        "pcpyud $10,$10,$0\n\t"
+        "movn %0,$0,$10\n\t"
+        : "=&r"(equal)
+        : "r"(first), "r"(second)
+        : "$8", "$9", "$10");
+    return equal;
+}
 
 float MMathVectorDotProduct(const Vector4 *first, const Vector4 *second)
 {

@@ -9,15 +9,23 @@ typedef struct {
 } TrapPosition;
 
 typedef struct {
-    unsigned char unmodeled_00[4];
+    unsigned char unmodeled_00[2];
+    s16 kindIndex;
     signed char state;
-    unsigned char unmodeled_05[0x1f];
+    unsigned char unmodeled_05[7];
+    float sizeX;
+    float sizeY;
+    float sizeZ;
+    float offsetX;
+    float offsetY;
+    float offsetZ;
     float damageRadius;
     unsigned char unmodeled_28[5];
     signed char windState;
     unsigned char unmodeled_2e[2];
     s16 methodId;
-    unsigned char unmodeled_32[0x0a];
+    signed char target;
+    unsigned char unmodeled_33[9];
     int activeDuration;
     int effectId;
     unsigned int activeFlags;
@@ -90,7 +98,10 @@ struct TrapMapUnit {
     unsigned char unmodeled_08[0x08];
     TrapPosition position;
     TrapPosition effectOrientation;
-    unsigned char unmodeled_30[0x70];
+    unsigned char unmodeled_30[0x10];
+    float matrix[4][4];
+    float (*matrixRef)[4];
+    unsigned char unmodeled_84[0x1c];
     unsigned char trapSerial;
     unsigned char unmodeled_a1;
     unsigned char trapState;
@@ -98,7 +109,11 @@ struct TrapMapUnit {
     s16 trapId;
     unsigned char unmodeled_a6[2];
     s16 trapTimer;
-    unsigned char unmodeled_aa[0x3e];
+    unsigned char unmodeled_aa[6];
+    TrapPosition dimensions;
+    unsigned char unmodeled_c0[0x20];
+    int uwaresId;
+    int xtxresId;
     TrapLinkedObject *linkedObject;
     unsigned char unmodeled_ec[4];
     unsigned char unmodeled_f0[0xb0];
@@ -131,9 +146,152 @@ extern void CallMethod_I(const char *method_name, int argument1);
 
 extern void EXM_ClearWindStruct();
 
+typedef struct {
+    signed char windState;
+    unsigned char unmodeled_01[0x0f];
+    TrapPosition dimensions;
+    unsigned int flags;
+    int effectId;
+    unsigned char unmodeled_28[8];
+} TrapKindEntry;
+
+typedef struct {
+    signed char shape;
+    unsigned char unmodeled_01[0x0f];
+    TrapPosition dimensions;
+    signed char target;
+    unsigned char unmodeled_21[0x0f];
+} KowareKindEntry;
+
+extern TrapKindEntry TrapKind_t_0[5];
+extern KowareKindEntry KowareKind_t[127];
+extern int uwares_tbl[14];
+extern int xtxres_tbl[14];
+extern const char D_004CA3F8[16];
+extern const char D_004CA408[16];
+extern const char D_004CA418[0x30];
+
+extern void CreateUwamonoCommon(TrapMapUnit *unit);
+extern void SetContainerParam(TrapMapUnit *unit);
+extern void SetHideObject(TrapMapUnit *unit);
+extern void xglMatrixStackUnit(void);
+extern void xglMatrixStackTrans(const float translation[4]);
+extern void xglMatrixStackRotX(float angle);
+extern void xglMatrixStackRotY(float angle);
+extern void xglMatrixStackRotZ(float angle);
+extern void xglMatrixStackSave(float matrix[4][4]);
+void MAP_updateUnitTrap(TrapMapUnit *unit);
+
 int GivesEnemyDamage(TrapMapUnit *unit);
 
-INCLUDE_ASM("asm/main/nonmatchings/init_map_trap", InitMapTrap);
+/* The map unit's struct copies move 8-byte halves of TrapPosition; the float
+ * arithmetic below reads and writes the same vectors as plain floats. */
+typedef struct {
+    float x;
+    float y;
+    float z;
+    float w;
+} TrapVector;
+
+typedef struct {
+    unsigned char unmodeled_00[0x10];
+    TrapVector position;
+    TrapVector rotation;
+    unsigned char unmodeled_30[0x80];
+    TrapVector dimensions;
+} TrapMapUnitVectors;
+
+void InitMapTrap(TrapMapUnit *unit)
+{
+    TrapMapUnitVectors *view = (TrapMapUnitVectors *)unit;
+    TrapDamageProperties *trap = &unit->trap;
+    int index;
+    int xtxres;
+    int uwares;
+
+    unit->update = MAP_updateUnitTrap;
+    if ((u16)(unit->trapId - 0x7001) < 4) {
+        index = unit->trapId - 0x7001;
+        uwares = uwares_tbl[index];
+        xtxres = xtxres_tbl[index];
+        unit->uwaresId = uwares;
+        unit->xtxresId = xtxres;
+        if (trap->windState == -1) {
+            trap->windState = TrapKind_t_0[index].windState;
+        }
+        unit->flags |= TrapKind_t_0[index].flags;
+        unit->dimensions = TrapKind_t_0[index].dimensions;
+        trap->damageRadius = 3.0f;
+        if (trap->target == -1) {
+            trap->target = 0;
+        }
+        if (trap->effectId == -1) {
+            trap->effectId = TrapKind_t_0[index].effectId;
+        }
+    } else if ((u16)(unit->trapId - 0x7014) < 31) {
+        SetContainerParam(unit);
+    } else {
+        unit->flags |= TrapKind_t_0[4].flags;
+        unit->dimensions = TrapKind_t_0[4].dimensions;
+        trap->damageRadius = 3.0f;
+        if (trap->kindIndex != -1) {
+            if (trap->windState == -1) {
+                trap->windState = KowareKind_t[trap->kindIndex].shape;
+            } else {
+                trap->windState = TrapKind_t_0[4].windState;
+            }
+            unit->dimensions = KowareKind_t[trap->kindIndex].dimensions;
+            if (trap->effectId == -1) {
+                trap->effectId = TrapKind_t_0[trap->kindIndex].effectId;
+            }
+        } else if (trap->windState == -1) {
+            trap->windState = TrapKind_t_0[4].windState;
+        }
+        if (trap->target == -1) {
+            trap->target = KowareKind_t[trap->kindIndex].target;
+        }
+        if (trap->effectId == -1) {
+            trap->effectId = TrapKind_t_0[4].effectId;
+        }
+    }
+    if (trap->sizeX > 0.0f) {
+        view->dimensions.x = trap->sizeX * 0.5f;
+        view->dimensions.y = trap->sizeY;
+        view->dimensions.z = trap->sizeZ * 0.5f;
+        if (printflg) {
+            printf(D_004CA3F8);
+            printf(D_004CA408, trap->sizeX, trap->sizeY, trap->sizeZ);
+        }
+    }
+    view->dimensions.x += trap->offsetX * 0.5f;
+    view->dimensions.y += trap->offsetY;
+    view->dimensions.z += trap->offsetZ * 0.5f;
+    if (trap->activeFlags == -1) {
+        trap->activeFlags = 1;
+    }
+    if (unit->trapId == 0x7000) {
+        unit->flags |= 4;
+        trap->activeFlags = 0;
+    }
+    if (unit->trapId == 0x7012) {
+        unit->flags |= 4;
+        trap->activeFlags = 0;
+        trap->windState = 0;
+    }
+    CreateUwamonoCommon(unit);
+    xglMatrixStackUnit();
+    xglMatrixStackTrans(&view->position.x);
+    xglMatrixStackRotX(view->rotation.x);
+    xglMatrixStackRotY(view->rotation.y);
+    xglMatrixStackRotZ(view->rotation.z);
+    xglMatrixStackSave(unit->matrix);
+    unit->matrixRef = unit->matrix;
+    SetHideObject(unit);
+    if (printflg) {
+        printf(D_004CA418, view->position.x, view->position.y, view->position.z,
+               view->rotation.y / 3.1415927f * 180.0f);
+    }
+}
 
 void MAP_updateUnitTrap(TrapMapUnit *unit)
 {

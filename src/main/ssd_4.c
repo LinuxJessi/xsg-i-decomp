@@ -91,7 +91,7 @@ typedef struct RssdWorkFlags {
     unsigned char _unmodeled_1bc[4];      /* +0x1bc..0x1bf */
     struct SsdMemoryBlock *first_block;   /* +0x1c0: first allocator-list node */
     int memory_end;                       /* +0x1c4: allocator arena end */
-    unsigned char _unmodeled_1c8[4];     /* +0x1c8..0x1cb */
+    int memory_size;                      /* +0x1c8: aligned arena size */
     int spu_bytes_remaining;              /* +0x1cc: drained by RssdBackNextWaveThread */
     /*
      * Running destination pointer for streamed sample data. RssdSpuRead
@@ -232,7 +232,42 @@ extern void iSsdDisposeMemoryPtr(void *ptr);
 
 void SsdClearMemory(void *buffer, int size);
 
-INCLUDE_ASM("asm/main/nonmatchings/ssd_4", SsdInitMemoryManager);
+/*
+ * View of the sentinel node SsdInitMemoryManager writes at the arena start:
+ * the same 0x40-byte node as SsdMemoryBlock. Here  is only cleared as
+ * a word and  holds an address (the first byte after the node).
+ */
+typedef struct SsdMemoryNode {
+    int next;                           /* +0x00 */
+    struct SsdMemoryBlock *end;         /* +0x04 */
+    unsigned char state;                /* +0x08 */
+    unsigned char flags;                /* +0x09 */
+    unsigned char _unmodeled_0a[2];     /* +0x0a..0x0b */
+    int tag;                            /* +0x0c */
+    unsigned char _unmodeled_10[0x30];  /* +0x10..0x3f */
+} SsdMemoryNode;
+
+void SsdInitMemoryManager(int address, int size)
+{
+    SsdMemoryNode *head;
+    int start;
+
+    start = address;
+    size &= ~0x3f;
+    if (start & 0x3f) {
+        start = (start + 63) & ~0x3f;
+        size -= 64;
+    }
+    head = (SsdMemoryNode *)start;
+    RssdWork.first_block = (SsdMemoryBlock *)head;
+    RssdWork.memory_end = start + size;
+    RssdWork.memory_size = size;
+    head->state = 0x81;
+    head->flags = 0;
+    head->tag = 0x504f544d;
+    head->end = (SsdMemoryBlock *)(head + 1);
+    head->next = 0;
+}
 
 void *SsdNewMemoryPtr(int size, int tag)
 {

@@ -1,6 +1,8 @@
 #include "common.h"
 #include "play.h"
 
+#include "main/jni.h"
+
 const char D_004C2308[24] = "FRAME %6d (%6d, %6d)\n";
 
 Play playControl;

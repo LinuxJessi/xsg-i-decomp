@@ -7,9 +7,45 @@
 
 #include "shared.h"
 
+#include "main/ssd_init.h"
+
+/* RssdWork storage is defined by main/tu107; its layout is owned by main/tu110. */
+extern RssdWorkFlags RssdWork;
+
+typedef union GsTag {
+    u64 value;
+    u32 words[2];
+} GsTag;
+
 typedef struct NmlMaterialRenderState NmlMaterialRenderState;
 
 typedef struct NmlModelRenderState NmlModelRenderState;
+
+typedef unsigned int NmlScreenQuadword __attribute__((mode(TI)));
+
+typedef struct NmlModelResource {
+    unsigned char unmodeled_000[0x6c];
+    u32 texture_reference;
+} NmlModelResource;
+
+typedef struct NmlTextureResourceSet {
+    int count;
+    unsigned char unmodeled_04[0x2c];
+} NmlTextureResourceSet;
+
+typedef struct NmlTextureResourceEntry {
+    short width;
+    unsigned char unmodeled_02[2];
+    short height;
+    unsigned char unmodeled_06[2];
+    short psm;
+    unsigned char unmodeled_0a[2];
+    short buffer_width;
+    unsigned char unmodeled_0e[2];
+    int vram_offset;
+    int pixel_bytes;
+    unsigned char unmodeled_18[0x28];
+} NmlTextureResourceEntry;
 
 /*
  * The two objects the nml packet builders render from, recovered as bounded
@@ -34,6 +70,8 @@ typedef struct NmlProRealParam {
      * slot of the "Pro" microcode family instead of the plain one.
      */
     u32 projection_entry;
+    unsigned char unmodeled_120[0xa0];
+    void *texture;
 } NmlProRealParam;
 
 /*
@@ -75,12 +113,17 @@ struct NmlMaterialRenderState {
  * 0x004a91e0, 0x320 bytes) plus the per-entry copies in s_apModelLayout.
  */
 struct NmlModelRenderState {
-    unsigned char unmodeled_000[0x1c0];
+    unsigned char unmodeled_000[0x70];
+    NmlScreenQuadword screen_translation;
+    NmlScreenQuadword screen_scale;
+    unsigned char unmodeled_090[0x130];
     /* +0x1c0: the fog color parcel; its fourth word is fog intensity. */
     u32 fog_color[4];
     /* +0x1d0: the fog-distance parcel sent after fog_color. */
     u32 fog_parameters[4];
-    unsigned char unmodeled_1e0[0x70];
+    unsigned char unmodeled_1e0[0x60];
+    void *texture;
+    unsigned char unmodeled_244[0x0c];
     /*
      * +0x250: the render-status word.  nmlModelSetRenderStatus is the setter
      * that names it, and it ORs the value it is given (main 0x0022fab0 sets
@@ -99,7 +142,8 @@ struct NmlModelRenderState {
      * nmlModelRenderDrop 0x80000 (0x00234d58).
      */
     u32 render_status;
-    unsigned char unmodeled_254[0x0c];
+    NmlModelResource *resource;
+    unsigned char unmodeled_258[0x08];
     /*
      * +0x260: this layout's own proreal block, the packet address nmlModelEntry
      * stores after copying s_inProReal (main 0x00233030).

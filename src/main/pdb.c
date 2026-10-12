@@ -117,4 +117,14 @@ PDBEntryRecord *PDB_findFile(int class_id, char *path)
     return 0;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/pdb", getStrIndex_002F5F30);
+static char *getStrIndex(const char *string, int length, int character)
+{
+    while (--length >= 0) {
+        long current = string[length];
+
+        if (current == character) {
+            return (char *)&string[length];
+        }
+    }
+    return 0;
+}

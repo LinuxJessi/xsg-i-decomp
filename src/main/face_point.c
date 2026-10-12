@@ -1,6 +1,11 @@
 #include "common.h"
 
+extern unsigned int strlen(const char *string);
+
+
 #include "shared.h"
+
+extern const float s_aCullingBase[9];
 
 static int s_nIgnoreCulling = 0;
 
@@ -362,13 +367,13 @@ int strcmp(const char *, const char *);
 
 s32 xglStudioGetActiveCamera(void);
 
-s32 _ModelCalcClip(s32 model);
+static s32 _ModelCalcClip(s32 model);
 
 s32 xglCullingCheck(s32 camera, s32 model);
 
-s32 _ModelCalcClipMat1(s32 model, s32 matrix);
+static s32 _ModelCalcClipMat1(s32 model, s32 matrix);
 
-s32 _ModelCalcClipMat2(s32 model, s32 matrix1, s32 matrix2);
+static s32 _ModelCalcClipMat2(s32 model, s32 matrix1, s32 matrix2);
 
 s32 xglStudioSelectGetActiveCamera(s32 cameraIndex);
 
@@ -786,7 +791,99 @@ static void plane_from_points(const Vector4 *point0, const Vector4 *point1,
     plane->w = -(normal.x * point0->x + normal.y * point0->y + normal.z * point0->z);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/face_point", setup_occlusion);
+void setup_occlusion(CullingVolume *volume, s32 camera)
+{
+    const CullingCameraView *cameraView = (const CullingCameraView *) camera;
+    const Matrix4 *cameraTransform = &cameraView->occlusionTransform;
+    Vector4 corners[4];
+    Vector4 origin;
+
+    __asm__ __volatile__(
+        "lqc2 vf31, 0(%1)\n\t"
+        "lqc2 vf27, 0(%2)\n\t"
+        "lqc2 vf28, 16(%2)\n\t"
+        "lqc2 vf29, 32(%2)\n\t"
+        "lqc2 vf30, 48(%2)\n\t"
+        "vmulax.xyz ACC, vf27, vf31x\n\t"
+        "vmadday.xyz ACC, vf28, vf31y\n\t"
+        "vmaddaz.xyz ACC, vf29, vf31z\n\t"
+        "vmaddw.xyz vf31, vf30, vf0w\n\t"
+        "sqc2 vf31, 0(%0)"
+        :
+        : "r"(&corners[0]), "r"(&volume->cullingCorners[0]), "r"(cameraTransform)
+        : "memory");
+    __asm__ __volatile__(
+        "lqc2 vf31, 0(%1)\n\t"
+        "lqc2 vf27, 0(%2)\n\t"
+        "lqc2 vf28, 16(%2)\n\t"
+        "lqc2 vf29, 32(%2)\n\t"
+        "lqc2 vf30, 48(%2)\n\t"
+        "vmulax.xyz ACC, vf27, vf31x\n\t"
+        "vmadday.xyz ACC, vf28, vf31y\n\t"
+        "vmaddaz.xyz ACC, vf29, vf31z\n\t"
+        "vmaddw.xyz vf31, vf30, vf0w\n\t"
+        "sqc2 vf31, 0(%0)"
+        :
+        : "r"(&corners[1]), "r"(&volume->cullingCorners[1]), "r"(cameraTransform)
+        : "memory");
+    __asm__ __volatile__(
+        "lqc2 vf31, 0(%1)\n\t"
+        "lqc2 vf27, 0(%2)\n\t"
+        "lqc2 vf28, 16(%2)\n\t"
+        "lqc2 vf29, 32(%2)\n\t"
+        "lqc2 vf30, 48(%2)\n\t"
+        "vmulax.xyz ACC, vf27, vf31x\n\t"
+        "vmadday.xyz ACC, vf28, vf31y\n\t"
+        "vmaddaz.xyz ACC, vf29, vf31z\n\t"
+        "vmaddw.xyz vf31, vf30, vf0w\n\t"
+        "sqc2 vf31, 0(%0)"
+        :
+        : "r"(&corners[2]), "r"(&volume->cullingCorners[2]), "r"(cameraTransform)
+        : "memory");
+    __asm__ __volatile__(
+        "lqc2 vf31, 0(%1)\n\t"
+        "lqc2 vf27, 0(%2)\n\t"
+        "lqc2 vf28, 16(%2)\n\t"
+        "lqc2 vf29, 32(%2)\n\t"
+        "lqc2 vf30, 48(%2)\n\t"
+        "vmulax.xyz ACC, vf27, vf31x\n\t"
+        "vmadday.xyz ACC, vf28, vf31y\n\t"
+        "vmaddaz.xyz ACC, vf29, vf31z\n\t"
+        "vmaddw.xyz vf31, vf30, vf0w\n\t"
+        "sqc2 vf31, 0(%0)"
+        :
+        : "r"(&corners[3]), "r"(&volume->cullingCorners[3]), "r"(cameraTransform)
+        : "memory");
+
+    corners[0].z = -corners[0].z;
+    corners[1].z = -corners[1].z;
+    corners[2].z = -corners[2].z;
+    corners[3].z = -corners[3].z;
+    volume->occlusionDepth = corners[0].z;
+    if (corners[1].z < volume->occlusionDepth) {
+        volume->occlusionDepth = corners[1].z;
+    }
+    if (corners[2].z < volume->occlusionDepth) {
+        volume->occlusionDepth = corners[2].z;
+    }
+    if (corners[3].z < volume->occlusionDepth) {
+        volume->occlusionDepth = corners[3].z;
+    }
+    __asm__ __volatile__("sq $0, 0(%0)" : : "r"(&origin) : "memory");
+    plane_from_points(&corners[0], &corners[1], &corners[2], &volume->occlusionPlanes[0]);
+    if (0.0f < volume->occlusionPlanes[0].w) {
+        plane_from_points(&origin, &corners[0], &corners[1], &volume->occlusionPlanes[1]);
+        plane_from_points(&origin, &corners[1], &corners[2], &volume->occlusionPlanes[2]);
+        plane_from_points(&origin, &corners[2], &corners[3], &volume->occlusionPlanes[3]);
+        plane_from_points(&origin, &corners[3], &corners[0], &volume->occlusionPlanes[4]);
+    } else {
+        plane_from_points(&corners[2], &corners[1], &corners[0], &volume->occlusionPlanes[0]);
+        plane_from_points(&origin, &corners[1], &corners[0], &volume->occlusionPlanes[1]);
+        plane_from_points(&origin, &corners[2], &corners[1], &volume->occlusionPlanes[2]);
+        plane_from_points(&origin, &corners[3], &corners[2], &volume->occlusionPlanes[3]);
+        plane_from_points(&origin, &corners[0], &corners[3], &volume->occlusionPlanes[4]);
+    }
+}
 
 s32 check_occlusion(CullingVolume *volume, s32 camera, s32 model)
 {
@@ -844,7 +941,22 @@ s32 check_occlusion(CullingVolume *volume, s32 camera, s32 model)
     return result;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/face_point", xglCullingCheck);
+s32 xglCullingCheck(s32 camera, s32 model)
+{
+    s32 i = 0;
+    s32 result = 0;
+
+    if (s_nIgnoreCulling == 0) {
+        for (i = result; i < s_inCulling.count; i++) {
+            setup_occlusion(&s_inCulling.volumes[i], camera);
+            result = check_occlusion(&s_inCulling.volumes[i], camera, model);
+            if (result != 0) {
+                break;
+            }
+        }
+    }
+    return result;
+}
 
 void xglCullingCheckSeparateInit(s32 camera)
 {
@@ -855,13 +967,40 @@ void xglCullingCheckSeparateInit(s32 camera)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/face_point", xglCullingCheckSeparate);
+s32 xglCullingCheckSeparate(s32 camera, s32 model)
+{
+    s32 i = 0;
+    s32 result = 0;
+
+    for (i = 0; i < s_inCulling.count; i++) {
+        result = check_occlusion(&s_inCulling.volumes[i], camera, model);
+        if (result != 0) {
+            break;
+        }
+    }
+    return result;
+}
 
 s32 xglCullingExist(void) {
     return D_00969760[0];
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/face_point", xglCullingMapLastCheck);
+void xglCullingMapLastCheck(void)
+{
+    s32 entry;
+    s32 i;
+
+    if (s_inCulling.source != 0) {
+        for (i = 0; i < 12; i++) {
+            entry = ((const s32 *) s_inCulling.source)[i];
+            if (entry >= 0) {
+                nmlModelSetMapLastEntry((&s_inCulling.source)[1], entry);
+            } else {
+                break;
+            }
+        }
+    }
+}
 
 void xglCullingMapInit(void)
 {
@@ -884,9 +1023,73 @@ s32 check_culling_map(const char *name) {
     return result;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/face_point", xglCullingMapSet);
+void xglCullingMapSet(s32 cullingMap)
+{
+    const CullingMapNameSource *nameSource = (const CullingMapNameSource *) cullingMap;
+    const float *record;
+    CullingVolume *volume;
+    s32 index;
+    s32 recordIndex;
 
-INCLUDE_ASM("asm/main/nonmatchings/face_point", xglCullingMapCreate);
+    s_inCulling.count = 0;
+    s_inCulling.source = 0;
+    if (strlen(nameSource->name_with_prefix) < 32) {
+        strcpy((char *) &s_inCulling, &nameSource->name_with_prefix[1]);
+    }
+    index = check_culling_map((const char *) &s_inCulling);
+    if (index >= 0) {
+        (&s_inCulling.source)[1] = cullingMap;
+        s_inCulling.source = (s32) s_aCullingMap[index].source;
+        if (s_aCullingMap[index].entryCount != 0) {
+            recordIndex = 0;
+            while (1) {
+                record = &s_aCullingMap[index].entryCount[recordIndex++ * 9];
+                volume = &s_inCulling.volumes[s_inCulling.count];
+                if (s_inCulling.count >= 10) {
+                    break;
+                }
+                if (record[6] < 0.0f) {
+                    break;
+                }
+                volume->position.x = record[0];
+                volume->position.y = record[1];
+                volume->position.z = record[2];
+                volume->position.w = 1.0f;
+                volume->rotation.x = record[3];
+                volume->rotation.y = record[4];
+                volume->rotation.z = record[5];
+                volume->scale.x = record[6];
+                volume->scale.y = record[7];
+                volume->scale.z = record[8];
+                volume->scale.w = 1.0f;
+                culling_matrix(volume);
+                s_inCulling.count++;
+            }
+        }
+    }
+}
+
+void xglCullingMapCreate(void)
+{
+    CullingVolume *volume = &s_inCulling.volumes[s_inCulling.count];
+    const float *record = s_aCullingBase;
+
+    if (s_inCulling.count < 10) {
+        volume->position.x = record[0];
+        volume->position.y = record[1];
+        volume->position.z = record[2];
+        volume->position.w = 1.0f;
+        volume->rotation.x = record[3];
+        volume->rotation.y = record[4];
+        volume->rotation.z = record[5];
+        volume->scale.x = record[6];
+        volume->scale.y = record[7];
+        volume->scale.z = record[8];
+        volume->scale.w = 1.0f;
+        culling_matrix(volume);
+        s_inCulling.count++;
+    }
+}
 
 void xglCullingMapDisp(void)
 {
@@ -931,11 +1134,243 @@ static void _ModelCalcClipInit(const Matrix4 clip[2])
                          "nop"                 :: "r"(clip) : "memory");
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/face_point", _ModelCalcClipMat2);
+/*
+ * _ModelCalcClipMat2: transform the bounding sphere at `model` (xyz centre,
+ * w radius) by `matrix1` and then `matrix2` (each with its w row cleared) and
+ * test it against the clip matrices _ModelCalcClipInit left in vf12..vf19.
+ * Returns 1 as soon as one plane distance is not below the radius, else 0.
+ * Original hand-written VU0 assembly (labels _$mcc2_*).
+ */
+static s32 _ModelCalcClipMat2(s32 model, s32 matrix1, s32 matrix2)
+{
+    s32 clipped;
 
-INCLUDE_ASM("asm/main/nonmatchings/face_point", _ModelCalcClipMat1);
+    __asm__ __volatile__(
+        "lqc2 vf10,0(%1)\n\t"
+        "lqc2 vf27,0(%2)\n\t"
+        "lqc2 vf28,16(%2)\n\t"
+        "lqc2 vf29,32(%2)\n\t"
+        "lqc2 vf30,48(%2)\n\t"
+        "vsubw.w vf27w,vf27w,vf27w\n\t"
+        "vsubw.w vf28w,vf28w,vf28w\n\t"
+        "vsubw.w vf29w,vf29w,vf29w\n\t"
+        "lqc2 vf20,0(%3)\n\t"
+        "lqc2 vf21,16(%3)\n\t"
+        "lqc2 vf22,32(%3)\n\t"
+        "lqc2 vf23,48(%3)\n\t"
+        "vsubw.w vf20w,vf20w,vf20w\n\t"
+        "vsubw.w vf21w,vf21w,vf21w\n\t"
+        "vsubw.w vf22w,vf22w,vf22w\n\t"
+        "vmulax.xyzw ACC,vf27xyzw,vf20x\n\t"
+        "vmadday.xyzw ACC,vf28xyzw,vf20y\n\t"
+        "vmaddaz.xyzw ACC,vf29xyzw,vf20z\n\t"
+        "vmaddw.xyzw vf20xyzw,vf30xyzw,vf20w\n\t"
+        "vmulax.xyzw ACC,vf27xyzw,vf21x\n\t"
+        "vmadday.xyzw ACC,vf28xyzw,vf21y\n\t"
+        "vmaddaz.xyzw ACC,vf29xyzw,vf21z\n\t"
+        "vmaddw.xyzw vf21xyzw,vf30xyzw,vf21w\n\t"
+        "vmulax.xyzw ACC,vf27xyzw,vf22x\n\t"
+        "vmadday.xyzw ACC,vf28xyzw,vf22y\n\t"
+        "vmaddaz.xyzw ACC,vf29xyzw,vf22z\n\t"
+        "vmaddw.xyzw vf22xyzw,vf30xyzw,vf22w\n\t"
+        "vmulax.xyzw ACC,vf27xyzw,vf23x\n\t"
+        "vmove.xyzw vf27xyzw,vf20xyzw\n\t"
+        "vmadday.xyzw ACC,vf28xyzw,vf23y\n\t"
+        "vmove.xyzw vf28xyzw,vf21xyzw\n\t"
+        "vmaddaz.xyzw ACC,vf29xyzw,vf23z\n\t"
+        "vmove.xyzw vf29xyzw,vf22xyzw\n\t"
+        "vmaddw.xyzw vf30xyzw,vf30xyzw,vf23w\n\t"
+        "vmulax.xyzw ACC,vf27xyzw,vf10x\n\t"
+        "vmadday.xyzw ACC,vf28xyzw,vf10y\n\t"
+        "vmaddaz.xyzw ACC,vf29xyzw,vf10z\n\t"
+        "vmaddw.xyzw vf20xyzw,vf30xyzw,vf0w\n\t"
+        "vaddw.x vf2x,vf0x,vf10w\n\t"
+        "qmfc2 $2,vf2\n\t"
+        "mtc1 $2,$f1\n\t"
+        "vmulax.xyzw ACC,vf16xyzw,vf20x\n\t"
+        "vmadday.xyzw ACC,vf17xyzw,vf20y\n\t"
+        "vmaddaz.xyzw ACC,vf18xyzw,vf20z\n\t"
+        "vmaddw.xyzw vf9xyzw,vf19xyzw,vf0w\n\t"
+        "qmfc2 $2,vf9\n\t"
+        "mtc1 $2,$f0\n\t"
+        "c.lt.s $f0,$f1\n\t"
+        "bc1f 1f\n\t"
+        "vmr32.xyzw vf9xyzw,vf9xyzw\n\t"
+        "qmfc2 $2,vf9\n\t"
+        "mtc1 $2,$f0\n\t"
+        "c.lt.s $f0,$f1\n\t"
+        "bc1f 1f\n\t"
+        "vmr32.xyzw vf9xyzw,vf9xyzw\n\t"
+        "qmfc2 $2,vf9\n\t"
+        "mtc1 $2,$f0\n\t"
+        "c.lt.s $f0,$f1\n\t"
+        "bc1f 1f\n\t"
+        "vmulax.xyzw ACC,vf12xyzw,vf20x\n\t"
+        "vmadday.xyzw ACC,vf13xyzw,vf20y\n\t"
+        "vmaddaz.xyzw ACC,vf14xyzw,vf20z\n\t"
+        "vmaddw.xyzw vf9xyzw,vf15xyzw,vf0w\n\t"
+        "qmfc2 $2,vf9\n\t"
+        "mtc1 $2,$f0\n\t"
+        "c.lt.s $f0,$f1\n\t"
+        "bc1f 1f\n\t"
+        "vmr32.xyzw vf9xyzw,vf9xyzw\n\t"
+        "qmfc2 $2,vf9\n\t"
+        "mtc1 $2,$f0\n\t"
+        "c.lt.s $f0,$f1\n\t"
+        "bc1f 1f\n\t"
+        "vmr32.xyzw vf9xyzw,vf9xyzw\n\t"
+        "qmfc2 $2,vf9\n\t"
+        "mtc1 $2,$f0\n\t"
+        "c.lt.s $f0,$f1\n\t"
+        "bc1f 1f\n\t"
+        "sub $2,$2,$2\n\t"
+        "j 2f\n\t"
+        "1:\n\t"
+        "sub $2,$2,$2\n\t"
+        "addi $2,$2,1\n\t"
+        "2:\n\t"
+        "move %0,$2"
+        : "=r"(clipped)
+        : "r"(model), "r"(matrix1), "r"(matrix2)
+        : "$2", "$f0", "$f1", "memory");
+    return clipped;
+}
 
-INCLUDE_ASM("asm/main/nonmatchings/face_point", _ModelCalcClip);
+/*
+ * _ModelCalcClipMat1: the same test after one transform by `matrix`
+ * (labels _$mcc1_*).
+ */
+static s32 _ModelCalcClipMat1(s32 model, s32 matrix)
+{
+    s32 clipped;
+
+    __asm__ __volatile__(
+        "lqc2 vf10,0(%1)\n\t"
+        "lqc2 vf27,0(%2)\n\t"
+        "lqc2 vf28,16(%2)\n\t"
+        "lqc2 vf29,32(%2)\n\t"
+        "lqc2 vf30,48(%2)\n\t"
+        "vsubw.w vf27w,vf27w,vf27w\n\t"
+        "vsubw.w vf28w,vf28w,vf28w\n\t"
+        "vsubw.w vf29w,vf29w,vf29w\n\t"
+        "vmulax.xyzw ACC,vf27xyzw,vf10x\n\t"
+        "vmadday.xyzw ACC,vf28xyzw,vf10y\n\t"
+        "vmaddaz.xyzw ACC,vf29xyzw,vf10z\n\t"
+        "vmaddw.xyzw vf20xyzw,vf30xyzw,vf0w\n\t"
+        "vaddw.x vf2x,vf0x,vf10w\n\t"
+        "qmfc2 $2,vf2\n\t"
+        "mtc1 $2,$f1\n\t"
+        "vmulax.xyzw ACC,vf16xyzw,vf20x\n\t"
+        "vmadday.xyzw ACC,vf17xyzw,vf20y\n\t"
+        "vmaddaz.xyzw ACC,vf18xyzw,vf20z\n\t"
+        "vmaddw.xyzw vf9xyzw,vf19xyzw,vf0w\n\t"
+        "qmfc2 $2,vf9\n\t"
+        "mtc1 $2,$f0\n\t"
+        "c.lt.s $f0,$f1\n\t"
+        "bc1f 1f\n\t"
+        "vmr32.xyzw vf9xyzw,vf9xyzw\n\t"
+        "qmfc2 $2,vf9\n\t"
+        "mtc1 $2,$f0\n\t"
+        "c.lt.s $f0,$f1\n\t"
+        "bc1f 1f\n\t"
+        "vmr32.xyzw vf9xyzw,vf9xyzw\n\t"
+        "qmfc2 $2,vf9\n\t"
+        "mtc1 $2,$f0\n\t"
+        "c.lt.s $f0,$f1\n\t"
+        "bc1f 1f\n\t"
+        "vmulax.xyzw ACC,vf12xyzw,vf20x\n\t"
+        "vmadday.xyzw ACC,vf13xyzw,vf20y\n\t"
+        "vmaddaz.xyzw ACC,vf14xyzw,vf20z\n\t"
+        "vmaddw.xyzw vf9xyzw,vf15xyzw,vf0w\n\t"
+        "qmfc2 $2,vf9\n\t"
+        "mtc1 $2,$f0\n\t"
+        "c.lt.s $f0,$f1\n\t"
+        "bc1f 1f\n\t"
+        "vmr32.xyzw vf9xyzw,vf9xyzw\n\t"
+        "qmfc2 $2,vf9\n\t"
+        "mtc1 $2,$f0\n\t"
+        "c.lt.s $f0,$f1\n\t"
+        "bc1f 1f\n\t"
+        "vmr32.xyzw vf9xyzw,vf9xyzw\n\t"
+        "qmfc2 $2,vf9\n\t"
+        "mtc1 $2,$f0\n\t"
+        "c.lt.s $f0,$f1\n\t"
+        "bc1f 1f\n\t"
+        "sub $2,$2,$2\n\t"
+        "j 2f\n\t"
+        "1:\n\t"
+        "sub $2,$2,$2\n\t"
+        "addi $2,$2,1\n\t"
+        "2:\n\t"
+        "move %0,$2"
+        : "=r"(clipped)
+        : "r"(model), "r"(matrix)
+        : "$2", "$f0", "$f1", "memory");
+    return clipped;
+}
+
+/*
+ * _ModelCalcClip: test the untransformed bounding sphere at `model` against
+ * the six planes of the clip matrices in vf16..vf19 and vf12..vf15
+ * (labels _$mcc_*).
+ */
+static s32 _ModelCalcClip(s32 model)
+{
+    s32 clipped;
+
+    __asm__ __volatile__(
+        "lqc2 vf10,0(%1)\n\t"
+        "vaddw.x vf2x,vf0x,vf10w\n\t"
+        "qmfc2 $2,vf2\n\t"
+        "mtc1 $2,$f1\n\t"
+        "vmulax.xyzw ACC,vf16xyzw,vf10x\n\t"
+        "vmadday.xyzw ACC,vf17xyzw,vf10y\n\t"
+        "vmaddaz.xyzw ACC,vf18xyzw,vf10z\n\t"
+        "vmaddw.xyzw vf9xyzw,vf19xyzw,vf0w\n\t"
+        "qmfc2 $2,vf9\n\t"
+        "mtc1 $2,$f0\n\t"
+        "c.lt.s $f0,$f1\n\t"
+        "bc1f 1f\n\t"
+        "vmr32.xyzw vf9xyzw,vf9xyzw\n\t"
+        "qmfc2 $2,vf9\n\t"
+        "mtc1 $2,$f0\n\t"
+        "c.lt.s $f0,$f1\n\t"
+        "bc1f 1f\n\t"
+        "vmr32.xyzw vf9xyzw,vf9xyzw\n\t"
+        "qmfc2 $2,vf9\n\t"
+        "mtc1 $2,$f0\n\t"
+        "c.lt.s $f0,$f1\n\t"
+        "bc1f 1f\n\t"
+        "vmulax.xyzw ACC,vf12xyzw,vf10x\n\t"
+        "vmadday.xyzw ACC,vf13xyzw,vf10y\n\t"
+        "vmaddaz.xyzw ACC,vf14xyzw,vf10z\n\t"
+        "vmaddw.xyzw vf9xyzw,vf15xyzw,vf0w\n\t"
+        "qmfc2 $2,vf9\n\t"
+        "mtc1 $2,$f0\n\t"
+        "c.lt.s $f0,$f1\n\t"
+        "bc1f 1f\n\t"
+        "vmr32.xyzw vf9xyzw,vf9xyzw\n\t"
+        "qmfc2 $2,vf9\n\t"
+        "mtc1 $2,$f0\n\t"
+        "c.lt.s $f0,$f1\n\t"
+        "bc1f 1f\n\t"
+        "vmr32.xyzw vf9xyzw,vf9xyzw\n\t"
+        "qmfc2 $2,vf9\n\t"
+        "mtc1 $2,$f0\n\t"
+        "c.lt.s $f0,$f1\n\t"
+        "bc1f 1f\n\t"
+        "sub $2,$2,$2\n\t"
+        "j 2f\n\t"
+        "1:\n\t"
+        "sub $2,$2,$2\n\t"
+        "addi $2,$2,1\n\t"
+        "2:\n\t"
+        "move %0,$2"
+        : "=r"(clipped)
+        : "r"(model)
+        : "$2", "$f0", "$f1", "memory");
+    return clipped;
+}
 
 s32 nmlModelCalcClip(s32 model) {
     s32 clip;
@@ -1211,5 +1646,3 @@ void _ApplyMatrix2Mat(Vector4 *destination, const Matrix4 matrix1, const Matrix4
         : "memory"
     );
 }
-
-

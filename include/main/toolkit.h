@@ -1,6 +1,9 @@
 #ifndef INCLUDE_MAIN_TOOLKIT_H
 #define INCLUDE_MAIN_TOOLKIT_H
 
+#include "main/find_native_method.h"
+#include "main/jni.h"
+
 typedef struct JavaThread {
     unsigned int : 32; /* +0 */
     unsigned int : 32; /* +4 */

@@ -4,6 +4,102 @@
 
 #include "endou_test.h"
 
+extern int Select_82;
+
+extern int TopMode_86;
+
+typedef struct PartyAttackSlot {
+    unsigned short character;
+    signed char position;
+    unsigned char unmodeled_03;
+} PartyAttackSlot;
+
+typedef struct PartyDataView {
+    unsigned char unmodeled_00[0x30];
+    PartyAttackSlot attack_slots[3];
+} PartyDataView;
+
+extern const char D_004C2F10[];
+
+extern const char D_004C2F30[];
+
+extern const char *text00_83[10];
+
+extern const char *text01_84[3];
+
+extern const char *text02_85[];
+
+extern const char D_004C2F68[];
+
+extern const char D_004C2F90[];
+
+typedef struct EndouBattleWindowParams {
+    int x;
+    int y;
+    int style;
+    int information_x;
+    int information_y;
+    void *commands;
+    const char *title;
+    int repeat;
+    int selection;
+} EndouBattleWindowParams;
+
+typedef struct EndouBattleMessageParams {
+    int x;
+    int y;
+    int style;
+    const char *title;
+    const char *text;
+} EndouBattleMessageParams;
+
+typedef struct EndouBattleAnalysisParams {
+    int x;
+    int y;
+    int style;
+    const char *name;
+    short hp;
+    short max_hp;
+    unsigned short conditions;
+    u8 unmodeled_16[2];
+    int technique_points;
+    int ether_points;
+    int skill_points;
+    int experience;
+    long money;
+    unsigned short common_drop;
+    unsigned short rare_drop;
+} EndouBattleAnalysisParams;
+
+typedef struct EndouBattleRewardParams {
+    int x;
+    int y;
+    int style;
+    int width;
+    const char *text;
+    const char *title;
+} EndouBattleRewardParams;
+
+extern unsigned char data_15[];
+
+extern const char *tag_16[];
+
+extern const char text_17[];
+
+extern const char *msg_19[];
+
+extern const char tag_20[];
+
+extern int count_18;
+
+extern const char D_004C2A70[];
+
+extern const char D_004C2A88[];
+
+extern const char D_004DA720[];
+
+extern const char D_004DA730[];
+
 extern void xglSleep(void);
 
 /* ld at +0x28 and lhu/sh at +0x28/+0x2a access the same button storage. */
@@ -622,7 +718,93 @@ void SeisanTest(void)
 
 INCLUDE_ASM("asm/main/nonmatchings/endou_test", ModelTest);
 
-INCLUDE_ASM("asm/main/nonmatchings/endou_test", BattleWindowTest);
+extern void eBattleWinOpen(EndouBattleWindowParams *params);
+extern int eBattleWinMain(EndouBattleWindowParams *params);
+extern void eBattleWinOpen2(EndouBattleRewardParams *params);
+extern int eBattleWinMain2(void);
+extern void eBattleWinOpen3(EndouBattleAnalysisParams *params);
+extern int eBattleWinMain3(void);
+extern void eBattleWinOpen4(EndouBattleMessageParams *params);
+extern int eBattleWinMain4(void);
+
+void BattleWindowTest(void)
+{
+    EndouBattleWindowParams window;
+    EndouBattleMessageParams message;
+    EndouBattleAnalysisParams analysis;
+    EndouBattleRewardParams reward;
+
+    window.x = 16;
+    window.style = 0x00fffffd;
+    window.title = tag_16[0];
+    window.commands = data_15;
+    window.y = 144;
+    window.information_y = 160;
+    window.information_x = 0;
+    xglRenderClearFrame();
+    xglSleep();
+    xglCdLoadOverlay(1);
+    eBattleWinInit();
+
+    if ((PadData.buttons.button_state & 0x08000100U) != 0x08000100U) {
+    do {
+        xglFontDebugPrintf(0, 0, D_004C2A70);
+        if ((PadData.buttons.input.pressed & 0x10U) != 0) {
+            message.x = 16;
+            message.y = 32;
+            message.title = D_004DA720;
+            message.style = 0x00fffffd;
+            message.text = text_17;
+            eBattleWinOpen4(&message);
+        }
+        if ((PadData.buttons.input.pressed & 0x80U) != 0 &&
+            eBattleWinPageCheck4() != 0)
+            eBattleWinClose4();
+        eBattleWinMain4();
+        if ((PadData.buttons.input.pressed & 0x10U) != 0) {
+            analysis.x = 64;
+            analysis.experience = 0x2107a;
+            analysis.y = 256;
+            analysis.conditions = 0x208;
+            analysis.hp = 100;
+            analysis.max_hp = 200;
+            analysis.technique_points = 495;
+            analysis.ether_points = 689;
+            analysis.skill_points = 800;
+            analysis.money = 0xdac0;
+            analysis.common_drop = 5;
+            analysis.rare_drop = 10;
+            analysis.style = 0x00fffff0;
+            analysis.name = D_004C2A88;
+            eBattleWinOpen3(&analysis);
+        }
+        if ((PadData.buttons.input.pressed & 0x80U) != 0)
+            eBattleWinClose3();
+        eBattleWinMain3();
+        if ((PadData.buttons.input.pressed & 4U) != 0) {
+            reward.width = 0x800000b4;
+            reward.x = 16;
+            reward.y = 32;
+            reward.text = msg_19[count_18];
+            reward.style = 0x00fffff0;
+            reward.title = tag_20;
+            eBattleWinOpen2(&reward);
+            count_18 ^= 1;
+        }
+        if ((PadData.buttons.input.pressed & 1U) != 0)
+            eBattleWinClose2();
+        eBattleWinMain2();
+        if ((PadData.buttons.input.pressed & 8U) != 0)
+            eBattleWinOpen(&window);
+        if ((PadData.buttons.input.pressed & 2U) != 0)
+            eBattleWinClose(&window);
+        window.repeat = PadData.buttons.input.repeat;
+        xglFontDebugPrintf(0, 32, D_004DA730, PadData.buttons.input.repeat);
+        eBattleWinMain(&window);
+        xglSleep();
+    } while ((PadData.buttons.button_state & 0x08000100U) != 0x08000100U);
+    }
+}
 
 INCLUDE_ASM("asm/main/nonmatchings/endou_test", eNumberTest);
 
@@ -755,7 +937,119 @@ void BgTest(void)
     sceVif1PkRef(packet, &TestEnv_47, 10, 0, 0, 0);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/endou_test", TexturTest);
+typedef struct TexturTestHeader {
+    u8 unmodeled_00[8];
+    int entry_count;
+    u32 entries_offset;
+} TexturTestHeader;
+
+typedef struct TexturTestEntry {
+    u32 width_and_pitch;
+    u32 height;
+    u32 vram_offset;
+    int data_quadwords;
+    u32 data_offset;
+} TexturTestEntry;
+
+typedef struct TexturTestUploadEnvironment {
+    u8 unmodeled_00[0x20];
+    u64 destination_parameters;
+    u8 unmodeled_28[0x18];
+    u64 transfer_dimensions;
+} TexturTestUploadEnvironment;
+
+typedef struct TexturTestDrawEnvironment {
+    u8 unmodeled_00[0x50];
+    u64 texture_parameters;
+} TexturTestDrawEnvironment;
+
+extern TexturTestUploadEnvironment eNumberTexEnv_48;
+extern TexturTestDrawEnvironment TestEnv_52;
+extern int x_53;
+extern const char D_004C2C88[];
+extern const char D_004C2CA0[];
+extern const char D_004C2CB8[];
+extern XglPacket *xglPacketGetCurrent(void);
+extern void xglRenderClearDepth(void);
+extern void FlushCache(int mode);
+
+void TexturTest(void)
+{
+    u8 *work_start = WorkEnd;
+    TexturTestHeader *texture_file =
+        (TexturTestHeader *)(((u32)work_start + 15U) & 0xfffffff0U);
+    int size;
+    u8 *texture_end;
+    void *second_file;
+
+    size = xglCdReadFile(D_004C2C88, texture_file, 0, 0);
+    if (size < 0)
+        return;
+    texture_end = (u8 *)texture_file + size;
+    second_file = (void *)(((u32)texture_end + 15U) & 0xfffffff0U);
+    WorkEnd = texture_end;
+    size = xglCdReadFile(D_004C2CA0, second_file, 0, 0);
+    if (size < 0)
+        return;
+    WorkEnd = (u8 *)second_file + size;
+    xglRenderClearDepth();
+
+    for (;;) {
+        int index;
+        XglPacket *packet;
+        TexturTestEntry *entry;
+        u16 repeated;
+
+        BgTest();
+        xglFontDebugPrintf(0, 0, D_004C2CB8);
+        if ((PadData.buttons.button_state & 0x08000100U) == 0x08000100U)
+            break;
+        index = 0;
+        packet = xglPacketGetCurrent();
+        entry = (TexturTestEntry *)
+            ((u8 *)texture_file + texture_file->entries_offset);
+        if (texture_file->entry_count > 0) {
+            TexturTestUploadEnvironment *upload_environment = &eNumberTexEnv_48;
+
+            do {
+                int width = entry->width_and_pitch & 0xffffU;
+                u32 pitch = entry->width_and_pitch >> 16;
+
+                if (entry->width_and_pitch == width)
+                    pitch = (width + 63) >> 6;
+                upload_environment->transfer_dimensions =
+                    (u32)width | ((u64)entry->height << 32);
+                upload_environment->destination_parameters =
+                    ((u64)((entry->vram_offset + 0xe0000U) >> 6) << 32) |
+                    ((u64)pitch << 48);
+                FlushCache(0);
+                sceVif1PkRef(packet, upload_environment, 6, 0, 0, 0);
+                {
+                    u8 *transfer_data = (u8 *)texture_file + entry->data_offset;
+                    int transfer_quadwords = entry->data_quadwords;
+
+                    entry++;
+                    sceVif1PkRef(packet, transfer_data,
+                                 transfer_quadwords, 0, 0, 0);
+                }
+                index++;
+            } while (index < texture_file->entry_count);
+        }
+        xglFontDebugHex(0, 0x20, x_53, 5);
+        repeated = PadData.buttons.input.repeat;
+        if ((repeated & 0x2000U) != 0)
+            x_53 += 0x100;
+        if ((repeated & 0x8000U) != 0)
+            x_53 -= 0x100;
+        TestEnv_52.texture_parameters =
+            ((u64)(((u32)x_53 + 0xe0000U) >> 6) << 37) |
+            0x2000000629343800ULL;
+        sceVif1PkRef(packet, &TestEnv_52, 12, 0, 0, 0);
+        xglSleep();
+    }
+    xglRenderClearFrame();
+    WorkEnd = work_start;
+}
 
 void UmnPrintTest(void)
 {
@@ -890,6 +1184,11 @@ static void endCallback(int result, int amount)
         break;
     }
 }
+
+
+
+
+extern XglPacket *xglPacketGetCurrent(void);
 
 INCLUDE_ASM("asm/main/nonmatchings/endou_test", FileLoadTest);
 
@@ -1109,6 +1408,96 @@ void PauseMenuPagePartyDebugFriend(void)
     xglFontDebugPrintf(8, 0xc0, D_004C2EC0);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/endou_test", PauseMenuPagePartyDebugAttacker);
+void PauseMenuPagePartyDebugAttacker(void)
+{
+    PartyDataView *party;
+    int character;
+    int position;
+    int i;
 
-INCLUDE_ASM("asm/main/nonmatchings/endou_test", PauseMenuPagePartyDebug);
+    if (PadData.buttons.input.repeat & 0x1000) {
+        if (Select_82 == 0) {
+            Select_82 = 5;
+        } else {
+            Select_82 -= 1;
+        }
+    }
+    if (PadData.buttons.input.repeat & 0x4000) {
+        if (Select_82 == 5) {
+            Select_82 = 0;
+        } else {
+            Select_82 += 1;
+        }
+    }
+
+    if (Select_82 < 3) {
+        party = (PartyDataView *)PartyDataGet();
+        character = party->attack_slots[Select_82].character;
+        if (PadData.buttons.input.repeat & 0x8000) {
+            character = (character != 0) ? character - 1 : 0x1d;
+        }
+        if (PadData.buttons.input.repeat & 0x2000) {
+            character = (character != 0x1d) ? character + 1 : 0;
+        }
+        party = (PartyDataView *)PartyDataGet();
+        party->attack_slots[Select_82].character = character;
+    } else {
+        party = (PartyDataView *)PartyDataGet();
+        position = party->attack_slots[Select_82 - 3].position;
+        if (PadData.buttons.input.repeat & 0x8000) {
+            position = (position != 0) ? position - 1 : 9;
+        }
+        if (PadData.buttons.input.repeat & 0x2000) {
+            position = (position != 9) ? position + 1 : 0;
+        }
+        party = (PartyDataView *)PartyDataGet();
+        party->attack_slots[Select_82 - 3].position = position;
+    }
+
+    party = (PartyDataView *)PartyDataGet();
+    xglFontDebugPrintf(8, 0x20, D_004C2F10);
+    xglFontDebugPrintf(8, Select_82 * 0x10 + 0x30, D_004DA768);
+    for (i = 0; i < 3; i++) {
+        xglFontDebugPrintf(0x10, i * 0x10 + 0x30, text01_84[i]);
+        xglFontDebugPrintf(0x30, i * 0x10 + 0x30, text02_85[0]);
+        xglFontDebugPrintf(0x70, i * 0x10 + 0x30, MenuCharNameGet(party->attack_slots[i].character));
+    }
+    for (i = 0; i < 3; i++) {
+        xglFontDebugPrintf(0x10, i * 0x10 + 0x60, text01_84[i]);
+        xglFontDebugPrintf(0x30, i * 0x10 + 0x60, text02_85[1]);
+        xglFontDebugPrintf(0x70, i * 0x10 + 0x60, text00_83[party->attack_slots[i].position]);
+    }
+    xglFontDebugPrintf(8, 0xc0, D_004C2F30);
+}
+
+void PauseMenuPagePartyDebug(void)
+{
+    xglFontDebugPrintf(8, 0x10, D_004C2F68);
+    xglFontDebugPrintf(8, 0xb0, D_004C2F90);
+
+    if (PadData.buttons.input.repeat & 0x80) {
+        if (TopMode_86 == 4) {
+            TopMode_86 = 0;
+        } else {
+            TopMode_86 += 1;
+        }
+    }
+
+    switch (TopMode_86) {
+    case 0:
+        PauseMenuPagePartyDebugFriend();
+        return;
+    case 1:
+        PauseMenuPagePartyDebugAttacker();
+        return;
+    case 2:
+        PauseMenuPagePartyDebugOutFriend();
+        return;
+    case 3:
+        PauseMenuPagePartyDebugLockParty();
+        return;
+    case 4:
+        PauseMenuPagePartyDebugTakeAgws();
+        break;
+    }
+}

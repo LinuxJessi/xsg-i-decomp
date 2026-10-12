@@ -230,7 +230,8 @@ def stage_headers(root, unit_dir):
 
 
 def stage_shared_headers(root, unit_dir):
-    """`include/shared.h` and the per-TU public headers `include/<unit>/<tu>.h`.
+    """`include/shared.h`, `include/debug_break.h` and the per-TU public headers
+    `include/<unit>/<tu>.h`.
 
     Only main needs them here: its compile line is `-Iinclude -I.` relative to
     the unit directory, so the repository's `include/` is not on its search path
@@ -240,9 +241,11 @@ def stage_shared_headers(root, unit_dir):
     """
     dst_root = unit_dir / "include"
     dst_root.mkdir(parents=True, exist_ok=True)
-    shared = root / "include/shared.h"
-    if shared.is_file():
-        shutil.copyfile(shared, dst_root / "shared.h")
+    # debug_break.h: the ee-assert-break DEBUG_BREAK() macro (docs/ee-hand-asm.md).
+    for name in ("shared.h", "debug_break.h"):
+        shared = root / "include" / name
+        if shared.is_file():
+            shutil.copyfile(shared, dst_root / name)
     for entry in sorted((root / "include").iterdir()):
         if not entry.is_dir():
             continue

@@ -2,6 +2,60 @@
 
 #include "set_motion.h"
 
+#include "main/enemy_1.h"
+#include "main/get.h"
+#include "main/pause_menu_page_enemy.h"
+
+typedef struct EnemyActionBlock {
+    short spline_parameter;
+    unsigned char unmodeled_02[6];
+    signed char action_state;
+    unsigned char unmodeled_09[5];
+    short action_counter;
+} EnemyActionBlock;
+
+typedef struct EncountParams {
+    unsigned char unmodeled_00[0x50];
+    short monster_set_numbers[8];
+    unsigned char unmodeled_60[0xc];
+    unsigned int encounter_event : 8;
+} EncountParams;
+
+#define ENEMY_ACTION_BLOCK_OFFSET 0x40
+
+#define ENEMY_STATUS_FLAGS_OFFSET 0x50
+
+typedef struct EnemyEncountState {
+    unsigned char unmodeled_00[0x68];
+    signed char encounter_side;
+    signed char encounter_value;
+    unsigned char encounter_options;
+    unsigned char unmodeled_6b[0x37e0 - 0x6b];
+    unsigned int action_flags;
+} EnemyEncountState;
+
+extern short DebugActor;
+
+extern short SelNum;
+
+extern short Times;
+
+extern void *AdrsEnemyExclamation;
+
+extern void *AdrsEnemyQuestion;
+
+extern void *AdrsEnemySphere;
+
+extern void *AdrsEnemySquare;
+
+typedef struct SetMotionPad {
+    unsigned char pad_00[0x28];
+    unsigned short half_28;
+    unsigned short half_2a;
+    unsigned char unmodeled_2c[0x43 - 0x2c];
+    unsigned char analog_level;
+} SetMotionPad;
+
 typedef union AlignedHomingPosition {
     Vector4 coordinates;
     float elements[4];
@@ -9,7 +63,8 @@ typedef union AlignedHomingPosition {
 } AlignedHomingPosition;
 
 typedef struct EnemyDetectHead {
-    unsigned char unmodeled_00[0x10];
+    unsigned int flags;
+    unsigned char unmodeled_04[0x10 - 4];
     AlignedHomingPosition position;
     unsigned char unmodeled_20[0x70 - 0x20];
 } EnemyDetectHead;
@@ -17,6 +72,8 @@ typedef struct EnemyDetectHead {
 typedef struct ActorHearing {
     unsigned char unmodeled_00[0x68];
     float radius;
+    unsigned char unmodeled_6c[0x220 - 0x6c]; /* +0x6c */
+    short linked_actors[4]; /* +0x220 */
 } ActorHearing;
 
 typedef struct EnemyDetectActor {
@@ -30,10 +87,17 @@ typedef struct EnemyDetectActor {
     short active_state;
     unsigned char unmodeled_88[0xc0 - 0x88];
     ActorHearing hearing;
-    unsigned char unmodeled_12c[0x630 - 0x12c];
+    unsigned char unmodeled_2e8[0x630 - 0x2e8];
     float head_position[4];
-    unsigned char unmodeled_640[0xa70 - 0x640];
+    unsigned char unmodeled_640[0x696 - 0x640];
+    short battle_state;
+    unsigned char unmodeled_698[0x9e4 - 0x698];
+    float target_angle;
+    float interaction_radius;
+    unsigned char unmodeled_9ec[0xa70 - 0x9ec];
 } EnemyDetectActor;
+void Homing_Search(EnemyDetectActor *enemy);
+
 
 extern EnemyDetectActor actor[64];
 
@@ -208,14 +272,42 @@ typedef struct EnemyDiscoveryState {
 typedef struct DiscoveryPlayer {
     unsigned char unmodeled_00[16];
     unsigned long long position_words[2];
-    unsigned char unmodeled_20[0x9f0 - 0x20];
+    unsigned char unmodeled_020[0x54 - 0x20];
+    float yaw; /* +0x54 */
+    unsigned char unmodeled_058[0x9f0 - 0x58];
     short disable_detection;
 } DiscoveryPlayer;
+
+typedef struct EncountActor EncountActor;
+
+struct EncountActor {
+    ActorHead head;
+    unsigned char unmodeled_70[0x10];
+    unsigned char number;
+    unsigned char unmodeled_81[0xc0 - 0x81];
+    EncountParams params;
+};
+
+typedef struct EncountRecord {
+    short monster_set_number;
+    unsigned char unmodeled_02[2];
+    short encounter_side;
+    unsigned char trigger_flags;
+    unsigned char event_flags;
+    short entry_value;
+    unsigned char unmodeled_0a[2];
+    EncountActor *enemy;
+} EncountRecord;
 
 typedef struct DiscoveryGameLoopState {
     unsigned char unmodeled_00[4];
     DiscoveryPlayer *player;
     unsigned char unmodeled_08[8];
+    unsigned int pause_flags; /* +0x10 */
+    unsigned char unmodeled_14[8]; /* +0x14 */
+    unsigned int event_flags; /* +0x1c */
+    unsigned char unmodeled_20[0x29f90 - 0x20]; /* +0x20 */
+    EncountRecord encount; /* +0x29f90 */
 } DiscoveryGameLoopState;
 
 extern DiscoveryGameLoopState GameLoopState;
@@ -242,7 +334,7 @@ float LocaterAngle[16] = {
 extern short PhCunt[1];
 
 extern int Check_Straight_ID(float heading, float *previous,
-                             unsigned char *enemy_state, int limit,
+                             void *enemy_state, int limit,
                              float *result, int stride);
 
 typedef struct EnemyHomingState {
@@ -772,9 +864,145 @@ void Check_Discovery(Actor *enemy)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/set_motion", Check_Encount);
+void Check_Encount(EncountActor *enemy, signed char enable, signed char command)
+{
+    short facing[2];
+    unsigned char sides[9] = {0, 3, 4, 1, 3, 4, 2, 3, 4};
+    EnemyEncountState *state = (EnemyEncountState *)enepc[enemy->number];
+    EncountParams *params = &enemy->params;
+    short i;
+    short count = 0;
+    float angle;
+    unsigned short monster_set;
+    unsigned char entry_value;
+    int options;
 
-INCLUDE_ASM("asm/main/nonmatchings/set_motion", Enemy_After_Battle);
+    if (!enable) {
+        if (!(state->action_flags & 1)) {
+            return;
+        }
+        if (GameLoopState.pause_flags & 0x108000) {
+            return;
+        }
+        angle = Get_Angle_Relative((const Point4 *)GameLoopState.player->position_words,
+                                   (const Point4 *)&enemy->head.position,
+                                   GameLoopState.player->yaw);
+        for (;;) {
+            if (Check_Angle(angle, -1.2217306f, 1.2217306f) == 1) {
+                facing[0] = 0;
+                break;
+            }
+            if (Check_Angle(angle, 1.2217306f, 2.6179938f) == 1) {
+                facing[0] = 1;
+                break;
+            }
+            if (Check_Angle(angle, -2.6179938f, 1.2217306f) == 1) {
+                facing[0] = 1;
+            } else {
+                facing[0] = 2;
+            }
+            break;
+        }
+        angle = Get_Angle_Relative((const Point4 *)&enemy->head.position,
+                                   (const Point4 *)GameLoopState.player->position_words,
+                                   enemy->head.rotation.y);
+        for (;;) {
+            if (Check_Angle(angle, -1.2217306f, 1.2217306f) == 1) {
+                facing[1] = 0;
+                break;
+            }
+            if (Check_Angle(angle, 1.2217306f, 2.6179938f) == 1) {
+                facing[1] = 1;
+                break;
+            }
+            if (Check_Angle(angle, -2.6179938f, 1.2217306f) == 1) {
+                facing[1] = 1;
+            } else {
+                facing[1] = 2;
+            }
+            break;
+        }
+        state->encounter_side = sides[facing[1] + facing[0] * 3];
+        GameLoopState.encount.encounter_side = state->encounter_side;
+    } else {
+        GameLoopState.encount.encounter_side = command;
+    }
+    for (i = 0; i < 8; i++) {
+        if (params->monster_set_numbers[i] != -1) {
+            count++;
+        }
+    }
+    monster_set = params->monster_set_numbers[Get_Rnd(0, count - 1)];
+    GameLoopState.encount.monster_set_number = monster_set;
+    entry_value = state->encounter_value;
+    GameLoopState.encount.entry_value = (signed char)entry_value;
+    options = state->encounter_options;
+    GameLoopState.event_flags |= 1;
+    GameLoopState.encount.event_flags = params->encounter_event;
+    GameLoopState.encount.enemy = enemy;
+    GameLoopState.encount.trigger_flags = 0;
+    if (options & 1) {
+        GameLoopState.encount.trigger_flags = 2;
+    }
+    if (options & 2) {
+        GameLoopState.encount.trigger_flags |= 1;
+    }
+    if (options & 4) {
+        GameLoopState.encount.trigger_flags |= 4;
+    }
+}
+
+void Enemy_After_Battle(int victory)
+{
+    ActorHearing *params = &actor[GameLoopState.encount.enemy->number].hearing;
+    short i;
+
+    if (victory == 1) {
+        if (params->linked_actors[0] != -2) {
+            actor[GameLoopState.encount.enemy->number].active_state = 0;
+        }
+        for (i = 0; i < 4; i++) {
+            if (params->linked_actors[i] >= 0) {
+                if (actor[Get_ActorNumber(params->linked_actors[i])].active_state != 0) {
+                    actor[Get_ActorNumber(params->linked_actors[i])].active_state = 0;
+                }
+            }
+        }
+    } else {
+        actor[GameLoopState.encount.enemy->number].battle_state = 16;
+    }
+    for (i = 0; i < 16; i++) {
+        if (actor[i].active_state > 0 && actor[i].status != 1) {
+            if (((EnemyScriptState *)enepc[i])->action_flags & 1) {
+                int entry_offset = i * sizeof(EnemyStateBlock);
+                int flags_offset = entry_offset + ENEMY_STATUS_FLAGS_OFFSET;
+                short *flags = (short *)(enepc[0] + flags_offset);
+                EnemyActionBlock *action;
+                int action_offset;
+
+                if (flags[0] != 0) {
+                    flags[0] = 1;
+                }
+                action_offset = entry_offset + ENEMY_ACTION_BLOCK_OFFSET;
+                action = (EnemyActionBlock *)(enepc[0] + action_offset);
+                if (action->action_state == 7) {
+                    action->action_counter = 0;
+                }
+                if (flags[1] != 0) {
+                    flags[1] = 1;
+                }
+                if (action->action_state == 6) {
+                    action->spline_parameter = 0;
+                    BSpline_Init(ENEMY_SPLINE_POINTS(enepc[i])[0],
+                                 actor[i].head.position.elements,
+                                 actor[i].target_angle);
+                    Enemy_ActionReady((Actor *)&actor[i], 2);
+                    Homing_Search(&actor[i]);
+                }
+            }
+        }
+    }
+}
 
 void Set_Spline_By_Route(Actor *actor, short route_offset)
 {
@@ -843,7 +1071,156 @@ void Set_PlayerHistory(Actor *actor)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/set_motion", Homing_Search);
+
+
+typedef union HomingPositionRecord {
+    Vector4 coordinates;
+    float elements[4];
+} HomingPositionRecord;
+
+typedef struct EnemyHomingDebugState {
+    unsigned char unmodeled_00[0x30a0];
+    HomingPositionRecord positions[64];
+    short neighbours[64][4];
+    short neighbour_count[64];
+    short linked_target[64];
+    short position_count;
+} EnemyHomingDebugState;
+
+typedef struct EnemyHomingSearchState {
+    unsigned char unmodeled_00[0x30a0];
+    float positions[64][4];
+    short neighbours[64][4];
+    short neighbour_count[64];
+    short linked_target[64];
+    short position_count;
+} EnemyHomingSearchState;
+
+extern float Get_Angle(const Vector4 *first, const Vector4 *second);
+
+#define ENEMY_SPLINE_VECTORS(entry) \
+    ((Vector4 *)((unsigned char *)(entry) + ENEMY_SPLINE_POINTS_OFFSET))
+
+extern float sinf(float angle);
+
+extern float cosf(float angle);
+
+extern void TM_Script_Spline_Add(int number, float x, float y, float z);
+
+void Homing_Search(EnemyDetectActor *enemy)
+{
+    EnemyHomingSearchState *state = (EnemyHomingSearchState *)enepc[enemy->slot_number];
+    float distances[64];
+    short order[64];
+    float result[4];
+    short i;
+    short j;
+    short parent = 0;
+    short path_length;
+    int steps_walked;
+    float closest;
+    float previous_x;
+    float previous_y;
+    float previous_z;
+    float heading;
+    float angle;
+    short *order_base;
+
+    ((EnemyEarState *)state)->discovery_count = 60;
+    if (state->position_count > 0) {
+        for (i = 0; i < state->position_count; i++) {
+            distances[i] = Get_Distance(&enemy->head.position.coordinates, (Vector4 *)state->positions[i]);
+        }
+        for (i = 0; i < state->position_count; i++) {
+            closest = 1000.0f;
+            path_length = -1;
+            for (j = 0; j < state->position_count; j++) {
+                if (distances[j] < closest && 0.0f < distances[j]) {
+                    closest = distances[j];
+                    path_length = j;
+                }
+            }
+            distances[path_length] = 0.0f;
+            order[i] = path_length;
+        }
+        for (i = 0; i < state->position_count; i++) {
+            if (Check_Straight_ID(enemy->interaction_radius, enemy->head.position.elements,
+                                  state->positions[order[i]], 32, result, 772) == 32) {
+                parent = order[i];
+                break;
+            }
+        }
+        order_base = order;
+        order_base[0] = parent;
+        steps_walked = 0;
+        path_length = 1;
+        if (parent != 0) {
+            for (;;) {
+                for (i = 0; i < state->neighbour_count[parent]; i++) {
+                    if (state->neighbours[parent][i] < parent) {
+                        parent = state->neighbours[parent][i];
+                    }
+                }
+                steps_walked++;
+                if (parent == 0) {
+                    order[path_length++] = 0;
+                    break;
+                }
+                if (steps_walked > 0xfffe) {
+                    break;
+                }
+                order[path_length++] = parent;
+            }
+        }
+        heading = Get_Angle(&enemy->head.position.coordinates, (Vector4 *)state->positions[order[i]]);
+        enemy->target_angle = heading;
+        BSpline_Init(ENEMY_SPLINE_POINTS(state)[0], enemy->head.position.elements, heading);
+        ENEMY_SPLINE_POINT_COUNT(state) = 3;
+        ENEMY_SPLINE_PARAMETER(state) = 16;
+        previous_x = enemy->head.position.elements[0];
+        previous_y = enemy->head.position.elements[1];
+        previous_z = enemy->head.position.elements[2];
+        for (i = 0; i < path_length; i++) {
+            float x = state->positions[order[i]][0];
+            float y = state->positions[order[i]][1];
+            float z = state->positions[order[i]][2];
+            short steps = (short)(__builtin_sqrtf((previous_x - x) * (previous_x - x) +
+                                                  (previous_z - z) * (previous_z - z)) / 5.0f);
+
+            if (steps != 0) {
+                steps++;
+                for (j = 0; j < steps; j++) {
+                    TM_Script_Spline_Add(enemy->slot_number,
+                                         previous_x + (x - previous_x) * (j + 1) / steps,
+                                         previous_y + (y - previous_y) * (j + 1) / steps,
+                                         previous_z + (z - previous_z) * (j + 1) / steps);
+                }
+            } else {
+                TM_Script_Spline_Add(enemy->slot_number, x, y, z);
+            }
+            previous_x = x;
+            previous_y = y;
+            previous_z = z;
+        }
+        angle = Get_Angle(&ENEMY_SPLINE_VECTORS(state)[ENEMY_SPLINE_POINT_COUNT(state) - 2],
+                          &ENEMY_SPLINE_VECTORS(state)[ENEMY_SPLINE_POINT_COUNT(state) - 1]);
+        for (i = 0; i < 2; i++) {
+            short last = order[path_length - 1];
+            int x_offset = 0x30a0 + last * 16;
+            float *x_pointer = (float *)((char *)state + x_offset);
+            float tail_x = *x_pointer + sinf(angle) * 0.005f * i;
+            short tail = order[path_length - 1];
+            int z_offset = 0x30a8 + tail * 16;
+            float *z_pointer = (float *)((char *)state + z_offset);
+            float tail_z = *z_pointer + cosf(angle) * 0.005f * i;
+
+            TM_Script_Spline_Add(enemy->slot_number, tail_x,
+                                 state->positions[order[path_length - 1]][1], tail_z);
+        }
+        enemy->head.flags |= 0x80000000;
+        Enemy_ActionReady((Actor *)enemy, 4);
+    }
+}
 
 void Homing_Add(int actor_index, float x, float y, float z, short target_index)
 {
@@ -897,7 +1274,138 @@ void Refresh_Homing(Actor *actor)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/set_motion", Disp_Homing);
+void Disp_Homing(void)
+{
+    EnemyDetectActor *debug_actor = &actor[DebugActor];
+    EnemyHomingDebugState *state = (EnemyHomingDebugState *)enepc[debug_actor->slot_number];
+    short nearest = -1;
+    float nearest_distance;
+    short d;
+    short i;
+    short k;
+
+    if (ACTOR_NUMBER(GameLoopState.player) != DebugActor) {
+        nearest_distance = 1000.0f;
+        for (i = 0; i < state->position_count; i++) {
+            float distance = Get_Distance(&((ActorHead *)GameLoopState.player)->position, &state->positions[i].coordinates);
+
+            if (distance < nearest_distance) {
+                nearest_distance = distance;
+                nearest = i;
+            }
+        }
+        if (PadData.half_2a & 0x8) {
+            SelNum = -1;
+        }
+        if (PadData.half_2a & 0x80) {
+            if (SelNum == nearest) {
+                SelNum = -1;
+            } else if (SelNum != -1) {
+                state->linked_target[SelNum] = nearest;
+                Refresh_Homing((Actor *)debug_actor);
+            } else {
+                SelNum = nearest;
+            }
+        }
+        if (((SetMotionPad *)&PadData)->analog_level == 255) {
+            state->positions[SelNum].coordinates = ((ActorHead *)GameLoopState.player)->position;
+        }
+        if ((PadData.half_2a & 0x40) && SelNum != -1) {
+            for (i = SelNum; i < state->position_count - 1; i++) {
+                for (k = 0; k < 4; k++) {
+                    state->neighbours[i][k] = state->neighbours[i + 1][k];
+                }
+                state->neighbour_count[i] = state->neighbour_count[i + 1];
+                state->linked_target[i] = state->linked_target[i + 1];
+                state->positions[i] = state->positions[i + 1];
+            }
+            state->position_count--;
+            for (d = 0; d < state->position_count; d++) {
+                short kept = 0;
+
+                for (k = 0; k < state->neighbour_count[d]; k++) {
+                    if (SelNum != state->neighbours[d][k]) {
+                        if (SelNum < state->neighbours[d][k]) {
+                            state->neighbours[d][kept++] = state->neighbours[d][k] - 1;
+                        } else {
+                            state->neighbours[d][kept++] = state->neighbours[d][k];
+                        }
+                    }
+                }
+                state->neighbour_count[d] = kept;
+                if (SelNum == state->linked_target[d]) {
+                    state->linked_target[d] = -1;
+                }
+                if (SelNum < state->linked_target[d]) {
+                    state->linked_target[d]--;
+                }
+            }
+            SelNum = -1;
+        }
+        if ((PadData.half_2a & 0x20) && SelNum != -1) {
+            for (d = state->position_count; d > SelNum; d--) {
+                for (k = 0; k < 4; k++) {
+                    state->neighbours[d][k] = state->neighbours[d - 1][k];
+                }
+                state->neighbour_count[d] = state->neighbour_count[d - 1];
+                state->linked_target[d] = state->linked_target[d - 1];
+                state->positions[d] = state->positions[d - 1];
+            }
+            state->position_count = state->position_count + 1;
+            state->positions[SelNum].coordinates = ((ActorHead *)GameLoopState.player)->position;
+            state->linked_target[SelNum] = -1;
+            state->neighbour_count[SelNum] = 0;
+            for (i = 0; i < state->position_count; i++) {
+                for (k = 0; k < state->neighbour_count[i]; k++) {
+                    if (state->neighbours[i][k] >= SelNum) {
+                        state->neighbours[i][k]++;
+                    }
+                }
+                if (state->linked_target[i] >= SelNum) {
+                    state->linked_target[i]++;
+                }
+            }
+        }
+        if (PadData.half_2a & 0x4) {
+            for (d = 0; d < state->position_count; d++) {
+                for (k = 0; k < state->neighbour_count[d]; k++) {
+                }
+            }
+        }
+        for (d = 0; d < state->position_count; d++) {
+            if (d == SelNum) {
+                Debug_Mark(&state->positions[d].coordinates, (int)AdrsEnemyExclamation);
+            } else if (d == nearest) {
+                Debug_Mark(&state->positions[d].coordinates, (int)AdrsEnemyQuestion);
+            } else if (state->linked_target[d] == -1) {
+                Debug_Mark(&state->positions[d].coordinates, (int)AdrsEnemySquare);
+            } else {
+                Debug_Mark(&state->positions[d].coordinates, (int)AdrsEnemySphere);
+            }
+        }
+        for (d = 0; d < state->position_count; d++) {
+            for (k = 0; k < state->neighbour_count[d]; k++) {
+                float point[3];
+                short from;
+                short to;
+
+                if (d < state->neighbours[d][k]) {
+                    to = state->neighbours[d][k];
+                    from = d;
+                } else {
+                    to = d;
+                    from = state->neighbours[d][k];
+                }
+
+                point[0] = state->positions[to].elements[0] + (state->positions[from].elements[0] - state->positions[to].elements[0]) * Times * 0.015625f;
+                point[1] = state->positions[to].elements[1] + (state->positions[from].elements[1] - state->positions[to].elements[1]) * Times * 0.015625f;
+                point[2] = state->positions[to].elements[2] + (state->positions[from].elements[2] - state->positions[to].elements[2]) * Times * 0.015625f;
+                Debug_Mark((const Vector4 *)point, (int)AdrsEnemySphere);
+            }
+        }
+        Times = (short)((Times + 1) % 64);
+    }
+}
 
 void Set_Shadow(Actor *reference_actor)
 {

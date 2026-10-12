@@ -8,6 +8,8 @@
 
 #include "main/party.h"
 
+#include "main/menu_1.h"
+
 typedef struct SaveDataHead00 {
     u64 words[0x38 / 8];
     int unmodeled_38;
@@ -97,7 +99,7 @@ extern FileGameLoopState GameLoopState;
 
 extern void GamePushSaveDataUser(void);
 
-extern unsigned char *MenuSaveMapNameGet(int map_no);
+
 
 extern int MenuScenarioNoGet(void);
 
@@ -118,6 +120,7 @@ typedef struct FileMessage {
     int color;
     unsigned char unmodeled_0c[0x18 - 0x0c];
     char *text;
+    unsigned char unmodeled_1c[0x44 - 0x1c];
 } FileMessage;
 
 typedef struct FileExplanation {
@@ -186,4 +189,3 @@ typedef struct FileBackTexturePacket {
 } FileBackTexturePacket;
 
 #endif
-

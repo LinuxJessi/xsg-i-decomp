@@ -37,6 +37,7 @@ typedef struct ScriptBinding {
     short state;
     short script_id;
     short task_id;
+    short link_id; /* +0x6 */
 } ScriptBinding;
 
 /*
@@ -49,7 +50,8 @@ typedef struct ScriptBinding {
  * xglSoundEffectStopID, cleared once stopped.
  */
 struct SchedulerState {
-    unsigned char unmodeled_0[0xb0];
+    unsigned char unmodeled_0[0x80];
+    Vector4 vectors[3]; /* +0x80 */
     unsigned char effects[32][0x30];
     int inUse;                       /* +0x6b0 */
     unsigned char unmodeled_6b4[0x6e0 - 0x6b4];
@@ -57,6 +59,9 @@ struct SchedulerState {
     unsigned char unmodeled_6e4[0xa8c - 0x6e4];
     int flags;
     ScriptBinding scriptBinding;
+    unsigned char unmodeled_a98[2];
+    unsigned char extraByte; /* +0xa9a */
+    unsigned char unmodeled_a9b[0xab0 - 0xa9b];
 };
 
 /* sefGetDirMatrix (main:0x002e2818) is still INCLUDE_ASM in this TU; declared

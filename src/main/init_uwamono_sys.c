@@ -10,6 +10,53 @@
  * below stay exact.
  */
 
+typedef union UwamonoAlignedVector {
+    Vector4 value;
+    long long words[2];
+} UwamonoAlignedVector;
+
+typedef struct UwamonoNyuruAlignedActor {
+    unsigned char unmodeled_00[0x10];
+    UwamonoAlignedVector position;
+    unsigned char unmodeled_20[0x10];
+    UwamonoAlignedVector displacement;
+} UwamonoNyuruAlignedActor;
+
+typedef struct UwamonoScreenPoint {
+    int x;
+    int y;
+    int z;
+    int w;
+} UwamonoScreenPoint;
+
+typedef union UwamonoAlignedScreenPoint {
+    UwamonoScreenPoint value;
+    int coordinates[4];
+    long long words[2];
+} UwamonoAlignedScreenPoint;
+
+typedef struct UwamonoSpritePacket {
+    unsigned char unmodeled_00[0x30];
+    UwamonoScreenPoint color0;
+    UwamonoScreenPoint position0;
+    UwamonoScreenPoint color1;
+    UwamonoScreenPoint position1;
+} UwamonoSpritePacket;
+
+typedef struct UwamonoLinePacket {
+    unsigned char unmodeled_00[0x20];
+    UwamonoScreenPoint color0;
+    UwamonoScreenPoint position0;
+    UwamonoScreenPoint color1;
+    UwamonoScreenPoint position1;
+} UwamonoLinePacket;
+
+extern UwamonoSpritePacket sPoint_0;
+
+extern UwamonoLinePacket sSortLine_1;
+
+extern signed char lineflg;
+
 typedef struct UwamonoMapUnit {
     u32 flags;                        /* +0x00 */
     unsigned char unmodeled_04[0x0c];
@@ -201,7 +248,7 @@ const char D_004CA0D0[24] = "Illegal Parts Type %d\n";
  * HitCheckMapUnitPosSize returns).
  */
 
-extern void HitCheckMapUnitPosSize(int unit, float threshold);
+extern int HitCheckMapUnitPosSize(const Vector4 *position, float radius);
 
 /*
  * *(UwamonoLinkedUnit.position below) is a separate record UwamonoCommonFunc
@@ -224,10 +271,6 @@ typedef struct UwamonoTimers {
     int bgmTimer;                /* +0x48 (record +0x1E8) */
 } UwamonoTimers;
 
-typedef union UwamonoAlignedVector {
-    Vector4 value;
-    long long words[2];
-} UwamonoAlignedVector;
 
 typedef struct UwamonoCommonUnit {
     unsigned char unmodeled_00[0x10];
@@ -285,11 +328,15 @@ struct UwamonoMapSlot {
     void (*update)(UwamonoMapSlot *);
     unsigned char unmodeled_08[8];
     UwamonoAlignedVector position;
-    unsigned char unmodeled_20[0x82];
+    unsigned char unmodeled_20[0x60];
+    struct UwamonoBoxBasis *basis;
+    unsigned char unmodeled_84[0x1e];
     unsigned char actionSub;
     unsigned char unmodeled_a3;
     short serial;
-    unsigned char unmodeled_a6[0x42];
+    unsigned char unmodeled_a6[0x0a];
+    UwamonoAlignedVector dimensions;
+    unsigned char unmodeled_c0[0x28];
     int effectCf[3];
     unsigned char unmodeled_f4[0xac];
     struct UwamonoMapCollisionState {
@@ -350,6 +397,7 @@ extern void MAP_updateUnitSaveSymbol(UwamonoMapUnit *unit);
 extern void MAP_updateUnitShopSymbol(UwamonoMapUnit *unit);
 
 extern void MAP_updateUnitSymbol(UwamonoMapUnit *unit);
+
 
 
 typedef struct UwamonoCreatedState {
@@ -545,7 +593,7 @@ extern int CrossCheckMapUnitCircle(const Vector4 *from, const Vector4 *to,
 extern void xglVectorNormal(Vector4 *destination, const Vector4 *source);
 
 
-extern int AreaCheckBox(const float *position, UwamonoCollisionUnit *unit, float radius);
+extern int AreaCheckBox(const Vector4 *position, UwamonoMapSlot *unit, float radius);
 
 extern int CrossCheckMapUnitAt(Vector4 *from, Vector4 *to, UwamonoCrossUnit *unit);
 
@@ -567,6 +615,8 @@ typedef struct UwamonoCrossActor {
 extern UwamonoCrossActor actor[64];
 
 extern const float D_004D7F18;
+
+
 
 extern int CheckCrossCircle(float radius, const Vector4 *from, const Vector4 *to, const Vector4 *center);
 
@@ -595,28 +645,8 @@ extern void xglSoundEffectPosID(int soundId, const float *position, int enabled,
 
 extern int HitCheckUwamonoAt(UwamonoBoxUnit *actor, UwamonoBoxUnit *unit);
 
-typedef struct UwamonoScreenPoint {
-    int x;
-    int y;
-    int z;
-    int w;
-} UwamonoScreenPoint;
 
-typedef struct UwamonoSpritePacket {
-    unsigned char unmodeled_00[0x30];
-    UwamonoScreenPoint color0;
-    UwamonoScreenPoint position0;
-    UwamonoScreenPoint color1;
-    UwamonoScreenPoint position1;
-} UwamonoSpritePacket;
 
-typedef struct UwamonoLinePacket {
-    unsigned char unmodeled_00[0x20];
-    UwamonoScreenPoint color0;
-    UwamonoScreenPoint position0;
-    UwamonoScreenPoint color1;
-    UwamonoScreenPoint position1;
-} UwamonoLinePacket;
 
 typedef struct UwamonoVectorWords {
     long long lower;
@@ -1068,11 +1098,29 @@ int HitCheckMapUnitReverse(void *actor)
     return -1;
 }
 
-void HitCheckMapUnitPos(int unit) {
-    HitCheckMapUnitPosSize(unit, 0.0f);
+int HitCheckMapUnitPos(const Vector4 *position) {
+    return HitCheckMapUnitPosSize(position, 0.0f);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", HitCheckMapUnitPosSize);
+int HitCheckMapUnitPosSize(const Vector4 *position, float radius)
+{
+    UwamonoCollisionActor probe;
+    int index = 0;
+
+    probe.position = *position;
+    probe.radius = radius;
+    do {
+        struct UwamonoMapCollisionState *state = &MapUnit[index].state;
+        UwamonoMapSlot *unit = &MapUnit[index];
+        if (unit->serial != -1 && state->crossType &&
+            (unit->flags & 0x10000) &&
+            HitCheckMapUnitPosAt(&probe, (UwamonoCollisionUnit *)unit)) {
+            return index;
+        }
+        ++index;
+    } while (index < 64);
+    return -1;
+}
 
 int HitCheckMapUnitPosReverse(Vector4 *position)
 {
@@ -1157,7 +1205,37 @@ INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", HitCheckCorner);
 
 INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", HitCheckBoxTest);
 
-INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", HitCheckNyuru);
+int HitCheckNyuru(UwamonoNyuruAlignedActor *actor, UwamonoCollisionUnit *unit)
+{
+    UwamonoAlignedVector position = actor->position;
+    UwamonoAlignedVector displacement = actor->displacement;
+    int mapIndex = -1;
+
+    switch (unit->state.state) {
+    case 1:
+        if (!NyuruCircle((UwamonoNyuruActor *)actor, unit)) {
+            return 0;
+        }
+        mapIndex = HitCheckMapUnit(actor);
+        break;
+    case 2:
+        if (!NyuruMatrix((UwamonoNyuruActor *)actor, unit, 0)) {
+            return 0;
+        }
+        mapIndex = HitCheckMapUnit(actor);
+        break;
+    }
+    if (mapIndex != -1) {
+        actor->position = position;
+        actor->displacement = displacement;
+        actor->position.value.x -= actor->displacement.value.x;
+        actor->position.value.z -= actor->displacement.value.z;
+        actor->displacement.value.x = 0.0f;
+        actor->displacement.value.z = 0.0f;
+        return 0;
+    }
+    return 1;
+}
 
 INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", NyuruCircle);
 
@@ -1253,11 +1331,98 @@ void CheckNearPoint(const Vector4 *origin, const Vector4 *candA, const Vector4 *
 
 INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", UwamonoAreaCheck);
 
-INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", AreaCheckBox);
+static inline float UwamonoProjectBoxAxisXZ(float x, float z,
+                                           const Matrix4 *matrix)
+{
+    return x * (*matrix)[0][0] + z * (*matrix)[0][2];
+}
 
-INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", CrossCheckMapUnitAim);
+int AreaCheckBox(const Vector4 *position, UwamonoMapSlot *unit, float radius)
+{
+    UwamonoMapSlot *box = unit;
+    UwamonoAlignedVector dimensions;
+    float pointX = position->x;
+    float pointZ = position->z;
+    float unitZ;
+    float unitX;
+    float offsetX;
+    float offsetZ;
+    float differenceZ;
+    const Matrix4 *matrix;
+    float basisZ;
+    float basisX;
+    float projection;
+    float depth;
 
-INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", CrossCheckMapUnit);
+    unitX = unit->position.value.x;
+    unitZ = unit->position.value.z;
+    offsetX = pointX - unitX;
+    offsetZ = pointZ - unitZ;
+    dimensions = box->dimensions;
+    matrix = (const Matrix4 *)box->basis;
+    projection = UwamonoProjectBoxAxisXZ(offsetX, offsetZ, matrix);
+    if (box->dimensions.value.x + radius < __builtin_fabsf(projection)) {
+        return 0;
+    }
+    depth = box->dimensions.value.z + radius;
+    basisZ = (*matrix)[0][2];
+    basisX = (*matrix)[0][0];
+    /* Measure the residual offset from the point projected onto the box axis. */
+    offsetX = pointX - (projection * basisX + unitX);
+    differenceZ = pointZ - (projection * basisZ + unitZ);
+    /* Square the Z residual component for the radial-distance test. */
+    offsetZ = differenceZ * differenceZ;
+    if (offsetX * offsetX + offsetZ < depth * depth) {
+        return 1;
+    }
+    return 0;
+}
+
+int CrossCheckMapUnitAim(Vector4 *from, UwamonoScanUnit *aim)
+{
+    int index = 0;
+    int unitOffset = 0;
+
+    do {
+        struct UwamonoMapCollisionState *state = &MapUnit[index].state;
+        UwamonoScanUnit *scanUnit = &((UwamonoScanUnit *)MapUnit)[index];
+        UwamonoScanFields *scan = &scanUnit->scan;
+
+        if (scan->resourceId != -1 && scan->resourceId != 0x7000) {
+            UwamonoMapSlot *unit =
+                (UwamonoMapSlot *)&((unsigned char *)&MapUnit)[unitOffset];
+            unsigned int flags = scanUnit->flags;
+            if (!(flags & 0x100000) && scan->channel != aim->scan.channel &&
+                state->crossType && (flags & 0x10000) &&
+                CrossCheckMapUnitAt(from, &aim->position, (UwamonoCrossUnit *)unit)) {
+                return index;
+            }
+        }
+        ++index;
+        unitOffset += sizeof(MapUnit[0]);
+    } while (index < 64);
+    return -1;
+}
+
+int CrossCheckMapUnit(Vector4 *from, Vector4 *to)
+{
+    int index = 0;
+
+    do {
+        struct UwamonoMapCollisionState *state = &MapUnit[index].state;
+        UwamonoMapSlot *unit = &MapUnit[index];
+        if (unit->serial != -1) {
+            unsigned int flags = unit->flags;
+            if (!(flags & 0x100000) && state->crossType &&
+                (flags & 0x10000) &&
+                CrossCheckMapUnitAt(from, to, (UwamonoCrossUnit *)unit)) {
+                return index;
+            }
+        }
+        ++index;
+    } while (index < 64);
+    return -1;
+}
 
 int CrossCheckActor(UwamonoCrossActor *source, const Vector4 *to)
 {
@@ -1289,7 +1454,45 @@ int CrossCheckMapUnitAt(Vector4 *first, Vector4 *second, UwamonoCrossUnit *unit)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", CrossCheckMapUnitCircle);
+int CrossCheckMapUnitCircle(const Vector4 *from, const Vector4 *to,
+                            UwamonoCollisionUnit *unit)
+{
+    Vector4 middle;
+    Vector4 direction;
+    float radius;
+    float halfLength;
+    float projection;
+    float projectedX;
+    float offsetX;
+    float offsetZ;
+    int hit;
+
+    direction.x = to->x - from->x;
+    direction.y = 0.0f;
+    direction.z = to->z - from->z;
+    radius = unit->radius;
+    halfLength = __builtin_sqrtf(direction.x * direction.x +
+                                 direction.z * direction.z) * 0.5f;
+    /* The normalizer's vector ABI uses w as storage, not an xyz input. */
+    xglVectorNormal(&direction, &direction);
+    halfLength += radius;
+    hit = 0;
+    middle.x = from->x + (to->x - from->x) * 0.5f;
+    middle.z = from->z + (to->z - from->z) * 0.5f;
+    offsetX = unit->position.x - middle.x;
+    offsetZ = unit->position.z - middle.z;
+    projection = offsetX * direction.x + offsetZ * direction.z;
+    if (!(halfLength < __builtin_fabsf(projection))) {
+        projectedX = projection * direction.x;
+        offsetX = unit->position.x - (projectedX + middle.x);
+        offsetZ = unit->position.z - (projection * direction.z + middle.z);
+        hit = 1;
+        if (!(offsetX * offsetX + offsetZ * offsetZ < radius * radius)) {
+            hit = 0;
+        }
+    }
+    return hit;
+}
 
 INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", CrossCheckMapUnitBox);
 
@@ -1375,7 +1578,39 @@ INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", AimMapUnit);
 
 INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", AimMapUnitLookCheck);
 
-INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", CheckCornerDist);
+static float CheckCornerDist(const Vector4 *position, UwamonoCollisionUnit *unit)
+{
+    UwamonoAlignedVector corner;
+    float distance;
+
+    switch (unit->state.state) {
+    case 1:
+        distance = CheckDist2D(position, &unit->position) - unit->radius;
+        break;
+    case 2:
+        corner = ((UwamonoMapSlot *)unit)->dimensions;
+        {
+            float offsetX = __builtin_fabsf(position->x - unit->position.x);
+            float offsetZ;
+
+            if (offsetX < corner.value.x) {
+                corner.value.x = offsetX;
+            }
+            offsetZ = __builtin_fabsf(position->z - unit->position.z);
+            if (offsetZ < corner.value.z) {
+                corner.value.z = offsetZ;
+            }
+        }
+        distance = CheckDist2D(position, &unit->position);
+        distance -= __builtin_sqrtf(corner.value.x * corner.value.x +
+                                    corner.value.z * corner.value.z);
+        break;
+    default:
+        distance = CheckDist2D(position, &unit->position);
+        break;
+    }
+    return distance;
+}
 
 void UwamonoCommonFunc(UwamonoCommonUnit *unit)
 {
@@ -1456,7 +1691,34 @@ void UwamonoBgmFadeOut(void)
 
 INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", CheckUwamonoHeight);
 
-INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", HitCheckUwamono);
+int HitCheckUwamono(UwamonoScanUnit *actor)
+{
+    int index = 0;
+    unsigned int callByteOffset = 0;
+
+    do {
+        struct UwamonoMapCollisionState *state = &MapUnit[index].state;
+        UwamonoScanUnit *scanUnit = &((UwamonoScanUnit *)MapUnit)[index];
+        UwamonoScanFields *scan = &scanUnit->scan;
+
+        if (scan->resourceId != -1) {
+            UwamonoBoxUnit *target = (UwamonoBoxUnit *)((unsigned char *)MapUnit + callByteOffset);
+            if (scan->channel != actor->scan.channel) {
+                unsigned int flags = MapUnit[index].flags;
+                if (!(flags & 0x20000)) {
+                    if (!(flags & 0x100000) && state->crossType &&
+                        (flags & 0x10000) &&
+                        HitCheckUwamonoAt((UwamonoBoxUnit *)actor, target)) {
+                        return index;
+                    }
+                }
+            }
+        }
+        ++index;
+        callByteOffset += sizeof(MapUnit[0]);
+    } while (index < 64);
+    return -1;
+}
 
 int HitCheckUwamonoAt(UwamonoBoxUnit *actor, UwamonoBoxUnit *unit)
 {
@@ -1483,6 +1745,72 @@ INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", HitCheckBoxUwamono);
 
 INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", DrawRadar);
 
-INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", DrawSprite);
+void DrawSprite(const UwamonoAlignedScreenPoint *position,
+                const UwamonoScreenPoint *color, int width, int height)
+{
+    UwamonoAlignedScreenPoint point = *position;
+    UwamonoSpritePacket *packet = &sPoint_0;
 
-INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", SortLine);
+    packet->color0.x = color->x;
+    packet->color0.y = color->y;
+    packet->color0.z = color->z;
+    packet->color0.w = color->w;
+    packet->color1.x = color->x;
+    packet->color1.y = color->y;
+    packet->color1.z = color->z;
+    packet->color1.w = color->w;
+    packet->position0.x = point.value.x - width;
+    packet->position0.y = point.value.y - height;
+    packet->position1.x = point.value.x + width;
+    packet->position1.y = point.value.y + height;
+    packet->position0.z = point.value.z;
+    packet->position0.w = point.value.w;
+    packet->position1.z = point.value.z;
+    packet->position1.w = point.value.w;
+    xglPrimAddGifTagDirect(0, packet, 7);
+}
+
+void SortLine(const UwamonoAlignedScreenPoint *from,
+              const UwamonoAlignedScreenPoint *to, int mode)
+{
+    UwamonoAlignedScreenPoint first;
+    UwamonoAlignedScreenPoint second;
+
+    first.words[0] = from->words[0];
+    first.words[1] = from->words[1];
+    from = &first;
+    second.words[0] = to->words[0];
+    second.words[1] = to->words[1];
+    to = &second;
+
+    if (from->coordinates[2] >= 0 && to->coordinates[2] >= 0 && lineflg) {
+        if (mode == 1) {
+            sSortLine_1.color0.x = 0;
+            sSortLine_1.color0.y = 0;
+            sSortLine_1.color0.z = 255;
+            sSortLine_1.color0.w = 0;
+            sSortLine_1.color1.x = 0;
+            sSortLine_1.color1.y = 0;
+            sSortLine_1.color1.z = 255;
+            sSortLine_1.color1.w = 0;
+        } else {
+            sSortLine_1.color0.x = 255;
+            sSortLine_1.color0.y = 0;
+            sSortLine_1.color0.z = 0;
+            sSortLine_1.color0.w = 0;
+            sSortLine_1.color1.x = 255;
+            sSortLine_1.color1.y = 0;
+            sSortLine_1.color1.z = 0;
+            sSortLine_1.color1.w = 0;
+        }
+        sSortLine_1.position0.x = from->coordinates[0];
+        sSortLine_1.position0.y = from->coordinates[1];
+        sSortLine_1.position0.z = from->coordinates[2];
+        sSortLine_1.position0.w = 128;
+        sSortLine_1.position1.x = to->coordinates[0];
+        sSortLine_1.position1.y = to->coordinates[1];
+        sSortLine_1.position1.z = to->coordinates[2];
+        sSortLine_1.position1.w = 128;
+        nmlModelDirectSend(5, (unsigned char *)&sSortLine_1, 6);
+    }
+}

@@ -10,6 +10,8 @@
  * respectively, per the jump table at 0x004c2360).
  */
 
+#include "ew_sprt_set_cursor_uv.h"
+
 typedef struct EwFrameState {
     /* +0x00: cleared by frame_init; no reader found among this TU's own
        functions (frame_put reads only the shared header, +0x04..+0x0e). */
@@ -34,49 +36,8 @@ typedef struct EwSpriteState {
     unsigned short v;
 } EwSpriteState;
 
-typedef struct EwMaskState {
-    /* +0x00: low 32 bits of the GS ALPHA_1 register value mask_put
-       programs for this mask (main:0x0026c880 sends this word and the
-       next one as the 64-bit data of GS register 0x42/ALPHA_1). Bits
-       0-7 are the hardware A/B/C/D blend-source selectors; bit 0x100
-       additionally selects one of mask_put's two drawing variants (its
-       own test on this word, not a GS field). */
-    int blend;
-    /* +0x04: high 32 bits of the same ALPHA_1 value. Byte 0 (bits 32-39
-       of the 64-bit register) is the hardware FIX coefficient; mask_put
-       also reads bytes 1 and 2 back out of this word (lbu +0x05, +0x06)
-       as two 8-bit fill intensities of its own -- bits the GS ALPHA_1
-       register itself never reads. */
-    int fix;
-} EwMaskState;
 
-typedef struct EwContainerState {
-    /* +0x00: children[] slot count. Zeroed here; the container's owner
-       sets the real value right after EW_create returns (TWIN_create2
-       sets 8, TMENU_init sets 16, both immediately after creating a
-       type-4 widget, main:0x0025dc68/0x0025ed60) and EW_addComponent,
-       EW_drawContainer and EW_dispose all read it as the children[]
-       bound. */
-    short childCapacity;
-    /* +0x04: caller-owned array of child widget-slot pointers, set by
-       the same owners and read by the same three functions. */
-    void **children;
-    /* +0x08/+0x0C: zeroed here; no code reachable from this allocation
-       (EW_create, EW_addComponent, EW_drawContainer, EW_dispose, this
-       TU's set_clip/label_put, and TWIN_create2/TMENU_init, the only
-       other callers found that build a type-4 container) reads either
-       word again for a container. The label widget type reads the same
-       slot bytes (EW_drawComoponent, slot+0x18/+0x1C) for its own data. */
-    int unusedByContainer[2];
-} EwContainerState;
 
-typedef struct EwContainerWidget {
-    unsigned short flags;
-    unsigned short type;
-    unsigned char unmodeled_04[0x0C];
-    EwContainerState container;
-    unsigned char unmodeled_20[0x08];
-} EwContainerWidget;
 
 /*
  * Shared 0x28-byte ewComponent table-slot header (top-of-file comment):
@@ -85,16 +46,6 @@ typedef struct EwContainerWidget {
  * tests only the enabled bit via flags & 0x4000.
  */
 
-typedef struct EwWidget {
-    unsigned short flags;
-    unsigned short type;
-    short x;
-    short y;
-    int drawValue;
-    short width;
-    short height;
-    unsigned char unmodeled_10[0x18];
-} EwWidget;
 
 extern void EW_drawComoponent(int context, EwWidget *widget);
 
@@ -138,28 +89,7 @@ typedef struct EwSpriteWidget {
     unsigned char unmodeled_18[0x10];
 } EwSpriteWidget;
 
-typedef struct EwMaskWidget {
-    unsigned short flags;
-    unsigned short type;
-    short x;
-    short y;
-    int z;
-    short width;
-    short height;
-    EwMaskState mask;
-    unsigned char unmodeled_18[0x10];
-} EwMaskWidget;
 
-typedef struct EwLabelWidget {
-    unsigned short flags;
-    unsigned short type;
-    short x;
-    short y;
-    int z;
-    short width;
-    short height;
-    unsigned char unmodeled_10[0x18];
-} EwLabelWidget;
 
 static u64 sprt_base_register[4] = {
     0x2007EF0669343C00ULL, 0x2007EF0669343C00ULL,

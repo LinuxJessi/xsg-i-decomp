@@ -457,7 +457,10 @@ typedef struct SkillListRow {
 typedef struct SkillSPWindow {
     unsigned char state;
     unsigned char rowCount;        /* +0x01 */
-    unsigned char unmodeled_02[0x0C - 0x02];
+    unsigned char unmodeled_02[2];
+    short x;
+    short y;
+    int color;
     short width;                   /* +0x0C */
     short height;                  /* +0x0E */
     const char *title;             /* +0x10 */
@@ -465,15 +468,83 @@ typedef struct SkillSPWindow {
     unsigned char rows;            /* +0x15 */
     unsigned char unmodeled_16[0x1C - 0x16];
     SkillListRow *items;           /* +0x1C */
-    unsigned char unmodeled_20[0x26 - 0x20];
+    unsigned char unmodeled_20[4];
+    signed char firstRow;
+    unsigned char unmodeled_25;
     unsigned char cursorStyle;     /* +0x26 */
+    unsigned char unmodeled_27[3];
+    short itemCount;
 } SkillSPWindow;
+
+typedef struct SkillListNumber {
+    short x;
+    short y;
+    int color;
+    signed char red;
+    signed char green;
+    signed char blue;
+    unsigned char unmodeled_0b[3];
+    unsigned char style;
+    unsigned char digits;
+    unsigned char unmodeled_10[4];
+    int value;
+    unsigned char unmodeled_18[0x90 - 0x18];
+} SkillListNumber;
+
+/* Two ribbons, tag labels and number displays form the extraction screen. */
+typedef struct SkillExRibbon {
+    short x;
+    short y;
+    int color;
+    short width;
+    short height;
+    unsigned char unmodeled_0c[0x70 - 0x0c];
+} SkillExRibbon;
+
+typedef struct SkillExTag {
+    unsigned char unmodeled_00[4];
+    short x;
+    short y;
+    int color;
+    unsigned char unmodeled_0c[0x20 - 0x0c];
+} SkillExTag;
+
+typedef struct MenuSkillExWork {
+    unsigned char state;
+    unsigned char unmodeled_01[3];
+    int color;
+    SkillExRibbon ribbon[2];
+    SkillExTag tag[2];
+    SkillListNumber number[2];
+    SkillSetMessage message;
+} MenuSkillExWork;
+
+void eRibbonSet(void *ribbon, int mode);
+void eRibbonMain(void *ribbon);
+void eTagFontSet(void *tag, const char *text);
+void eTagFontMain(void *tag);
+/* Three pointers in the original .data; the final message has mutable color bytes. */
+extern char *msg00_3_0036DD78[];
 
 typedef struct MenuSkillListWork {
     unsigned char state;
-    unsigned char unmodeled_01[0x0C - 1];
+    unsigned char visible;
+    unsigned char resetPending;
+    unsigned char displayMode;
+    int color;
+    unsigned char unmodeled_08[4];
     SkillSPWindow window;          /* +0x0C */
+    unsigned char unmodeled_38[0x5cec - 0x38];
+    SkillL1R1Sprite equipped[3];
+    unsigned char unmodeled_5d64[0x5e2c - 0x5d64];
+    SkillListNumber levelNumber[8];
 } MenuSkillListWork;
+
+void WindowSPSet(SkillSPWindow *window);
+void WindowSPMain(SkillSPWindow *window);
+void eNumberSet(void *number, int value);
+void eNumberMain(void *number);
+extern const char D_004DB600[];
 
 extern MenuSkillListWork *MenuSkillList;
 

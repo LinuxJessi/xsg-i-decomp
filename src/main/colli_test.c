@@ -63,11 +63,10 @@ static int CheckInBox(const CollisionPoint *point, const CollisionPoint *lower,
     return 0;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/colli_test", CheckBallBoxCollision);
-
-INCLUDE_ASM("asm/main/nonmatchings/colli_test", InitTest_002DBE88);
-
 #include "shared.h"
+#include "main/xgl_studio.h"
+/* Original TU-local pointer storage remains in the unchanged scaffold. */
+extern StudioCamera *pCamera_004DC65C;
 typedef struct ParticleState {
     CollisionPoint position;
     CollisionPoint previous_position;
@@ -113,6 +112,9 @@ extern CollisionPadState PadData;
 static int CheckBallBoxCollision(CollisionPoint *hit_position,
                                  const BallBoxCollisionArgs *args, int mode);
 static int InitTest(void);
+
+INCLUDE_ASM("asm/main/nonmatchings/colli_test", CheckBallBoxCollision);
+
 /* The debug payload begins with four in-band control bytes, including a
  * separator, followed by the CollisionHit!! label text. */
 static const char D_004CBC58[24] = "\013\014\200\000\000CollisionHit!!";
@@ -122,6 +124,53 @@ extern void xglSleep(void);
 extern void xglFontDebugPrintf(int x, int y, const char *text, ...);
 extern void ppNextStart(ParticleState *particle);
 extern void ppNextEnd(ParticleState *particle);
+
+/* Defining-owner interface proposals; transport belongs to integration. */
+extern void xglStudioInit(void);
+extern void xglStudioChange(int mode);
+extern void xglStudioMainCameraInit(void);
+extern void xglStudioGetCamera(StudioCamera **camera, int camera_index);
+extern void ppInit(ParticleState *particle);
+
+static inline void SetPlanarPoint(CollisionPoint *point, float x, float z)
+{
+    point->x = x;
+    point->z = z;
+    point->y = 0.0f;
+}
+
+static int InitTest(void)
+{
+    xglStudioInit();
+    xglStudioChange(0);
+    xglStudioMainCameraInit();
+    xglStudioGetCamera(&pCamera_004DC65C, 0);
+
+    pCamera_004DC65C->position.y = 16.0f;
+    pCamera_004DC65C->rotation.x = 4.712389f;
+    pCamera_004DC65C->position.x = 0.0f;
+    pCamera_004DC65C->position.z = 0.0f;
+    pCamera_004DC65C->rotation.y = 0.0f;
+    pCamera_004DC65C->rotation.z = 0.0f;
+    SetPlanarPoint(&box1, -2.45f, -0.401f);
+    SetPlanarPoint(&box2, 1.7f, 2.2f);
+    SetPlanarPoint(&box3, -3.0f, -3.2f);
+    SetPlanarPoint(&box4, 1.7f, -1.41f);
+
+    ppInit(&pos1);
+    ppInit(&pos2);
+    ppSetPos(&pos1, 0.0f, 0.0f, 3.0f);
+    radius = 0.5f;
+    ppSetPos(&pos2, 0.0f, 0.0f, 3.0f);
+
+    pos2.gravity = pos1.gravity = 0.0f;
+    pos2.damping = pos1.damping = 0.8f;
+    hitpos.y = hitpos.z = hitpos.x = 0.0f;
+    hitpos.w = radius;
+    mode_004DB9D8 = 0;
+    hit = 0;
+    return 1;
+}
 
 void ColliTest(void)
 {

@@ -2,14 +2,19 @@
 
 #include "shared.h"
 
-void nmlModelSetFilterGunosys(int *model, int flags, int count);
+#include "nml_filter_set.h"
 
-void nmlModelSetFilterStealth(int *model, int flags);
+static void nmlModelSetFilterGunosys(void *model, int flags, int count);
+
+static void nmlModelSetFilterStealth(int *model, int flags);
 
 struct NmlFilterRenderView {
     u8 unmodeled_00[2];
     short pixelStorageMode;
-    u8 unmodeled_04[0x10];
+    short frameWidth;
+    short frameHeight;
+    u8 unmodeled_08[0x0a];
+    u16 opaqueTexturePage;
     u16 framebufferPage;
     u8 unmodeled_16[0x0a];
     u16 displayBufferBase;
@@ -22,9 +27,12 @@ struct NmlFilterGsRegisterEntry {
     u64 registerId;
 };
 
+/* One scratchpad write contains two of the owner's actual GS slots. */
+
 extern void nmlPacketGsInit(void);
 
-extern void packet_gs_entry64(int registerId, void *entry);
+/* Defining-owner interface; normal header transport remains an integration need. */
+extern void packet_gs_entry64(u32 registerId, const u64 *value);
 
 extern void nmlPacketAddGsFlush(void);
 
@@ -33,6 +41,14 @@ extern void nmlPacketAddGsFrame(int frame, int offset);
 extern void nmlPacketAddGsFBA(int value);
 
 extern void nmlPacketAddGsZbuf(int zBuffer);
+
+extern void nmlPacketAddGsFlushWide(void);
+
+
+/* Six original cube faces, each containing four corner indices. */
+
+
+/* The projection helper's VFT0I/SQC2 output is integer GS coordinates. */
 
 static void _CurSetMatrix(float matrix[4][4])
 {
@@ -99,9 +115,42 @@ static int _CurRotTransPersClip(Vector4 *destination, const Vector4 *vector)
     return destinationOrFlags;
 }
 
+
+
+#define NML_FILTER_EMIT(id, payload) do { \
+    packet[entryCount * 2].value = (payload); \
+    packet[entryCount * 2 + 1].value = (id); \
+    ++entryCount; \
+} while (0)
+
+#define NML_FILTER_VERTEX(point) do { \
+    NML_FILTER_EMIT(3, (u64)(point)->displaced.u | \
+        ((u64)(point)->displaced.v << 16)); \
+    NML_FILTER_EMIT(4, (u64)(point)->displaced.x | \
+        ((u64)(point)->displaced.y << 16) | 0x7fffffff00000000ULL); \
+} while (0)
+
 INCLUDE_ASM("asm/main/nonmatchings/nml_filter_set", nmlModelSetFilterGunosys);
 
+#undef NML_FILTER_EMIT
+#undef NML_FILTER_VERTEX
+
+
+/* Original read-only data remains scaffolding, with no recovery credit. */
+
+#define NML_STEALTH_VERTEX(uvEntry, xyzEntry, vertexIndex, clipMask) do { \
+    (uvEntry)[1].value = 3; \
+    (uvEntry)[0].value = (u64)geometry->uv[vertexIndex].u | \
+        ((u64)geometry->uv[vertexIndex].v << 16); \
+    (xyzEntry)[0].value = (u64)geometry->xyz[vertexIndex].x | \
+        ((u64)geometry->xyz[vertexIndex].y << 16) | \
+        ((u64)geometry->xyz[vertexIndex].z << 32); \
+    (xyzEntry)[1].value = (clipMask); \
+} while (0)
+
 INCLUDE_ASM("asm/main/nonmatchings/nml_filter_set", nmlModelSetFilterStealth);
+
+#undef NML_STEALTH_VERTEX
 
 static void _WeightToGlobalPlaceInit(float matrix[4][4])
 {
@@ -140,7 +189,56 @@ static float _VectorLengthSQ(const Vector4 *first, const Vector4 *second)
     return lengthSq;
 }
 
+/* Private owner proposals; original data stays unchanged scaffolding. */
+static void _WeightToGlobalPlaceVec(Vector4 *destination,
+    const Matrix4 *jointMatrix, const Matrix4 *jointAuxMatrix);
+
+/* Seven cross-sections form the fourteen-vertex strip. The XYZ and UV bands
+ * use different weights and retain conversion before longitudinal extension. */
+#define NML_STEALTH_XYZ_BAND(vertex, center, outsideXContribution, outsideY, centerWeight, outsideWeight, centerYContribution) do { \
+    geometry->xyz[vertex][2] = geometry->xyz[center][2]; \
+    geometry->xyz[vertex][1] = (int)((centerYContribution) + (outsideY) * (outsideWeight)); \
+    geometry->xyz[vertex][0] = (int)((float)geometry->xyz[center][0] * (centerWeight) + (outsideXContribution)); \
+} while (0)
+
+#define NML_STEALTH_UV_BAND(vertex, center, outsideXContribution, outsideY, uvCenterWeight, uvOutsideWeight, centerYValue) do { \
+    geometry->uv[vertex].v = (int)((centerYValue) * (uvCenterWeight) + (outsideY) * (uvOutsideWeight)); \
+    geometry->uv[vertex].u = (int)((float)geometry->xyz[center][0] * (uvCenterWeight) + (outsideXContribution)); \
+} while (0)
+
+#define NML_STEALTH_EXTEND_XYZ(vertex, dx, dy, amount) do { \
+    geometry->xyz[vertex][0] += (int)((dx) * (amount)); \
+    geometry->xyz[vertex][1] += (int)((dy) * (amount)); \
+} while (0)
+
+#define NML_STEALTH_EXTEND_UV(vertex, dx, dy, amount) do { \
+    geometry->uv[vertex].u += (int)((dx) * (amount)); \
+    geometry->uv[vertex].v += (int)((dy) * (amount)); \
+} while (0)
+
+/* Interpolate the endpoint outside a screen edge in both texture and screen
+ * coordinates. The original lower-edge formula uses the UV coordinate itself,
+ * whereas the upper-edge formula subtracts the upper bound. */
+#define NML_STEALTH_CLIP_ENDPOINT(numerator, denominator) do { \
+    struct NmlStealthUV *outsideUV = &uv[outside]; \
+    struct NmlStealthUV *insideUV = &uv[1 - outside]; \
+    int *outsideXYZ = xyz[outside]; \
+    int *insideXYZ = xyz[1 - outside]; \
+    float fraction = __builtin_fabsf((float)(numerator) / (float)(denominator)); \
+    float complement = 1.0f - fraction; \
+    outsideUV->u = (int)(fraction * (float)insideUV->u + complement * (float)outsideUV->u); \
+    outsideUV->v = (int)(fraction * (float)insideUV->v + complement * (float)outsideUV->v); \
+    outsideXYZ[0] = (int)(fraction * (float)insideXYZ[0] + complement * (float)outsideXYZ[0]); \
+    outsideXYZ[1] = (int)(fraction * (float)insideXYZ[1] + complement * (float)outsideXYZ[1]); \
+} while (0)
+
 INCLUDE_ASM("asm/main/nonmatchings/nml_filter_set", nmlFilterStealthMake);
+
+#undef NML_STEALTH_XYZ_BAND
+#undef NML_STEALTH_UV_BAND
+#undef NML_STEALTH_EXTEND_XYZ
+#undef NML_STEALTH_EXTEND_UV
+#undef NML_STEALTH_CLIP_ENDPOINT
 
 void nmlFilterSetPacket(int *model, int count)
 {
@@ -198,7 +296,7 @@ void nmlFilterSetFrameToBuffer(int displayBufferBase)
     entry = (struct NmlFilterGsRegisterEntry *)0x70000000;
     nmlPacketGsInit();
     for (; remaining >= 0; remaining--, entry++) {
-        packet_gs_entry64((int)entry->registerId, entry);
+        packet_gs_entry64((int)entry->registerId, &entry->value);
     }
     nmlPacketAddGsFlush();
 }
@@ -239,7 +337,7 @@ void nmlFilterSetBufferToFrame(int frameBufferBase)
     entry = (struct NmlFilterGsRegisterEntry *)0x70000000;
     nmlPacketGsInit();
     for (; remaining >= 0; remaining--, entry++) {
-        packet_gs_entry64((int)entry->registerId, entry);
+        packet_gs_entry64((int)entry->registerId, &entry->value);
     }
     nmlPacketAddGsFlush();
 }
@@ -281,7 +379,7 @@ void nmlFilterSetFrameAlphaClear(void)
     nmlPacketAddGsFrame(sRender.displayBufferBase, 0);
     nmlPacketAddGsFBA(0);
     for (remaining = 5; remaining >= 0; remaining--, entry++) {
-        packet_gs_entry64((int)entry->registerId, entry);
+        packet_gs_entry64((int)entry->registerId, &entry->value);
     }
     nmlPacketAddGsFlush();
 }
@@ -319,7 +417,7 @@ void nmlFilterSetTexClear(void)
 
     nmlPacketGsInit();
     for (remaining = 5; remaining >= 0; remaining--, entry++) {
-        packet_gs_entry64((int)entry->registerId, entry);
+        packet_gs_entry64((int)entry->registerId, &entry->value);
     }
     nmlPacketAddGsFlush();
 }
@@ -355,12 +453,94 @@ void nmlFilterBackClear(void)
     nmlPacketAddGsZbuf(1);
     nmlPacketAddGsFrame(sRender.framebufferPage, 0);
     for (remaining = 4; remaining >= 0; remaining--, entry++) {
-        packet_gs_entry64((int)entry->registerId, entry);
+        packet_gs_entry64((int)entry->registerId, &entry->value);
     }
     nmlPacketAddGsFlush();
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_filter_set", nmlFilterSetFlatRender);
+extern void nmlPacketAddGsFrame1(int frame, int offset);
+
+void nmlFilterSetFlatRender(LayoutStore *model)
+{
+    struct NmlFilterRenderView *render;
+    GsTag *gsEntry3f;
+    GsTag *gsEntry6;
+    GsTag *gsEntry14;
+    GsTag *gsEntry8;
+    GsTag *gsEntry42;
+    GsTag *gsEntry47First;
+    GsTag *gsEntry1;
+    GsTag *gsEntry0;
+    GsTag *gsEntry3First;
+    GsTag *gsEntry4First;
+    GsTag *gsEntry3Last;
+    GsTag *gsEntry4Last;
+    GsTag *gsEntry47Last;
+    GsTag *entry;
+    int remaining;
+    u64 texture;
+    GsTag alphaPayload;
+    int clampRegisterId;
+
+    if (model == 0) {
+        return;
+    } else {
+        clampRegisterId = 8;
+        render = &sRender;
+        texture = (u64)(0x24020000 | (render->framebufferPage << 5)) |
+            0x2000000640000000ULL;
+        gsEntry6 = (GsTag *)0x70000010;
+        gsEntry14 = (GsTag *)0x70000020;
+        gsEntry8 = (GsTag *)0x70000030;
+        gsEntry3f = (GsTag *)0x70000000;
+        gsEntry3f[0].value = 0;
+        gsEntry3f[1].value = 0x3f;
+        gsEntry6[0].value = texture;
+        gsEntry6[1].value = 6;
+        gsEntry14[0].value = 0x60;
+        gsEntry14[1].value = 0x14;
+        gsEntry8[0].value = 0;
+        gsEntry8[1].value = clampRegisterId;
+        alphaPayload.value = ((u64)(int)(model->fields.transparency * 128.0f) << 32) | 0x68;
+        gsEntry42 = (GsTag *)0x70000040;
+        gsEntry47First = (GsTag *)0x70000050;
+        gsEntry1 = (GsTag *)0x70000060;
+        gsEntry0 = (GsTag *)0x70000070;
+        gsEntry3First = (GsTag *)0x70000080;
+        gsEntry4First = (GsTag *)0x70000090;
+        gsEntry3Last = (GsTag *)0x700000a0;
+        gsEntry4Last = (GsTag *)0x700000b0;
+        gsEntry47Last = (GsTag *)0x700000c0;
+        gsEntry42[0] = alphaPayload;
+        gsEntry42[1].value = 0x42;
+        gsEntry47First[0].value = 0x30000;
+        gsEntry47First[1].value = 0x47;
+        gsEntry1[0].value = 0x3f80000080808080ULL;
+        gsEntry1[1].value = 1;
+        gsEntry0[0].value = 0x156;
+        gsEntry0[1].value = 0;
+        gsEntry3First[0].value = 0;
+        gsEntry3First[1].value = 3;
+        gsEntry4First[0].value = 0x72007000;
+        gsEntry4First[1].value = 4;
+        gsEntry3Last[0].value = 0x1c002000;
+        gsEntry3Last[1].value = 3;
+        gsEntry4Last[0].value = 0x8e009000ULL;
+        gsEntry4Last[1].value = 4;
+        gsEntry47Last[0].value = 0x50000;
+        gsEntry47Last[1].value = 0x47;
+        entry = (GsTag *)0x70000000;
+        remaining = 12;
+        nmlPacketGsInit();
+        nmlPacketAddGsZbuf(1);
+        nmlPacketAddGsFrame(render->displayBufferBase, 0);
+        nmlPacketAddGsFrame1(render->displayBufferBase, 0);
+        for (; remaining >= 0; remaining--, entry += 2) {
+            packet_gs_entry64(entry[1].words[0], &entry[0].value);
+        }
+        nmlPacketAddGsFlushWide();
+    }
+}
 
 INCLUDE_ASM("asm/main/nonmatchings/nml_filter_set", nmlFilterSetTexFillDraw);
 

@@ -2,6 +2,23 @@
 
 #include "shared.h"
 
+extern u8 arcno;
+
+typedef struct {
+    const char *name;
+    u16 ids[14];
+} MotionEntry;
+
+extern MotionEntry cfMtnList[];
+
+typedef struct {
+    u16 *table;
+    u16 count;
+    u16 group;
+} FaceEntry;
+
+extern FaceEntry faceTbl[];
+
 static char *command_enenpcse(int command, char *cursor, int mode);
 
 extern int GameDiskChange(int disk_number);
@@ -1950,11 +1967,73 @@ const char *RES_GetEnemySeName(int index)
     return 0;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/res_get_path", RES_GetMotBaseID);
+static int RES_GetMotBaseID(int id)
+{
+    MotionEntry *entry = cfMtnList;
+    u16 *slot;
+    u16 base;
 
-INCLUDE_ASM("asm/main/nonmatchings/res_get_path", convert_face);
+    id &= 0xffff;
+    while (entry->name != 0) {
+        slot = entry->ids;
+        base = *slot;
+        while (*slot != 0) {
+            if (*slot == id)
+                return base;
+            slot++;
+        }
+        entry++;
+    }
+    return 1;
+}
 
-INCLUDE_ASM("asm/main/nonmatchings/res_get_path", resource_typeid_translate);
+static int convert_face(int value)
+{
+    FaceEntry *entry = faceTbl;
+    int face = value;
+    int key = face & 0x7f00;
+    u16 converted;
+
+    face &= 0xffff;
+
+    while (entry->count != 0) {
+        if (entry->group == key) {
+            converted = entry->table[face & 0xff];
+            if (converted != 0)
+                face = converted;
+            break;
+        }
+        entry++;
+    }
+    return face;
+}
+
+static int resource_typeid_translate(int index, int *type, int *key)
+{
+    switch ((unsigned short)*type) {
+    case 0:
+        if ((*key & 0xFFFF0000) == 0x10000) {
+            *key = convert_face(*key & 0xFFFF) + 0x10000;
+            return 1;
+        }
+        return 0;
+    case 2:
+        if (*key <= 0x02FFFFFF) {
+            *key = RES_GetMotBaseID(*key);
+            return 1;
+        }
+        return 0;
+    case 3:
+        *type = 2;
+        *key = index | 0x03000000;
+        return 1;
+    case 5:
+        *key = index;
+        return 1;
+    default:
+        return 0;
+    }
+}
 
 INCLUDE_ASM("asm/main/nonmatchings/res_get_path", GameResourceSearch);
 
@@ -2014,9 +2093,53 @@ INCLUDE_ASM("asm/main/nonmatchings/res_get_path", GameResourceAlloc);
 
 INCLUDE_ASM("asm/main/nonmatchings/res_get_path", GameResourceRealloc);
 
-INCLUDE_ASM("asm/main/nonmatchings/res_get_path", next_arc_size);
+static int next_arc_size(void *address)
+{
+    u8 *source;
+    int size;
+    int remaining;
+    u32 *dst;
+    u32 *src;
 
-INCLUDE_ASM("asm/main/nonmatchings/res_get_path", next_line);
+    if (arcno == 0) {
+        dst = archeader;
+        src = arcfileaddr;
+        remaining = *arcfileaddr >> 2;
+        while (remaining >= 0) {
+            *dst = *src;
+            src++;
+            dst++;
+            remaining--;
+        }
+        size = archeader[1];
+        source = (u8 *)arcfileaddr + ((archeader[0] + 0x40) & 0xFFFFFFC0);
+    } else {
+        size = archeader[arcno + 1] - archeader[arcno];
+        source = (u8 *)arcfileaddr + ((archeader[0] + 0x40) & 0xFFFFFFC0u) + archeader[arcno];
+    }
+    arcno++;
+    if (size > 0) {
+        if (*(u32 *)source == 0x00585241)
+            size = xglArxExtract((u32 *)address, (u32 *)source);
+        else
+            memcpy(address, source, size);
+    }
+    if ((u32)archeader[0] >> 2 <= (u32)arcno)
+        arcfileaddr = 0;
+    return size;
+}
+
+static u8 *next_line(u8 *cursor)
+{
+    for (;;) {
+        while (*cursor != '\n' && *cursor != '\r')
+            cursor++;
+        while (*cursor == ' ' || *cursor == '\t' || *cursor == '\n' || *cursor == '\r')
+            cursor++;
+        if (*cursor != ';')
+            return cursor;
+    }
+}
 
 static u8 *skip_space(u8 *cursor)
 {
@@ -2130,7 +2253,26 @@ static void command_loadeffect_sub(int type, char *effect_name, void *address)
     sefLoadEffectCfName((int)address, effect_name);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/res_get_path", command_loadeffect);
+static char *command_loadeffect(int command, char *cursor, int mode)
+{
+    char effect_name[256];
+    char *dst;
+    int character;
+
+    dst = effect_name;
+    character = (u8)*cursor;
+    if ((u8)character != ' ' && (u8)character != '\t' && (u8)character != '\n' && (u8)character != '\r') {
+        do {
+            *dst = character;
+            dst++;
+            cursor++;
+            character = (u8)*cursor;
+        } while ((u8)character != ' ' && (u8)character != '\t' && (u8)character != '\n' && (u8)character != '\r');
+    }
+    *dst = 0;
+    RES_loadFile(command, 6, (int)effect_name, (int)command_loadeffect_sub);
+    return cursor;
+}
 
 static int command_loadene_sub(int type, const char *name, void *address)
 {
@@ -2142,9 +2284,61 @@ static int command_loadene_sub(int type, const char *name, void *address)
     return 0;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/res_get_path", command_loadene);
+static char *command_loadene(int command, char *cursor, int mode)
+{
+    char name[256];
+    char *dst = name;
+    int character = (u8)*cursor;
+    if ((u8)character != ' ' && (u8)character != '\t' && (u8)character != '\n' && (u8)character != '\r') {
+        for (;;) {
+            *dst = character;
+            dst++;
+            cursor++;
+            character = (u8)*cursor;
+            if ((u8)character == ' ' || (u8)character == '\t' || (u8)character == '\n' || (u8)character == '\r')
+                break;
+        }
+    }
+    *dst = 0;
+    RES_loadFile(command, 8, (int)name, (int)&command_loadene_sub);
+    return cursor;
+}
 
-INCLUDE_ASM("asm/main/nonmatchings/res_get_path", command_script);
+static char *command_script(int command, char *cursor, int mode)
+{
+    char script_name[256];
+    char *dst;
+    const char *path;
+    int character;
+
+    dst = script_name;
+    path = RES_getPath();
+    while ((*dst = *path) != 0) {
+        path++;
+        dst++;
+    }
+    character = (u8)*cursor;
+    if ((u8)character != ' ' && (u8)character != '\t' && (u8)character != '\n' && (u8)character != '\r') {
+        for (;;) {
+            *dst = character;
+            dst++;
+            cursor++;
+            character = (u8)*cursor;
+            if ((u8)character == ' ' || (u8)character == '\t' || (u8)character == '\n' || (u8)character == '\r')
+                break;
+        }
+    }
+    dst[0] = '.';
+    dst[1] = 'e';
+    dst[2] = 'v';
+    dst[3] = 't';
+    dst[4] = 0;
+    if ((GameLoopState.flags & 0x40) == 0) {
+        SCRIPT_load2(script_name);
+        SCRIPT_exec2();
+    }
+    return cursor;
+}
 
 static char *command_player(int command, char *cursor, int mode)
 {
@@ -2177,7 +2371,42 @@ INCLUDE_ASM("asm/main/nonmatchings/res_get_path", command_loadse);
 
 INCLUDE_ASM("asm/main/nonmatchings/res_get_path", command_loadsmd);
 
-INCLUDE_ASM("asm/main/nonmatchings/res_get_path", command_mpeg2_core);
+extern const char base_2[];
+
+extern void GameMpeg2Play(const char *name, int mode);
+
+static char *command_mpeg2_core(int command, char *cursor, int mode)
+{
+    char movie_name[256];
+    char *dst;
+    const char *base;
+    int character;
+
+    dst = movie_name;
+    base = base_2;
+    while ((*dst = *base) != 0) {
+        dst++;
+        base++;
+    }
+    character = (u8)*cursor;
+    if ((u8)character != ' ' && (u8)character != '\t' && (u8)character != '\n' && (u8)character != '\r') {
+        for (;;) {
+            *dst = (u8)character;
+            cursor++;
+            character = (u8)*cursor;
+            dst++;
+            if ((u8)character == ' ' || (u8)character == '\t' || (u8)character == '\n' || (u8)character == '\r')
+                break;
+        }
+    }
+    dst[0] = '.';
+    dst[1] = 'p';
+    dst[2] = 's';
+    dst[3] = 's';
+    dst[4] = 0;
+    GameMpeg2Play(movie_name, mode);
+    return cursor;
+}
 
 static char *command_mpeg2(int command, char *cursor)
 {
@@ -2277,7 +2506,23 @@ INCLUDE_ASM("asm/main/nonmatchings/res_get_path", RES_loadFileSubMapSub);
 
 INCLUDE_ASM("asm/main/nonmatchings/res_get_path", RES_loadFileSubMap);
 
-INCLUDE_ASM("asm/main/nonmatchings/res_get_path", RES_GetMotBaseName);
+const char *RES_GetMotBaseName(int id)
+{
+    MotionEntry *entry = cfMtnList;
+    u16 *slot;
+
+    id &= 0xffff;
+    while (entry->name != 0) {
+        slot = entry->ids;
+        while (*slot != 0) {
+            if (*slot == id)
+                return entry->name;
+            slot++;
+        }
+        entry++;
+    }
+    return cfMtnList[0].name;
+}
 
 INCLUDE_ASM("asm/main/nonmatchings/res_get_path", RES_GetMdlFileNameSub);
 
@@ -2308,7 +2553,37 @@ int GameResourceGetIndex(int address)
 
 INCLUDE_ASM("asm/main/nonmatchings/res_get_path", GameResourceDump);
 
-INCLUDE_ASM("asm/main/nonmatchings/res_get_path", GameResourceReset);
+void GameResourceReset(int slot)
+{
+    int total;
+    int index;
+
+    total = 0;
+    index = slot;
+    if (index < 0x80) {
+        for (; index < 0x80; index++)
+            total += GameResource[index].size;
+    }
+    GameResource[slot].size = total;
+    GameResource[slot].state = -1;
+    GameResource[slot].handle = 0;
+    for (index = slot + 1; index < 0x80; index++) {
+        GameResource[index].address = 0;
+        GameResource[index].size = 0;
+        GameResource[index].handle = 0;
+        GameResource[index].state = -1;
+    }
+    index = 0;
+    do {
+        EnemySeBank[index].id = 0;
+        EnemySeBank[index].type = 0;
+        EnemySeBank[index].name[0] = 0;
+        xglSoundSendEffect(0, 0, index + 4);
+        index++;
+    } while (index < 8);
+    GameResourceDump(0);
+    arcfilepreload = 0;
+}
 
 void GameResourceInit(u32 address, int size)
 {

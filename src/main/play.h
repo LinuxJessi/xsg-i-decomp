@@ -105,7 +105,11 @@ typedef struct PlayTCHCurveSet {
 extern float FCV2_getValueAndKey(int *key, FCV2Value *curve, float frame);
 
 typedef struct PlayPadData {
-    PadPrefix buttons;
+    struct {
+        unsigned char pad_00[0x28];
+        unsigned short half_28;
+        unsigned short half_2a;
+    } buttons;
     unsigned char unmodeled_2c[0x0e];
     signed char axisX;
     signed char axisY;

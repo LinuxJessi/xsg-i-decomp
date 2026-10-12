@@ -6,6 +6,8 @@
 #include "main/init_vm.h"
 
 /* The byte buffer fields read by the format natives at +0x4 and +0x8. */
+extern const char D_004DC0A0[];
+
 typedef struct FormatByteArray {
     unsigned char unmodeled_00[4];
     int length;

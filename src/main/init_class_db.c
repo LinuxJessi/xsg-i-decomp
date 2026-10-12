@@ -1,6 +1,17 @@
 #include "common.h"
 
 #include "shared.h"
+#ifndef MAIN_INIT_CLASS_DB_PRIVATE_H
+#define MAIN_INIT_CLASS_DB_PRIVATE_H
+
+#include "shared.h"
+#include "main/string_utf_get_hash.h"
+
+/* This entry point is defined with this prototype by string_utf_get_hash.c. */
+extern SceneString *loadConstString(const char *bytes, int length);
+
+#endif
+
 
 #include "init_class_db.h"
 
@@ -358,7 +369,107 @@ static void readAttributes(DataBuffer *buffer, ClassDescriptor *class_info,
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/init_class_db", readConstantPool);
+static void readConstantPool(DataBuffer *buffer, ClassDescriptor *class_info)
+{
+    unsigned int count;
+    unsigned short index;
+    ClassConstantPoolValue *constant_pool;
+    int is_non_member_tag;
+    unsigned char *tags;
+    int tag;
+
+    count = DataBuffer_getUShortAt(buffer);
+    if (count == 0) {
+        class_info->constant_pool = 0;
+        class_info->constant_pool_count = 0;
+        return;
+    }
+
+    constant_pool = xmalloc(count * sizeof(*constant_pool) + count, 14);
+    class_info->constant_pool_count = count;
+    class_info->constant_pool = constant_pool;
+    /* The tag bytes follow the four-byte entries in the same allocation.
+     * Entry zero holds the tag-vector pointer for the later loader stages. */
+    tags = class_info->constant_pool;
+    tags += count * sizeof(*constant_pool);
+    constant_pool[0].tags = tags;
+    tags[0] = 0;
+
+    for (index = 1; index < count;) {
+        unsigned char *tag_slot;
+        unsigned int current_tag = DataBuffer_getUByteAt(buffer);
+
+        tag_slot = &tags[index];
+        *tag_slot = current_tag;
+        switch (current_tag) {
+        case 1: {
+            unsigned int length = DataBuffer_getUShortAt(buffer);
+            const char *bytes = (const char *)buffer->position;
+
+            constant_pool[index].object = loadConstString(bytes, length - 1);
+            DataBuffer_seek(buffer, length);
+            break;
+        }
+        case 7:
+        case 8:
+            constant_pool[index].index = DataBuffer_getUShortAt(buffer);
+            break;
+        case 9:
+        case 10:
+        case 11:
+        case 12: {
+            unsigned int first_index = DataBuffer_getUShortAt(buffer);
+            unsigned int second_index = DataBuffer_getUShortAt(buffer);
+
+            constant_pool[index].word = (second_index << 16) | first_index;
+            break;
+        }
+        case 3:
+        case 4:
+            constant_pool[index].word = DataBuffer_getUIntAt(buffer);
+            break;
+        case 5: {
+            /* Long entries reserve the following pool slot. */
+            unsigned int high_word = DataBuffer_getUIntAt(buffer);
+            unsigned int low_word = DataBuffer_getUIntAt(buffer);
+
+            constant_pool[index].word = high_word;
+            index++;
+            tags[index] = 0;
+            constant_pool[index].word = low_word;
+            break;
+        }
+        case 6: {
+            /* Double entries use the same two-slot representation. */
+            unsigned int high_word = DataBuffer_getUIntAt(buffer);
+            unsigned int low_word = DataBuffer_getUIntAt(buffer);
+
+            constant_pool[index].word = high_word;
+            index++;
+            tags[index] = 0;
+            constant_pool[index].word = low_word;
+            break;
+        }
+        default:
+            break;
+        }
+        index++;
+    }
+
+    for (index = 1; index < count; index++) {
+        tag = tags[index];
+        is_non_member_tag = tag < 9;
+        if (is_non_member_tag && tag >= 7) {
+            unsigned short reference_index = constant_pool[index].index;
+
+            if (tags[reference_index] == 1) {
+                constant_pool[index].object = constant_pool[reference_index].object;
+            } else {
+                tags[index] = 0;
+            }
+        }
+    }
+}
 
 void setFieldValue(SceneField *field, unsigned int value)
 {
@@ -388,5 +499,3 @@ void setupClass(ClassDescriptor *class_info, u32 this_class_index,
 
 const char D_004DBFD0[] = ".class";
 ConstString **constStringTable = 0;
-
-

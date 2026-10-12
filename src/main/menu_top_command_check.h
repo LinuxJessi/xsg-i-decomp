@@ -3,10 +3,12 @@
 
 #include "shared.h"
 #include "main/party.h"
+typedef struct WindowDX WindowDX;
 
 /* Partial menu records retain the offsets used by the original consumers. */
 typedef struct MenuTopWork {
-    unsigned char unmodeled_00[2];
+    unsigned char unmodeled_00;
+    unsigned char command;
     signed char countdown;
     unsigned char state;
     unsigned char unmodeled_04;
@@ -57,7 +59,7 @@ typedef struct MenuTopWindow {
     unsigned char state;
     unsigned char enabled;
     unsigned char unmodeled_12[2];
-    void (*draw)(void);
+    void (*draw)(WindowDX *window, void *work);
     void *panel;
     unsigned char unmodeled_1c[0x194 - 0x1C];
 } MenuTopWindow;
@@ -104,18 +106,142 @@ typedef struct MenuTopPlayTime {
     unsigned int unmodeled_04;
 } MenuTopPlayTime;
 
+typedef struct MenuInfoMessage {
+    unsigned char unmodeled_00;
+    unsigned char mode;
+    unsigned char unmodeled_02[2];
+    short x;
+    short y;
+    int color;
+    unsigned char unmodeled_0c[12];
+    const char *text;
+    unsigned char lines;
+    unsigned char unmodeled_1d[0x44 - 0x1D];
+} MenuInfoMessage;
+
+typedef struct MenuInfoScrollSprite {
+    short x;
+    short y;
+    int color;
+    unsigned char unmodeled_08[4];
+    unsigned char r;
+    unsigned char g;
+    unsigned char b;
+    unsigned char a;
+    short image;
+    unsigned char unmodeled_12[2];
+} MenuInfoScrollSprite;
+
+typedef struct MenuInfoBox {
+    short x;
+    short y;
+    int color;
+    short width;
+    short height;
+} MenuInfoBox;
+
+typedef struct MenuInfoVertex {
+    int x;
+    int y;
+    int color;
+    unsigned char unmodeled_0c[4];
+} MenuInfoVertex;
+
+typedef struct MenuInfoColor {
+    unsigned char r;
+    unsigned char g;
+    unsigned char b;
+    unsigned char a;
+} MenuInfoColor;
+
+typedef struct MenuInfoQuad {
+    unsigned char mode;
+    unsigned char flag;
+    short image;
+    unsigned char unmodeled_04[12];
+    MenuInfoVertex vertex[4];
+    MenuInfoColor rgba[4];
+} MenuInfoQuad;
+
 typedef struct MenuTopInfoPanel {
     short x;
     short y;
     signed char flag;
-    unsigned char unmodeled_05[7];
+    unsigned char page;
+    unsigned char lineCount;
+    unsigned char blink;
+    int inputLock;
     const char *text;
+    MenuInfoMessage message;
+    MenuInfoScrollSprite scroll;
+    MenuInfoBox box;
+    MenuInfoBox clip;
+    int texture;
+    unsigned char unmodeled_84[12];
+    MenuInfoQuad footer;
+    MenuInfoQuad header;
+    MenuInfoQuad border;
 } MenuTopInfoPanel;
 
 typedef struct MenuTopPartySlot {
     unsigned short id;
-    unsigned char unmodeled_02[2];
+    signed char attackPosition;
+    unsigned char unmodeled_03;
 } MenuTopPartySlot;
+
+typedef struct MenuModelTransform {
+    Vector4 rotation;
+    Vector4 position;
+    Vector4 scale;
+    Vector4 target;
+    Matrix4 place;
+} MenuModelTransform;
+
+
+typedef struct MenuTaiTask {
+    XglTaskPrefix link;
+    unsigned char state;
+    unsigned char enabled;
+    unsigned char initialized;
+    unsigned char index;
+    short previousCommand;
+    unsigned char unmodeled_16[2];
+    MenuModelTransform *model;
+} MenuTaiTask;
+
+typedef struct MenuModelProjectedPoint {
+    int x;
+    int y;
+    int depth;
+    unsigned char unmodeled_0c[4];
+} MenuModelProjectedPoint;
+
+typedef struct MenuModelLinePoint {
+    MenuModelProjectedPoint point;
+    unsigned char r;
+    unsigned char g;
+    unsigned char b;
+    unsigned char a;
+    unsigned char unmodeled_14[12];
+} MenuModelLinePoint;
+
+typedef struct MenuParallelLight {
+    float intensity[4];
+    float direction[4];
+} MenuParallelLight;
+
+/* The light calculator consumes seven vectors and writes two matrices. */
+typedef struct MenuModelLighting {
+    float ambient[4];
+    MenuParallelLight parallel[3];
+    Matrix4 matrix[2];
+} MenuModelLighting;
+
+typedef struct MenuLightingSources {
+    float ambient[4];
+    float intensity[3][4];
+    float direction[3][4];
+} MenuLightingSources;
 
 /* Number formats 4, 6 and 13 carry the current and maximum as two halfwords;
  * other formats use the same word as a scalar value. */
@@ -206,7 +332,7 @@ typedef struct MenuTopPanel {
 typedef struct MenuTopCommandEntry {
     const char *name;
     int unmodeled_04;
-    unsigned char locked;
+    signed char locked;
     unsigned char unmodeled_09[3];
 } MenuTopCommandEntry;
 
@@ -228,7 +354,6 @@ typedef struct MenuTopInfo {
     MenuTopWindow window;
     unsigned char unmodeled_198[8];
     MenuTopInfoPanel panel;
-    unsigned char unmodeled_1b0[0x350 - 0x1B0];
 } MenuTopInfo;
 
 typedef struct MenuTopPartyData {
@@ -237,23 +362,6 @@ typedef struct MenuTopPartyData {
     unsigned char unmodeled_2c[4];
     MenuTopPartySlot slot[3];
 } MenuTopPartyData;
-
-typedef struct MenuTopStatusWin {
-    unsigned char state;
-    unsigned char unmodeled_01[2];
-    unsigned char count;
-    int color;
-    MenuTopWindow window[3];
-    MenuTopPanel panel[3];
-} MenuTopStatusWin;
-
-typedef struct MenuTopMenuPanel {
-    unsigned char unmodeled_00[2];
-    short rows;
-    int cursor;
-    unsigned char unmodeled_08[8];
-    MenuTopCommandEntry *commands;
-} MenuTopMenuPanel;
 
 typedef struct MenuTopFaceRibbon {
     unsigned char unmodeled_00[0xC];
@@ -274,6 +382,48 @@ typedef struct MenuStatusLine {
     unsigned char unmodeled_20[4];
 } MenuStatusLine;
 
+typedef struct MenuSelectCursor {
+    unsigned char mode;
+    unsigned char unmodeled_01[3];
+    short x;
+    short y;
+    int color;
+    unsigned char unmodeled_0c[0x24 - 0x0C];
+} MenuSelectCursor;
+
+typedef struct MenuSelectMessage {
+    unsigned char unmodeled_00;
+    unsigned char mode;
+    unsigned char unmodeled_02[2];
+    short x;
+    short y;
+    int color;
+    unsigned char unmodeled_0c[4];
+    unsigned char r;
+    unsigned char g;
+    unsigned char b;
+    unsigned char unmodeled_13[5];
+    const char *text;
+    unsigned char unmodeled_1c[0x44 - 0x1C];
+} MenuSelectMessage;
+
+typedef struct MenuTopMenuPanel {
+    unsigned char unmodeled_00[2];
+    unsigned short rows;
+    int cursor;
+    const char *text;
+    const char *heading;
+    MenuTopCommandEntry *commands;
+    unsigned char unmodeled_14[0x1A8 - 0x14];
+    MenuSelectCursor marker;
+    MenuSelectMessage message[12];
+    MenuStatusLine headingLine;
+    MenuStatusQuad cursorBand;
+    MenuStatusQuad cursorShade;
+    MenuStatusQuad cursorFill;
+    MenuStatusLine divider;
+} MenuTopMenuPanel;
+
 typedef struct MenuStatusRibbon {
     short x;
     short y;
@@ -291,7 +441,6 @@ typedef struct MenuTopMenuWin {
     unsigned char unmodeled_06[2];
     MenuTopWindow window;
     MenuTopMenuPanel panel;
-    unsigned char unmodeled_1b0[0x794 - 0x1B0];
 } MenuTopMenuWin;
 
 typedef struct MenuTopFaceEx {
@@ -313,7 +462,7 @@ typedef struct MenuTopFaceEx {
 
 typedef struct MenuStatusPanel {
     signed char chrNo;
-    unsigned char unmodeled_01;
+    unsigned char enabled;
     short guestChrNo;
     short offsetX;
     short offsetY;
@@ -347,7 +496,17 @@ typedef struct MenuStatusPanel {
     MenuStatusLine statsLine;       /* +0x788 */
     MenuStatusLine divider;         /* +0x7AC */
     MenuStatusRibbon ribbon;        /* +0x7D0 */
+    unsigned char unmodeled_828[0x840 - 0x828];
 } MenuStatusPanel;
+
+typedef struct MenuTopStatusWin {
+    unsigned char state;
+    unsigned char unmodeled_01[2];
+    unsigned char count;
+    int color;
+    MenuTopWindow window[3];
+    MenuStatusPanel panel[3];
+} MenuTopStatusWin;
 
 extern MenuTopWork MenuWork;
 extern char D_004DA890[];
@@ -381,17 +540,18 @@ extern void eSpriteMain(MenuTopESprite *sprite);
 extern void eTagFontSet(MenuTopETagFont *tag, const char *text);
 extern void eTagFontMain(MenuTopETagFont *tag);
 extern char D_004DA8B8[];
-extern void MenuSelectWindow(void);
-extern void MenuInfoWindow(void);
+extern int MenuSelectWindow(MenuStatusPanelWindow *window, MenuTopMenuPanel *panel);
+extern int MenuInfoWindow(MenuStatusPanelWindow *window, MenuTopInfoPanel *panel);
+void MenuPasWindow(void);
 extern unsigned char *PartyDataGet(void);
 extern void MoveSlide(short *current, short *target, float rate);
-extern void WindowDXSet(MenuTopWindow *window);
-extern void WindowDXMain(MenuTopWindow *window);
+
+
 MenuStatusPara *func_00A11108(int chrNo, int *attack, int *defense);
 MenuStatusExp *func_A19210(int chrNo);
 char *MenuCharNameGet(int chrNo);
 int PartyLeaderCheck(int chrNo);
-void eMessageSet(void *message, char *text);
+void eMessageSet(void *message, const char *text);
 void eMessageDraw(void *message);
 void endSpriteSet(void *sprite, int mode);
 void endPrintExtFunc(int work, int type, void *data);

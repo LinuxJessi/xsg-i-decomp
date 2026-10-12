@@ -1,6 +1,7 @@
 #include "common.h"
 
 #include "shared.h"
+#include "system.h"
 struct SystemClassName {
     unsigned char unmodeled_00[8];
     signed char *characters;
@@ -69,9 +70,52 @@ void *Java_xeno_vm_System_arraycopy__Ljava_lang_Object_ILjava_lang_Object_II(
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/system", Java_xeno_vm_System_sleep__I);
+void Java_xeno_vm_System_sleep__I(SceneVm *vm, const VMSlot *arguments,
+                                  VMSlot *result)
+{
+    int frames;
+    struct JThread *thread = vm;
 
-INCLUDE_ASM("asm/main/nonmatchings/system", getStrIndex_002F6210);
+    if ((thread->flags & 4) == 0) {
+        u16 suspendedFrame;
+
+        thread->wait_kind = 1;
+        suspendedFrame = thread->frame_depth;
+
+        thread->flags |= 4;
+        thread->resume_frames = suspendedFrame;
+        thread->wait_target.elapsed_frames = 0;
+        frames = arguments[0].i;
+        if (frames < 0) {
+            frames = 0;
+        }
+        thread->wait_parameter = frames;
+    }
+}
+
+static const char *getStrIndex(const char *start, int length, int character)
+{
+    int index = 0;
+
+    if (length > 0) {
+        const char *current;
+        long value;
+        int more;
+
+        do {
+            current = &start[index];
+            more = ++index < length;
+            value = *current;
+            if (value == character || value == '\0') {
+                break;
+            }
+        } while (more);
+        if (value == character) {
+            return current;
+        }
+    }
+    return 0;
+}
 
 INCLUDE_ASM("asm/main/nonmatchings/system", Java_xeno_vm_System_println__Ljava_lang_String_);
 
@@ -83,8 +127,6 @@ INCLUDE_ASM("asm/main/nonmatchings/system", System_waitFor);
  * (thread, arguments, result) as the sibling natives elsewhere in this
  * TU map show.
  */
-typedef struct JThread JThread;
-
 extern void System_waitFor(JThread *thread, void *wait_target, int wait_kind,
                            int wait_parameter);
 

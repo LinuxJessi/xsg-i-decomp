@@ -3,6 +3,8 @@
 
 #include "shared.h"
 
+#include "main/jni.h"
+
 typedef struct Spline {
     void *class_pointer;
     s16 order;

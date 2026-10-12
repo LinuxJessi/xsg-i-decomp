@@ -35,15 +35,67 @@ typedef struct {
  */
 typedef void *GameLoopStateAddressView[];
 
+/* An actor record of the engine's actor table; the records are 0xa70 bytes
+ * apart.  +0x86 is the in-use id that ACT_loadMotion and ACT_loadResource
+ * take as their resource argument. */
+typedef struct ScriptActorRecord {
+    unsigned int flags;                 /* +0x00 */
+    unsigned char unmodeled_04[0xc];
+    float position[3];                  /* +0x10 */
+    unsigned char unmodeled_1c[0x34];
+    float rotation[3];                  /* +0x50: radians */
+    unsigned char unmodeled_5c[0x86 - 0x5c];
+    short in_use_id;                    /* +0x86 */
+    unsigned char unmodeled_88[0x4c0 - 0x88];
+    SceneObject script_object;          /* +0x4c0: the actor's own script object */
+    unsigned char unmodeled_4c4[0xa70 - 0x4c4];
+} ScriptActorRecord;
+
 /* Game-loop members used by this unit: task scheduler at +8, mode at +c,
  * and flags at +10. Remaining storage belongs to the game-loop owner. */
 typedef struct ScriptGameLoopState {
-    unsigned char unmodeled_00[8];
+    unsigned char unmodeled_00[4];
+    ScriptActorRecord *main_actor;
     XglTaskScheduler *task_scheduler;
     unsigned short kind;
     unsigned short kindDetail;
     unsigned int flags;
+    unsigned char unmodeled_14[0x54 - 0x14];
+    int scene_reset_counter;           /* +0x54: cleared when a scene change starts */
+    unsigned char unmodeled_58[0x90 - 0x58];
+    float fade_out_red;                /* +0x90: fade-out colour, 0.0 to 1.0 per channel */
+    float fade_out_green;
+    float fade_out_blue;
+    float fade_out_frames;             /* +0x9c: fade-out length in frames */
+    float fade_red;                    /* +0xa0: fade-in colour */
+    float fade_green;
+    float fade_blue;
+    float fade_frames;                 /* +0xac: fade-in length in frames */
+    unsigned char unmodeled_b0[8];
+    int frame_lock_wait;               /* +0xb8: frame-lock scenes store the scene fade time plus 4 here */
+    unsigned char unmodeled_bc[0x29f40 - 0xbc];
+    unsigned char input_delay; /* +0x29f40: frames before the pause button is read again */
+    unsigned char unmodeled_29f41[0x29f50 - 0x29f41];
+    Quadword debug_menu_storage; /* +0x29f50: 16-byte debug menu state, cleared as one quadword */
+    unsigned short saved_kind;   /* +0x29f60: mode restored when a debug task returns to the menu */
 } ScriptGameLoopState;
+
+/* The held/pressed button halfwords of the first PadData record. */
+typedef struct ScriptPadButtons {
+    unsigned char unmodeled_00[0x28];
+    unsigned short held;
+    unsigned short pressed;
+    unsigned short repeat;
+} ScriptPadButtons;
+
+/* Render state prefix: +0x58 is the flag PauseSkipCheck raises while the
+ * pause screen copies the frame. */
+typedef struct ScriptRenderState {
+    unsigned char unmodeled_00[0x22];
+    unsigned short owner_index;     /* +0x22: passed to nmlModelSetBackBufferToBattle */
+    unsigned char unmodeled_24[0x58 - 0x24];
+    unsigned char scene_disabled;
+} ScriptRenderState;
 
 /* Native actor peer used for the talk method's JNI argument. */
 typedef struct Actor {
@@ -53,7 +105,8 @@ typedef struct Actor {
 
 /* Window prefix shared by the close-state store and TWIN_dispose. */
 typedef struct TComponent {
-    unsigned char unmodeled_00[0x10];
+    SceneObjectClassRef *class_ref;
+    unsigned char unmodeled_04[0xc];
     unsigned int flags;
     unsigned short state;
 } TComponent;
@@ -117,6 +170,7 @@ struct SceneThread {
     SceneMethod *method;                 /* +0x18 */
     unsigned char unmodeled_1c[8];       /* +0x1c */
     unsigned int flags;                  /* +0x24 */
+    void *call_frame;                    /* +0x28: null once the thread has no call left to run */
 };
 
 #define SCENE_THREAD_CALL_PENDING 0x8u
@@ -196,6 +250,69 @@ struct ScriptObserverTask {
     u8 unmodeled_3a[2];              /* +0x3a */
     SceneMethod *method;             /* +0x3c */
 };
+
+
+/* Task node of sceneObserver and sceneObserver2, which wait for a script
+ * thread to finish and then fade the scene out and back in. */
+typedef struct ScriptSceneTask {
+    XglTaskPrefix task;              /* +0x00 */
+    u32 state_flags;                 /* +0x10: bit 0 set once the task has initialised itself */
+    SceneObject thread;              /* +0x14: the script thread being watched */
+    unsigned char unmodeled_18[4];
+    ScriptGameLoopState *owner;      /* +0x1c */
+    int fade_started;                /* +0x20: set once the fade-out has begun */
+    int elapsed_frames;              /* +0x24: frames since the fade-out began */
+} ScriptSceneTask;
+
+/* Window records the debug menus create (TMENU_create / TSLIDER_create). */
+typedef struct ScriptWindow {
+    unsigned char unmodeled_00[0x10];
+    unsigned int flags;           /* +0x10 */
+    unsigned short state;         /* +0x14: 0 while open, 2 once the choice is made */
+    unsigned short mode;          /* +0x16 */
+    unsigned char unmodeled_18[8];
+    float x;                      /* +0x20 */
+    float y;                      /* +0x24 */
+    unsigned char unmodeled_28[0x50 - 0x28];
+    unsigned int options;         /* +0x50 */
+    signed char selected_item;    /* +0x54 */
+    signed char cancel_item;      /* +0x55: negative when the menu was cancelled */
+    unsigned char unmodeled_56[2];
+    int value;                    /* +0x58 */
+    unsigned char unmodeled_5c[4];
+    int max_value;                /* +0x60 */
+} ScriptWindow;
+
+/* The file browser state xglCdFileSelect drives; 0x268 bytes in its owner
+ * (src/main/set_path.c). */
+typedef struct ScriptFileSelect {
+    unsigned char unmodeled_00[0xc];
+    int selection;                /* +0xc: cleared when the browser opens */
+    char directory[1];            /* +0x10 */
+    unsigned char unmodeled_11[0x11c - 0x11];
+    char file_path[1];            /* +0x11c */
+    unsigned char unmodeled_11d[0x268 - 0x11d];
+} ScriptFileSelect;
+
+/* Task node of the debug menu tasks (SCRIPT_debugMenu and the DB_ tasks). */
+typedef struct ScriptMenuTask {
+    XglTaskPrefix task;              /* +0x00 */
+    u32 state_flags;                 /* +0x10: bit 0 set once the task has set itself up */
+    void *window;                    /* +0x14 */
+    unsigned char unmodeled_18[4];
+    ScriptGameLoopState *owner;      /* +0x1c */
+    int phase;                       /* +0x20 */
+    int map_no;                      /* +0x24 */
+    int loaded_map;                  /* +0x28 */
+} ScriptMenuTask;
+
+void DB_light(ScriptMenuTask *task);
+void DB_memory(ScriptMenuTask *task);
+void XTK_setResourceID(int id);
+
+/* Wind debug parameter block, shared with the engine's wind module; only its
+ * address is taken in this unit. */
+typedef struct ScriptWindParams ScriptWindParams;
 
 #define OBSERVER_TASK_VM_CLAIMED 1u
 

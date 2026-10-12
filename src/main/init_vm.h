@@ -2,7 +2,22 @@
 #define INIT_VM_RECOVERY_PRIVATE_H
 
 #include "shared.h"
-#include "main/init_vm.h"
+#include "main/find_native_method.h"
+
+extern JavaClass *classClass;
+extern JavaClass *classObject;
+extern SceneClass *classStringBuffer;
+extern SceneClass *classString;
+
+typedef union VMSlot {
+    int i;
+    float f;
+    void *ref;
+    unsigned char b;
+    short s;
+    unsigned short c;
+} VMSlot;
+
 
 extern SceneString *loadConstString(const char *bytes, int length);
 
@@ -26,6 +41,7 @@ struct VMClass {
     signed char type_code;
     unsigned char element_size;
 };
+
 
 
 /*

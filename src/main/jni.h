@@ -6,7 +6,29 @@
 #define SRC_MAIN_JNI_H
 
 #include "shared.h"
-#include "main/jni.h"
+
+extern SceneClass *classJava_xeno_Enepc;
+extern SceneClass *classJava_xeno_Scene;
+extern SceneClass *classJava_xeno_util_Window;
+extern SceneClass *classJava_xeno_Uwamono;
+extern SceneClass *classJava_xeno_Chr;
+extern SceneClass *classJava_xeno_util_Format;
+extern SceneClass *classJava_xeno_Unit;
+extern SceneClass *classJava_xeno_vm_System;
+extern SceneClass *classJava_xeno_util_Vector4f;
+extern SceneClass *classJava_xeno_util_Runtime;
+extern SceneClass *classJava_xeno_util_Layout;
+extern SceneClass *classJava_xeno_Effect;
+extern SceneClass *classJava_xeno_Light;
+extern SceneClass *classJava_xeno_util_Menu;
+extern SceneClass *classJava_xeno_util_Toolkit;
+extern SceneClass *classJava_xeno_Stage;
+extern SceneClass *classJava_xeno_PlayControl;
+extern SceneClass *classJava_xeno_util_TCHParams;
+extern SceneClass *classJava_xeno_util_Spline;
+extern SceneClass *classJava_xeno_util_Input;
+extern SceneClass *classJava_xeno_Camera;
+extern SceneClass *classJava_xeno_Movie;
 #include "main/data_buffer.h"
 #include "main/find_native_method.h"
 
@@ -67,7 +89,12 @@ typedef struct JThread {
     u32 flags;                          /* +0x24 */
     u32 *stack;                         /* +0x28 */
     void *frames;                       /* +0x2c */
-    void *wait_target;                  /* +0x30 */
+    /* wait_kind selects elapsed frames, a native peer, or a thread. */
+    union {
+        int elapsed_frames;
+        void *object;
+        struct JThreadNode *thread;
+    } wait_target;                    /* +0x30, four-byte tagged storage */
     int wait_parameter;                 /* +0x34 */
     u16 stack_offset;                   /* +0x38 */
     short stack_limit;                  /* +0x3a */
@@ -75,6 +102,7 @@ typedef struct JThread {
     u16 frame_depth;                    /* +0x3e */
     short frame_limit;                  /* +0x40 */
 } JThread;
+
 
 /*
  * The fixed bank of 8 script class ids JNI_loadClassDB allocates from for a

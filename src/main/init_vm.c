@@ -1,6 +1,9 @@
 #include "common.h"
 #include "init_vm.h"
 
+extern JavaClass _dummyClass;
+
+
 const char D_004CD0C0[16] = "<clinit>";
 const char D_004CD0D0[16] = "SourceFile";
 const char D_004CD0E0[16] = "InnerClasses";
@@ -195,14 +198,6 @@ enum {
 #define VM_ACC_STATIC 0x8
 #define VM_ACC_NATIVE 0x100
 
-typedef union VMSlot {
-    int i;
-    float f;
-    void *ref;
-    unsigned char b;
-    short s;
-    unsigned short c;
-} VMSlot;
 
 typedef struct VMSlots {
     short top;
@@ -289,7 +284,6 @@ extern void JNI_threadException();
 extern int getField(int index, VMOwner *owner, int isStatic, VMFieldRef *ref);
 extern VMMethod *getMethodSignatureClass(int index, VMOwner *owner, int mode);
 extern VMClass *getClass(int index, VMOwner *owner);
-extern void *newObject(VMClass *vmClass);
 extern void *newArray(VMClass *elementClass, int length);
 extern int JNI_isInstanceOf(void *object, VMClass *vmClass);
 extern VMClass *primitiveClassTable[16];
@@ -1270,7 +1264,7 @@ void virtualMachine(SceneVm *vm, VMMethod *method, VMSlot *arguments, VMSlot *re
             break;
         case OP_NEW:
             stack->top++;
-            STACK(0).ref = newObject(getClass(CODE_U16(0), method->owner));
+            STACK(0).ref = newObject((SceneClass *)getClass(CODE_U16(0), method->owner));
             frame->nextPc = frame->pc + 2;
             break;
         case OP_NEWARRAY:

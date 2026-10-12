@@ -60,10 +60,14 @@ typedef struct MenuShopEx2Work {
 } MenuShopEx2Work;
 
 typedef struct MenuShopWeapon {
-    unsigned char unmodeled_00[6];
+    unsigned short shopParameter1;
+    unsigned char unmodeled_02[4];
     unsigned short flags;
-    unsigned char unmodeled_08[0x12];
+    unsigned char unmodeled_08[0x0A];
+    unsigned short wagl;
+    unsigned char unmodeled_14[6];
     short bullet;
+    unsigned short shopParameter2;
 } MenuShopWeapon;
 
 /* The map anchors nine 0x28-byte count records and a separate 8-byte tail.
@@ -103,7 +107,7 @@ extern void eMessageSet(void *message, const char *text);
 
 extern void eMessageMain(void *message);
 
-extern MenuShopWeapon *func_A1A3D8(short item);
+extern MenuShopWeapon *func_A1A3D8(int item);
 
 extern const char **func_A2C738(int bullet);
 
@@ -200,6 +204,11 @@ typedef struct MenuShopUnitData {
     unsigned char unmodeled_36[0x20];
     short engineId;
     short frameId;
+    unsigned char unmodeled_5a[4];
+    short weaponIds[3];
+    short accessoryIds[3];
+    short attachmentIds[3];
+    unsigned char unmodeled_70[0x110];
 } MenuShopUnitData;
 
 struct MenuShopListWork {
@@ -294,10 +303,19 @@ typedef union {
 
 typedef long long s64;
 
-/* Partial recalculated record: calcTotalParaMenu's maxHp/maxEp pair. */
+/* The calculator and unit snapshots each copy a complete 0x180-byte record.
+ * Only the statistics used by the shop are modeled here. */
 typedef struct ShopCalculatedPara {
     s16 maxHp;
     s16 maxEp;
+    unsigned short attack;
+    unsigned short physicalDefense;
+    unsigned short displayStat2;
+    unsigned short magicDefense;
+    unsigned char byteStats[3];
+    unsigned char unmodeled_0f[0x25];
+    unsigned short currentHp;
+    unsigned char unmodeled_36[0x14A];
 } ShopCalculatedPara;
 
 ShopCalculatedPara *func_00A11108(int, int *, int *);
@@ -312,6 +330,9 @@ s32 MenuFrameEquipCheck(s32, s32);
 typedef struct MenuShopAccessoryData {
     unsigned char unmodeled_00[4];
     unsigned short flags;
+    unsigned char unmodeled_06[6];
+    unsigned char shopParameter2;
+    unsigned char shopParameter3;
 } MenuShopAccessoryData;
 
 extern MenuShopAccessoryData *func_A1A548(int item);
@@ -520,9 +541,111 @@ void MenuShopModelDisp(AgwsModelUnit *unit)
     }
 }
 
+
 INCLUDE_ASM("asm/main/nonmatchings/menu_shop", MenuShopModelMain);
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_shop", MenuShopPas);
+typedef struct MenuShopHelpWork {
+    unsigned char unmodeled_00[4];
+    short x;
+    short y;
+    int depth;
+    WindowDX window;
+    MenuShopPasMessageSlot messages[16];
+    MenuShopPasBounds bounds;
+} MenuShopHelpWork;
+
+extern const char *msg00_0_0036DAF0[];
+extern void endPrintExtFunc(int depth, int mode, void *vertices);
+
+static void MenuShopPas(TskObject *task, void *data)
+{
+    MenuShopHelpWork *work = data;
+    short messageX[16];
+    short windowX;
+    int i;
+    WindowDX *window;
+    short *target;
+    const char **text;
+
+    switch (task->state) {
+    case 0:
+        work->x = -272;
+        work->y = 8;
+        work->depth = 0xfffff0;
+        window = &work->window;
+        WindowDXSet(window);
+        window->x = work->x;
+        work->window.style = work->depth;
+        work->window.width = 272;
+        work->window.y = work->y;
+        work->window.height = 32;
+        work->window.state = 1;
+        WindowDXMain(window);
+        work->window.state = 3;
+        text = msg00_0_0036DAF0;
+        for (i = 0; i < 16; i++, text++) {
+            eMessageSet(&work->messages[i], *text);
+            work->messages[i].mode = 32;
+            work->messages[i].x = 288;
+            work->messages[i].color = work->depth + 2;
+            work->messages[i].y = work->y + 3;
+        }
+        break;
+    case 2:
+        windowX = -16;
+        for (i = 0; i < 16; i++)
+            messageX[i] = 288;
+        switch (MenuShopWork->state) {
+        case 0x20:
+            messageX[0] = 16;
+            break;
+        case 0x30:
+        case 0x90:
+        case 0xa0:
+        case 0xa2:
+        case 0xa4:
+            messageX[MenuShopWork->category + 3] = 16;
+            break;
+        case 0xc0:
+            messageX[12] = 16;
+            break;
+        case 0xc2:
+        case 0xc4:
+        case 0xc6:
+            messageX[13] = 16;
+            break;
+        case 0xd0:
+        case 0xd2:
+        case 0xd4:
+        case 0xd6:
+            if (MenuShopWork->sort_mode_selector != 0)
+                messageX[14] = 16;
+            else
+                messageX[15] = 16;
+            break;
+        default:
+            windowX = -272;
+            break;
+        }
+        window = &work->window;
+        MoveSlide(&window->x, &windowX, 3.0f);
+        WindowDXMain(window);
+        work->bounds.x1 = window->x + 3;
+        work->bounds.y1 = work->window.y + 3;
+        work->bounds.x2 = work->window.width - 6;
+        work->bounds.y2 = work->window.height - 6;
+        work->bounds.color = work->depth;
+        endPrintExtFunc(work->depth, 101, &work->bounds);
+        target = messageX;
+        for (i = 0; i < 16; i++, target++) {
+            MoveSlide(&work->messages[i].x, target, 3.0f);
+            if (work->messages[i].x < 256)
+                eMessageMain(&work->messages[i]);
+        }
+        endPrintExtFunc(work->depth, 102, 0);
+        break;
+    }
+}
 
 INCLUDE_ASM("asm/main/nonmatchings/menu_shop", MenuShopInfo);
 
@@ -570,7 +693,105 @@ void MenuShopSortSet(int list, int type, int order, int option)
     *output = 0;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_shop", subMenuShopEquipCheck);
+int subMenuShopEquipCheck(int item, int category)
+{
+    int partyIds[16];
+    int selectedSlot[8];
+    short selectedItem = (short)item;
+    int partyCount = 0;
+    int matches = 0;
+    int party;
+    int remaining;
+    short *equipment;
+    struct MenuShopEquipRecord *unit;
+
+    memset(selectedSlot, 0, sizeof(selectedSlot));
+    selectedSlot[1] = 1;
+    selectedSlot[4] = 1;
+    switch (MenuShopWork->category) {
+    case 1:
+    case 2:
+    case 3:
+        partyCount = PartyAllPartyGet(partyIds, 0);
+        break;
+    case 4:
+    case 5:
+    case 6:
+        partyCount = PartyAgwsGet(partyIds);
+        break;
+    }
+    if (partyCount == 0)
+        return 0;
+    switch (MenuShopWork->category) {
+    case 1:
+        for (party = 0; party < partyCount; party++) {
+            unit = func_A191C0(partyIds[party]);
+            if (unit == NULL)
+                return 0;
+            if (unit->itemIds[0][selectedSlot[partyIds[party] - 1]] == selectedItem)
+                matches++;
+        }
+        break;
+    case 3:
+        for (party = 0; party < partyCount; party++) {
+            unit = func_A191C0(partyIds[party]);
+            if (unit == NULL)
+                return 0;
+            if (unit->itemIds[2][selectedSlot[partyIds[party] - 1]] == selectedItem)
+                matches++;
+        }
+        break;
+    case 2:
+        for (party = 0; party < partyCount; party++) {
+            unit = func_A191C0(partyIds[party]);
+            if (unit == NULL)
+                return 0;
+            for (equipment = unit->itemIds[1], remaining = 2;
+                 remaining >= 0; equipment++, remaining--) {
+                if (*equipment == selectedItem)
+                    matches++;
+            }
+        }
+        break;
+    case 4:
+        for (party = 0; party < partyCount; party++) {
+            unit = func_A191C0(partyIds[party]);
+            if (unit == NULL)
+                return 0;
+            for (equipment = unit->itemIds[0], remaining = 2;
+                 remaining >= 0; equipment++, remaining--) {
+                if (*equipment == selectedItem)
+                    matches++;
+            }
+        }
+        break;
+    case 6:
+        for (party = 0; party < partyCount; party++) {
+            unit = func_A191C0(partyIds[party]);
+            if (unit == NULL)
+                return 0;
+            for (equipment = unit->itemIds[2], remaining = 2;
+                 remaining >= 0; equipment++, remaining--) {
+                if (*equipment == selectedItem)
+                    matches++;
+            }
+        }
+        break;
+    case 5:
+        for (party = 0; party < partyCount; party++) {
+            unit = func_A191C0(partyIds[party]);
+            if (unit == NULL)
+                return 0;
+            for (equipment = unit->itemIds[1], remaining = 2;
+                 remaining >= 0; equipment++, remaining--) {
+                if (*equipment == selectedItem)
+                    matches++;
+            }
+        }
+        break;
+    }
+    return matches;
+}
 
 int MenuShopNoSaleCheck(int item)
 {
@@ -630,6 +851,7 @@ void MenuShopListColorChange(int list, int kind)
     }
 }
 
+
 INCLUDE_ASM("asm/main/nonmatchings/menu_shop", MenuShopListChange00);
 
 int MenuShopListChange01(int list)
@@ -675,9 +897,197 @@ INCLUDE_ASM("asm/main/nonmatchings/menu_shop", MenuShopEx02);
 
 INCLUDE_ASM("asm/main/nonmatchings/menu_shop", MenuShopIcon);
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_shop", MenuShopParaSet2);
+/* The display is seven halfwords; foreign MenuAgwsPara uses the same layout. */
+typedef struct AgwsParaDisplay {
+    short value[7];
+} AgwsParaDisplay;
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_shop", MenuShopParaSet);
+/* Partial equipment records: the four contiguous values are displayed by
+ * frame selection, and the engine selection reads the first value at +8. */
+typedef struct MenuShopEquipmentValues {
+    unsigned char unmodeled_00[8];
+    unsigned short value[4];
+} MenuShopEquipmentValues;
+
+typedef struct MenuShopEngineValue {
+    unsigned char unmodeled_00[8];
+    unsigned short value;
+} MenuShopEngineValue;
+
+extern AgwsParaDisplay MenuShopPara;
+extern AgwsParaDisplay MenuShopPara2;
+extern AgwsParaDisplay MenuAgwsPara;
+extern MenuShopEquipmentValues *func_A1A598(int item);
+extern MenuShopEngineValue *func_A1A5E8(int item);
+extern unsigned short *func_A1A428(int item);
+void MenuShopParaSet2(int item, int mode)
+{
+    int attack[4];
+    int defense[4];
+    MenuShopUnitData savedUnit;
+    ShopCalculatedPara previous;
+    MenuShopUnitData *unit;
+    ShopCalculatedPara *calculated;
+    int i;
+
+    unit = func_A191C0(3);
+    savedUnit = *unit;
+    for (i = 0; i < 3; i++) {
+        unit->weaponIds[i] = unit->accessoryIds[i] = unit->attachmentIds[i] = 0;
+    }
+    previous = *func_00A11108(3, attack, defense);
+    previous.attack += (unsigned short)attack[0];
+    previous.physicalDefense += (unsigned short)defense[0];
+    previous.magicDefense += (unsigned short)defense[1];
+
+    switch (mode) {
+    case 0:
+        unit->accessoryIds[0] = item;
+        break;
+    case 1:
+        unit->accessoryIds[0] = item;
+        break;
+    case 2:
+        unit->attachmentIds[0] = item;
+        break;
+    }
+
+    calculated = func_00A11108(3, attack, defense);
+    calculated->attack += (unsigned short)attack[0];
+    calculated->physicalDefense += (unsigned short)defense[0];
+    calculated->magicDefense += (unsigned short)defense[1];
+    MenuShopPara.value[0] = calculated->attack - previous.attack;
+    MenuShopPara.value[1] = calculated->physicalDefense - previous.physicalDefense;
+    MenuShopPara.value[2] = calculated->displayStat2 - previous.displayStat2;
+    MenuShopPara.value[3] = calculated->magicDefense - previous.magicDefense;
+    MenuShopPara.value[4] = (signed char)calculated->byteStats[0] - (signed char)previous.byteStats[0];
+    MenuShopPara.value[5] = (signed char)calculated->byteStats[1] - (signed char)previous.byteStats[1];
+    MenuShopPara.value[6] = (signed char)calculated->byteStats[2] - (signed char)previous.byteStats[2];
+    *unit = savedUnit;
+}
+
+void MenuShopParaSet(unsigned int mode)
+{
+    int attack[4];
+    int defense[4];
+    MenuShopEquipmentValues *frame;
+    MenuShopEngineValue *engine;
+    ShopCalculatedPara *calculated;
+    MenuShopUnitData *unit;
+    MenuShopWorkData *selection;
+    MenuShopWeapon *weapon;
+    MenuShopAccessoryData *accessory;
+    short oldEquipment;
+    int i;
+
+    memset(&MenuShopPara, 0, sizeof(MenuShopPara));
+    memset(&MenuShopPara2, 0, sizeof(MenuShopPara2));
+    switch (mode) {
+    case 0:
+        if (MenuShopWork->equipmentId != 0) {
+            frame = func_A1A598(MenuShopWork->equipmentId);
+            MenuShopPara.value[0] = frame->value[0];
+            MenuShopPara.value[2] = frame->value[1];
+            MenuShopPara.value[3] = frame->value[2];
+            MenuShopPara.value[4] = frame->value[3];
+        }
+        break;
+    case 1:
+        if (MenuShopWork->equipmentId != 0) {
+            engine = func_A1A5E8(MenuShopWork->equipmentId);
+            MenuShopPara.value[1] = engine->value;
+        }
+        break;
+    case 2:
+        if (MenuShopWork->unitId != 0) {
+            calculated = func_00A11108(MenuShopWork->unitId, attack, defense);
+            MenuAgwsParaSet(MenuShopWork->unitId, 0);
+            for (i = 0; i < 6; i++) {
+                MenuShopPara.value[i] = MenuAgwsPara.value[i];
+                MenuShopPara2.value[i] = MenuAgwsPara.value[i];
+            }
+            MenuShopPara.value[0] = calculated->currentHp;
+        }
+        break;
+    case 3:
+    case 4:
+        unit = func_A191C0(MenuShopWork->unitId);
+        MenuAgwsParaSet(MenuShopWork->unitId, 10);
+        for (i = 0; i < 6; i++)
+            MenuShopPara.value[i] = MenuAgwsPara.value[i];
+        if (mode == 3) {
+            if (MenuFrameEquipCheck(MenuShopWork->unitId,
+                                   MenuShopWork->equipmentId)) {
+                selection = MenuShopWork;
+                oldEquipment = unit->frameId;
+                unit->frameId = selection->equipmentId;
+            } else {
+                for (i = 0; i < 6; i++)
+                    MenuShopPara2.value[i] = MenuShopPara.value[i];
+                break;
+            }
+        } else {
+            if (MenuEngineEquipCheck(MenuShopWork->unitId,
+                                    MenuShopWork->equipmentId)) {
+                selection = MenuShopWork;
+                oldEquipment = unit->engineId;
+                unit->engineId = selection->equipmentId;
+            } else {
+                for (i = 0; i < 6; i++)
+                    MenuShopPara2.value[i] = MenuShopPara.value[i];
+                break;
+            }
+        }
+        MenuAgwsParaSet(selection->unitId, 10);
+        for (i = 0; i < 6; i++)
+            MenuShopPara2.value[i] = MenuAgwsPara.value[i];
+        if (mode == 3)
+            unit->frameId = oldEquipment;
+        else
+            unit->engineId = oldEquipment;
+        break;
+    case 10:
+        if ((short)(MenuShopWork->itemId >> 16) != 3)
+            return;
+        MenuShopParaSet2(MenuShopWork->modelId, 0);
+        return;
+    case 11:
+        if ((short)(MenuShopWork->itemId >> 16) != 5)
+            return;
+        MenuShopParaSet2(MenuShopWork->modelId, 1);
+        return;
+    case 12:
+        if ((short)(MenuShopWork->itemId >> 16) == 4)
+            MenuShopPara.value[0] = *func_A1A428(MenuShopWork->modelId);
+        break;
+    case 13:
+        if ((short)(MenuShopWork->itemId >> 16) == 3) {
+            weapon = func_A1A3D8(MenuShopWork->modelId);
+            MenuShopPara.value[1] = weapon->shopParameter1;
+            MenuShopPara.value[2] = weapon->shopParameter2;
+            MenuShopPara.value[5] = weapon->wagl;
+        }
+        break;
+    case 14:
+        if ((short)(MenuShopWork->itemId >> 16) == 5) {
+            accessory = func_A1A548(MenuShopWork->modelId);
+            MenuShopPara.value[2] = accessory->shopParameter2;
+            MenuShopPara.value[3] = accessory->shopParameter3;
+        }
+        break;
+    case 15:
+        if ((short)(MenuShopWork->itemId >> 16) == 4)
+            MenuShopPara.value[1] = *func_A1A428(MenuShopWork->modelId);
+        break;
+    case 16:
+        if ((short)(MenuShopWork->itemId >> 16) == 7) {
+            MenuAgwsParaSet(MenuShopWork->modelId, 0);
+            for (i = 0; i < 6; i++)
+                MenuShopPara.value[i] = MenuAgwsPara.value[i];
+        }
+        break;
+    }
+}
 
 void MenuShopParameter(TskObject *task, void *data);
 
@@ -709,7 +1119,7 @@ static void MenuShopEx2(TskObject *task, MenuShopEx2Work *work)
     case 2:
         x = -0xB6;
         if (MenuShopWork->state == 0x30 && MenuShopWork->category == 4 && MenuShopWork->listIndex >= 0) {
-            weapon = func_A1A3D8(MenuSortGet(0, MenuShopWork->listIndex));
+            weapon = func_A1A3D8((short)MenuSortGet(0, MenuShopWork->listIndex));
             if (weapon != 0 && (weapon->flags & 0x100) && weapon->bullet != 0) {
                 work->message.text = *func_A2C738(weapon->bullet);
                 x = 0x10;
@@ -727,7 +1137,86 @@ static void MenuShopEx2(TskObject *task, MenuShopEx2Work *work)
 /* MenuShopEx2 takes the window title by address; the string follows it in .sdata. */
 const char D_004DB230[8] = "Bullet";
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_shop", MenuShopLine);
+/* PrintLine consumes x/y, depth and RGBA records until a zero depth. */
+typedef struct MenuShopDividerVertex {
+    short x;
+    short y;
+    int depth;
+    union {
+        unsigned char color[4];
+        struct {
+            unsigned char r;
+            unsigned char g;
+            unsigned char b;
+            unsigned char a;
+        } rgba;
+    };
+} MenuShopDividerVertex;
+
+typedef struct MenuShopDividerWork {
+    unsigned char unmodeled_00[3];
+    unsigned char alpha;
+    int depth;
+    MenuShopDividerVertex vertices[6];
+} MenuShopDividerWork;
+
+extern void endPrintExtFunc(int depth, int mode, void *vertices);
+
+static void MenuShopLine(TskObject *task, MenuShopDividerWork *work)
+{
+    short targets[4];
+    short verticalTarget[1];
+    int i;
+    short *target;
+
+    switch (task->state) {
+    case 0:
+        work->depth = 0xfffff0;
+        for (i = 0; i < 5; i++) {
+            work->vertices[i].rgba.r = work->vertices[i].rgba.g =
+                work->vertices[i].rgba.b = 96;
+            work->vertices[i].rgba.a = 128;
+            work->vertices[i].x = 0;
+            work->vertices[i].y = 48;
+            work->vertices[i].depth = work->depth;
+        }
+        work->vertices[5].depth = 0;
+        break;
+    case 2:
+        verticalTarget[0] = 48;
+        targets[0] = MenuShopWork->category * 21 + 294;
+        targets[1] = MenuShopWork->category * 21 + 298;
+        targets[2] = MenuShopWork->category * 21 + 302;
+        targets[3] = 512;
+        switch (MenuShopWork->state) {
+        case 0x30:
+        case 0x90:
+        case 0xa0:
+        case 0xa2:
+        case 0xa4:
+            if (targets[0] == work->vertices[1].x)
+                verticalTarget[0] = 40;
+            if (work->alpha != 120)
+                work->alpha += 8;
+            break;
+        default:
+            if (work->alpha != 0)
+                work->alpha -= 8;
+            break;
+        }
+        work->vertices[0].x = 0;
+        work->vertices[5].x = 512;
+        target = targets;
+        for (i = 1; i < 5; i++, target++) {
+            MoveSlide(&work->vertices[i].x, target, 3.0f);
+            work->vertices[i].rgba.a = work->alpha;
+        }
+        work->vertices[0].rgba.a = work->alpha;
+        MoveSlide(&work->vertices[2].y, verticalTarget, 8.0f);
+        endPrintExtFunc(work->depth, 0, work->vertices);
+        break;
+    }
+}
 
 void MenuShopInfoSet(void)
 {
@@ -1489,5 +1978,3 @@ void MenuShopCore(void) {
 }
 
 INCLUDE_ASM("asm/main/nonmatchings/menu_shop", MenuShopMain);
-
-

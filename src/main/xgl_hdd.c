@@ -739,7 +739,196 @@ static int xglHddInstallReadCB(int event, int value)
     return result;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/xgl_hdd", xglHddInstall);
+/* The install image staged at the fixed work address: a size pair at +0x28
+ * and +0x2c, and the 80-byte SYSTEM.CNF copy at +0x200. */
+struct HddInstallImage {
+    unsigned char unmodeled_00[0x28];
+    int bodySize;
+    int tableSize;
+    unsigned char unmodeled_30[0x1d0];
+    unsigned char systemCnf[80];
+};
+
+int xglHddInstall(int (*callback)(), int param)
+{
+    extern int sceFormat(char *mount_point, char *device, void *payload,
+                         int payload_length);
+    extern int sceIoctl2(int descriptor, int command, const void *input,
+                         unsigned int input_size, void *output,
+                         unsigned int output_size);
+    extern int xglCdReadFile(const char *name, void *buffer, int mode, int flags);
+    extern int xglCdGetFileSize(const char *name);
+    extern int xglCdReadFilePart(const char *name, void *buffer, int mode,
+                                 int (*progress)(int, int), int offset,
+                                 int size);
+    extern char D_004D26C8[];
+    extern char D_004D26D8[];
+    extern char D_004DC3A0[];
+    extern char D_004DC3A8[];
+    extern unsigned char dvdname_2[];
+    struct HddInstallImage *image = (struct HddInstallImage *)0x1000000;
+    HddInstallCBParam context;
+    char path[256];
+    int formatSize;
+    int partition;
+    int descriptor;
+    int result;
+    int size;
+    int chunk;
+    u8 *source;
+    int i;
+    int archives;
+    int offset;
+    int length;
+
+    if (callback == 0)
+        callback = xglHddDummyCB;
+    HddInstallCBparam = &context;
+    context.callback = callback;
+    context.param = param;
+    context.status = 0;
+    callback(0, 0, param);
+
+    if (xglCdReadFile(D_004D26C8, image, 0, 1) < 0) {
+        callback(-1, 0, param);
+        return -1;
+    }
+    source = system_cnf;
+    for (i = 0; i < 80; i++)
+        image->systemCnf[i] = source[i];
+    size = (image->bodySize + image->tableSize + 511) & -512;
+
+    callback(1, 0, param);
+    sprintf(path, D_004D26D8, partitionname);
+    partition = sceOpen(path, 0x203);
+    if (partition < 0) {
+        callback(-2, partition, param);
+        return -1;
+    }
+    callback(2, 0, param);
+    if ((result = sceWrite(partition, image, size)) < 0) {
+        callback(-3, result, param);
+        xglHddUninstall();
+        return -1;
+    }
+
+    for (size = 0x80000, chunk = 1; size <= 0x37ffff; size += 0x80000) {
+        callback(3, chunk++, param);
+        result = sceIoctl2(partition, 0x6801, D_004DC3A0, 5, 0, 0);
+        if (result < 0) {
+            callback(-4, result, param);
+            xglHddUninstall();
+            return -1;
+        }
+    }
+    if ((result = sceClose(partition)) < 0) {
+        callback(-5, result, param);
+        return -1;
+    }
+
+    callback(4, 0, param);
+    formatSize = 0x2000;
+    if ((result = sceFormat(D_004DC3A8, partitionname, &formatSize, 4)) < 0) {
+        callback(-6, result, param);
+        xglHddUninstall();
+        return -1;
+    }
+    callback(5, 0, param);
+    if ((result = sceMount(mount_device, partitionname, 4, 0, 0)) < 0) {
+        callback(-7, result, param);
+        xglHddUninstall();
+        return -1;
+    }
+    callback(6, 0, param);
+    descriptor = sceOpen(hddname, 0x602, 0x1b6);
+    if (descriptor < 0) {
+        result = descriptor;
+        callback(-8, result, param);
+        xglHddUninstall();
+        return -1;
+    }
+
+    archives = 0;
+    dvdname_2[10] = '0';
+    while ((size = xglCdGetFileSize(dvdname_2)) >= 0) {
+        archives += (size + 0xffffff) / 0x1000000;
+        dvdname_2[10]++;
+    }
+    archives <<= 16;
+
+    dvdname_2[10] = '0';
+    while ((size = xglCdGetFileSize(dvdname_2)) >= 0) {
+        for (offset = 0; offset < size;) {
+            length = size - offset;
+            if (length > 0x1000000)
+                length = 0x1000000;
+            context.base = archives++;
+            xglCdReadFilePart(dvdname_2, image, 2, xglHddInstallReadCB, offset,
+                              length);
+            offset += length;
+            if (context.status != 0) {
+                sceClose(descriptor);
+                if (xglHddCheck() == 0) {
+                    xglHddUninstall();
+                    return 1;
+                }
+                return context.status == 1 ? 1 : -1;
+            }
+            result = sceWrite(descriptor, image, length);
+            if (result != length) {
+                callback(-9, result, param);
+                sceClose(descriptor);
+                if (xglHddCheck() == 0)
+                    xglHddUninstall();
+                return -1;
+            }
+        }
+        dvdname_2[10]++;
+    }
+
+    if ((result = sceClose(descriptor)) < 0) {
+        callback(-10, result, param);
+        xglHddUninstall();
+        return -1;
+    }
+    callback(7, 0, param);
+    descriptor = sceOpen(hddcheck, 0x602, 0x1b6);
+    if (descriptor < 0) {
+        result = descriptor;
+        callback(-11, result, param);
+        xglHddUninstall();
+        return -1;
+    }
+    callback(7, 1, param);
+    xglCdGetFileData(cd_filename, image);
+    result = sceWrite(descriptor, image, 512);
+    if (result != 512) {
+        callback(-12, result, param);
+        sceClose(descriptor);
+        xglHddUninstall();
+        return -1;
+    }
+    callback(7, 2, param);
+    if ((result = sceClose(descriptor)) < 0) {
+        callback(-13, result, param);
+        xglHddUninstall();
+        return -1;
+    }
+    callback(7, 3, param);
+    if ((result = sceUmount(mount_device)) < 0) {
+        callback(-14, result, param);
+        xglHddUninstall();
+        return -1;
+    }
+    callback(7, 4, param);
+    if ((result = sceMount(mount_device, partitionname, 5, 0, 0)) < 0) {
+        callback(-15, result, param);
+        xglHddUninstall();
+        return -1;
+    }
+    callback(8, 0, param);
+    return 0;
+}
 
 int xglHddActivate(int state)
 {

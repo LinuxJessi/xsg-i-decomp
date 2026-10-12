@@ -88,44 +88,151 @@ typedef struct SdvCameraTask {
     SdvCameraPhase offset;          /* +0x38 */
 } SdvCameraTask;
 
+/* A screen-space point: x and y in 1/16 pixels before the offset, z the depth. */
+typedef struct SdvScreenPoint {
+    int x;
+    int y;
+    int z;
+    int w;
+} SdvScreenPoint;
+
+/* The now-running scheduler: the matrix a special effect starts from at +0,
+ * its camera matrix at +0x40 and the flag word at +0xa8c, bit 1 of which asks
+ * for the actor offset to go through it. */
+typedef struct SdvScheduler {
+    Matrix4 base_matrix;
+    Matrix4 matrix;
+    unsigned char unmodeled_80[0xa8c - 0x80];
+    int flags;
+} SdvScheduler;
+
+/* One 20-byte key of a special effect table. */
+typedef struct SdvSpecialKey {
+    unsigned short time;            /* +0x00, 1024 ends the table */
+    unsigned short depth_step;      /* +0x02 */
+    unsigned char color[4];         /* +0x04 */
+    short x;                        /* +0x08 */
+    short y;                        /* +0x0a */
+    unsigned short width;           /* +0x0c */
+    unsigned short height;          /* +0x0e */
+    unsigned short intensity;       /* +0x10 */
+    short z;                        /* +0x12 */
+} SdvSpecialKey;
+
+/* A special effect table: the kind of effect, then its keys. */
+typedef struct SdvSpecialTable {
+    short kind;                     /* +0x00 */
+    short part;                     /* +0x02, the actor part an offset follows */
+    SdvSpecialKey keys[1];          /* +0x04 */
+} SdvSpecialTable;
+
+/* One of the seven running special effects: the matrix it was started with,
+ * the key it currently shows, its key table, the frame in it and the key
+ * that frame belongs to. */
+typedef struct SdvSpecialSlot {
+    Matrix4 matrix;                 /* +0x00 */
+    SdvSpecialKey key;              /* +0x40 */
+    SdvSpecialTable *table;         /* +0x54 */
+    int frame;                      /* +0x58 */
+    int index;                      /* +0x5c */
+} SdvSpecialSlot;
+
 extern short _sefBattleMode;
 extern int sdvProgressPrm(int kind, void *data, int size);
 extern void func_A31920(int kind, float *params);
 
 void sdvScheduleCamera(SdvCameraTask *task);
 
-extern void GameDefocusSet(int index, int, int);
+extern void GameDefocusSet(int index, int, const int *);
 extern short _sdvSpecialBuf[8];
 
 void sdvClearSpecialWork(void);
 
 /*
+ * The 36-byte request that starts an alter: the actors the selectors 256 and
+ * 512 name, the weapon the selectors from 1024 name, and the effect number
+ * whose texture images the alter draws.
+ */
+typedef struct SdvActorPosition {
+    unsigned char unmodeled_00[16];
+    Vector4 position;               /* +0x10 */
+} SdvActorPosition;
+
+typedef struct SdvAlterRequest {
+    SdvActorPosition *source_actor; /* +0x00 */
+    SdvActorPosition *target_actor; /* +0x04 */
+    void *weapon;                   /* +0x08 */
+    unsigned char unmodeled_0c[8];
+    short effect_no;                /* +0x14 */
+    unsigned char unmodeled_16[14];
+} SdvAlterRequest;
+
+/*
  * One 0x1280-byte alter record. Only the +0x1278 status halfword that
  * sdvInitAlters, sdvDestroyAlters and sdvExecAlters read is named.
  */
+/* RGBA channels share the original aligned 128-bit packet color. */
+typedef unsigned int SdvPackedColor __attribute__((mode(TI)));
+
+typedef union SdvQuad {
+    SdvPackedColor quad;
+    unsigned int word[4];
+    unsigned long long dword[2];
+} SdvQuad;
+
 typedef struct SdvAlterParameters {
-    unsigned long long unmodeled_00[14];
+    SdvAlterRequest request;
+    unsigned char unmodeled_24[12];
+    SdvQuad rgba;                   /* +0x30 */
+    unsigned long long tex0[2];     /* +0x40 */
+    unsigned char unmodeled_50[4];
+    float length;                   /* +0x54 */
+    short selector[2];              /* +0x58 */
+    short life;                     /* +0x5c */
+    short max_samples;              /* +0x5e */
+    unsigned short shrink;          /* +0x60 */
+    short blend;                    /* +0x62 */
+    short image_count;              /* +0x64 */
+    short mode;                     /* +0x66 */
+    unsigned short image_index;     /* +0x68 */
+    short image_frames;             /* +0x6a */
+    unsigned short image_timer;     /* +0x6c */
+    short category;                 /* +0x6e */
 } SdvAlterParameters;
 
 typedef struct SdvAlter {
     SdvAlterParameters parameters;
-    unsigned char unmodeled_0070[0x1200];
+    Vector4 trail[2][128];          /* +0x70 */
+    float level[128];               /* +0x1070 */
     float phase;
     unsigned short cursor;
     unsigned short samples;
     unsigned short active;          /* +0x1278 */
-    unsigned char unmodeled_127a[2];
+    unsigned short wrapped;         /* +0x127a */
     short serial;
     unsigned char unmodeled_127e[2];
 } SdvAlter;
 
-extern SdvAlter _sdvAlter[16];
+extern int sdvCreateAlter(SdvAlterParameters *parameters);
 extern void sdvInitAlter(SdvAlter *alter);
 extern void sdvDestroyAlter(SdvAlter *alter);
-extern unsigned short sdvExecAlter(SdvAlter *alter);
+extern void sdvExecAlter(SdvAlter *alter);
+/* The GIF packet accumulator of the SGs* family: a growing array of 16-byte
+ * records at `base`, `count` records long; `tag_index` is the record the open
+ * GIF tag sits in and `loop_count` is what closing it ORs into its NLOOP. */
+typedef struct SdvGifPacket {
+    int count;                      /* +0x00 */
+    int tag_index;                  /* +0x04 */
+    int loop_count;                 /* +0x08 */
+    void *base;                     /* +0x0c */
+} SdvGifPacket;
+
+extern void sdvDrawAlter(SdvAlter *alter, SdvGifPacket *packet);
+extern SdvGifPacket _packet;
+extern void SGsInitEnv(void);
 
 void sdvInitAlters(void);
 void sdvDestroyAlters(void);
-unsigned short sdvExecAlters(void);
+void sdvExecAlters(void);
 
 #endif /* SRC_MAIN_SDV_H */

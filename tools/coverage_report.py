@@ -473,7 +473,34 @@ def tracked_scope(root):
 # --------------------------------------------------------------------------
 # tier A: what the published source claims
 # --------------------------------------------------------------------------
-def classify(text, block):
+def inline_asm_providers(root, path, text, tu, tu_edit):
+    """Find ASM macros and local inline helpers, including helper call chains."""
+    definitions = {}
+    for block in tu.blocks:
+        body = text[block.core_start:block.core_end]
+        head = body.split('{', 1)[0]
+        if block.role == 'helper' and re.search(r'\b(?:inline|__inline|__inline__)\b', head):
+            definitions[block.name] = tu_edit.lexical(body)
+    macro_texts = [text]
+    for name in re.findall(r'^\s*#\s*include\s*"([^"]+)"', text, re.M):
+        for header in (path.parent / name, Path(root) / 'include' / name):
+            if header.is_file():
+                macro_texts.append(header.read_text(encoding='utf-8'))
+                break
+    for source in macro_texts:
+        joined = tu_edit.lexical(source.replace('\\\n', ' '))
+        for match in re.finditer(r'^[ \t]*#[ \t]*define[ \t]+(\w+)(?:\([^\n]*?\))?[ \t]+([^\n]*)', joined, re.M):
+            definitions[match[1]] = match[2]
+    providers = {name for name, body in definitions.items() if INLINE_ASM.search(body)}
+    while True:
+        reached = providers | {name for name, body in definitions.items()
+                               if set(re.findall(r'\b\w+\b', body)) & providers}
+        if reached == providers:
+            return providers
+        providers = reached
+
+
+def classify(text, block, asm_providers=()):
     """The exactness category a source block stands for.
 
     `accepted_asm` is standalone EE assembler under a recorded contract; a C
@@ -482,8 +509,10 @@ def classify(text, block):
     """
     if block.state == 'accepted_asm':
         return 'exact_asm'
+    body = text[block.core_start:block.core_end]
     return ('exact_c_with_asm'
-            if INLINE_ASM.search(text[block.core_start:block.core_end])
+            if (INLINE_ASM.search(body) or
+                any(re.search(r'\b' + re.escape(name) + r'\b', body) for name in asm_providers))
             else 'exact_c')
 
 
@@ -522,6 +551,8 @@ def count_object(root, obj, tu_edit, problems):
             f'source {source} does not parse against the {len(names)} function(s) '
             f'the tracked tables give {obj["id"]} ({exc})')))
         return counted
+    asm_providers = inline_asm_providers(root, path, text, tu, tu_edit)
+    lexical_text = tu_edit.lexical(text)
     for block in tu.blocks:
         if block.role != 'function' or block.state not in STATE_CATEGORIES:
             continue
@@ -531,7 +562,7 @@ def count_object(root, obj, tu_edit, problems):
                 f'source {source} defines {block.key} inside a preprocessor '
                 'conditional, which the audit refuses to claim')))
             continue
-        category = classify(text, block)
+        category = classify(lexical_text, block, asm_providers)
         for name in claimed:
             va = address.get(name)
             if va is None:

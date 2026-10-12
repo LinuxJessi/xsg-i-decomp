@@ -4,7 +4,33 @@
 
 #include "sdv.h"
 
-#include "m_ef_obj.h"
+#include "main/m_ef_obj.h"
+
+typedef unsigned int Quadword __attribute__((mode(TI)));
+
+typedef union SdvQuadColor {
+    Quadword quad;
+    unsigned int word[4];
+} SdvQuadColor;
+
+extern const short blksiz_2[9];
+
+typedef union SdvColor {
+    struct {
+        unsigned int red : 8;
+        unsigned int green : 8;
+        unsigned int blue : 8;
+        unsigned int alpha : 8;
+    } channel;
+    int word;
+} SdvColor;
+
+typedef union SdvScreenQuad {
+    SdvScreenPoint point;
+    Quadword quad;
+} SdvScreenQuad;
+
+extern const unsigned long long alphaTbl_004CC8D8[4];
 
 static float _sdvMapRgb[4] = {1.0f, 1.0f, 1.0f, 1.0f};
 
@@ -64,12 +90,18 @@ extern short _hitSignal;
 
 typedef struct SdvSequence {
     unsigned int event_address;
-    unsigned char unmodeled_04[4];
+    int script_base;
     int elapsed;
     int position;
     int stride;
     int last_sound;
 } SdvSequence;
+
+typedef struct SdvSpecial {
+    SdvSequence sequence;
+    unsigned char unmodeled_18[8];
+    SdvSpecialSlot slots[7];
+} SdvSpecial;
 
 extern void sefMemZero(void *data, unsigned int size);
 
@@ -628,7 +660,85 @@ void sdvScheduleCamera(SdvCameraTask *task)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/sdv", sdvTransOffset);
+extern SdvScheduler *sefGetNowScheduler(void);
+
+extern StudioCamera *xglStudioGetActiveCamera(void);
+
+extern void MMathMulMatrix(void *destination, void *first, void *second);
+
+extern Vector4 *MMathApplyMatrix(Vector4 *destination, const void *matrix,
+                                 const Vector4 *point);
+
+extern int MMathRotTransPersClip(SdvScreenPoint *destination, const void *screen,
+                                 const void *matrix, const void *point);
+
+static int sdvTransOffset(SdvScreenPoint *screen, SdvScreenPoint *offset,
+                          SdvSpecialSlot *slot, SdvSpecialKey *key)
+{
+    Vector4 position;
+    Vector4 local_offset;
+    Matrix4 local_matrix;
+    Matrix4 view_matrix;
+    SdvScheduler *scheduler;
+    StudioCamera *camera;
+    int part = slot->table->part;
+
+    if (part == 3) {
+        __asm__ __volatile__(
+            "lq $8, 0(%1)\n\t"
+            "sq $8, 0(%0)"
+            :
+            : "r"(screen), "r"(offset)
+            : "$8", "memory");
+        screen->x += 256;
+        screen->y += 224;
+        screen->z = key->depth_step << 16;
+        return 1;
+    }
+
+    scheduler = sefGetNowScheduler();
+    __asm__ __volatile__(
+        "lqc2 vf1, 0(%0)\n\t"
+        "vitof0.xyzw vf1, vf1\n\t"
+        "sqc2 vf1, 0(%1)"
+        :
+        : "r"(offset), "r"(&local_offset)
+        : "memory");
+    local_offset.w = 1.0f;
+    local_offset.z *= 0.01f;
+    sefGetPosition(&position, &local_offset, part);
+    if (scheduler->flags & 2) {
+        MMathMulMatrix(local_matrix, slot->matrix, scheduler->matrix);
+        MMathApplyMatrix(&position, local_matrix, &position);
+    }
+    __asm__ __volatile__(
+        "lqc2 vf1, 0(%0)\n\t"
+        "vmove.w vf1, vf0\n\t"
+        "vmr32.xyzw vf2, vf0\n\t"
+        "vmr32.xyzw vf3, vf2\n\t"
+        "vmr32.xyzw vf4, vf3\n\t"
+        "sqc2 vf1, 48(%1)\n\t"
+        "sqc2 vf2, 32(%1)\n\t"
+        "sqc2 vf3, 16(%1)\n\t"
+        "sqc2 vf4, 0(%1)\n\t"
+        "nop"
+        :
+        : "r"(&position), "r"(local_matrix)
+        : "memory");
+    camera = xglStudioGetActiveCamera();
+    MMathMulMatrix(view_matrix, camera->viewMatrix, local_matrix);
+    __asm__ __volatile__("sqc2 vf0, 0(%0)" : : "r"(&position) : "memory");
+    if (MMathRotTransPersClip(screen, camera, view_matrix, &position) != 0)
+        return 0;
+    screen->x = (screen->x >> 4) - 1792;
+    screen->y = (screen->y >> 4) - 1824;
+    if (key->depth_step != 0) {
+        screen->z += key->depth_step;
+        if (screen->z > 0xF000)
+            screen->z = 0xF000;
+    }
+    return 1;
+}
 
 void sdvInitSpecialWork(void)
 {
@@ -668,11 +778,307 @@ static int sdvAllocSpecialWork(int kind)
     return -1;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/sdv", sdvExecSpecial);
+/* A key field halfway between two keys: blend is the 8-bit fraction. */
+#define SDV_BLEND(dest, field) \
+    (dest) = (key1->field == key0->field ? key0->field : (key0->field + (((key1->field - key0->field) * blend + 128) >> 8)) & 0xffff)
 
-INCLUDE_ASM("asm/main/nonmatchings/sdv", sdvDrawSpecial);
+/* A key viewed as raw bytes: the char member makes the copy alias every
+ * type, so the cached slot fields are reloaded after it. */
+typedef union SdvKeyBytes {
+    SdvSpecialKey key;
+    char byte[sizeof(SdvSpecialKey)];
+} SdvKeyBytes;
+
+static inline void sdvCopyKey(SdvSpecialKey *destination, const SdvSpecialKey *source)
+{
+    ((SdvKeyBytes *)destination)->key = ((const SdvKeyBytes *)source)->key;
+}
+
+void sdvExecSpecial(SdvSpecial *special)
+{
+    int index;
+    int n;
+    SdvScheduler *scheduler;
+    SdvSpecialSlot *slot;
+
+    if (special == 0) {
+        return;
+    }
+    if (special->sequence.event_address == 0) {
+        return;
+    }
+    index = sdvExecSeqTbl(&special->sequence);
+    if ((unsigned int)index < 1024) {
+        scheduler = sefGetNowScheduler();
+        for (n = 0; n < 7; n++) {
+            slot = &special->slots[n];
+            if (slot->table == 0) {
+                slot->table = (SdvSpecialTable *)scGetImmAdrImmIdx2(
+                    special->sequence.script_base,
+                    (unsigned short *)(special->sequence.event_address +
+                                       index * special->sequence.stride * sizeof(short)),
+                    1);
+                slot->frame = 0;
+                slot->index = 0;
+                __asm__ __volatile__(
+                    "lq $8, 0(%1)\n\t"
+                    "lq $9, 16(%1)\n\t"
+                    "lq $10, 32(%1)\n\t"
+                    "lq $11, 48(%1)\n\t"
+                    "sq $8, 0(%0)\n\t"
+                    "sq $9, 16(%0)\n\t"
+                    "sq $10, 32(%0)\n\t"
+                    "sq $11, 48(%0)"
+                    :
+                    : "r"(slot->matrix), "r"(scheduler->base_matrix)
+                    : "$8", "$9", "$10", "$11", "memory");
+                break;
+            }
+        }
+    }
+
+    for (n = 0; n < special->sequence.position && n < 7; n++) {
+        const SdvSpecialKey *keys;
+        const SdvSpecialKey *key0;
+        const SdvSpecialKey *key1;
+        int blend;
+
+        slot = &special->slots[n];
+        if (slot->table == 0) {
+            continue;
+        }
+        keys = slot->table->keys;
+        key0 = &keys[slot->index];
+        key1 = key0 + 1;
+        if (key0->time != 1024) {
+            if (key0->time < slot->frame && key1->time > 1024) {
+                slot->table = 0;
+            } else if (key1->time >= 1024) {
+                sdvCopyKey(&slot->key, key0);
+            } else if (key0->time != key1->time) {
+                blend = ((slot->frame - key0->time) << 8) / (key1->time - key0->time);
+                SDV_BLEND(slot->key.depth_step, depth_step);
+                SDV_BLEND(slot->key.color[0], color[0]);
+                SDV_BLEND(slot->key.color[1], color[1]);
+                SDV_BLEND(slot->key.color[2], color[2]);
+                SDV_BLEND(slot->key.color[3], color[3]);
+                SDV_BLEND(slot->key.x, x);
+                SDV_BLEND(slot->key.y, y);
+                SDV_BLEND(slot->key.width, width);
+                SDV_BLEND(slot->key.height, height);
+                SDV_BLEND(slot->key.intensity, intensity);
+                slot->key.z = key1->z == key0->z
+                    ? key0->z
+                    : (key0->z + (((key1->intensity - key0->z) * blend + 128) >> 8)) & 0xffff;
+            }
+        }
+        if (slot->frame < 1024) {
+            slot->frame++;
+            if (slot->frame >= key1->time) {
+                slot->index++;
+            }
+        }
+    }
+}
+
+
+void sdvDrawSpecial(SdvSpecial *special)
+{
+    int params[16];
+    SdvScreenPoint offset;
+    SdvScreenPoint screen;
+    SdvColor color;
+    int n;
+
+    for (n = 0; n < special->sequence.position && n < 7; n++) {
+        SdvSpecialSlot *slot = &special->slots[n];
+        SdvSpecialKey *key;
+        int work;
+        int size;
+        unsigned int i;
+
+        if (slot->table == 0) {
+            continue;
+        }
+        key = &slot->key;
+        params[0] = 0;
+        switch (slot->table->kind) {
+        case 7:
+            if (key->color[3] == 0) {
+                break;
+            }
+            offset.x = key->x;
+            offset.y = key->y;
+            offset.z = key->z != -1 ? key->z : 0;
+            if (sdvTransOffset(&screen, &offset, slot, key) == 0) {
+                break;
+            }
+            params[1] = 1;
+            params[0] = 0;
+            if (sdvAllocSpecialWork(0) >= 0) {
+                GameDefocusSet(0, 2, params);
+            }
+            {
+                unsigned char t1 = (key)->color[1];
+                (color).channel.red = (key)->color[0];
+                (color).channel.green = t1;
+                (color).channel.blue = (key)->color[2];
+                (color).channel.alpha = (key)->color[3];
+            };
+            params[0] = screen.z;
+            params[2] = screen.x;
+            params[1] = color.word;
+            params[3] = screen.y;
+            params[4] = key->width;
+            params[5] = key->height;
+            params[6] = key->intensity;
+            work = sdvAllocSpecialWork(1);
+            if (work > 0) {
+                GameDefocusSet(work, 7, params);
+            }
+            break;
+        case 6:
+            if (key->color[3] == 0) {
+                break;
+            }
+            params[1] = 1;
+            params[0] = 0;
+            if (sdvAllocSpecialWork(0) >= 0) {
+                GameDefocusSet(0, 2, params);
+            }
+            i = key->depth_step != 0 ? key->depth_step : 0xfffff8;
+            {
+                unsigned char t1 = (key)->color[1];
+                (color).channel.red = (key)->color[0];
+                (color).channel.green = t1;
+                (color).channel.blue = (key)->color[2];
+                (color).channel.alpha = (key)->color[3];
+            };
+            params[0] = i;
+            params[2] = key->x;
+            params[3] = key->y;
+            params[4] = key->width;
+            params[5] = key->height;
+            params[1] = color.word;
+            work = sdvAllocSpecialWork(1);
+            if (work > 0) {
+                GameDefocusSet(work, 6, params);
+            }
+            break;
+        case 5:
+            if (key->color[3] == 0) {
+                break;
+            }
+            {
+                unsigned char t1 = (key)->color[1];
+                (color).channel.red = (key)->color[0];
+                (color).channel.green = t1;
+                (color).channel.blue = (key)->color[2];
+                (color).channel.alpha = (key)->color[3];
+            };
+            size = 1;
+            params[0] = key->depth_step;
+            params[1] = color.word;
+            params[2] = key->x;
+            params[3] = key->y;
+            params[4] = key->width;
+            params[5] = key->height;
+            for (i = 0; i < 9; i++) {
+                if (blksiz_2[i] >= key->intensity) {
+                    size = blksiz_2[i];
+                    break;
+                }
+            }
+            params[6] = size;
+            params[7] = size;
+            work = sdvAllocSpecialWork(1);
+            if (work > 0) {
+                GameDefocusSet(work, 5, params);
+            }
+            break;
+        case 3:
+            if (key->color[3] == 0) {
+                break;
+            }
+            GameDefocusSet(0, 2, params);
+            params[0] = key->intensity;
+            {
+                unsigned char t1 = (key)->color[1];
+                (color).channel.red = (key)->color[0];
+                (color).channel.green = t1;
+                (color).channel.blue = (key)->color[2];
+                (color).channel.alpha = (key)->color[3];
+            };
+            params[2] = key->x;
+            params[1] = color.word;
+            params[3] = key->y;
+            params[4] = key->width;
+            params[5] = key->height;
+            work = sdvAllocSpecialWork(1);
+            if (work > 0) {
+                GameDefocusSet(work, 3, params);
+            }
+            break;
+        case 1:
+            if (key->color[3] == 0) {
+                break;
+            }
+            {
+                unsigned char t1 = (key)->color[1];
+                (color).channel.red = (key)->color[0];
+                (color).channel.green = t1;
+                (color).channel.blue = (key)->color[2];
+                (color).channel.alpha = (key)->color[3];
+            };
+            params[1] = key->intensity;
+            params[2] = key->depth_step;
+            params[4] = key->x;
+            params[5] = key->y;
+            params[6] = key->width;
+            params[7] = key->height;
+            params[0] = 0;
+            params[3] = color.word;
+            work = sdvAllocSpecialWork(1);
+            if (work > 0) {
+                GameDefocusSet(work, 1, params);
+            }
+            break;
+        case 4:
+            if (key->color[3] == 0) {
+                break;
+            }
+            {
+                unsigned char t1 = (key)->color[1];
+                (color).channel.red = (key)->color[0];
+                (color).channel.green = t1;
+                (color).channel.blue = (key)->color[2];
+                (color).channel.alpha = (key)->color[3];
+            };
+            params[0] = 1;
+            params[3] = color.word;
+            params[4] = 0;
+            params[5] = 0;
+            params[6] = 0;
+            params[7] = 0;
+            params[1] = 1;
+            params[2] = key->depth_step;
+            work = sdvAllocSpecialWork(1);
+            if (work > 0) {
+                GameDefocusSet(work, 1, params);
+            }
+            break;
+        case 9:
+            work = sdvAllocSpecialWork(1);
+            if (work > 0) {
+                GameDefocusSet(work, 9, params);
+            }
+            break;
+        }
+    }
+}
 
 INCLUDE_ASM("asm/main/nonmatchings/sdv", sdvScheduleAlter);
+
 
 void sdvInitAlter(SdvAlter *alter)
 {
@@ -723,9 +1129,255 @@ void sdvKillAlter(int alter_id)
     sdvDestroyAlter(&_sdvAlter[index]);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/sdv", sdvExecAlter);
+extern int sefGetDmgNull(void);
+extern void sefGetNullPosition(Vector4 *position, void *actor, int part, int flag);
+extern void sefGetWeaponPosition(Vector4 *position, void *weapon, int part);
 
-INCLUDE_ASM("asm/main/nonmatchings/sdv", sdvDrawAlter);
+void sdvExecAlter(SdvAlter *alter)
+{
+    int target_selector;
+    int i;
+
+    alter->parameters.life--;
+    if (alter->parameters.life > 0) {
+        if ((short)alter->cursor < 128) {
+            if ((short)alter->cursor < alter->parameters.max_samples) {
+                alter->cursor++;
+            }
+        }
+    } else {
+        alter->cursor -= alter->parameters.shrink;
+    }
+    if ((short)alter->cursor > 0) {
+        for (i = 0; i < 2; i++) {
+            int selector = alter->parameters.selector[i];
+            SdvActorPosition *actor;
+            Vector4 *slot = &alter->trail[i][alter->samples];
+
+            __asm__ __volatile__("sqc2 vf0, 0(%0)" : : "r"(slot) : "memory");
+            if (selector == 529)
+                selector = sefGetDmgNull();
+            if (selector == 256) {
+                actor = alter->parameters.request.source_actor;
+                goto copy;
+            } else if (selector == 512) {
+                actor = alter->parameters.request.target_actor;
+            copy:
+                if (actor != 0) {
+                    __asm__ __volatile__(
+                        "lq $8, 0(%1)\n\t"
+                        "sq $8, 0(%0)"
+                        :
+                        : "r"(slot), "r"(&actor->position)
+                        : "$8", "memory");
+                }
+            } else if (selector & 0x100) {
+                sefGetNullPosition(slot, alter->parameters.request.source_actor,
+                                   selector - 257, 1);
+            } else if (selector & 0x200) {
+                sefGetNullPosition(slot, alter->parameters.request.target_actor,
+                                   selector - 513, 1);
+            } else if (selector & 0x400) {
+                sefGetWeaponPosition(slot, alter->parameters.request.weapon,
+                                     selector - 1024);
+            } else {
+                sefGetPosition(&alter->trail[i][alter->samples], 0,
+                               alter->parameters.selector[i]);
+            }
+        }
+        if (alter->parameters.mode >= 3) {
+            float phase = alter->phase;
+
+            alter->phase = phase + alter->parameters.length / alter->parameters.max_samples;
+            if (alter->parameters.mode == 3) {
+                if (alter->wrapped == 0)
+                    alter->level[alter->samples] = phase;
+                else
+                    alter->level[alter->samples] = 4.0f;
+            }
+            if (alter->parameters.mode == 4) {
+                alter->level[alter->samples] = phase;
+                if (alter->phase > 20.0f)
+                    alter->phase -= 20.0f;
+            }
+        }
+        alter->samples++;
+        if (alter->samples >= 128) {
+            alter->wrapped = 1;
+            alter->samples &= 0x7f;
+        }
+    } else if (alter->parameters.life < 0) {
+        sdvDestroyAlter(alter);
+    }
+}
+
+
+extern void SGsInitGifPacket(SdvGifPacket *packet);
+extern void SGsOpenGifPacket(SdvGifPacket *packet, int prim,
+                             unsigned long long registers, unsigned int nreg);
+extern void SGsCloseGifPacket(SdvGifPacket *packet);
+extern void SGsAddReg(SdvGifPacket *packet, unsigned long long address,
+                      unsigned long long value);
+extern void SGsAddGifSTQ(SdvGifPacket *packet, float texture_s, float texture_t,
+                         float texture_q);
+extern void SGsAddGifRGBA(SdvGifPacket *packet, Quadword rgba);
+extern void SGsAddGifData(SdvGifPacket *packet, Quadword data);
+extern void SGsSendPacket(SdvGifPacket *packet);
+
+void sdvDrawAlter(SdvAlter *alter, SdvGifPacket *packet)
+{
+    HermiteVector tangent[2];
+    HermiteVector points[2][8];
+    SdvScreenQuad screen;
+    SdvQuadColor color;
+    Matrix4 view;
+    int i;
+    int j;
+    int k;
+    int head;
+    StudioCamera *camera;
+    int count;
+    int counter; /* Hermite sample position, then the strand fade countdown */
+    int previous;
+    int current;
+    int next;
+    int after;
+    int previous_offset;
+    int after_offset;
+    float alpha;
+    float alpha_step = 0.0f;
+    float s_step = 0.0f;
+    float textureS;
+
+    count = (short)alter->cursor;
+    head = alter->samples - 1;
+    camera = xglStudioGetActiveCamera();
+    textureS = alter->phase;
+    SGsInitGifPacket(packet);
+    if (alter->parameters.mode == 2) {
+        alter->phase -= alter->parameters.length /
+                        ((float)alter->parameters.max_samples * 2.0f);
+        if (alter->phase < -20.0f) {
+            alter->phase += 20.0f;
+        }
+    }
+    color.quad = alter->parameters.rgba.quad;
+    alpha = (float)alter->parameters.rgba.word[3];
+    if (count >= 2) {
+        /* s_step holds the per-segment alpha quotient before its own value. */
+        s_step = alpha / (count - 1);
+        alpha_step = s_step * 0.25f;
+        s_step = alter->parameters.length / (count - 1);
+        s_step *= 0.25f;
+    }
+    if (alter->parameters.image_count != 0) {
+        SGsOpenGifPacket(packet, 92, 3822, 3);
+        alter->parameters.image_timer++;
+        if ((short)alter->parameters.image_timer >= alter->parameters.image_frames) {
+            alter->parameters.image_timer = 0;
+            alter->parameters.image_index++;
+            if ((short)alter->parameters.image_index >= alter->parameters.image_count) {
+                alter->parameters.image_index = 0;
+            }
+        }
+        SGsAddReg(packet, 6,
+                  alter->parameters.tex0[(short)alter->parameters.image_index]);
+        if (alter->parameters.mode == 3) {
+            SGsAddReg(packet, 8, 5);
+        } else {
+            SGsAddReg(packet, 8, 4);
+        }
+    } else {
+        SGsOpenGifPacket(packet, 76, 14, 1);
+    }
+    SGsAddReg(packet, 66, alphaTbl_004CC8D8[alter->parameters.blend]);
+    packet->loop_count = 1;
+    SGsCloseGifPacket(packet);
+    __asm__ __volatile__(
+        "lq $8, 0(%1)\n\t"
+        "lq $9, 16(%1)\n\t"
+        "lq $10, 32(%1)\n\t"
+        "lq $11, 48(%1)\n\t"
+        "sq $8, 0(%0)\n\t"
+        "sq $9, 16(%0)\n\t"
+        "sq $10, 32(%0)\n\t"
+        "sq $11, 48(%0)"
+        :
+        : "r"(view), "r"(camera->viewMatrix)
+        : "$8", "$9", "$10", "$11", "memory");
+    for (i = 0; i < count - 1; i++) {
+        current = (head - i) & 0x7f;
+        if (i == 0)
+            previous = current;
+        else
+            previous = (current + 1) & 0x7f;
+        if (i >= count - 2) {
+            next = (current - 1) & 0x7f;
+            after = next;
+        } else {
+            next = (current - 1) & 0x7f;
+            after = (current - 2) & 0x7f;
+        }
+        previous_offset = previous * sizeof(HermiteVector);
+        after_offset = after * sizeof(HermiteVector);
+        for (j = 0; j < 2; j++) {
+            HermiteVector *trail = (HermiteVector *)alter->trail[j];
+            HermiteVector *out;
+
+            MMathCalcHermitePrm(&tangent[0], &tangent[1],
+                                (HermiteVector *)((char *)trail + previous_offset), &trail[current],
+                                &trail[next], (HermiteVector *)((char *)trail + after_offset));
+            /* The row address is built on integers, as in the original. */
+            out = (HermiteVector *)(j * sizeof(points[0]) + (unsigned int)points);
+            for (counter = 0; counter <= 100; counter += 25) {
+                MMathCalcHermite((float *)out, (float)counter * 0.01f, &tangent[0],
+                                 &tangent[1], &trail[current], &trail[next]);
+                out++;
+            }
+        }
+        if (alter->parameters.image_count != 0) {
+            SGsOpenGifPacket(packet, 92, 1298, 3);
+        } else {
+            SGsOpenGifPacket(packet, 76, 1298, 3);
+        }
+        if (alter->parameters.mode >= 3) {
+            textureS = alter->level[current];
+            s_step = (alter->level[next] - textureS) * 0.25f;
+        }
+        counter = 0;
+        for (k = 0; k < 5; k++) {
+            color.word[3] = (unsigned int)alpha;
+            for (j = 0; j < 2; j++) {
+                MMathRotTransPersClip(&screen.point, camera, view, &points[j][k]);
+                if (screen.point.w != 0) {
+                    counter = 2;
+                } else {
+                    counter--;
+                    if (counter >= 0) {
+                        screen.point.w = 0x8000;
+                    }
+                }
+                if (j == 0) {
+                    SGsAddGifSTQ(packet, textureS, 0.0f, 1.0f);
+                } else {
+                    SGsAddGifSTQ(packet, textureS, 1.0f, 1.0f);
+                }
+                SGsAddGifRGBA(packet, color.quad);
+                SGsAddGifData(packet, screen.quad);
+            }
+            if (k < 4) {
+                textureS += s_step;
+                alpha -= alpha_step;
+            }
+        }
+        packet->loop_count = 10;
+        SGsCloseGifPacket(packet);
+        if ((i & 7) == 7) {
+            SGsSendPacket(packet);
+        }
+    }
+    SGsSendPacket(packet);
+}
 
 void sdvInitAlters(void)
 {
@@ -745,18 +1397,29 @@ void sdvDestroyAlters(void)
     }
 }
 
-unsigned short sdvExecAlters(void)
+void sdvExecAlters(void)
 {
     int i;
-    unsigned short status;
 
     for (i = 0; i < 16; i++) {
-        status = _sdvAlter[i].active;
-        if (status != 0) {
-            status = sdvExecAlter(&_sdvAlter[i]);
+        if (_sdvAlter[i].active != 0) {
+            sdvExecAlter(&_sdvAlter[i]);
         }
     }
-    return status;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/sdv", sdvDrawAlters);
+void sdvDrawAlters(int category)
+{
+    int i;
+    int drawn = 0;
+
+    for (i = 0; i < 16; i++) {
+        if (_sdvAlter[i].active != 0 && _sdvAlter[i].parameters.category == category) {
+            drawn++;
+            if (drawn == 1) {
+                SGsInitEnv();
+            }
+            sdvDrawAlter(&_sdvAlter[i], &_packet);
+        }
+    }
+}

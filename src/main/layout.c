@@ -1,6 +1,8 @@
 #include "common.h"
 #include "layout.h"
 
+#include "main/jni.h"
+
 static int defaultLayout;
 int layoutManagerId;
 

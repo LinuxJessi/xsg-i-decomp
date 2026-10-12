@@ -2,9 +2,12 @@
 
 #include "shared.h"
 
-#include "main/xgl_2.h"
 
 #include "xgl_2.h"
+
+extern Matrix4 unit_0;
+
+extern Matrix4 unit_1;
 
 extern unsigned int D_004ADE80[];
 
@@ -86,25 +89,177 @@ float xglAtan2(float y, float x)
     return polynomial;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/xgl_2", xglMemCopy64);
+void xglMemCopy64(void *destination, const void *source, int count)
+{
+    __asm__ __volatile__(
+        "1:\n\t"
+        "lq $2,0(%1)\n\t"
+        "sq $2,0(%0)\n\t"
+        "lq $2,16(%1)\n\t"
+        "sq $2,16(%0)\n\t"
+        "lq $2,32(%1)\n\t"
+        "sq $2,32(%0)\n\t"
+        "lq $2,48(%1)\n\t"
+        "sq $2,48(%0)\n\t"
+        "addi %2,%2,-1\n\t"
+        "addi %0,%0,64\n\t"
+        "addi %1,%1,64\n\t"
+        "bne $0,%2,1b\n\t"
+        "nop"
+        : "+r"(destination), "+r"(source), "+r"(count)
+        :
+        : "$2", "memory");
+}
 
-INCLUDE_ASM("asm/main/nonmatchings/xgl_2", xglMemCopy64b);
+void xglMemCopy64b(void *destination, const void *source, int count)
+{
+    __asm__ __volatile__(
+        "1:\n\t"
+        "lq $2,0(%1)\n\t"
+        "sq $2,0(%0)\n\t"
+        "lq $2,-16(%1)\n\t"
+        "sq $2,-16(%0)\n\t"
+        "lq $2,-32(%1)\n\t"
+        "sq $2,-32(%0)\n\t"
+        "lq $2,-48(%1)\n\t"
+        "sq $2,-48(%0)\n\t"
+        "addi %2,%2,-1\n\t"
+        "addi %0,%0,-64\n\t"
+        "addi %1,%1,-64\n\t"
+        "bne $0,%2,1b\n\t"
+        "nop"
+        : "+r"(destination), "+r"(source), "+r"(count)
+        :
+        : "$2", "memory");
+}
 
-INCLUDE_ASM("asm/main/nonmatchings/xgl_2", xglMemCopy16);
+void xglMemCopy16(void *destination, const void *source, int count)
+{
+    __asm__ __volatile__(
+        "1:\n\t"
+        "lq $2,0(%1)\n\t"
+        "sq $2,0(%0)\n\t"
+        "addi %2,%2,-1\n\t"
+        "addi %0,%0,16\n\t"
+        "addi %1,%1,16\n\t"
+        "bne $0,%2,1b\n\t"
+        "nop"
+        : "+r"(destination), "+r"(source), "+r"(count)
+        :
+        : "$2", "memory");
+}
 
-INCLUDE_ASM("asm/main/nonmatchings/xgl_2", xglMemCopy16b);
+void xglMemCopy16b(void *destination, const void *source, int count)
+{
+    __asm__ __volatile__(
+        "1:\n\t"
+        "lq $2,0(%1)\n\t"
+        "sq $2,0(%0)\n\t"
+        "addi %2,%2,-1\n\t"
+        "addi %0,%0,-16\n\t"
+        "addi %1,%1,-16\n\t"
+        "bne $0,%2,1b\n\t"
+        "nop"
+        : "+r"(destination), "+r"(source), "+r"(count)
+        :
+        : "$2", "memory");
+}
 
-INCLUDE_ASM("asm/main/nonmatchings/xgl_2", xglMemCopy8);
+void xglMemCopy8(void *destination, const void *source, int count)
+{
+    __asm__ __volatile__(
+        "1:\n\t"
+        "ld $2,0(%1)\n\t"
+        "sd $2,0(%0)\n\t"
+        "addi %2,%2,-1\n\t"
+        "addi %0,%0,8\n\t"
+        "addi %1,%1,8\n\t"
+        "bne $0,%2,1b\n\t"
+        "nop"
+        : "+r"(destination), "+r"(source), "+r"(count)
+        :
+        : "$2", "memory");
+}
 
-INCLUDE_ASM("asm/main/nonmatchings/xgl_2", xglMemCopy8b);
+void xglMemCopy8b(void *destination, const void *source, int count)
+{
+    __asm__ __volatile__(
+        "1:\n\t"
+        "ld $2,0(%1)\n\t"
+        "sd $2,0(%0)\n\t"
+        "addi %2,%2,-1\n\t"
+        "addi %0,%0,-8\n\t"
+        "addi %1,%1,-8\n\t"
+        "bne $0,%2,1b\n\t"
+        "nop"
+        : "+r"(destination), "+r"(source), "+r"(count)
+        :
+        : "$2", "memory");
+}
 
-INCLUDE_ASM("asm/main/nonmatchings/xgl_2", xglMemCopy4);
+void xglMemCopy4(void *destination, const void *source, int count)
+{
+    __asm__ __volatile__(
+        "1:\n\t"
+        "lw $2,0(%1)\n\t"
+        "sw $2,0(%0)\n\t"
+        "addi %2,%2,-1\n\t"
+        "addi %0,%0,4\n\t"
+        "addi %1,%1,4\n\t"
+        "bne $0,%2,1b\n\t"
+        "nop"
+        : "+r"(destination), "+r"(source), "+r"(count)
+        :
+        : "$2", "memory");
+}
 
-INCLUDE_ASM("asm/main/nonmatchings/xgl_2", xglMemCopy4b);
+void xglMemCopy4b(void *destination, const void *source, int count)
+{
+    __asm__ __volatile__(
+        "1:\n\t"
+        "lw $2,0(%1)\n\t"
+        "sw $2,0(%0)\n\t"
+        "addi %2,%2,-1\n\t"
+        "addi %0,%0,-4\n\t"
+        "addi %1,%1,-4\n\t"
+        "bne $0,%2,1b\n\t"
+        "nop"
+        : "+r"(destination), "+r"(source), "+r"(count)
+        :
+        : "$2", "memory");
+}
 
-INCLUDE_ASM("asm/main/nonmatchings/xgl_2", xglMemCopy2);
+void xglMemCopy2(void *destination, const void *source, int count)
+{
+    __asm__ __volatile__(
+        "1:\n\t"
+        "lh $2,0(%1)\n\t"
+        "sh $2,0(%0)\n\t"
+        "addi %2,%2,-1\n\t"
+        "addi %0,%0,2\n\t"
+        "addi %1,%1,2\n\t"
+        "bne $0,%2,1b\n\t"
+        "nop"
+        : "+r"(destination), "+r"(source), "+r"(count)
+        :
+        : "$2", "memory");
+}
 
-INCLUDE_ASM("asm/main/nonmatchings/xgl_2", xglMemCopy2b);
+void xglMemCopy2b(void *destination, const void *source, int count)
+{
+    __asm__ __volatile__(
+        "1:\n\t"
+        "lh $2,0(%1)\n\t"
+        "sh $2,0(%0)\n\t"
+        "addi %2,%2,-1\n\t"
+        "addi %0,%0,-2\n\t"
+        "addi %1,%1,-2\n\t"
+        "bne $0,%2,1b\n\t"
+        "nop"
+        : "+r"(destination), "+r"(source), "+r"(count)
+        :
+        : "$2", "memory");
+}
 
 void xglVectorDiv(Vector4 *destination, const Vector4 *numerator,
                   const Vector4 *divisor)
@@ -487,9 +642,37 @@ void xglRotTransPersN(Vector4 *destination, const Matrix4 matrix,
     xglMatrixStackPop(1);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/xgl_2", xglMatrixUnit);
+void xglMatrixUnit(float matrix[4][4])
+{
+    __asm__ __volatile__(
+        "lq $2,0(%1)\n\t"
+        "sq $2,0(%0)\n\t"
+        "lq $2,16(%1)\n\t"
+        "sq $2,16(%0)\n\t"
+        "lq $2,32(%1)\n\t"
+        "sq $2,32(%0)\n\t"
+        "lq $2,48(%1)\n\t"
+        "sq $2,48(%0)"
+        :
+        : "r"(matrix), "r"(unit_0)
+        : "$2", "memory");
+}
 
-INCLUDE_ASM("asm/main/nonmatchings/xgl_2", xglMatrixUnit4s);
+void xglMatrixUnit4s(Matrix4 destination)
+{
+    __asm__ __volatile__(
+        "lq $2,0(%1)\n\t"
+        "sq $2,0(%0)\n\t"
+        "lq $2,16(%1)\n\t"
+        "sq $2,16(%0)\n\t"
+        "lq $2,32(%1)\n\t"
+        "sq $2,32(%0)\n\t"
+        "lq $2,48(%1)\n\t"
+        "sq $2,48(%0)"
+        :
+        : "r"(destination), "r"(unit_1)
+        : "$2", "memory");
+}
 
 void xglMatrixMul(Matrix *destination, Matrix *left, Matrix *right)
 {
@@ -557,7 +740,60 @@ void xglMatrixReverse(Matrix *destination, const Matrix *source)
     );
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/xgl_2", xglMatrixInverse);
+void xglMatrixInverse(Matrix4 destination, const Matrix4 source)
+{
+    Matrix4 inverseMatrix;
+    float cofactor00 = source[1][1] * source[2][2] - source[1][2] * source[2][1];
+    float cofactor10 = source[1][2] * source[2][0] - source[1][0] * source[2][2];
+    float cofactor20 = source[1][0] * source[2][1] - source[1][1] * source[2][0];
+    float cofactor01 = source[2][1] * source[0][2] - source[2][2] * source[0][1];
+    float cofactor11 = source[2][2] * source[0][0] - source[2][0] * source[0][2];
+    float cofactor21 = source[2][0] * source[0][1] - source[2][1] * source[0][0];
+    float cofactor02 = source[0][1] * source[1][2] - source[0][2] * source[1][1];
+    float cofactor12 = source[0][2] * source[1][0] - source[0][0] * source[1][2];
+    float cofactor22 = source[0][0] * source[1][1] - source[0][1] * source[1][0];
+    float inverse = source[0][0] * cofactor00 + source[0][1] * cofactor10;
+
+    float x = source[3][0];
+    float y = source[3][1];
+    float z = source[3][2];
+    float translation0 = cofactor00 * x + cofactor10 * y + cofactor20 * z;
+    float translation1 = cofactor01 * x + cofactor11 * y + cofactor21 * z;
+    float translation2 = cofactor02 * x + cofactor12 * y + cofactor22 * z;
+
+    inverse += source[0][2] * cofactor20;
+    inverse = 1.0f / inverse;
+    destination[0][3] = 0.0f;
+    destination[1][3] = 0.0f;
+    destination[2][3] = 0.0f;
+    inverseMatrix[0][0] = cofactor00 * inverse;
+    inverseMatrix[0][1] = cofactor01 * inverse;
+    inverseMatrix[0][2] = cofactor02 * inverse;
+    inverseMatrix[1][0] = cofactor10 * inverse;
+    inverseMatrix[1][1] = cofactor11 * inverse;
+    inverseMatrix[1][2] = cofactor12 * inverse;
+    inverseMatrix[2][0] = cofactor20 * inverse;
+    inverseMatrix[2][1] = cofactor21 * inverse;
+    inverseMatrix[2][2] = cofactor22 * inverse;
+    inverse = -inverse;
+    inverseMatrix[3][0] = translation0 * inverse;
+    inverseMatrix[3][1] = translation1 * inverse;
+    inverseMatrix[3][2] = translation2 * inverse;
+    destination[3][3] = 1.0f;
+
+    destination[0][0] = inverseMatrix[0][0];
+    destination[0][1] = inverseMatrix[0][1];
+    destination[0][2] = inverseMatrix[0][2];
+    destination[1][0] = inverseMatrix[1][0];
+    destination[1][1] = inverseMatrix[1][1];
+    destination[1][2] = inverseMatrix[1][2];
+    destination[2][0] = inverseMatrix[2][0];
+    destination[2][1] = inverseMatrix[2][1];
+    destination[2][2] = inverseMatrix[2][2];
+    destination[3][0] = inverseMatrix[3][0];
+    destination[3][1] = inverseMatrix[3][1];
+    destination[3][2] = inverseMatrix[3][2];
+}
 
 void xglMatrixScale(Matrix4 destination, const Matrix4 source,
                     const float scale[4])
@@ -1314,7 +1550,19 @@ void xglFSrand(float seed)
     );
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/xgl_2", F2I);
+int F2I(float value)
+{
+    int result;
+
+    __asm__ __volatile__(
+        "mtc1 %1,$f0\n\t"
+        "cvt.w.s $f0,$f0\n\t"
+        "mfc1 %0,$f0"
+        : "=r"(result)
+        : "r"(value)
+        : "$f0");
+    return result;
+}
 
 float I2F(int value)
 {

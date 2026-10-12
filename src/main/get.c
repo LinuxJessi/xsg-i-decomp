@@ -2,9 +2,33 @@
 
 #include "shared.h"
 
+#include "main/init_uwamono_sys.h"
+
 #include "main/xgl_2.h"
 
 /* Query layout and floating return follow the original UnduCheck accesses. */
+typedef struct SplineMotionParameters {
+    unsigned char unmodeled_00[8];
+    float step_length;
+} SplineMotionParameters;
+
+typedef struct SplineMotionActor {
+    unsigned char unmodeled_00[0x80];
+    unsigned char number;
+    unsigned char unmodeled_81[0xc0 - 0x81];
+    SplineMotionParameters parameters;
+} SplineMotionActor;
+
+typedef struct EnemySplineState {
+    unsigned char unmodeled_00[0x40];
+    short frame;
+    unsigned char unmodeled_42[4];
+    short segment_steps;
+    unsigned char unmodeled_48[0x38b0 - 0x48];
+} EnemySplineState;
+
+extern EnemySplineState enepc[];
+
 typedef struct Vector3 { float x, y, z; } Vector3;
 typedef struct Point4 { float x, y, z, w; } Point4;
 typedef struct ParabolaVec { float x, y, z, w; } ParabolaVec;
@@ -37,6 +61,7 @@ extern unsigned short *DataSpline;
 extern float cosf(float angle);
 extern float atan2f(float y, float x);
 extern float Get_Distance(const Point4 *first, const Point4 *second);
+float Get_Decimal_Surplus_for_Radius(float angle);
 
 
 /* MARK: provisional extern block. The four words are _gp-relative .sdata
@@ -71,6 +96,8 @@ extern int CrossPointUwamono(const Point4 *start, const Point4 *end,
 
 /* Role name for TwoPiD:
    subtracted to wrap the cursor down at/above the high clamp. */
+
+#include "get.h"
 
 float Get_Decimal_Surplus_for_Radius(float angle)
 {
@@ -190,7 +217,7 @@ int Check_Straight_ID(const Point4 *start, const Point4 *end,
             current.y = start->y + (end->y - start->y) * step / count_as_float;
             current.z = start->z + (end->z - start->z) * step / count_as_float;
             if (UnduCheck(&current, 0, &UnduTemp) == -1000.0f
-                || HitCheckMapUnitPos(&current) != -1) {
+                || HitCheckMapUnitPos((const Vector4 *)&current) != -1) {
                 destination->x = previous.x;
                 destination->y = previous.y;
                 destination->z = previous.z;
@@ -233,7 +260,23 @@ float Get_Angle(const Point4 *first, const Point4 *second)
     return atan2f(second->x - first->x, second->z - first->z);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/get", Check_Angle);
+int Check_Angle(float angle, float rangeStart, float rangeEnd)
+{
+    rangeStart = Get_Decimal_Surplus_for_Radius(rangeStart);
+    rangeEnd = Get_Decimal_Surplus_for_Radius(rangeEnd);
+    angle = Get_Decimal_Surplus_for_Radius(angle);
+
+    if (rangeStart <= rangeEnd) {
+        if (rangeStart <= angle && angle <= rangeEnd) {
+            return 1;
+        }
+        return 0;
+    }
+    if (rangeStart <= angle || angle <= rangeEnd) {
+        return 1;
+    }
+    return 0;
+}
 
 float Get_Angle_Relative(const Point4 *first, const Point4 *second,
                          float reference)
@@ -528,4 +571,50 @@ void GetBSplineLoop(short frame, short count, int period_value,
                      / 24576.0f;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/get", GetBSplineLoopDummy);
+void GetBSplineLoopDummy(short frame, short count, short period,
+                         const Point4 *points, Point4 *destination,
+                         const SplineMotionActor *actor)
+{
+    int actor_number = actor->number;
+    int period_index = frame / period;
+    unsigned short phase = frame % period;
+    EnemySplineState *state = &enepc[actor_number];
+    const SplineMotionParameters *parameters = &actor->parameters;
+    int index = (unsigned short)(period_index % count);
+    int next = index + 1;
+
+    state->segment_steps = (int)(Get_Distance(&points[index], &points[next % count])
+                                 / parameters->step_length);
+    if (phase >= state->segment_steps - 1) {
+        state->frame = state->frame - state->frame % 128 + 128;
+    } else {
+        state->frame++;
+    }
+    state->frame %= period * count;
+    {
+    short segment_steps = state->segment_steps;
+    if (segment_steps == 0) {
+        destination->x = points[index].x;
+        destination->y = points[index].y;
+        destination->z = points[index].z;
+    } else {
+        int following = next % count;
+        float phase_value = phase;
+        float step_count = segment_steps;
+        {
+            float coordinate = points[index].x;
+            coordinate += (points[following].x - coordinate) * phase_value / step_count;
+            destination->x = coordinate;
+        }
+        {
+            float coordinate = points[index].y;
+            coordinate += (points[following].y - coordinate) * phase_value / step_count;
+            destination->y = coordinate;
+            coordinate = points[index].z;
+            coordinate += (points[following].z - coordinate) * phase_value / step_count;
+            destination->z = coordinate;
+        }
+    }
+    }
+    destination->w = 1.0f;
+}

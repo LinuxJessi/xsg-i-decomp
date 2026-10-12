@@ -9,14 +9,17 @@
 #include "ov12/rg_draw.h"
 
 /*
- * Per-controller pad record. PadPrefix (canon: config/header-canon.json
- * PadData) covers the evidenced +0x28/+0x2a halfwords; this TU indexes a
- * second 0x68-byte record for controller 1, so the object is an array of
- * two of these records rather than the single canonical PadPrefix. The
+ * Per-controller pad record. The local prefix covers the evidenced
+ * +0x28/+0x2a halfwords; this TU indexes a second 0x68-byte record for
+ * controller 1, so the object is an array of two of these records. The
  * bytes past +0x2c are never read by this TU's allocation.
  */
 typedef struct PadState {
-    PadPrefix prefix;
+    struct {
+        u8 pad_00[0x28];
+        u16 half_28;
+        u16 half_2a;
+    } prefix;
     u8 unmodeled_2c[0x3c];
 } PadState;
 

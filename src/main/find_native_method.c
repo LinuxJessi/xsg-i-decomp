@@ -1,5 +1,7 @@
 #include "common.h"
 
+#include "main/init_vm.h"
+
 #include "find_native_method.h"
 
 typedef struct ClassCacheEntry ClassCacheEntry;
@@ -83,6 +85,7 @@ typedef union ConstantPoolEntry ConstantPoolEntry;
  * The full layout of the VM class record (include/shared.h's SceneClass is
  * the shared view of the same 0x40 bytes).
  */
+#ifndef INCLUDE_MAIN_FIND_NATIVE_METHOD_H
 struct JavaClass {
     ObjectHeader header;
     ClassNameKey *name;
@@ -106,6 +109,7 @@ struct JavaClass {
     int instanceSize;
     ElementType *elementClass;
 };
+#endif
 
 static JavaClass _dummyClass;
 

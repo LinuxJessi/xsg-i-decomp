@@ -44,7 +44,11 @@ static int s_nPadID = 0;
 #define PAD_LEFT    0x8000
 
 typedef struct PadDataEntry {
-    PadPrefix prefix;
+    struct {
+        u8 pad_00[0x28];
+        u16 half_28;
+        u16 half_2a;
+    } prefix;
     u16 direction_buttons;
     u8 unmodeled_2e[0x68 - 0x2e];
 } PadDataEntry;

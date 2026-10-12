@@ -40,7 +40,14 @@ typedef struct ItemUnitInfo {
     short item_get_method;
     unsigned char unmodeled_32[2];
     int seId;
+    unsigned char unmodeled_38[0xc];
+    int clearedWord;
 } ItemUnitInfo;
+
+typedef struct ItemModelHeader {
+    unsigned char unmodeled_00[0x50];
+    int matrixOffset;
+} ItemModelHeader;
 
 typedef union ItemMapVectorBlock {
     Vector4 vector;
@@ -54,7 +61,7 @@ typedef struct ItemMapUnit {
     unsigned char unmodeled_0c[4];
     ItemMapVectorBlock position;
     Vector4 rotation;
-    unsigned char unmodeled_30[0x10];
+    Vector4 scale;
     Matrix4 matrix;
     Matrix4 *matrixPtr;
     unsigned char unmodeled_84[0x1c];
@@ -65,13 +72,20 @@ typedef struct ItemMapUnit {
     unsigned short serial;
     unsigned char unmodeled_a6[2];
     short sequenceNo;
-    unsigned char unmodeled_aa[0xe0 - 0xaa];
+    short sequenceEnd;
+    unsigned char unmodeled_ac[4];
+    float extent[3];
+    unsigned char unmodeled_bc[4];
+    ItemMapVectorBlock translation;
+    unsigned char unmodeled_d0[0x10];
     void *model;
     const char *texture;
     int effectCf[3];
     int ownerNo;
     unsigned char unmodeled_f8[0xa8];
     ItemUnitInfo info;
+    unsigned char unmodeled_1e8[0x230 - 0x1e8];
+    Matrix4 *savedMatrix;
 } ItemMapUnit;
 
 typedef struct MapDisplayRecord {
@@ -85,16 +99,21 @@ extern void MAP_updateUnitItemSymbol(ItemMapUnit *unit);
 
 extern void SetItemSymbolRsrc(ItemMapUnit *unit);
 
+extern void MAP_updateUnitItemBox(ItemMapUnit *unit);
+
 extern int xglFlagsGet1(int bitOffset);
 
 extern int printf(const char *format, ...);
 
 extern void sefDeleteEffectCf(int effectId);
 
+static const char D_004CA5B0[32] = "ItemBox serial error!! %d\n";
+
 static const char D_004CA5D0[32] = "ItemSymbol serial error!! %d\n";
 
 typedef struct ItemOwnerUnit {
-    unsigned char unmodeled_00[0x10];
+    unsigned int flags;
+    unsigned char unmodeled_04[0xc];
     ItemMapVectorBlock position;
     unsigned char unmodeled_20[0x82];
     unsigned char actionSub;
@@ -110,6 +129,7 @@ extern ItemOwnerUnit MapUnit[64];
 extern void nmlModelSetPartsVisible(void *model, short partsNo, int visible);
 
 extern void DrawActiveCursol(ItemMapUnit *unit);
+
 
 float D_004D7F7C = 0.05f;
 
@@ -149,6 +169,8 @@ typedef struct UnitItemBox {
     unsigned char unmodeled_e8[0x148]; /* +0xE8 */
     Matrix4 *saved_matrix;              /* +0x230 */
 } UnitItemBox;
+
+extern void MAP_drawUnitItemBox(UnitItemBox *box);
 
 /* Definitions follow their callers so references remain address-based. */
 
@@ -452,7 +474,85 @@ int HexToStr(int value, char *result)
     return digits;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/create_evt_item_get_task", InitItemBox);
+void InitItemBox(ItemMapUnit *unit)
+{
+    ItemUnitInfo *info = &unit->info;
+    ItemModelHeader *header;
+    ItemOwnerUnit *owner;
+    Matrix4 *matrix;
+    int i;
+
+    switch ((short)unit->serial) {
+    case 0x7005:
+        unit->model = uwares_tbl[4];
+        unit->texture = xtxres_tbl[4];
+        info->seId = 6;
+        break;
+    case 0x7008:
+        unit->model = uwares_tbl[7];
+        unit->texture = xtxres_tbl[7];
+        info->seId = 57;
+        break;
+    default:
+        unit->model = uwares_tbl[4];
+        unit->texture = xtxres_tbl[4];
+        break;
+    }
+    header = unit->model;
+    matrix = (Matrix4 *)((char *)header + header->matrixOffset) + 1;
+    unit->savedMatrix = matrix;
+    unit->translation.vector.x = (*matrix)[3][0];
+    unit->translation.vector.y = (*matrix)[3][1];
+    unit->translation.vector.z = (*matrix)[3][2];
+    unit->translation.vector.w = 1.0f;
+    xglMatrixStackUnit();
+    xglMatrixStackTrans(&unit->translation.vector.x);
+    xglMatrixStackSave(*unit->savedMatrix);
+    if (info->rsrcIndex == -1) {
+        info->rsrcIndex = 2;
+    }
+    info->clearedWord = 0;
+    unit->flags |= 4;
+    unit->extent[0] = 0.3f;
+    unit->extent[1] = 0.5f;
+    unit->extent[2] = 0.2f;
+    xglMatrixStackUnit();
+    xglMatrixStackTrans(&unit->position.vector.x);
+    xglMatrixStackRotX(unit->rotation.x);
+    xglMatrixStackRotY(unit->rotation.y);
+    xglMatrixStackRotZ(unit->rotation.z);
+    xglMatrixStackSave(unit->matrix);
+    unit->matrixPtr = &unit->matrix;
+    unit->update = MAP_updateUnitItemBox;
+    unit->draw = (void (*)(ItemMapUnit *))MAP_drawUnitItemBox;
+    unit->flags |= 0x10000;
+    unit->flags |= 0x8000000;
+    unit->actionNo = 0;
+    unit->sequenceNo = 0;
+    unit->sequenceEnd = 0;
+    unit->actionSub = 0;
+    if (info->unitNo != -1) {
+        owner = &MapUnit[info->unitNo];
+        owner->flags |= 4;
+        owner->position = unit->position;
+    }
+    if (info->itemNo >= 602) {
+        unit->serial = (unsigned short) -1;
+        unit->update = 0;
+        unit->draw = 0;
+        printf(D_004CA5B0, (short) info->itemNo);
+        return;
+    }
+    if (xglFlagsGet1(0x79EC7 + (short) info->itemNo) == 1) {
+        unit->sequenceNo = 16;
+        unit->actionSub = 3;
+        for (i = 0; i < 3; i++) {
+            if (unit->effectCf[i] != 0) {
+                sefDeleteEffectCf(unit->effectCf[i]);
+            }
+        }
+    }
+}
 
 void InitItemSymbol(ItemMapUnit *unit)
 {
@@ -705,7 +805,52 @@ void MAP_updateUnitItemSymbol(ItemMapUnit *unit)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/create_evt_item_get_task", MAP_updateUnitSpecialSymbol);
+void MAP_updateUnitSpecialSymbol(ItemMapUnit *unit)
+{
+    ItemUnitInfo *info = &unit->info;
+    ItemMapVectorBlock targetBlock;
+    Vector4 *target = &targetBlock.vector;
+
+    switch (unit->actionSub) {
+    case 0:
+        if (info->signal == 1) {
+            unit->actionSub = 1;
+            unit->scale.x = unit->scale.y = unit->scale.z = 0.0f;
+            unit->flags &= ~4;
+            unit->sequenceNo = 0;
+        }
+        break;
+    case 1:
+        unit->rotation.y += 0.05f;
+        unit->position.vector.y += 0.03f;
+        unit->sequenceNo++;
+        unit->scale.x = unit->scale.y = unit->scale.z = unit->sequenceNo * 0.06;
+        unit->scale.w = 1.0f;
+        if (unit->scale.x > 1.0f) {
+            unit->scale.x = unit->scale.y = unit->scale.z = 1.0f;
+            unit->actionSub = 2;
+            unit->translation = unit->position;
+            unit->sequenceEnd = unit->sequenceNo;
+        }
+        break;
+    case 2:
+        unit->rotation.y += 0.05f;
+        break;
+    case 5:
+        targetBlock = ((ItemMapUnit *)GameLoopState[1])->position;
+        target->y += 1.2f;
+        unit->position.vector.x = target->x + (unit->translation.vector.x - target->x) * unit->sequenceNo / unit->sequenceEnd;
+        unit->position.vector.y = target->y + (unit->translation.vector.y - target->y) * unit->sequenceNo / unit->sequenceEnd;
+        unit->position.vector.z = target->z + (unit->translation.vector.z - target->z) * unit->sequenceNo / unit->sequenceEnd;
+        unit->rotation.y += 0.05f;
+        unit->scale.x = unit->scale.y = unit->scale.z = --unit->sequenceNo * 0.06;
+        if (unit->scale.x < 0.0f) {
+            unit->update = 0;
+            unit->serial = (unsigned short) -1;
+        }
+        break;
+    }
+}
 
 void MAP_updateUnitItem(ItemMapUnit *unit)
 {

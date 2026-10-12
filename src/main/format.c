@@ -4,6 +4,8 @@
 
 #include "format.h"
 
+#include "main/init_vm.h"
+
 FormatString *JAVA_tmpString = 0;
 
 /*
@@ -37,9 +39,41 @@ void Java_xeno_util_Format_toInt__Ljava_lang_String_(JThread *thread, void *argu
 {
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/format", Java_xeno_util_Format_toString__C);
+void Java_xeno_util_Format_toString__C(JThread *thread, VMSlot *arguments,
+                                       VMSlot *result)
+{
+    FormatString *string;
+    FormatByteArray *allocated_array;
+    FormatByteArray *stored_array;
+    int character;
 
-INCLUDE_ASM("asm/main/nonmatchings/format", Java_xeno_util_Format_toString__F);
+    string = newObject(classString);
+    allocated_array = newArray(classByte, 255);
+    string->value = allocated_array;
+    character = arguments[0].s;
+    sprintf((char *)allocated_array->data, D_004DC098, character);
+    stored_array = string->value;
+    stored_array->length = strlen((char *)stored_array->data);
+    result[0].ref = string;
+}
+
+void Java_xeno_util_Format_toString__F(JThread *thread, float *arguments,
+                                       int *result)
+{
+    FormatByteArray *array;
+    FormatString **string_slot;
+
+    if (JAVA_tmpString == 0) {
+        JAVA_tmpString = newObject(classString);
+        JAVA_tmpString->value = newArray(classByte, 255);
+    }
+
+    sprintf((char *)JAVA_tmpString->value->data, D_004DC0A0, (double)arguments[0]);
+    array = JAVA_tmpString->value;
+    array->length = strlen((char *)array->data);
+    string_slot = &JAVA_tmpString;
+    *result = (int)*string_slot;
+}
 
 void Java_xeno_util_Format_toString__I(JThread *thread, int *arguments,
                                        int *result)

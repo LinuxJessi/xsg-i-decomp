@@ -809,7 +809,24 @@ static void endPrintInfoSet(EndPrintContext *context, int clut, int flag)
     xglPrimAddGifTagDirect(context->packet, command, count + 1);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/end_print", endSpriteSet);
+void endSpriteSet(PrintSpriteInfo *sprite, int flags)
+{
+    unsigned int entry;
+    const SpriteUv *table;
+
+    entry = ((const unsigned char *)&sprite->uv)[0];
+    table = (const SpriteUv *)uv_clut[((const unsigned char *)&sprite->uv)[1]].uv;
+    if (flags & 1) {
+        sprite->width = table[entry].width;
+        sprite->height = table[entry].height;
+    }
+    if (flags & 2) {
+        sprite->color[0] = sprite->color[1] = sprite->color[2] = sprite->color[3] = 128;
+    }
+    if (flags & 4) {
+        sprite->row = sprite->column = 0;
+    }
+}
 
 static void subPrintSprite(EndPrintContext *context, PrintSpriteInfo *sprite)
 {
@@ -866,7 +883,104 @@ static void PrintSprite00(EndPrintContext *context, PrintSpriteInfo *sprite)
     subPrintSprite(context, sprite);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/end_print", PrintSprite01);
+enum { QUAD_X, QUAD_Y, QUAD_DEPTH };
+
+typedef struct PrintSpriteVertex {
+    int position[3];
+    unsigned char unmodeled_0c[4];
+} PrintSpriteVertex;
+
+typedef struct PrintSpriteColor {
+    unsigned char red;
+    unsigned char green;
+    unsigned char blue;
+    unsigned char alpha;
+} PrintSpriteColor;
+
+typedef struct PrintSpriteQuad {
+    unsigned char flags;
+    signed char coordinateMode;
+    unsigned short uv;
+    unsigned char unmodeled_04[12];
+    PrintSpriteVertex vertices[4];
+    PrintSpriteColor colors[4];
+} PrintSpriteQuad;
+
+static void PrintSprite01(EndPrintContext *context, PrintSpriteQuad *sprite)
+{
+    int cornerU[4];
+    int cornerV[4];
+    const SpriteUv *table;
+    unsigned int entry;
+    int *words;
+    int i;
+    unsigned char useDefaultColor;
+
+    entry = sprite->uv & 255;
+    table = (const SpriteUv *)uv_clut[sprite->uv >> 8].uv;
+    endPrintInfoSet(context, uv_clut[sprite->uv >> 8].clut, 1);
+    switch (sprite->coordinateMode) {
+    case 0: {
+        const int left = sprite->vertices[0].position[QUAD_X];
+        const int top = sprite->vertices[0].position[QUAD_Y];
+        const int quadDepth = sprite->vertices[0].position[QUAD_DEPTH];
+        sprite->vertices[1].position[QUAD_X] = left;
+        sprite->vertices[3].position[QUAD_X] = left + table[entry].width;
+        sprite->vertices[2].position[QUAD_Y] = top;
+        sprite->vertices[3].position[QUAD_Y] = top + table[entry].height;
+        sprite->vertices[3].position[QUAD_DEPTH] = quadDepth;
+        sprite->vertices[2].position[QUAD_DEPTH] = quadDepth;
+        sprite->vertices[1].position[QUAD_Y] = top + table[entry].height;
+        sprite->vertices[2].position[QUAD_X] = left + table[entry].width;
+        sprite->vertices[1].position[QUAD_DEPTH] = quadDepth;
+    }
+    case 1:
+        useDefaultColor = sprite->flags & 1;
+        if (useDefaultColor) {
+            for (i = 0; i < 4; i++) {
+                sprite->colors[i].red = sprite->colors[i].green =
+                    sprite->colors[i].blue = sprite->colors[i].alpha = 128;
+            }
+        }
+        for (i = 0; i < 4; i++) {
+            sprite->vertices[i].position[QUAD_X] = sprite->vertices[i].position[QUAD_X] * 16 + 0x6ff8;
+            sprite->vertices[i].position[QUAD_Y] = sprite->vertices[i].position[QUAD_Y] * 16 + 0x71f8;
+        }
+        break;
+    }
+    cornerU[0] = table[entry].u * 16;
+    cornerU[1] = cornerU[0];
+    cornerU[3] = (table[entry].u + table[entry].width) * 16;
+    cornerU[2] = cornerU[3];
+    cornerV[0] = table[entry].v * 16;
+    cornerV[2] = cornerV[0];
+    cornerV[3] = (table[entry].v + table[entry].height) * 16;
+    cornerV[1] = cornerV[3];
+    words = (int *)context->scratch;
+    words[0] = 0x8004;
+    words[1] = 0x30ae4000;
+    words[2] = 0x531;
+    words[3] = 0;
+    words += 4;
+    for (i = 0; i < 4; i++) {
+        words[0] = sprite->colors[i].red;
+        words[1] = sprite->colors[i].green;
+        words[2] = sprite->colors[i].blue;
+        words[3] = sprite->colors[i].alpha;
+        words += 4;
+        words[0] = cornerU[i];
+        words[1] = cornerV[i];
+        words[2] = 0;
+        words[3] = 0;
+        words += 4;
+        words[0] = sprite->vertices[i].position[QUAD_X];
+        words[1] = sprite->vertices[i].position[QUAD_Y];
+        words[2] = sprite->vertices[i].position[QUAD_DEPTH];
+        words[3] = 0;
+        words += 4;
+    }
+    xglPrimAddGifTagDirect(context->packet, context->scratch, 13);
+}
 
 static void PrintPoint(EndPrintContext *context, PrintPointInfo *point)
 {
@@ -1311,9 +1425,105 @@ static void PrintNumber(EndPrintContext *context, PrintNumberInfo *number)
     }
 }
 
+
 INCLUDE_ASM("asm/main/nonmatchings/end_print", PrintWindow);
 
-INCLUDE_ASM("asm/main/nonmatchings/end_print", PrintFrame);
+typedef struct PrintUnsignedFrameInfo {
+    unsigned short x, y;
+    int depth;
+    unsigned short width, height;
+    unsigned char color[4];
+} PrintUnsignedFrameInfo;
+
+static void PrintFrame(EndPrintContext *context, int param)
+{
+    const PrintUnsignedFrameInfo *frame;
+    short left[8];
+    short top[8];
+    short width[8];
+    short height[8];
+    int *words;
+    int *command;
+    int i;
+    int innerX;
+    int innerY;
+    int right;
+    int bottom;
+    int innerWidth;
+    int innerHeight;
+    int depth;
+    int frameX;
+    int frameY;
+    int frameWidth;
+    int frameHeight;
+
+    frame = (const PrintUnsignedFrameInfo *)param;
+    command = (int *)context->scratch;
+    endPrintInfoSet(context, 0xfde00, 1);
+    words = command;
+    words[1] = 0x10000000;
+    words[2] = words[0] = 1;
+    words[3] = 0;
+    words += 4;
+    words[0] = frame->color[0];
+    words[1] = frame->color[2];
+    words[2] = frame->color[1];
+    words[3] = frame->color[3];
+    frameX = frame->x;
+    frameWidth = frame->width;
+    frameY = frame->y;
+    left[5] = left[3] = left[0] = frameX;
+    innerX = frameX + 3;
+    left[6] = left[1] = innerX;
+    right = innerX + frameWidth - 6;
+    left[2] = right;
+    left[4] = right;
+    innerWidth = frameWidth - 6;
+    top[2] = top[1] = top[0] = frameY;
+    frameHeight = frame->height;
+    innerY = frameY + 3;
+    top[3] = innerY;
+    left[7] = right;
+    top[4] = innerY;
+    bottom = innerY + frameHeight - 6;
+    top[5] = bottom;
+    innerHeight = frameHeight - 6;
+    top[6] = bottom;
+    top[7] = bottom;
+    width[0] = 3;
+    width[2] = 3;
+    width[7] = width[5] = width[4] = width[3] = 3;
+    width[6] = width[1] = innerWidth;
+    height[6] = height[5] = height[2] = height[1] = height[0] = 3;
+    height[7] = 3;
+    height[4] = height[3] = innerHeight;
+    words += 4;
+    words[0] = 0x8008;
+    words[1] = 0x40ab4000;
+    words[2] = 0x5353;
+    words[3] = 0;
+    words += 4;
+    for (i = 0; i < 8; i++) {
+        words[0] = ((const short *)win_uv)[i * 4] * 16;
+        words[1] = ((const short *)win_uv)[i * 4 + 1] * 16;
+        words[4] = left[i] * 16 + 0x6ff8;
+        words[5] = top[i] * 16 + 0x71f8;
+        words[2] = 0;
+        words[3] = 0;
+        depth = frame->depth & 0xffffff;
+        words[8] = words[0] + ((const short *)win_uv)[i * 4 + 2] * 16;
+        words[9] = words[1] + ((const short *)win_uv)[i * 4 + 3] * 16;
+        words[12] = words[4] + width[i] * 16;
+        words[13] = words[5] + height[i] * 16;
+        words[14] = words[6] = depth;
+        words[7] = 0;
+        words[10] = 0;
+        words[11] = 0;
+        words[15] = 0;
+        words += 16;
+    }
+    xglPrimAddGifTagDirect(context->packet, command, i * 4 + 3);
+}
 
 static void PrintThumbnail(EndPrintContext *context, PrintThumbnailInfo *thumbnail)
 {
@@ -1637,9 +1847,124 @@ static void PrintBackSprite2(EndPrintContext *context, PrintBackSpriteInfo *spri
     sceVif1PkAddDirectDataN(context->packet, context->scratch, 6);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/end_print", PrintEtherLine);
+typedef struct EtherLineEndpoint {
+    float x;
+    float y;
+    float depth;
+    unsigned char unmodeled_0c[4];
+    unsigned char color[4];
+    unsigned char unmodeled_14[12];
+} EtherLineEndpoint;
 
-INCLUDE_ASM("asm/main/nonmatchings/end_print", endPrintExtFunc);
+static void PrintEtherLine(EndPrintContext *context, int param)
+{
+    const EtherLineEndpoint *endpoints;
+    PrintPointInfo line[3];
+    PrintPointInfo ribbon[5];
+    float opacity;
+    int i;
+    u64 *command;
+
+    endpoints = (const EtherLineEndpoint *)param;
+    command = context->scratch;
+    command[0] = ((u64)0x10000000 << 32) | 2;
+    command[1] = 14;
+    command[2] = 68;
+    command[3] = 66;
+    command[4] = 0x5000d;
+    command[5] = 71;
+    sceVif1PkAddDirectDataN(context->packet, command, 3);
+    line[0].color[0] = endpoints[0].color[0];
+    line[0].color[1] = endpoints[0].color[1];
+    line[0].color[2] = endpoints[0].color[2];
+    line[0].color[3] = endpoints[0].color[3];
+    line[1].color[0] = endpoints[1].color[0];
+    line[1].color[1] = endpoints[1].color[1];
+    line[1].color[2] = endpoints[1].color[2];
+    line[1].color[3] = endpoints[1].color[3];
+    line[0].x = (int)(endpoints[0].x);
+    line[0].y = (int)(endpoints[0].y);
+    line[2].depth = 0;
+    line[0].depth = (unsigned int)endpoints[0].depth;
+    line[1].x = (int)(endpoints[1].x);
+    line[1].y = (int)(endpoints[1].y);
+    line[1].depth = (unsigned int)endpoints[1].depth;
+    subPrintLine(context, line);
+    opacity = 1.0f;
+    ribbon[4].depth = 0;
+    ribbon[0].depth = ribbon[1].depth = (unsigned int)endpoints[0].depth;
+    ribbon[2].depth = ribbon[3].depth = (unsigned int)endpoints[1].depth;
+    ribbon[0].color[0] = ribbon[1].color[0] = endpoints[0].color[0];
+    ribbon[0].color[1] = ribbon[1].color[1] = endpoints[0].color[1];
+    ribbon[0].color[2] = ribbon[1].color[2] = endpoints[0].color[2];
+    ribbon[0].color[3] = ribbon[1].color[3] = endpoints[0].color[3];
+    ribbon[2].color[0] = ribbon[3].color[0] = endpoints[1].color[0];
+    ribbon[2].color[1] = ribbon[3].color[1] = endpoints[1].color[1];
+    ribbon[2].color[2] = ribbon[3].color[2] = endpoints[1].color[2];
+    ribbon[2].color[3] = ribbon[3].color[3] = endpoints[1].color[3];
+    if (endpoints[0].y == endpoints[1].y) {
+        for (i = 0; i < 8; i++) {
+            unsigned int startAlpha;
+            unsigned int endAlpha;
+
+            ribbon[0].x = (int)(endpoints[0].x - i);
+            ribbon[1].x = ribbon[0].x;
+            ribbon[2].x = (int)(endpoints[1].x + i);
+            ribbon[3].x = ribbon[2].x;
+            ribbon[0].y = (int)(endpoints[0].y - i);
+            ribbon[1].y = (int)(endpoints[0].y + i);
+            ribbon[2].y = (int)(endpoints[1].y - i);
+            ribbon[3].y = (int)(endpoints[1].y + i);
+            startAlpha = (unsigned int)(endpoints[0].color[3] * opacity);
+            ribbon[0].color[3] = ribbon[1].color[3] = startAlpha;
+            endAlpha = (unsigned int)(endpoints[1].color[3] * opacity);
+            ribbon[2].color[3] = ribbon[3].color[3] = endAlpha;
+            opacity *= 0.5f;
+            subPrintRibbon(context, ribbon);
+        }
+    } else {
+        for (i = 0; i < 8; i++) {
+            unsigned int startAlpha;
+            unsigned int endAlpha;
+
+            ribbon[0].x = (int)(endpoints[0].x - i);
+            ribbon[0].y = (int)(endpoints[0].y - i);
+            ribbon[1].x = (int)(endpoints[0].x + i);
+            ribbon[1].y = ribbon[0].y;
+            ribbon[2].x = (int)(endpoints[1].x - i);
+            ribbon[2].y = (int)(endpoints[1].y + i);
+            ribbon[3].x = (int)(endpoints[1].x + i);
+            ribbon[3].y = ribbon[2].y;
+            startAlpha = (unsigned int)(endpoints[0].color[3] * opacity);
+            ribbon[0].color[3] = ribbon[1].color[3] = startAlpha;
+            endAlpha = (unsigned int)(endpoints[1].color[3] * opacity);
+            ribbon[2].color[3] = ribbon[3].color[3] = endAlpha;
+            opacity *= 0.5f;
+            subPrintRibbon(context, ribbon);
+        }
+    }
+}
+
+extern void (*func_tbl_4[])(EndPrintContext *context, int param);
+extern void (*func_tbl2_5[])(EndPrintContext *context, int param);
+extern void xglFontPrintExtFunc(int order, void (*func)(EndPrintContext *context, int param), void *param);
+
+void endPrintExtFunc(int order, int command, void *param)
+{
+    if (command < 100)
+        goto standard_command;
+    goto extended_command;
+    do {
+standard_command:
+        if (command < 18)
+            endPrintExtFuncPack(func_tbl_4[command], (int)param);
+        break;
+extended_command:
+        command -= 100;
+        if (command < 7)
+            xglFontPrintExtFunc(order, func_tbl2_5[command], param);
+    } while (0);
+}
 
 void endPrintDirectFrameCopy(XglPacket *packet, int tagLow, int tagHigh)
 {

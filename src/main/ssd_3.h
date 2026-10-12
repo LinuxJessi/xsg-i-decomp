@@ -18,6 +18,8 @@
  * are copied into the SIF RPC buffer, and `size` bytes of `data` are copied
  * after it.
  */
+#include "main/nml_packet_add.h"
+
 int RssdCallFunc(int command, RssdRequest *request, void *data, int size);
 
 /*

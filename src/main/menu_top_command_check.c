@@ -3,6 +3,12 @@
 static unsigned short MenuTopCommandLock;
 
 #include "menu_top_command_check.h"
+#include "main/e_battle_win_open.h"
+
+static inline int MenuSelectLayoutShift(const MenuTopMenuPanel *panel)
+{
+    return panel->rows == 3 ? -1 : 0;
+}
 
 static inline int MenuTopStateGet(void)
 {
@@ -24,6 +30,8 @@ int MenuTopCommandCheck(int commandId)
     return (commandBit & ~MenuTopCommandLock) != 0;
 }
 
+void MenuStatusDisp(MenuStatusPanelWindow *window, MenuStatusPanel *work);
+
 INCLUDE_ASM("asm/main/nonmatchings/menu_top_command_check", TopStatusWinMain);
 
 void TopInfoMain(void)
@@ -33,18 +41,18 @@ void TopInfoMain(void)
 
     switch (info->state) {
     case 0:
-        WindowDXSet(&info->window);
+        WindowDXSet((WindowDX *)&info->window);
         info->window.x = -0x10;
         info->window.y = 0x1E0;
         info->window.width = 0x220;
         info->window.height = 0x36;
         info->window.color = 0xF000F0;
-        info->window.draw = MenuInfoWindow;
+        info->window.draw = (void (*)(WindowDX *, void *))MenuInfoWindow;
         info->window.panel = &info->panel;
         info->panel.x = 0;
         info->panel.y = 0;
         info->window.state = 1;
-        WindowDXMain(&info->window);
+        WindowDXMain((WindowDX *)&info->window);
         info->window.state = 3;
         info->slide = -1;
         info->enabled = 1;
@@ -69,7 +77,7 @@ void TopInfoMain(void)
             info->panel.text = D_004DA890;
         }
         MoveSlide(&info->window.y, &slideTarget, 5.0f);
-        WindowDXMain(&info->window);
+        WindowDXMain((WindowDX *)&info->window);
         break;
     }
 }
@@ -91,20 +99,20 @@ void TopMenuWinMain(void)
                 command_0[i].locked = 0;
             }
         }
-        WindowDXSet(&menu->window);
+        WindowDXSet((WindowDX *)&menu->window);
         menu->window.x = 0x220;
         menu->window.y = 0x1C;
         menu->window.color = menu->color;
         menu->window.width = 0xC2;
         menu->window.height = 0xDE;
-        menu->window.draw = MenuSelectWindow;
+        menu->window.draw = (void (*)(WindowDX *, void *))MenuSelectWindow;
         menu->window.panel = &menu->panel;
         menu->window.title = D_004DA8B8;
         menu->panel.commands = command_0;
         menu->panel.cursor = 0;
         menu->panel.rows = 2;
         menu->window.state = 1;
-        WindowDXMain(&menu->window);
+        WindowDXMain((WindowDX *)&menu->window);
         menu->window.state = 3;
         menu->enabled = 1;
         menu->state = 2;
@@ -121,7 +129,7 @@ void TopMenuWinMain(void)
             slideTarget = 0x220;
         }
         MoveSlide(&menu->window.x, &slideTarget, 5.0f);
-        WindowDXMain(&menu->window);
+        WindowDXMain((WindowDX *)&menu->window);
         break;
     }
 }
@@ -323,7 +331,223 @@ void TopMenu(void)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_top_command_check", tskMenuTai);
+#include "main/xgl_2.h"
+#include "main/xgl_studio.h"
+#include "main/xgl_task.h"
+
+void xglLightIntensityAmbient(void *light, void *intensity);
+void xglLightIntensityParallel(void *light, int index, void *intensity);
+void xglLightDirection(void *light, int index, void *direction);
+void xglLightCalcMatrix(void *light);
+void nmlModelSetLight(Matrix4 intensity, Matrix4 direction);
+void nmlModelSetTexture(const char *texture);
+void nmlModelSetPlace(float matrix[4][4]);
+void nmlModelEntry(int model);
+void nmlModelFlush(void);
+static const float D_004C3640[4] = {1.57079637f, 0.0f, 0.0f, 1.0f};
+static const float D_004C3650[7][4] = {
+    {0.5f, 0.5f, 0.5f, 1.0f},
+    {0.8f, 0.8f, 0.8f, 1.0f},
+    {0.8f, 0.8f, 0.8f, 1.0f},
+    {0.8f, 0.8f, 0.8f, 1.0f},
+    {1.0f, 1.0f, 0.5f, 1.0f},
+    {-1.0f, 1.0f, 0.0f, 1.0f},
+    {0.0f, 1.0f, -1.0f, 1.0f}
+};
+
+
+
+
+void xglRotTransPersN(void *destination, Matrix4 *matrix,
+                     const Vector4 *points, int count, int cameraId);
+void endPrintDirectLine(MenuModelLinePoint *line);
+extern const char *MenuTairetuModelXtxAddr;
+extern int MenuTairetuModelLexAddr;
+
+static void tskMenuTai(MenuTaiTask *task)
+{
+    Vector4 targetRotation;
+    MenuModelLighting light;
+    MenuLightingSources sources;
+    Vector4 grid[24];
+    Vector4 *gridPoint;
+    MenuModelProjectedPoint projected[2][4][3];
+    MenuModelLinePoint lines[98];
+    MenuModelLinePoint *point;
+    MenuModelTransform *model;
+    float targetScale;
+    short currentCommand;
+    int i;
+    int j;
+    int k;
+    int tint;
+    int shade;
+
+    if (MenuWork.command == 12) {
+        xglTaskWaitRemove(&task->link);
+        return;
+    }
+    switch (task->state) {
+    case 0:
+        model = task->model;
+        model->position.y = 0.0f;
+        model->position.z = 0.0f;
+        model->position.w = 1.0f;
+        model->rotation.w = 1.0f;
+        model->rotation.x = 0.0f;
+        model->rotation.y = 0.0f;
+        model->rotation.z = 0.0f;
+        model->position.x = 0.0f;
+        task->previousCommand = -1;
+        task->state = 2;
+        task->enabled = 0;
+        task->initialized = 0;
+    case 2:
+        currentCommand = MenuWork.command;
+        if (task->previousCommand != currentCommand) {
+            task->initialized = 0;
+            task->previousCommand = MenuWork.command;
+            currentCommand = MenuWork.command;
+        }
+        if (currentCommand == 0) {
+            if (!task->initialized) {
+                task->model->position.x = 0.28f;
+                task->model->position.y = 1.08f * (1 - task->index) + 0.1f;
+                task->model->position.z = 0.0f;
+                task->model->position.w = 1.0f;
+                task->model->rotation.x = -1.04719758f;
+                task->model->rotation.y = -0.196349546f;
+                task->model->rotation.z = 0.0f;
+                task->model->rotation.w = 1.0f;
+                task->model->scale.x = 0.0f;
+                task->model->scale.y = 0.077f;
+                task->model->scale.z = 0.077f;
+                task->model->scale.w = 1.0f;
+                task->initialized = task->enabled = 1;
+            }
+            model = task->model;
+            __builtin_memcpy(&targetRotation, D_004C3640, sizeof(targetRotation));
+            targetScale = 0.0f;
+            if (MenuWork.state == 33) {
+                targetRotation.x = 0.785398185f;
+                targetRotation.y = 0.314159274f;
+                targetRotation.z = 0.196349546f;
+                targetScale = 0.077f;
+            }
+            model->scale.x += (targetScale - model->scale.x) * 0.2f;
+            model->rotation.x += (targetRotation.x - model->rotation.x) * 0.1f;
+            model->rotation.y += (targetRotation.y - model->rotation.y) * 0.1f;
+            model->rotation.z += (targetRotation.z - model->rotation.z) * 0.1f;
+        } else {
+            task->enabled = 0;
+        }
+        if (task->enabled == 0) {
+            break;
+        }
+        xglStudioGetCamera2(0)->active = 0;
+        xglStudioGetCamera2(1)->active = 0;
+        xglStudioGetCamera2(2)->active = 1;
+        xglMatrixStackUnit();
+        xglMatrixStackScale(&task->model->scale.x);
+        xglMatrixStackTrans(&task->model->position.x);
+        xglMatrixStackRotZ(task->model->rotation.z);
+        xglMatrixStackRotY(task->model->rotation.y);
+        xglMatrixStackRotX(task->model->rotation.x);
+        xglMatrixStackSave(task->model->place);
+        __builtin_memcpy(&sources, D_004C3650, sizeof(sources));
+        xglLightIntensityAmbient(&light, sources.ambient);
+        xglLightIntensityParallel(&light, 0, sources.intensity[0]);
+        xglLightDirection(&light, 0, sources.direction[0]);
+        xglLightIntensityParallel(&light, 1, sources.intensity[1]);
+        xglLightDirection(&light, 1, sources.direction[1]);
+        xglLightIntensityParallel(&light, 2, sources.intensity[2]);
+        xglLightDirection(&light, 2, sources.direction[2]);
+        xglLightCalcMatrix(&light);
+        nmlModelSetLight(light.matrix[1], light.matrix[0]);
+        nmlModelSetTexture(MenuTairetuModelXtxAddr);
+        nmlModelSetPlace(task->model->place);
+        nmlModelEntry(MenuTairetuModelLexAddr);
+        nmlModelFlush();
+
+        for (i = 0; i < 2; i++) {
+            for (j = 0; j < 4; j++) {
+                for (k = 0; k < 3; k++) {
+                    gridPoint = &grid[j * 3 + i * 12 + k];
+                    gridPoint->x = k * 0.1875f + -0.1875f;
+                    gridPoint->y = i * 0.375f;
+                    gridPoint->z = j * 0.1875f + -0.253125f;
+                    gridPoint->w = 1.0f;
+                }
+            }
+        }
+        xglRotTransPersN(projected, &task->model->place, grid, 24, 2);
+        point = lines;
+        for (i = 0, tint = 64; i < 2; i++) {
+            shade = tint - 128;
+            for (j = 0; j < 4; j++) {
+                for (k = 0; k < 4; k++) {
+                    if (k != 3) {
+                        point->point = projected[i][j][k];
+                        point->r = tint + 64;
+                        point->b = shade;
+                        point->g = shade;
+                        point->a = 128;
+                    } else {
+                        point->point.depth = 0;
+                        if (i == 0) {
+                            if (j == 0 || j == k) {
+                                endPrintDirectLine(point - 3);
+                            }
+                        } else {
+                            endPrintDirectLine(point - 3);
+                        }
+                    }
+                    point++;
+                }
+            }
+            for (j = 0; j < 3; j++) {
+                for (k = 0; k < 5; k++) {
+                    if (k != 4) {
+                        point->point = projected[i][k][j];
+                        point->r = 64;
+                        point->b = 128;
+                        point->g = 128;
+                        point->a = 128;
+                    } else {
+                        point->point.depth = 0;
+                        if (i == 0) {
+                            if (j != 1) {
+                                endPrintDirectLine(point - 4);
+                            }
+                        } else {
+                            endPrintDirectLine(point - 4);
+                        }
+                    }
+                    point++;
+                }
+            }
+            tint -= 64;
+        }
+        for (i = 0; i < 4; i++) {
+            for (j = 0; j < 3; j++) {
+                for (k = 0; k < 3; k++) {
+                    if (k != 2) {
+                        point->point = projected[k][i][j];
+                        point->r = 64;
+                        point->b = 128;
+                        point->g = 128;
+                        point->a = 128;
+                    } else {
+                        point->point.depth = 0;
+                        endPrintDirectLine(point - 2);
+                    }
+                    point++;
+                }
+            }
+        }
+        break;
+    }
+}
 
 INCLUDE_ASM("asm/main/nonmatchings/menu_top_command_check", tskMenuTaiPointa);
 
@@ -814,9 +1038,347 @@ void MenuStatusDisp(MenuStatusPanelWindow *window, MenuStatusPanel *work)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_top_command_check", MenuInfoWindow);
+int WindowTexAddrGet(int index);
+void eMessageMain(void *message);
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_top_command_check", MenuSelectWindow);
+/* WindowDX discards this callback's return value. */
+int MenuInfoWindow(MenuStatusPanelWindow *window, MenuTopInfoPanel *panel)
+{
+    const char *scan;
+    int i;
+    int color;
+    int shade;
+
+    switch (window->state) {
+    case 0:
+        break;
+    case 1:
+        eMessageSet(&panel->message, panel->text);
+        panel->message.mode = 32;
+        panel->blink = 0;
+        panel->x = 0;
+        panel->y = 0;
+        panel->lineCount = 2;
+        panel->message.lines = 2;
+        panel->page = 0;
+        panel->inputLock = 0;
+        panel->text = 0;
+        break;
+    case 3:
+        scan = panel->text;
+        panel->lineCount = 1;
+        if (scan == 0) {
+            scan = D_004DA890;
+        }
+        while (*scan != 0) {
+            if (*scan == '\n') {
+                panel->lineCount++;
+            }
+            scan++;
+        }
+        if (panel->inputLock == 0) {
+            if (panel->lineCount >= 3) {
+                if (PadData.half_2a & 2) {
+                    panel->page ^= 1;
+                }
+            } else {
+                panel->page = 0;
+            }
+        }
+
+        panel->texture = WindowTexAddrGet(2);
+        endPrintExtFunc(window->color, 14, &panel->texture);
+        panel->header.image = 0xB01;
+        panel->header.flag = 1;
+        panel->header.mode = 0;
+        for (i = 0; i < 4; i++) {
+            panel->header.rgba[i].r = panel->header.rgba[i].g = panel->header.rgba[i].b = 128;
+            if (i < 2) {
+                panel->header.rgba[i].a = 128;
+            } else {
+                panel->header.rgba[i].a = 32;
+            }
+        }
+        panel->header.vertex[0].x = panel->header.vertex[1].x = window->x + 24;
+        panel->header.vertex[2].x = panel->header.vertex[3].x = window->x + 536;
+        panel->header.vertex[0].y = panel->header.vertex[2].y = window->y - 5;
+        panel->header.vertex[1].y = panel->header.vertex[3].y = window->y + 2;
+        panel->header.vertex[0].color = panel->header.vertex[1].color =
+            panel->header.vertex[2].color = panel->header.vertex[3].color = 0xFFFFFF;
+        endPrintExtFunc(window->color, 8, &panel->header);
+
+        panel->box.x = window->x + 3;
+        color = window->color;
+        panel->box.color = color;
+        panel->box.y = window->y + 3;
+        panel->box.width = window->width - 6;
+        panel->box.height = window->height - 6;
+        endPrintExtFunc(color, 5, &panel->box);
+
+        panel->border.image = 0xB02;
+        panel->border.mode = 0;
+        panel->border.flag = 0;
+        for (i = 0; i < 4; i++) {
+            panel->border.rgba[i].r = panel->border.rgba[i].g = panel->border.rgba[i].b = 128;
+            if ((i & 1) == 0) {
+                panel->border.rgba[i].a = 128;
+            } else {
+                panel->border.rgba[i].a = 32;
+            }
+        }
+        panel->border.vertex[0].color = 0xFFFFFF;
+        panel->border.vertex[0].x = window->x + 24;
+        panel->border.vertex[0].y = window->y + 3;
+        endPrintExtFunc(window->color, 8, &panel->border);
+
+        panel->footer.image = 0xB00;
+        panel->footer.mode = 0;
+        panel->footer.flag = 0;
+        for (i = 0; i < 4; i++) {
+            panel->footer.rgba[i].r = panel->footer.rgba[i].g = panel->footer.rgba[i].b = 128;
+            panel->footer.rgba[i].a = 32;
+        }
+        panel->footer.vertex[0].x = 127;
+        panel->footer.vertex[0].y = window->y + window->height - 51;
+        panel->footer.vertex[0].color = window->color;
+        endPrintExtFunc(window->color, 8, &panel->footer);
+        endPrintExtFunc(panel->box.color, 6, 0);
+        endPrintExtFunc(0, 15, 0);
+
+        panel->clip.x = window->x + 3;
+        color = window->color;
+        panel->clip.color = color;
+        panel->clip.y = window->y + 3;
+        panel->clip.width = window->width - 6;
+        panel->clip.height = window->height - 6;
+        endPrintExtFunc(color, 101, &panel->clip);
+        if (panel->inputLock == 0 && panel->lineCount >= 3) {
+            panel->scroll.image = 0x10D;
+            endSpriteSet(&panel->scroll, 255);
+            shade = ((panel->blink * 4) & 24) + 72;
+            panel->scroll.r = panel->scroll.g = panel->scroll.b = shade;
+            color = panel->scroll.color = window->color;
+            panel->scroll.x = window->x + window->width - 64;
+            panel->scroll.y = window->y + window->height - 30;
+            panel->blink++;
+            endPrintExtFunc(color, 2, &panel->scroll);
+        } else if (panel->inputLock == 0) {
+            panel->blink = 0;
+        }
+        panel->message.x = window->x + panel->x + 35;
+        panel->message.text = panel->text;
+        panel->message.color = window->color + 2;
+        panel->message.y = window->y + panel->y - panel->page * 48 + 3;
+        eMessageMain(&panel->message);
+        endPrintExtFunc(panel->clip.color, 102, 0);
+        break;
+    }
+}
+
+void eCursolSet(MenuSelectCursor *cursor, int mode);
+void eCursolMain(MenuSelectCursor *cursor);
+int xglFontGetStringWidth(const char *text);
+
+/* WindowDX discards this callback's return value. */
+int MenuSelectWindow(MenuStatusPanelWindow *window, MenuTopMenuPanel *panel)
+{
+    short rowShift;
+    int i;
+    MenuTopCommandEntry *entry;
+
+    switch (window->state) {
+    case 0:
+        break;
+    case 1: {
+        MenuSelectCursor *cursor;
+
+        cursor = &panel->marker;
+        eCursolSet(cursor, 0);
+        cursor->mode = 32;
+        for (i = 0; i < 12; i++) {
+            eMessageSet(&panel->message[i], 0);
+            panel->message[i].mode = 32;
+        }
+        break;
+    }
+    case 3:
+        switch (panel->rows) {
+        case 0:
+        case 2:
+        {
+            int bandLeft;
+            int bandRight;
+            int bandColor;
+            int bandTop;
+            int bandBottom;
+
+            bandLeft = (unsigned short)window->x + 3;
+            panel->cursorBand.vertex[0].x = panel->cursorBand.vertex[1].x = bandLeft;
+            bandColor = window->color + 2;
+            panel->cursorBand.vertex[0].color = panel->cursorBand.vertex[1].color =
+                panel->cursorBand.vertex[2].color = panel->cursorBand.vertex[3].color = bandColor;
+            bandRight = bandLeft + (unsigned short)window->width - 6;
+            panel->cursorBand.vertex[2].x = panel->cursorBand.vertex[3].x = bandRight;
+            panel->cursorBand.flags = 0;
+            bandTop = (unsigned short)window->y + panel->cursor * 24 + 23;
+            bandBottom = (unsigned short)window->y + panel->cursor * 24 + 27;
+            panel->cursorBand.vertex[3].y = bandBottom;
+            panel->cursorBand.vertex[0].y = panel->cursorBand.vertex[2].y = bandTop;
+            panel->cursorBand.vertex[1].y = bandBottom;
+            panel->cursorBand.vertex[0].b = panel->cursorBand.vertex[1].b =
+                panel->cursorBand.vertex[2].b = panel->cursorBand.vertex[3].b = 16;
+            panel->cursorBand.vertex[0].g = panel->cursorBand.vertex[1].g =
+                panel->cursorBand.vertex[2].g = panel->cursorBand.vertex[3].g = 16;
+            panel->cursorBand.vertex[1].r = panel->cursorBand.vertex[2].r = panel->cursorBand.vertex[3].r = 16;
+            panel->cursorBand.vertex[0].r = 16;
+            panel->cursorBand.vertex[0].a = panel->cursorBand.vertex[1].a = 64;
+            panel->cursorBand.vertex[2].a = panel->cursorBand.vertex[3].a = 0;
+            endPrintExtFunc(window->color, 3, &panel->cursorBand);
+        }
+
+        {
+            int fillLeft;
+            int fillRight;
+            int fillTop;
+            int fillBottom;
+
+            fillLeft = (unsigned short)window->x + 3;
+            panel->cursorFill.vertex[1].x = fillLeft;
+            panel->cursorFill.vertex[0].x = fillLeft;
+            panel->cursorFill.vertex[0].color = panel->cursorFill.vertex[1].color =
+                panel->cursorFill.vertex[2].color = panel->cursorFill.vertex[3].color = window->color + 2;
+            fillRight = fillLeft + (unsigned short)window->width - window->width / 4 - 6;
+            panel->cursorFill.vertex[2].x = panel->cursorFill.vertex[3].x = fillRight;
+            panel->cursorFill.flags = 0;
+            fillTop = (unsigned short)window->y + panel->cursor * 24 + 3;
+            fillBottom = (unsigned short)window->y + panel->cursor * 24 + 23;
+            panel->cursorFill.vertex[0].y = panel->cursorFill.vertex[2].y = fillTop;
+            panel->cursorFill.vertex[1].y = panel->cursorFill.vertex[3].y = fillBottom;
+            panel->cursorFill.vertex[1].r = panel->cursorFill.vertex[2].r = panel->cursorFill.vertex[3].r = 32;
+            panel->cursorFill.vertex[1].g = panel->cursorFill.vertex[2].g = panel->cursorFill.vertex[3].g = 52;
+            panel->cursorFill.vertex[0].r = 32;
+            panel->cursorFill.vertex[0].g = 52;
+            panel->cursorFill.vertex[0].b = panel->cursorFill.vertex[1].b =
+                panel->cursorFill.vertex[2].b = panel->cursorFill.vertex[3].b = 64;
+            panel->cursorFill.vertex[0].a = panel->cursorFill.vertex[1].a = 64;
+            panel->cursorFill.vertex[2].a = panel->cursorFill.vertex[3].a = 0;
+            endPrintExtFunc(window->color, 3, &panel->cursorFill);
+        }
+
+        {
+            int dividerTop;
+            int dividerBottom;
+
+            panel->divider.vertex[0].x = panel->divider.vertex[1].x = (unsigned short)window->x + 17;
+            panel->divider.vertex[0].color = panel->divider.vertex[1].color = window->color + 2;
+            panel->divider.flags = 0;
+            dividerTop = (unsigned short)window->y + 3;
+            panel->divider.vertex[0].y = dividerTop;
+            dividerBottom = dividerTop + (unsigned short)window->height - 6;
+            panel->divider.vertex[0].b = panel->divider.vertex[1].b = 160;
+            panel->divider.vertex[0].g = panel->divider.vertex[1].g = 160;
+            panel->divider.vertex[0].r = panel->divider.vertex[1].r = 160;
+            panel->divider.vertex[0].a = panel->divider.vertex[1].a = 128;
+            panel->divider.vertex[1].y = dividerBottom;
+            endPrintExtFunc(window->color, 0, &panel->divider);
+        }
+            if (panel->rows == 0) {
+                panel->message[0].x = (unsigned short)window->x + 19;
+                panel->message[0].color = window->color + 6;
+                panel->message[0].text = panel->text;
+                panel->message[0].y = (unsigned short)window->y + 3;
+                eMessageMain(&panel->message[0]);
+            } else {
+                entry = panel->commands;
+                if (entry == 0) {
+                    break;
+                }
+                i = 0;
+                do {
+                    if (entry->name == 0) {
+                        break;
+                    }
+                    panel->message[i].x = (unsigned short)window->x + 19;
+                    panel->message[i].color = window->color + 6;
+                    panel->message[i].y = (unsigned short)window->y + i * 24 + 3;
+                    if (entry->locked == 0) {
+                        panel->message[i].b = 128;
+                        panel->message[i].g = 128;
+                        panel->message[i].r = 128;
+                    } else {
+                        panel->message[i].b = 64;
+                        panel->message[i].g = 64;
+                        panel->message[i].r = 64;
+                    }
+                    panel->message[i].text = entry->name;
+                    entry++;
+                    eMessageMain(&panel->message[i]);
+                    i++;
+                } while (i < 12);
+            }
+            panel->marker.x = (unsigned short)window->x + 3;
+            panel->marker.y = (unsigned short)window->y + panel->cursor * 24 + 7;
+            panel->marker.color = window->color + 3;
+            eCursolMain(&panel->marker);
+            break;
+        case 1:
+        case 3: {
+            int width;
+
+            width = xglFontGetStringWidth(panel->text);
+            {
+                int markerAvailable;
+                int markerInset;
+
+                rowShift = MenuSelectLayoutShift(panel);
+                markerAvailable = window->width - width;
+                markerInset = markerAvailable / 2;
+                panel->marker.x = markerInset + (unsigned short)window->x - 16;
+                panel->marker.y = (unsigned short)window->y + (panel->cursor * 24 + rowShift * 20) + 55;
+                panel->marker.color = window->color + 2;
+                eCursolMain(&panel->marker);
+            }
+            panel->message[0].x = (unsigned short)window->x + (window->width - width) / 2;
+            panel->message[0].y = (unsigned short)window->y + rowShift * 20 + 51;
+            panel->message[0].color = window->color + 2;
+            panel->message[0].text = panel->text;
+            eMessageMain(&panel->message[0]);
+            width = xglFontGetStringWidth(panel->heading);
+            panel->message[1].x = (unsigned short)window->x + (window->width - width) / 2;
+            panel->message[1].y = (unsigned short)window->y + 3;
+            panel->message[1].color = window->color + 2;
+            panel->message[1].text = panel->heading;
+            eMessageMain(&panel->message[1]);
+            {
+                int top;
+                int color;
+                int headingOriginX;
+                int headingWidth;
+                int headingRight;
+
+                panel->headingLine.vertex[0].x = (unsigned short)window->x + 3;
+                top = (unsigned short)window->y + rowShift * 9 + 39;
+                color = window->color + 2;
+                panel->headingLine.vertex[0].y = top;
+                headingWidth = (unsigned short)window->width;
+                headingOriginX = (unsigned short)window->x;
+                headingRight = headingOriginX + headingWidth - 3;
+                panel->headingLine.vertex[1].y = top;
+                panel->headingLine.flags = 0;
+                panel->headingLine.vertex[0].color = panel->headingLine.vertex[1].color = color;
+                panel->headingLine.vertex[0].b = panel->headingLine.vertex[1].b = 160;
+                panel->headingLine.vertex[0].g = panel->headingLine.vertex[1].g = 160;
+                panel->headingLine.vertex[0].r = panel->headingLine.vertex[1].r = 160;
+                panel->headingLine.vertex[0].a = panel->headingLine.vertex[1].a = 128;
+                panel->headingLine.vertex[1].x = headingRight;
+                endPrintExtFunc(color, 0, &panel->headingLine);
+            }
+            break;
+        }
+        }
+        break;
+    }
+}
 
 void MenuPasWindow(void) {
 

@@ -13,4 +13,22 @@ unsigned char *PartyDataGet(void);
  */
 extern void PartyDataInit(void);
 
+void PartyFriendOff(int id);
+
+int PartyFriendCheck(int id);
+
+void PartyOutFriendOn(int id);
+
+void PartyOutFriendOff(int id);
+
+int PartyOutFriendCheck(int id);
+
+int PartyFriendLockCheck(int id, int flag);
+
+/* Collects party member ids into out[] and returns how many were stored.
+ * mode 0: the attack line followed by the reserve line,
+ * mode 1: every friend that is not locked out (at most six),
+ * mode 2: every friend that has joined (at most six). */
+int PartyAllPartyGet(int *out, int mode);
+
 #endif /* INCLUDE_MAIN_PARTY_H */

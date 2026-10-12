@@ -7,25 +7,8 @@
 
 #include "shared.h"
 
-typedef struct Vector3 {
-    float x;
-    float y;
-    float z;
-} Vector3;
 
-typedef struct Point4 {
-    float x;
-    float y;
-    float z;
-    float w;
-} Point4;
 
-typedef struct {
-    float x;
-    float y;
-    float z;
-    float w;
-} ParabolaVec;
 
 void Get_Point_By_AngleLength(const Vector4 *source, Vector4 *destination,
                               float angle, float length);
@@ -137,10 +120,6 @@ extern LayoutHeader *UnduDataGetHeader(int map_index, int unit_index);
 typedef unsigned int GameLoopStateWords[];
 extern GameLoopStateWords GameLoopState;
 
-typedef struct PlayerActorHeaderView {
-    unsigned char unmodeled_000[0x4e0];
-    LayoutHeader *data_header;             /* +0x4e0 */
-} PlayerActorHeaderView;
 
 /*
  * UnduParamInit and UnduCheck are still original bytes in src/main/Undulate.c
@@ -148,18 +127,8 @@ typedef struct PlayerActorHeaderView {
  * its own header. Only the fields Get_HeightAttr/Get_Height touch are
  * modeled.
  */
-typedef struct UnduParam {
-    int queryFlags;                        /* +0x00 */
-    unsigned char unmodeled_04[0x08 - 0x04];
-    short attrMask;                        /* +0x08 */
-    unsigned char unmodeled_0a[0x18 - 0x0a];
-    LayoutHeader *header;                  /* +0x18 */
-    unsigned char unmodeled_1c[0x20 - 0x1c];
-    long long attribute;                   /* +0x20: UnduCheck result */
-} UnduParam;
 
 extern void UnduParamInit(UnduParam *param);
-extern void UnduCheck(const Point4 *position, void *exclude, UnduParam *param);
 
 /* Original symbol UnduTest, main VA 0x003b2610, size 0x40
    (config/symbols/main.txt); Undulate.c has no header of its own yet. */

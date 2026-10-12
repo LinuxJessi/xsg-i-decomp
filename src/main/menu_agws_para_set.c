@@ -3,6 +3,7 @@
 #include "shared.h"
 
 #include "menu_agws_para_set.h"
+#include "main/menu_top_command_check.h"
 
 /* These labels are the original menu strings referenced by the message table. */
 
@@ -278,9 +279,293 @@ void AgwsPasMain(void)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_agws_para_set", AgwsInfoMain);
+extern AgwsInfoWork *AgwsInfo;
+extern const char *msg00_1_0036D988[];
+/* Category help reads this table at +0x08 and +0x14; storage stays scaffold. */
+extern const char *msg01_2_0036D990[];
+extern const char *msg02_3_0036D9A0[6];
+extern const char *msg03_4_0036D9B8[5];
+extern const char *msg04_5[4];
+extern const char *msg05_6[5];
+extern const char D_004DAF28[];
+extern const char D_004DAF40[];
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_agws_para_set", AgwsSelectMain);
+void eMessageCpy(void *destination, const void *text);
+void eMessageCat(const void *text);
+void *memset(void *destination, int value, unsigned int size);
+AgwsTextName *MenuTextGet(int index);
+int OptMntToWpnPos(int mountCode);
+const char *MenuCharNameGet(short chrNo);
+
+void AgwsInfoMain(void)
+{
+    AgwsInfoWork *info = AgwsInfo;
+    AgwsUnitOrg *org;
+    short targetY;
+    int position;
+    int selectedPosition;
+    int selectedRow;
+    AgwsListRow *row;
+
+    switch (info->state) {
+    case 0:
+        info->color = 0x00FFFFF0;
+        WindowDXSet(&info->window);
+        info->window.x = -16;
+        info->window.y = 480;
+        info->window.width = 544;
+        info->window.height = 54;
+        info->window.state = 0;
+        info->window.callback = (void (*)(void *, void *))MenuInfoWindow;
+        info->window.callbackArg = &info->contents;
+        info->window.callbackArg->textOffset[0] = 0;
+        info->window.color = info->color;
+        info->window.state = 1;
+        info->contents.textOffset[1] = 0;
+        info->contents.text = 0;
+        WindowDXMain(&info->window);
+        info->window.state = 3;
+        info->state = 2;
+        info->detail = 0;
+        memset(info->text, 0, sizeof(info->text));
+        /* The initialized help panel draws its first message immediately. */
+    case 2:
+        org = func_A191C0(MenuWork.chrNo);
+        targetY = 386;
+        if (info->detail == 0) {
+            if (PadData.half_2a & 0x20)
+                info->detail = 1;
+        } else if (PadData.mappedRepeat != 0) {
+            info->detail = 0;
+        }
+        switch (MenuWork.state) {
+        case 0x10:
+            eMessageCpy(info->text, msg00_1_0036D988[0]);
+            break;
+        case 0x22:
+            eMessageCpy(info->text, msg01_2_0036D990[MenuWork.reserveCursor]);
+            break;
+        case 0x40:
+            if (MenuWork.weaponHand != 3) {
+                if (MenuWork.equipSlot == 0) {
+                    if (org->weaponId[MenuWork.weaponHand] != 0) {
+                        const char **mountText = msg02_3_0036D9A0;
+
+                        position = OptMntToWpnPos(org->hand[MenuWork.weaponHand]);
+                        eMessageCpy(info->text, mountText[position - 1]);
+                        eMessageCat(msg03_4_0036D9B8[0]);
+                        eMessageCat(MenuTextGet((unsigned short)org->weaponId[MenuWork.weaponHand] + 0x30000)->auxiliary);
+                    } else if (MenuWork.reserveCursor == 0) {
+                        eMessageCpy(info->text, msg03_4_0036D9B8[1]);
+                    } else {
+                        eMessageCpy(info->text, msg03_4_0036D9B8[2]);
+                    }
+                } else {
+                    eMessageCpy(info->text, MenuTextGet(org->ammoId[MenuWork.weaponHand] + 0x40000)->auxiliary);
+                    if (MenuWork.reserveCursor == 1 && info->detail == 1)
+                        eMessageCpy(info->text, msg03_4_0036D9B8[3]);
+                }
+            } else {
+                short accessoryId = org->accessoryId[MenuWork.equipSlot];
+
+                if (accessoryId != 0) {
+                    eMessageCpy(info->text,
+                        MenuTextGet((unsigned short)accessoryId + 0x50000)->auxiliary);
+                } else if (MenuWork.reserveCursor == 0) {
+                    eMessageCpy(info->text, msg03_4_0036D9B8[4]);
+                } else {
+                    eMessageCpy(info->text, msg03_4_0036D9B8[2]);
+                }
+            }
+            break;
+        case 0x42: {
+            const char *mountingMessage;
+
+            position = OptMntToWpnPos(org->hand[MenuWork.weaponHand]) - 1;
+            selectedPosition = MenuWork.weaponSlot[MenuWork.selectedIndex] - 1;
+            if (position < 0) {
+                eMessageCpy(info->text, msg04_5[3]);
+                mountingMessage = msg02_3_0036D9A0[selectedPosition];
+            } else if (position == selectedPosition) {
+                eMessageCpy(info->text, msg04_5[1]);
+                eMessageCat(msg02_3_0036D9A0[selectedPosition]);
+                eMessageCat(D_004DAF40);
+                eMessageCat(msg04_5[0]);
+                break;
+            } else {
+                eMessageCpy(info->text, msg04_5[1]);
+                eMessageCat(msg02_3_0036D9A0[position]);
+                eMessageCat(msg04_5[2]);
+                mountingMessage = msg02_3_0036D9A0[selectedPosition];
+            }
+            eMessageCat(mountingMessage);
+            eMessageCat(D_004DAF28);
+            break;
+        }
+        case 0x44:
+            selectedRow = MenuWork.selectedWeapon;
+            if (selectedRow >= 0)
+                eMessageCpy(info->text, MenuTextGet(MenuSortGet(0, selectedRow))->auxiliary);
+            else
+                eMessageCpy(info->text, D_004DAF48);
+            break;
+        case 0x46:
+            selectedRow = MenuWork.selectedAmmo;
+            if (selectedRow >= 0)
+                eMessageCpy(info->text, MenuTextGet(MenuSortGet(0, selectedRow))->auxiliary);
+            else
+                eMessageCpy(info->text, D_004DAF48);
+            break;
+        case 0x60: {
+            if (MenuWork.weaponHand != 2) {
+                const char **categoryText = msg01_2_0036D990;
+
+                eMessageCpy(info->text, categoryText[5]);
+                eMessageCat(categoryText[MenuWork.weaponHand + 2]);
+            } else {
+                eMessageCpy(info->text, msg02_3_0036D9A0[0]);
+            }
+            break;
+        }
+        case 0x62:
+            selectedRow = MenuWork.selectedAccessory;
+            if (selectedRow >= 0)
+                eMessageCpy(info->text, MenuTextGet(MenuSortGet(0, selectedRow))->auxiliary);
+            else
+                eMessageCpy(info->text, D_004DAF48);
+            break;
+        case 0xC2:
+            if (MenuWork.listSelect >= 0) {
+                row = &MenuListGet(0)[MenuWork.listSelect];
+                if ((signed char)row->flag == 1) {
+                    AgwsUnitOrg *selectedOrg = func_A191C0((short)MenuSortAddrGet(0)[MenuWork.listSelect]);
+
+                    eMessageCpy(info->text, row->text);
+                    eMessageCat(msg05_6[2]);
+                    eMessageCat(MenuCharNameGet(selectedOrg->agwsId));
+                    eMessageCat(msg05_6[3]);
+                } else {
+                    if ((signed char)row->equipped == 0)
+                        eMessageCpy(info->text, msg05_6[0]);
+                    else
+                        eMessageCpy(info->text, msg05_6[1]);
+                    eMessageCat(row->text);
+                    eMessageCat(msg05_6[4]);
+                }
+            } else {
+                eMessageCpy(info->text, D_004DAF48);
+            }
+            break;
+        default:
+            targetY = 512;
+            break;
+        }
+        info->contents.text = info->text;
+        MoveSlide(&info->window.y, &targetY, 3.0f);
+        WindowDXMain(&info->window);
+        break;
+    }
+}
+
+extern AgwsSelectWork *AgwsSelect;
+extern char *msg_7_0036D9F8[17];
+extern char *msg01_8_0036DA40[3];
+extern char D_004DAF80[];
+extern char D_004DAF88[];
+extern const char D_004DAF90[];
+extern char mmsg_9[];
+char *strcat(char *destination, const char *source);
+
+void AgwsSelectMain(void)
+{
+    short targetX[4];
+    short targetY[4];
+    AgwsSelectWork *select = AgwsSelect;
+    int i;
+
+    switch (select->state) {
+    case 0: {
+        select->color = 0x00FFFFF0;
+        for (i = 0; i <= 3; i++) {
+            char **menuText;
+            WindowDXSet(&select->window[i]);
+            menuText = msg_7_0036D9F8;
+            select->window[i].color = select->color;
+            select->window[i].title = D_004DAF80;
+            select->contents[i].selectedIndex = 0;
+            select->contents[i].text = menuText[1];
+            select->contents[i].mode = 0;
+            select->window[i].callback.function =
+                (void (*)(void *, void *))MenuSelectWindow;
+            select->window[i].callbackArg.contents = &select->contents[i];
+        }
+        select->contents[2].text = msg01_8_0036DA40[0];
+        select->window[3].title = D_004DAF88;
+        select->contents[3].text = msg01_8_0036DA40[2];
+        select->window[0].x = 544;
+        select->window[0].y = 160;
+        select->window[0].width = 160;
+        select->window[0].height = 78;
+        select->window[1].x = -192;
+        select->window[1].y = 128;
+        select->window[1].width = 166;
+        select->window[1].height = 0;
+        select->window[2].x = 544;
+        select->window[2].y = 176;
+        select->window[2].width = 176;
+        select->window[2].height = 96;
+        select->window[3].x = 544;
+        select->window[3].y = 128;
+        select->window[3].width = 176;
+        select->window[3].height = 112;
+        select->contents[3].mode = 1;
+        select->contents[3].annotation = msg01_8_0036DA40[1];
+        for (i = 0; i < 4; i++) {
+            select->window[i].state = 1;
+            WindowDXMain(&select->window[i]);
+            select->window[i].state = 3;
+        }
+        select->visible = 1;
+        select->selectNo = -1;
+        select->state = 2;
+    }
+        /* The new windows immediately enter their slide animation. */
+    case 2:
+        targetX[0] = 544;
+        targetY[0] = 160;
+        targetX[1] = -192;
+        targetY[1] = 128;
+        targetX[2] = 544;
+        targetY[2] = 176;
+        targetX[3] = 544;
+        targetY[3] = 128;
+        switch (MenuWork.state) {
+        case 0x22:
+            targetX[0] = 272;
+            select->contents[0].selectedIndex = MenuWork.reserveCursor;
+            break;
+        case 0x42:
+            mmsg_9[0] = D_004DAF90[0];
+            i = 0;
+            while (MenuWork.weaponSlot[i] != 0) {
+                strcat(mmsg_9, msg_7_0036D9F8[MenuWork.weaponSlot[i] + 10]);
+                if (++i >= 6)
+                    break;
+            }
+            select->window[1].height = MenuWork.nameRow * 24 + 6;
+            select->contents[1].text = mmsg_9;
+            targetX[1] = 48;
+            select->contents[1].selectedIndex = MenuWork.selectedIndex;
+            break;
+        }
+        for (i = 0; i < 4; i++) {
+            MoveSlide(&select->window[i].x, &targetX[i], 3.0f);
+            MoveSlide(&select->window[i].y, &targetY[i], 3.0f);
+            WindowDXMain(&select->window[i]);
+        }
+        break;
+    }
+}
 
 void MenuAgwsListMake_Wpn(void)
 {
@@ -649,6 +934,9 @@ void AgwsStatusMain(void)
     }
     }
 }
+
+AgwsTextName *MenuTextGet(int index);
+int OptMntToWpnPos(int mountCode);
 
 INCLUDE_ASM("asm/main/nonmatchings/menu_agws_para_set", AgwsWeapon2Main);
 

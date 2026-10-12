@@ -94,6 +94,15 @@ Derivation (no guessing; every input is a file of the build):
 
     data_carve.py derive --root R --unit U --unit-dir D --tu ID --source SRC --obj OBJ [--json-out F]
     data_carve.py check  --root R --unit U --unit-dir D --tu ID --source SRC --obj OBJ
+
+    OBJ is the TU object the build compiled (D/build/c/<tu>.o or <tu>.raw.o), with
+    the cc1 sidecars OBJ.s and OBJ.i the build writes beside it; a copied object
+    without them cannot prove anonymous literals.
+
+Subset gates: when some allocated functions are back to INCLUDE_ASM under a run
+the whole candidate derived, `trim_scaffold_only_items` returns the items only
+their assembly names to the scaffold before the refresh (asm-only literal slots
+stay original bytes at their original addresses; C literals keep theirs).
     data_carve.py show   --root R [--tu ID]
     data_carve.py split  --root R --unit main --unit-dir D --tu ID --obj OBJ --out OUT
 """
@@ -1608,6 +1617,21 @@ def va_bytes(elf, va, size):
         if s.type != 8 and s.flags & 2 and s.addr <= va and va + size <= s.addr + s.size:
             return elf.data[s.offset + va - s.addr:s.offset + va - s.addr + size]
     return None
+
+
+def missing_sidecar(obj, suffix):
+    """How to call `derive`/`check` when the object's cc1 sidecar is absent.
+
+    The proofs read the cc1 assembly (`.s`) and preprocessed source (`.i`) the
+    build writes beside the TU object. A copied object (a form directory's
+    `compiler-emission.o`, say) has neither, so name the supported invocation.
+    """
+    return (f'neither {obj}{suffix} nor {Path(obj).with_suffix(suffix)} exists; pass --obj the '
+            f'TU object the build compiled, build/c/<tu>.o or build/c/<tu>.raw.o under --unit-dir, '
+            f'which the ccas_c rule writes with its <obj>.s and <obj>.i sidecars, together with '
+            f'--source <the TU file that object was compiled from> and --root <the tree whose '
+            f'config/tu/data-carves.json is the starting request> (tools/worker.py '
+            f'tu_data_carve_sync passes exactly these)')
 
 
 def tu_context(root, unit, unit_dir, tu_id):
@@ -3479,7 +3503,8 @@ def refresh_initialized_spans(root, unit, unit_dir, tu_id, obj, elf, ctx, declar
     if not asm_path.is_file():
         asm_path = Path(obj).with_suffix('.s')
     if not asm_path.is_file():
-        raise CarveError(f'{tu_id}: current initialized-span refresh has no cc1 assembly')
+        raise CarveError(f'{tu_id}: current initialized-span refresh has no cc1 assembly '
+                         f'({missing_sidecar(obj, ".s")})')
     assembly = asm_path.read_text(errors='surrogateescape')
     outside_labels = set()
     app = False
@@ -3742,7 +3767,8 @@ def refresh_initialized_spans(root, unit, unit_dir, tu_id, obj, elf, ctx, declar
         if not preprocessed.is_file():
             preprocessed = Path(obj).with_suffix('.i')
         if not preprocessed.is_file():
-            raise CarveError(f'{tu_id}: anonymous refresh has no current preprocessed C input')
+            raise CarveError(f'{tu_id}: anonymous refresh has no current preprocessed C input '
+                             f'({missing_sidecar(obj, ".i")})')
         cpp = preprocessed.read_text(errors='surrogateescape')
         original = Elf(Path(ctx['orig']).read_bytes())
         if unit == 'main' and not literal_coordinates:
@@ -4266,6 +4292,142 @@ def withdraw_candidate_data(root, unit, unit_dir, tu_id, obj, elf, ctx, declared
     return filtered, removed
 
 
+CANDIDATE_BASIS_KINDS = ('candidate', 'derived', 'review-stage')
+
+
+def trim_scaffold_only_items(ctx, declared, c_refs, names_def, scaffold_functions, per_func,
+                             accepted_root=CANONICAL_ROOT, accepted_runs=None, tu_id=None):
+    """Return the items only INCLUDE_ASM/ACCEPTED_ASM code uses to the scaffold.
+
+    An exact-subset gate (tools/worker.py `tu_subset_gate`) reverts the
+    allocated functions that do not reproduce to INCLUDE_ASM, but the private
+    registry still holds the runs the whole candidate derived, when those
+    functions were C. Such a run spans literal-pool or table items that only the
+    reverted functions use (main/tu206: CheckBallBoxCollision's 0.001f at
+    0x004d8268 leads the .lit4 run of InitTest and ColliTest). The subset's C
+    object no longer emits them, the refresh finds no coordinate for the whole
+    span, and the stale run linked the C literals one slot early.
+
+    The rule is the ordinary carve rule applied to the stale request: an item of
+    an unpublished candidate run whose labels a scaffold function (or a scaffold
+    item) names, and that no C function's original assembly names, the C object
+    does not define, and no C-generated item reaches, leaves the run. It stays
+    the original scaffold item at its original address, as for any other
+    unclaimed data: permitted, uncredited scaffolding. Items the C functions name
+    stay in the run in their original order, including items a scaffold function
+    shares. The rest of the run is split at each removed item; the ordinary
+    refresh and split planner then prove every remaining run's coordinates,
+    bytes and relocations, so every C literal lands at its original address or
+    the derivation refuses as before. Published runs are a preservation floor and
+    are never trimmed. Returns (declared, removed).
+    """
+    scaffold_refs = set().union(*scaffold_functions.values()) if scaffold_functions else set()
+    published = (load_registry(accepted_root)['tus'].get(tu_id) or {}) \
+        if accepted_runs is None else accepted_runs
+    protected = [(hx(r['range'][0]), hx(r['range'][1]))
+                 for rows in published.values() for r in rows]
+    sections = [sec for sec in declared if sec not in ('.bss', '.sbss') and sec in ctx['pieces']]
+    if not sections:
+        return declared, []
+    items = {sec: section_items(ctx, sec) for sec in sections}
+    # The items the C side generates or reaches: named by a C function's
+    # original assembly or defined by the C object, then everything such an
+    # item's own data names (a pointer table's strings), transitively.
+    kept = {(sec, i) for sec in sections for i, item in enumerate(items[sec])
+            if set(item['labels']) & (c_refs | names_def)}
+    todo = list(kept)
+    while todo:
+        sec, i = todo.pop()
+        names = item_references(items[sec][i])
+        for tsec in sections:
+            for j, item in enumerate(items[tsec]):
+                if (tsec, j) not in kept and set(item['labels']) & names:
+                    kept.add((tsec, j))
+                    todo.append((tsec, j))
+    scaffold_item_refs = set()
+    for sec in sections:
+        for i, item in enumerate(items[sec]):
+            if (sec, i) not in kept:
+                scaffold_item_refs |= item_references(item)
+    trimmed, removed = {}, []
+    for sec, runs in declared.items():
+        if sec not in sections:
+            trimmed[sec] = copy.deepcopy(runs)
+            continue
+        for run in runs:
+            lo, hi = map(hx, run['range'])
+            parts = run.get('c_input_spans') or []
+            candidate = (run.get('basis') or {}).get('kind') in CANDIDATE_BASIS_KINDS
+            # Named compiler objects and dependency/support spans keep their own
+            # proofs; only anonymous emission (literals, tables) is trimmed here.
+            anonymous = all(p.get('anonymous_emission') is True and not p.get('symbols')
+                            and not p.get('support_only')
+                            and p.get('credit', 'verified') == 'verified' for p in parts)
+            group = [(i, item) for i, item in enumerate(items[sec]) if lo <= item['start'] < hi]
+            tiled = (group and group[0][1]['start'] == lo
+                     and all(a['end'] == b['start'] for (_, a), (_, b) in zip(group, group[1:])))
+            if (not candidate or not anonymous or not tiled or run.get('uncredited_c_symbols')
+                    or run.get('uncredited_scaffold_ranges') or run.get('support_only')):
+                trimmed.setdefault(sec, []).append(copy.deepcopy(run))
+                continue
+            drop = []
+            for i, item in group:
+                labels = set(item['labels'])
+                if ((sec, i) not in kept and labels & (scaffold_refs | scaffold_item_refs)
+                        and not any(a < item['end'] and item['start'] < b for a, b in protected)):
+                    drop.append(i)
+            if not drop:
+                trimmed.setdefault(sec, []).append(copy.deepcopy(run))
+                continue
+            generated_hi = hx((run.get('generated') or run['range'])[1])
+            owners = set(run.get('c_owned_symbols') or [])
+            rows, current = [], []
+            for i, item in group:
+                if i in drop:
+                    removed.append(dict(
+                        section=sec, name=item['name'],
+                        range=[h8(item['start']), h8(min(item['end'], hi))],
+                        referenced_by=sorted(name for name, refs in scaffold_functions.items()
+                                             if set(item['labels']) & refs),
+                        reason='only INCLUDE_ASM/ACCEPTED_ASM code names this item; the original '
+                               'scaffold item stays at its original address'))
+                    if current:
+                        rows.append(current)
+                    current = []
+                else:
+                    current.append(item)
+            if current:
+                rows.append(current)
+            for row_items in rows:
+                start = row_items[0]['start']
+                end = min(row_items[-1]['end'], hi)
+                labels = {label for item in row_items for label in item['labels']}
+                row = copy.deepcopy(run)
+                # Anonymous coordinates are re-proved by the refresh from the
+                # current object: the trimmed run is a legacy request again.
+                row.pop('c_input_spans', None)
+                row.update(range=[h8(start), h8(end)],
+                           generated=[h8(start), h8(min(end, generated_hi))],
+                           c_owned_symbols=[name for name in run.get('c_owned_symbols') or []
+                                            if name in labels],
+                           generated_by=sorted(name for name, refs in per_func.items()
+                                               if labels & refs),
+                           also_referenced_by_c=[name for name in run.get('also_referenced_by_c') or []
+                                                 if name in labels])
+                if not row['c_owned_symbols'] and owners:
+                    row['c_owned_symbols'] = sorted(labels & (c_refs | names_def)) or \
+                        [item['name'] for item in row_items]
+                if row.get('c_storage_aliases'):
+                    row['c_storage_aliases'] = [a for a in row['c_storage_aliases']
+                                                if a['storage_owner']['name'] in labels]
+                    if not row['c_storage_aliases']:
+                        row.pop('c_storage_aliases')
+                trimmed.setdefault(sec, []).append(row)
+    for runs in trimmed.values():
+        runs.sort(key=lambda run: hx(run['range'][0]))
+    return trimmed, removed
+
+
 NOBITS_LAYOUT_SCHEMA = 'nobits-layout-proof/1'
 SHN_COMMON, SHN_MIPS_SCOMMON = 0xFFF2, 0xFF03
 NOBITS_COMMON_INPUTS = {'.sbss': '.scommon', '.bss': 'COMMON'}
@@ -4606,6 +4768,16 @@ def derive(root, unit, unit_dir, tu_id, source, obj, *, _declared=None,
             root, unit, unit_dir, tu_id, obj, elf, ctx, declared, accepted_root, accepted_runs)
         out['declared_current'] = copy.deepcopy(declared)
         out['withdrawn_candidate_data'] = withdrawn
+        # An exact-subset gate reverts functions to INCLUDE_ASM under runs the
+        # whole candidate derived: their asm-only items return to scaffold.
+        declared, scaffold_only = trim_scaffold_only_items(
+            ctx, declared, c_refs, names_def,
+            {n: identifiers([files[n]]) for n in files if n in inc} |
+            {fn: identifiers([Path(unit_dir) / folder / f'{fn}.s']) for fn, folder in acc.items()},
+            per_func, accepted_root, accepted_runs, tu_id)
+        if scaffold_only:
+            out['scaffold_only_items'] = scaffold_only
+            out['declared_current'] = copy.deepcopy(declared)
     heuristic_initialized_aliases_added = False
     declared, nobits_refresh = refresh_nobits_spans(obj, elf, declared)
     if nobits_refresh:
@@ -4666,7 +4838,8 @@ def derive(root, unit, unit_dir, tu_id, source, obj, *, _declared=None,
             if not asm_path.is_file() and Path(str(obj) + '.s').is_file():
                 asm_path = Path(str(obj) + '.s')
             if not asm_path.is_file():
-                raise CarveError(f'{tu_id}: raw cc1 assembly is unavailable next to {obj}')
+                raise CarveError(f'{tu_id}: raw cc1 assembly is unavailable next to {obj} '
+                                 f'({missing_sidecar(obj, ".s")})')
             app = False
             asm_labels = set()
             for line in asm_path.read_text(encoding='utf-8', errors='replace').splitlines():
@@ -5715,7 +5888,8 @@ def main(argv=None):
         got['consistent'] = normalize_runs(declared) == normalize_runs(got['runs']) and not got['problems']
     if a.cmd == 'derive' and a.write and not got['problems']:
         got['written'] = write_registry(a.root, a.tu, got['runs'], basis=basis)
-    elif a.cmd == 'derive' and a.write and got.get('withdrawn_candidate_data'):
+    elif a.cmd == 'derive' and a.write and (got.get('withdrawn_candidate_data') or
+                                            got.get('scaffold_only_items')):
         # Apply only the independently established absence transition, retaining
         # every other request when a separate derivation still needs repair.
         got['withdrawn_only'] = True

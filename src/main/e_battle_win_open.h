@@ -346,6 +346,9 @@ int eBattleWinPageCheck4(void);
 
 void *eBattleWinInit2(void *arg);
 
+/* Contiguous menu-work storage assigned by eBattleWinInit2. */
+
+
 /* Not yet recovered (src/main/window_tex_load.c); matches the prototype
  * already used at its other call sites (src/main/party.c). */
 void *MenuWorkEndGet(void);

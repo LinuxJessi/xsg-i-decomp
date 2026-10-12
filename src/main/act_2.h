@@ -48,7 +48,9 @@ typedef struct ActorAnimSlot {
     float forwardLimit;
     unsigned short currentDataId;
     unsigned short nextDataId;
-    unsigned char unmodeled_18[0x22 - 0x18];
+    unsigned char unmodeled_018[0x1a - 0x18];
+    unsigned short bufferIndex; /* +0x1a */
+    unsigned char unmodeled_01c[0x22 - 0x1c];
     unsigned short animQueuedFlags;
 } ActorAnimSlot;
 
@@ -59,10 +61,15 @@ typedef struct ActorAnimSlot {
  */
 typedef struct ActorAnimationState {
     ActorAnimSlot slot;
-    unsigned char unmodeled_24[0x2c - 0x24];
+    unsigned char unmodeled_024[0x28 - 0x24];
+    float blendEndFrame; /* +0x28 */
     void *animData;
     void *animUserData;
     void *animPack;
+    unsigned char unmodeled_38[0x48 - 0x38]; /* +0x38 */
+    float blendWork[4]; /* +0x48 */
+    unsigned char unmodeled_58[0x60 - 0x58]; /* +0x58 */
+    unsigned short previousDataId; /* +0x60 */
 } ActorAnimationState;
 
 typedef struct ActorAccessoryJointTable {
@@ -70,15 +77,26 @@ typedef struct ActorAccessoryJointTable {
     int jointId[0x29];
 } ActorAccessoryJointTable;
 
+/* Four overrides, bounded by the original Chr pixelAlphaParts setter. */
+typedef struct ActorPartAlpha {
+    short alpha;
+    short partId;
+} ActorPartAlpha;
+
 typedef struct ActorDrawEnv {
     float fogDistance[4];
     float fogColor[4];
     float lightPosition[3][4];
     float lightColor[3][4];
     unsigned int flags;
-    unsigned char unmodeled_84[0xa0 - 0x84];
+    unsigned int renderLevel;
+    int pixelAlpha;
+    int partAlphaCount;
+    ActorPartAlpha partAlpha[4];
     float transparency;
-    unsigned char unmodeled_a4[0xb8 - 0xa4];
+    unsigned char unmodeled_a4[0xb0 - 0xa4];
+    float cameraCullDistance;
+    unsigned char unmodeled_b4[4];
     unsigned long long alpha;
 } ActorDrawEnv;
 
@@ -109,6 +127,21 @@ typedef struct ActorMoveHeader {
     unsigned short extraJointCount;
 } ActorMoveHeader;
 
+/* The actor scale is three float channels plus its copied fourth lane.
+ * Model submission copies the aligned 16-byte value as two doublewords. */
+typedef union ActorScale {
+    Vector4 vector;
+    unsigned long long words[2];
+} ActorScale;
+
+/* Partial light storage: source vectors occupy +0x00..+0x70;
+ * xglLightCalcMatrix writes color (+0x70) and direction (+0xb0). */
+typedef struct ActorCalculatedLight {
+    unsigned char unmodeled_00[0x70];
+    Matrix4 color;
+    Matrix4 direction;
+} ActorCalculatedLight;
+
 typedef struct Actor {
     u32 flags;
     void (*update)(struct Actor *actor);
@@ -119,21 +152,38 @@ typedef struct Actor {
     Vector4 velocity;
     Vector4 acceleration;
     Vector4 rotation;
-    Vector4 scale;
-    unsigned char unmodeled_70[0x86 - 0x70];
+    ActorScale scale;
+    Vector4 globalPosition;
+    unsigned char unmodeled_80[2];
+    unsigned char faceKind;
+    unsigned char humanKind;
+    unsigned char unmodeled_84[2];
     short resourceKind;
-    unsigned char unmodeled_88[0x698 - 0x88];
+    unsigned char unmodeled_088[0x90 - 0x88];
+    unsigned char shadow_kind; /* +0x90 */
+    unsigned char shadowSize;
+    unsigned char unmodeled_092[0x510 - 0x92];
+    ActorCalculatedLight light;
+    unsigned char unmodeled_600[0x670 - 0x600];
+    float shadowClipScale;
+    unsigned char unmodeled_674[2];
+    unsigned short windowId;
+    unsigned char unmodeled_678[8];
+    unsigned short mapShadowPartIds[8];
+    int mapShadowPartCount;
+    unsigned char unmodeled_694[4];
     int attachmentCount;
     int attachmentIndex;
     ActorAttachment attachments[8];
     signed char attachmentUsed[8];
     unsigned char unmodeled_6e8[0x6f0 - 0x6e8];
     ActorAnimationState animation;
-    unsigned char unmodeled_728[0x790 - 0x728];
+    unsigned char unmodeled_754[0x790 - 0x754];
     unsigned char jointProducer[0x7f8 - 0x790];
     ActorAccessoryJointTable *accessoryJoints;
     int moveElementId;
-    unsigned char unmodeled_800[0x824 - 0x800];
+    int shapeCount;
+    unsigned char shapeBindingStorage[0x824 - 0x804];
     void *jointMatrices;
     void *previousJointMatrices;
     void *staticValueRecords;
@@ -149,12 +199,12 @@ typedef struct Actor {
     int childCount;
     struct Actor *children[7];
     ActorDrawEnv drawEnv;
-    unsigned char unmodeled_9e0[0xa70 - 0x9e0];
+    float sortOffset;
+    unsigned char unmodeled_9e4[0xa70 - 0x9e4];
 } Actor;
 
 /* ACT_setVisible's third argument is forwarded to both MDL tail calls. */
 extern void ACT_setVisible(Actor *actor, int part, int visible);
-extern void ACT_modelDrawSub(Actor *actor);
 extern void ACT_updateMotionSub(Actor *actor, int pause);
 
 int ACT_jointGetMoveElementID(Actor *actor);

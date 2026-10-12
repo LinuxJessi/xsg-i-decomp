@@ -14,12 +14,6 @@ typedef unsigned short u16;
 
 typedef unsigned long long u64;
 
-typedef struct {
-    u8 pad_00[0x28];
-    u16 half_28;
-    u16 half_2a;
-} PadPrefix;
-
 typedef struct XglPacket XglPacket;
 
 /*
@@ -45,13 +39,6 @@ typedef unsigned char SceneByte;
 
 typedef struct SceneClass SceneClass;
 
-/*
- * The full 0x40-byte layout of the same VM class record, with the member
- * types the class loader itself uses; its body is private to
- * main/tu227 (src/main/find_native_method.c).
- */
-typedef struct JavaClass JavaClass;
-
 typedef struct SceneString SceneString;
 
 /* Object references begin with a pointer to an object header whose first word is its class. */
@@ -72,6 +59,15 @@ typedef struct ObjectTask ObjectTask;
 typedef signed short s16;
 
 typedef struct RgHeap RgHeap;
+
+typedef struct {
+    u8 pad_00[0x28];
+    u16 half_28;
+    u16 half_2a;
+    unsigned char unmodeled_2c[6];
+    u16 mappedPressed;
+    u16 mappedRepeat;
+} PadPrefix;
 
 /*
  * The helper ABI uses a four-float vector record.  Its pinned implementation
@@ -186,18 +182,6 @@ typedef struct SceneObjectClassRef {
     SceneClass *scene_class; /* +0x0 */
 } SceneObjectClassRef;
 
-/*
- * Full body for the class tag the shared core header only forward-declares.
- * The +24 member is the class's own SceneObjectClassRef: newObject
- * (main 0x002f4828) allocates an instance and copies this word into word 0
- * of the new object (`lw v1,24(s0)` 0x002f4844; `sw v1,0(v0)` 0x002f4850),
- * i.e. it seeds the new object's SceneObjectHeader.class_ref -- the same
- * class-ref record SceneObjectClassRef.scene_class points back from
- * (include/xeno/core/types.h). STAGE_instance (main 0x0025ae30) reads the
- * same class member (`lw a0,24(v0)` 0x0025aef0) to seed the global native
- * camera tcamera (0x00465e10, `sw a0,0(v1)` 0x0025aef8) as a xeno/Camera
- * instance the same way; it has no window.
- */
 struct SceneClass {
     unsigned char unmodeled_00[4];
     SceneClassName *name;
@@ -287,6 +271,10 @@ typedef struct {
     float w;
 } HomogeneousVector;
 
+/* The containing actor's complete historical layout is not established here.
+ * These routines use the individually evidenced actor offsets in candidate.c. */
+typedef struct SequenceActor SequenceActor;
+
 typedef float f32;
 
 typedef void *NmlPacket;
@@ -317,7 +305,13 @@ extern int WakeupThread(int thread_id);
 extern void sceVif1PkRef(XglPacket *packet, const void *environment,
                          int count, int mode, int offset, int flags);
 
+extern char *strcat(char *destination, const char *source);
+
 extern int sprintf(char *destination, const char *format, ...);
+
+int write(int file_descriptor, char *buffer, int length);
+
+int read(int file_descriptor, char *buffer, int length);
 
 int open();
 
@@ -328,8 +322,6 @@ int stat(const char *path, struct stat *status);
 extern u8 *buffer;
 
 extern float defaultOffset[];
-
-extern void xglMatrixUnit(float matrix[4][4]);
 
 extern float sinf(float angle);
 

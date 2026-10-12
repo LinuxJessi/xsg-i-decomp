@@ -8,37 +8,11 @@
 #include "shared.h"
 #include "main/jni.h"
 
-/*
- * The VM thread object JTHREAD_defaultUnit/JTHREAD_defaultChr are installed
- * on as the `entry` hook. src/main/scene_1.h and src/main/script.h already
- * own the same object under the tag `SceneThread` (both restate it with
- * `entry` and more of its fields for their own TUs' needs); that tag
- * belongs to those two TUs, so this one restates only the fields these two
- * functions touch under its own tag instead:
- *
- *   +0x10 object  the Java instance the thread belongs to (lw at
- *                 0x00305470/0x00305538); JNI_callMethod's caller-supplied
- *                 argument block stores it at index 0 (sw at
- *                 0x003054dc/0x003055a4).
- *   +0x18 method  the method to invoke, forwarded straight to
- *                 JNI_callMethod (lw at 0x003054c8/0x00305590).
- *   +0x24 flags   bit 4 (0x10) gates the call below; while it is set, bit 0
- *                 (0x1) is additionally tested and, if set, cleared while
- *                 bit 1 (0x2) is set instead (0x003054b0..0x003054c4). After
- *                 the call, bit 3 (0x8) being set is what clears bit 4
- *                 (0x003054e0..0x003054f4).
- *
- * Nothing else is read or written here; the record is not modeled beyond
- * +0x24.
- */
-typedef struct JThreadHandle {
-    unsigned char unmodeled_00[0x10];
-    SceneObject object;             /* +0x10 */
-    unsigned char unmodeled_14[0x18 - 0x14];
-    SceneMethod *method;            /* +0x18 */
-    unsigned char unmodeled_1c[0x24 - 0x1c];
-    unsigned int flags;             /* +0x24 */
-} JThreadHandle;
+/* The actual JNI thread owns object+0x10, method+0x18 and flags+0x24.
+ * This owner uses that same record through its historical handle name. */
+typedef JThread JThreadHandle;
+
+void JTHREAD_defaultUnit(JThreadHandle *thread);
 
 /*
  * The Unit class's native peer, reached through its "peer" Java field

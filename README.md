@@ -13,11 +13,11 @@ The Sony SDK and public libraries do not need to be recovered.
 
 ## Progress
 
-Recovered 5,362 of 7,645 in-scope game function(s) (70.137%).
+Recovered 5,737 of 7,645 in-scope game function(s) (75.043%).
 
 | Version | Target | Functions | Progress |
 | --- | --- | ---: | ---: |
-| NTSC-U | `SLUS_204.69` | 2,945 / 3,671 | 80.223% |
+| NTSC-U | `SLUS_204.69` | 3,320 / 3,671 | 90.439% |
 | NTSC-U | `OV01.OVL` | 623 / 1,081 | 57.632% |
 | NTSC-U | `OV02.OVL` | 54 / 110 | 49.091% |
 | NTSC-U | `OV10.OVL` | 155 / 361 | 42.936% |
@@ -55,7 +55,7 @@ are recorded there in full:
 
 | Tool | What the build uses it for | Where it comes from |
 | --- | --- | --- |
-| `ee-gcc2.96-realconv-lp7` | `cc1` for the game code (Monolith) and the C runtime (newlib/libgcc) | the published `ee-gcc2.96` archive, with thirteen documented patches to `cc1` (six single bytes that restore the original decimal-literal rounding, two that restore the R5900 short-loop padding, and five multi-byte alias-analysis patches, fsv1, fsv3 and fsv4: `%lo`-addressed global scalars and struct-field accesses may be reordered in either direction, a non-small-data global's memory reference gets its type's alias set, and gcse load-PRE keeps a fixed scalar load across an in-struct store through a varying pointer) |
+| `ee-gcc2.96-realconv-lp7` | `cc1` for the game code (Monolith) and the C runtime (newlib/libgcc) | the published `ee-gcc2.96` archive, with fifteen documented patches to `cc1` (six single bytes that restore the original decimal-literal rounding, two that restore the R5900 short-loop padding, five multi-byte alias-analysis patches, fsv1, fsv3 and fsv4 (`%lo`-addressed global scalars and struct-field accesses may be reordered in either direction, a non-small-data global's memory reference gets its type's alias set, and gcse load-PRE keeps a fixed scalar load across an in-struct store through a varying pointer), and the two fsv5 (qisi) patches (a `char` sign-extended to 64 bits is `lb` plus a separate in-place `extendsidi2`, never one `extendqidi2_insn`)) |
 | `ee-gcc2.9-991111` | `cc1` for the SCE SDK libraries (Sony's own compiler; out of recovery scope, built from original assembly) | the published `ee-gcc2.9-991111` archive, unmodified |
 | `ee-as-la29-vsqrt` | assembler for every game and runtime object | GNU as 2.9-ee-991111 built from the pinned `ps2-ee-toolchain` commit with the recorded four-change diff (an overlap-safe `memmove`, the `vsqrt` opcode's bits 21-22, labels left before the hazard nops `append_insn` inserts, and `la` of a base register plus a 16-bit constant as one `addiu`) |
 | `ee-as-2.9-plain` | assembler for the SCE SDK objects | the same commit, unpatched |

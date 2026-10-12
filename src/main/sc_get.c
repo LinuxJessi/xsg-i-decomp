@@ -26,6 +26,8 @@ int _nowScript;
 
 int _nowEvent;
 
+extern int _nowDataIdx;
+
 /*
  * scFindScriptData is a genuine tail call (`j sefSearchMapperIndex`, not
  * `jal`) into the mapper-index search main/tu211 (src/main/sef.c) defines;
@@ -57,6 +59,8 @@ extern void scDestroyScript(int script_index);
  * not see an implicit declaration. */
 
 static void scExecScript(void);
+
+static int scDispatchScript(ScriptTask *task);
 
 /*
  * sefExecScheduler runs the effect scheduler's tick; it is defined in
@@ -400,7 +404,28 @@ void scDestroyScriptAll(void)
         scDestroyScript(script_index);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/sc_get", scExecScript);
+static void scExecScript(void)
+{
+    int script;
+    int task;
+    ScriptRecord *scripts = 0;
+
+    for (script = 0; script < 16; script++) {
+        _nowScript = script;
+        if (_scriptWork[script].dataTable != 0) {
+            _nowDataIdx = _scriptWork[script].dataIndex;
+            if (_scriptWork[script].activeTasks == 0) {
+                scDestroyScript(script);
+            } else {
+                for (task = 0; task < 8; task++) {
+                    _nowEvent = task;
+                    scripts = _scriptWork;
+                    scDispatchScript(&scripts[script].tasks[task]);
+                }
+            }
+        }
+    }
+}
 
 void scExecEffect(void)
 {
@@ -1382,11 +1407,14 @@ struct EventTask *scGetTaskAdr(int script_index, int task_index)
 
 void *scGetRegAdr(unsigned int reg)
 {
+    unsigned char *register_address;
+
     if (reg >= 16u) {
         tracePrint((unsigned char *)D_004CC818, reg);
         return (void *)0;
     }
-    return SCRIPT_WORK_BYTES + _nowScript * 1104 + 0x404 + reg * 4;
+    register_address = SCRIPT_WORK_BYTES + (_nowScript * 276 + reg) * 4;
+    return register_address + 0x404;
 }
 
 int scOfsToAdr(int offset)
@@ -1438,5 +1466,3 @@ static const char D_004CC830[32] = "--- effect stack over flow";
 static const char D_004CC870[16] = "--- bad exp(%d)";
 static const char D_004CC898[24] = "data\\simajiri\\movie\\";
 static ScriptZeroPosition _zeroPos_0041E290 = {{0, 0x3f80000000000000ULL}};
-
-

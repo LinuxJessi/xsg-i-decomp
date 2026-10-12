@@ -1,8 +1,43 @@
 #include "common.h"
 
+extern void RES_GetMdlFileName(char *destination, int modelId);
+
+
 #include "main/xgl_cd.h"
 
 #include "menu_1.h"
+int MenuIdChange(short id, int highPart);
+
+
+typedef struct MenuNumberDigits {
+    const char *text[10];
+} MenuNumberDigits;
+
+extern const MenuNumberDigits D_004C5180;
+
+extern const char D_004DAB88[];
+
+extern const unsigned short D_004C51E8[12];
+
+extern const unsigned short D_004C5200[12];
+
+extern const unsigned short D_004C5218[16];
+
+extern const unsigned short D_004C5238[12];
+
+extern void (*f_11[])(int *first, int *second);
+
+extern const unsigned char D_004C5438[9][2];
+
+extern const char *f_base_14[];
+
+extern const char *f_exten_15[];
+
+extern const char *f_ukn_name_16[];
+
+extern const char *f_char_mot_17[];
+
+extern char *f_mons_mot_18[];
 
 static char f_name_0_0036D6C8[21] = "data\\endou\\mapex.bin";
 
@@ -83,9 +118,8 @@ static char *para_name2_5[8] = {
     D_004DABE8, D_004DABE0, D_004DABD8, D_004DABD0
 };
 
-static unsigned char opt_mnt_tbl[8][2] = {
-    {0x20, 0x00}, {0x21, 0x00}, {0x22, 0x00}, {0x23, 0x00},
-    {0x18, 0x00}, {0x19, 0x00}, {0x1A, 0x00}, {0x1B, 0x00}
+static unsigned short opt_mnt_tbl[8] = {
+    0x20, 0x21, 0x22, 0x23, 0x18, 0x19, 0x1A, 0x1B
 };
 
 static char msg_12[9] = "No data.";
@@ -166,6 +200,8 @@ struct PartEquipData {
     unsigned short equipMask; /* +0x6 */
     unsigned char unmodeled_08[2];
     unsigned short category; /* +0xa */
+    unsigned char unmodeled_0c[2];
+    unsigned short associatedId; /* +0xe */
 };
 
 extern PartEquipData *dataFrmGet(int frameId);
@@ -185,10 +221,13 @@ extern PartEquipData *dataEngGet(int engineId);
 typedef struct {
     unsigned char unmodeled_00[0x54];
     short agwsId; /* +0x54 */
-    unsigned char unmodeled_56[0x5e - 0x56];
+    unsigned char unmodeled_056[0x5a - 0x56];
+    signed char weaponMount[3]; /* +0x5a */
+    unsigned char unmodeled_05d[0x5e - 0x5d];
     short weapon[3]; /* +0x5E */
     short accessoryId[3]; /* +0x64 */
-    unsigned char unmodeled_6a[0xa6 - 0x6a];
+    unsigned char unmodeled_06a[0x8e - 0x6a];
+    short etherId[12]; /* +0x8e */
     short skillId[3]; /* +0xa6 */
 } UnitOrgWeapons;
 
@@ -202,9 +241,13 @@ extern UnitOrgWeapons *func_A191C0(int chrNo);
  */
 
 typedef struct {
-    unsigned char unmodeled_00[0x0e];
+    unsigned char unmodeled_000[0x8 - 0x0];
+    unsigned short characterEquipMask; /* +0x8 */
+    unsigned char unmodeled_00a[0xc - 0xa];
+    unsigned short categoryMask; /* +0xc */
     unsigned char mountMask; /* +0xe */
-    unsigned char unmodeled_0f[0x12 - 0x0f];
+    unsigned char unmodeled_00f[0x11 - 0xf];
+    unsigned char equipWeight; /* +0x11 */
     short wagl; /* +0x12 */
 } WeaponWaglData;
 
@@ -453,9 +496,72 @@ int MenuSaveMapTextLoad(int work, int mode)
     return next;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_1", MenuCharHpCheck);
+extern struct MenuCharParameters *func_00A11108(int charId, int *attack, int *defense);
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_1", MenuCharEpCheck);
+int MenuCharHpCheck(int charId)
+{
+    int attack[4];
+    int defense[4];
+    int party[16];
+    int index;
+    int count;
+    struct MenuCharParameters *parameters;
+
+    if (charId == 0) {
+        return 0;
+    }
+    if (charId < 0) {
+        count = PartyAllPartyGet(party, 0);
+        for (index = 0; index < count; index++) {
+            parameters = func_00A11108(party[index], attack, defense);
+            if (parameters->hp != parameters->maxHp) {
+                break;
+            }
+        }
+        if (index == count) {
+            return 1;
+        }
+    } else {
+        func_A191C0(charId);
+        parameters = func_00A11108(charId, attack, defense);
+        if (parameters->hp == parameters->maxHp) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int MenuCharEpCheck(int charId)
+{
+    int attack[4];
+    int defense[4];
+    int party[16];
+    int index;
+    int count;
+    struct MenuCharParameters *parameters;
+
+    if (charId == 0) {
+        return 0;
+    }
+    if (charId < 0) {
+        count = PartyAllPartyGet(party, 0);
+        for (index = 0; index < count; index++) {
+            parameters = func_00A11108(party[index], attack, defense);
+            if (parameters->ep != parameters->maxEp) {
+                break;
+            }
+        }
+        if (index == count) {
+            return 1;
+        }
+    } else {
+        parameters = func_00A11108(charId, attack, defense);
+        if (parameters->ep == parameters->maxEp) {
+            return 1;
+        }
+    }
+    return 0;
+}
 
 int MenuMaryIdChange(int characterId)
 {
@@ -487,14 +593,87 @@ int MenuMainAgwsCheck(int charId)
     return 1;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_1", MenuNumberTextGet);
+char *MenuNumberTextGet(long long number, int digitsBeforeUnits, int leadingZeroes)
+{
+    MenuNumberDigits digits = D_004C5180;
+    long long divisor;
+    long long remaining;
+    int digitCount;
+    int places;
+    int started;
+
+    msg_2_00532A78[0] = D_004DAB88[0];
+    if (digitsBeforeUnits < 0) {
+        divisor = 10;
+        digitCount = 1;
+        while (number / divisor != 0) {
+            divisor *= 10;
+            digitCount++;
+        }
+        digitsBeforeUnits = digitCount;
+    }
+    if (digitsBeforeUnits < 11) {
+        places = digitsBeforeUnits;
+    } else {
+        places = 10;
+    }
+    started = leadingZeroes == 1;
+    remaining = number;
+    while (places > 0) {
+        int exponent;
+        divisor = 10;
+        for (exponent = 1; exponent < places; exponent++) {
+            divisor *= 10;
+        }
+        if (started || remaining / divisor != 0) {
+            started = 1;
+            strcat(msg_2_00532A78, digits.text[(int)(remaining / divisor)]);
+        }
+        places--;
+        remaining %= divisor;
+    }
+    strcat(msg_2_00532A78, digits.text[(int)(remaining % 10)]);
+    return msg_2_00532A78;
+}
 
 char *MenuTagTextGet(int index)
 {
     return tag_name_3[index];
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_1", MenuFaceEpidGet);
+unsigned short MenuFaceEpidGet(int charId, int smallPortrait)
+{
+    unsigned short largeFaces[12];
+    unsigned short largeAgwsFaces[12];
+    unsigned short smallFaces[16];
+    unsigned short smallAgwsFaces[12];
+
+    if (charId == 2) {
+        unsigned short epid = 0x401;
+        if (smallPortrait == 0) {
+            epid = 0xC01;
+        }
+        return epid;
+    }
+    if (smallPortrait == 0) {
+        if ((unsigned int)(charId - 1) < 12U) {
+            __builtin_memcpy(largeFaces, D_004C51E8, sizeof(largeFaces));
+            return largeFaces[charId - 1];
+        }
+        if ((unsigned int)(charId - 17) < 12U) {
+            __builtin_memcpy(largeAgwsFaces, D_004C5200, sizeof(largeAgwsFaces));
+            return largeAgwsFaces[charId - 17];
+        }
+    } else {
+        if ((unsigned int)(charId - 1) < 12U) {
+            __builtin_memcpy(smallFaces, D_004C5218, sizeof(smallFaces));
+            return smallFaces[charId - 1];
+        }
+        __builtin_memcpy(smallAgwsFaces, D_004C5238, sizeof(smallAgwsFaces));
+        return smallAgwsFaces[charId - 17];
+    }
+    return 0;
+}
 
 char *MenuParaNameGet(int index)
 {
@@ -506,7 +685,20 @@ char *MenuParaNameGet2(int index)
     return para_name2_5[index];
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_1", MenuCharNameGet);
+extern char *char_name_6[30];
+extern char *char_name2_7[];
+
+char *MenuCharNameGet(unsigned int charId)
+{
+    char *name = char_name_6[charId];
+
+    if (charId == 5) {
+        if (MenuScenarioNoGet() < 108) {
+            name = char_name2_7[0];
+        }
+    }
+    return name;
+}
 
 MenuTextEntry *MenuTextGet(int index)
 {
@@ -755,13 +947,34 @@ unsigned char PosEquipToOptMnt(int posEquip)
 
     for (bit = 0; bit < 8; bit++) {
         if (((posEquip & 0xFF) >> bit) & 1) {
-            return opt_mnt_tbl[bit][0];
+            return opt_mnt_tbl[bit];
         }
     }
     return 0;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_1", OptMntToPosEquip);
+int OptMntToPosEquip(int mountCode)
+{
+    int position = 0;
+    int equipmentPosition;
+
+    mountCode &= 0xff;
+    if (opt_mnt_tbl[0] == mountCode)
+        return 1;
+    goto advance_position;
+    do {
+advance_position:
+        position++;
+        if (position >= 8)
+            goto no_mount;
+    } while (opt_mnt_tbl[position] != mountCode);
+    equipmentPosition = (1 << position) & 0xff;
+    goto return_equipment_mask;
+no_mount:
+    equipmentPosition = 0;
+return_equipment_mask:
+    return equipmentPosition;
+}
 
 int OptMntToPosEquip2(int mountCode)
 {
@@ -903,7 +1116,142 @@ int MenuWeaponEquipCheck(int charId, int weaponId)
     return (weapon->characterEquipMask & characterMask) != 0;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_1", MenuWeaponEquipPosCheck);
+int MenuWeaponEquipPosCheck(int charId, int weaponId, int weaponPosition, int replacementSlot)
+{
+    UnitOrgWeapons *character;
+    WeaponWaglData *weapon;
+    unsigned char occupiedPositions = 0;
+    unsigned short blockedPositions = 0;
+    int weight;
+    int slot;
+    int equipmentIndex;
+    int requestedPosition;
+    int supportedPositions;
+    int result = 0;
+    int capacity;
+    int mountCode;
+    int bitIndex;
+    int bit;
+    unsigned char alternatives;
+    unsigned char mountMask;
+
+    character = func_A191C0(charId);
+    if ((unsigned int)(weaponId - 1) >= 115U) {
+        return 0;
+    }
+    weapon = func_A1A3D8(weaponId);
+    supportedPositions = weapon->mountMask;
+    if (!(weapon->characterEquipMask & chrEquipGet(charId))) {
+        return 0;
+    }
+    capacity = 3;
+    if (charId == 0x1b) {
+        capacity = 2;
+    }
+    weight = 0;
+    for (equipmentIndex = 0; equipmentIndex < 3; equipmentIndex++) {
+        if (character->weapon[equipmentIndex] != 0 && equipmentIndex != replacementSlot) {
+            weight += func_A1A3D8(character->weapon[equipmentIndex])->equipWeight;
+        }
+    }
+    if (capacity < weight + func_A1A3D8(weaponId)->equipWeight) {
+        return 0;
+    }
+    requestedPosition = OptMntToPosEquip(WpnPosToOptMnt(weaponPosition, weaponId) & 0xff);
+    OptMntToPosEquip2(WpnPosToOptMnt(weaponPosition, weaponId) & 0xff);
+    for (equipmentIndex = 0; equipmentIndex < 3; equipmentIndex++) {
+        if (equipmentIndex != replacementSlot) {
+            occupiedPositions = (occupiedPositions | OptMntToPosEquip(character->weaponMount[equipmentIndex] & 0xff)) & 0xff;
+        }
+    }
+    for (equipmentIndex = 0; equipmentIndex < 8; equipmentIndex++) {
+        if ((occupiedPositions >> equipmentIndex) & 1) {
+            mountCode = PosEquipToOptMnt((1 << equipmentIndex) & 0xff);
+            for (slot = 0; slot < 3; slot++) {
+                if (character->weaponMount[slot] == mountCode && character->weapon[slot] != 0) {
+                    int existingBit;
+
+                    weapon = func_A1A3D8(character->weapon[slot]);
+                    mountMask = weapon->mountMask;
+                    for (bitIndex = 0; bitIndex < 2; bitIndex++) {
+                        unsigned short alternatives;
+                        existingBit = 0x80 >> bitIndex;
+                        alternatives = mountMask & ~existingBit & 0xf0;
+                        if (weapon->mountMask & existingBit) {
+                            if (alternatives & 0x10) {
+                                alternatives |= 0x20;
+                            }
+                            if (alternatives & 0x20) {
+                                alternatives |= 0x10;
+                            }
+                            blockedPositions |= alternatives;
+                        }
+                    }
+                    for (bitIndex = 0; bitIndex < 2; bitIndex++) {
+                        unsigned char lowMountMask = weapon->mountMask;
+                        existingBit = 8 >> bitIndex;
+                        alternatives = mountMask & ~existingBit & 0x0f;
+                        if (lowMountMask & existingBit) {
+                            if (alternatives & 1) {
+                                alternatives |= 2;
+                            }
+                            if (alternatives & 2) {
+                                alternatives |= 1;
+                            }
+                            blockedPositions |= alternatives;
+                        }
+                    }
+                }
+            }
+            for (slot = 0; slot < 3; slot++) {
+                if (character->weapon[slot] == 0x4f || character->weapon[slot] == 0x54) {
+                    blockedPositions |= 0x30;
+                }
+            }
+        }
+    }
+    weapon = func_A1A3D8(weaponId);
+    mountMask = weapon->mountMask;
+    for (bitIndex = 0; bitIndex < 2; bitIndex++) {
+        unsigned short alternatives;
+        bit = 0x80 >> bitIndex;
+        alternatives = mountMask & ~bit & 0xf0;
+        if (weapon->mountMask & bit) {
+            if (alternatives & 0x10) {
+                alternatives |= 0x20;
+            }
+            if (alternatives & 0x20) {
+                alternatives |= 0x10;
+            }
+            if (occupiedPositions & alternatives) {
+                blockedPositions = (blockedPositions | bit) & 0xff;
+            }
+        }
+    }
+    for (bitIndex = 0; bitIndex < 2; bitIndex++) {
+        unsigned char lowMountMask = weapon->mountMask;
+        bit = 8 >> bitIndex;
+        alternatives = mountMask & ~bit & 0x0f;
+        if (lowMountMask & bit) {
+            if (alternatives & 1) {
+                alternatives |= 2;
+            }
+            if (alternatives & 2) {
+                alternatives |= 1;
+            }
+            if (occupiedPositions & alternatives) {
+                blockedPositions = (blockedPositions | bit) & 0xff;
+            }
+        }
+    }
+    if ((weaponId == 0x4f || weaponId == 0x54) && (occupiedPositions & 0x30)) {
+        blockedPositions |= 3;
+    }
+    if ((requestedPosition & supportedPositions) && (requestedPosition & ~blockedPositions)) {
+        result = WpnPosToOptMnt(weaponPosition, weaponId) & 0xff;
+    }
+    return result;
+}
 
 int MenuAccessoryEquipCheck(int charId, int accessoryId, int slotIndex)
 {
@@ -1144,7 +1492,30 @@ static void MenuSortSubType00(unsigned int *first, unsigned int *second)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_1", MenuSortChange);
+void MenuSortChange(int bufferIndex, int sortMode)
+{
+    int *entries = sort[bufferIndex];
+    int count = 0;
+    void (*compare)(int *, int *) = f_11[sortMode];
+    int *next = &entries[1];
+    int entry;
+    int first;
+    int second;
+
+    if (entries[0] != 0) {
+        do {
+            entry = *next++;
+            count++;
+        } while (entry != 0);
+    }
+    if (count != 0) {
+        for (first = 0; first < count - 1; first++) {
+            for (second = first + 1; second < count; second++) {
+                compare(&entries[first], &entries[second]);
+            }
+        }
+    }
+}
 
 int MenuSortCheck(int listIndex)
 {
@@ -1163,7 +1534,252 @@ int MenuSortCheck(int listIndex)
     return count;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_1", MenuSortSet);
+void MenuSortSet(int bufferIndex, int categoryMask, int filter)
+{
+    struct MenuWeaponRangePair {
+        unsigned char first;
+        unsigned char last;
+    } weaponRanges[9];
+    int party[8];
+    int *entry = sort[bufferIndex];
+    int id;
+    int first;
+    int last;
+    int range;
+    int weaponCategory;
+    int weaponPosition;
+    int bitIndex;
+    unsigned int mountBits;
+    int availableMounts;
+    int accessoryCategory;
+    int requiresAssociatedId;
+    int partyCount;
+    int *partyMember;
+    int currentMember;
+    WeaponWaglData *weapon;
+    PartEquipData *accessory;
+    UnitOrgWeapons *character;
+    short selectedCharId;
+    short *etherId;
+    int currentEtherId;
+
+    memset(entry, 0, sizeof(sort[bufferIndex]));
+    if (categoryMask & 1) {
+        if (filter == -10) {
+            for (id = 1; id < 73; id++) {
+                *entry++ = MenuIdChange((short)id, 1);
+            }
+        } else {
+            id = 1;
+            goto inventory_bound;
+            do {
+                if (dataItmBoxChk(id) > 0) {
+                    *entry++ = MenuIdChange((short)id, 1);
+                }
+                id++;
+inventory_bound:
+                ;
+            } while (id < 73);
+        }
+    }
+    if (categoryMask & 2) {
+        first = 1;
+        last = 254;
+        if (filter == -1) {
+            first = 53;
+            last = 55;
+        }
+        for (id = first; id <= last; id++) {
+            if (dataEvtBoxChk(id) > 0) {
+                if (id != 10 || MenuEquipStealMaskCheck() != 1) {
+                    *entry++ = (id & 0xffff) + 0x20000;
+                }
+            }
+        }
+    }
+    if ((categoryMask & 4) && MenuEquipStealMaskCheck() == 0) {
+        __builtin_memcpy(weaponRanges, D_004C5438, sizeof(weaponRanges));
+        weaponPosition = 0;
+        switch (filter) {
+        case -2:
+            range = 7;
+            weaponCategory = 0x2000;
+            break;
+        case -1:
+            weaponCategory = 0x4000;
+            range = 8;
+            break;
+        default:
+            if (filter & 0x2000) {
+                weaponCategory = 0x2000;
+                weaponPosition = filter & ~0x2000;
+                range = 7;
+            } else {
+                weaponCategory = 0x4000;
+                range = filter - 1;
+            }
+            break;
+        }
+        for (id = weaponRanges[range].first; id <= weaponRanges[range].last; id++) {
+            if (dataWpnBoxChk(id) > 0) {
+                weapon = func_A1A3D8(id);
+                if (!(weapon->categoryMask & weaponCategory)) {
+                    continue;
+                }
+                if (weaponPosition != 0) {
+                    availableMounts = weapon->mountMask;
+                    mountBits = 0x88;
+                    for (bitIndex = 0; bitIndex < 2; bitIndex++) {
+                        if (availableMounts & mountBits) {
+                            availableMounts &= mountBits;
+                            break;
+                        }
+                        mountBits >>= 1;
+                    }
+                    if (!(availableMounts & OptMntToPosEquip2(WpnPosToOptMnt(weaponPosition, id) & 0xff))) {
+                        continue;
+                    }
+                }
+                *entry++ = MenuIdChange((short)id, 3);
+            }
+        }
+    }
+    if (categoryMask & 8) {
+        id = 0;
+        last = 0;
+        if (MenuEquipStealMaskCheck() == 0) {
+            switch (filter) {
+            case 3: id = 1; last = 15; break;
+            case 2: id = 16; last = 30; break;
+            case 5: id = 31; last = 45; break;
+            case 7: id = 46; last = 63; break;
+            case -1: id = 1; last = 63; break;
+            case -2: id = 64; last = 178; break;
+            case -3: id = 1; last = 178; break;
+            }
+            for (; id <= last; id++) {
+                if (dataBltBoxChk(id) > 0) {
+                    *entry++ = MenuIdChange((short)id, 4);
+                }
+            }
+        }
+    }
+    if ((categoryMask & 0x10) && MenuEquipStealMaskCheck() == 0) {
+        accessoryCategory = filter;
+        requiresAssociatedId = 0;
+        if (filter > 0) {
+            accessoryCategory = filter & 0xff;
+            requiresAssociatedId = filter >> 8;
+        }
+        switch (accessoryCategory) {
+        case -1:
+            for (id = 1; id < 129; id++) {
+                if (dataAccBoxChk(id) > 0) {
+                    *entry++ = MenuIdChange((short)id, 5);
+                }
+            }
+            break;
+        case -2:
+            for (id = 129; id < 181; id++) {
+                if (dataAccBoxChk(id) > 0) {
+                    *entry++ = MenuIdChange((short)id, 5);
+                }
+            }
+            break;
+        case 0:
+        case 1:
+        case 2:
+            for (id = 1; id < 129; id++) {
+                if (dataAccBoxChk(id) <= 0) {
+                    continue;
+                }
+                accessory = func_A1A548(id);
+                if (requiresAssociatedId != 0 && accessory->associatedId == 0) {
+                    continue;
+                }
+                switch (accessoryCategory) {
+                case 0:
+                    if (accessory->category == 1) {
+                        *entry++ = MenuIdChange((short)id, 5);
+                    }
+                    break;
+                case 1:
+                    if (accessory->category == 0) {
+                        *entry++ = MenuIdChange((short)id, 5);
+                    }
+                    break;
+                case 2:
+                    if (accessory->category == 2) {
+                        *entry++ = MenuIdChange((short)id, 5);
+                    }
+                    break;
+                }
+            }
+            break;
+        }
+    }
+    if ((categoryMask & 0x20) && filter == 1) {
+        partyMember = party;
+        partyCount = PartyAllPartyGet(partyMember, 1);
+        id = 0;
+        if (partyCount > 0) {
+            do {
+                currentMember = *partyMember;
+                if (currentMember == 0) {
+                    break;
+                }
+                if (currentMember != 2 && currentMember != 5) {
+                    *entry++ = MenuIdChange((short)*partyMember, 6);
+                }
+                id++;
+                partyMember++;
+            } while (id < partyCount);
+        }
+    }
+    if (categoryMask & 0x40) {
+        selectedCharId = filter;
+        for (id = 1; id < 91; id++) {
+            if (func_A19698(selectedCharId, id) != 0) {
+                *entry++ = (id & 0xffff) + 0x80000;
+            }
+        }
+    }
+    if (categoryMask & 0x80) {
+        selectedCharId = filter;
+        if (((unsigned int)filter >> 16) == 0) {
+            for (id = 1; id < 80; id++) {
+                if (func_A19578(selectedCharId, id) != 0) {
+                    *entry++ = (id & 0xffff) + 0x90000;
+                }
+            }
+        } else {
+            id = 0;
+            character = func_A191C0(selectedCharId);
+            etherId = character->etherId;
+            currentEtherId = *etherId;
+            if (currentEtherId != 0) {
+                currentEtherId = (currentEtherId & 0xffff) + 0x90000;
+                do {
+                    do {
+                        *entry++ = currentEtherId;
+                        ++id;
+                        ++etherId;
+                    } while (0);
+                    if (id < 12) {
+                        currentEtherId = *etherId;
+                        if (currentEtherId == 0) {
+                            break;
+                        }
+                        currentEtherId = (currentEtherId & 0xffff) + 0x90000;
+                        continue;
+                    }
+                    break;
+                } while (1);
+            }
+        }
+    }
+    *entry = 0;
+}
 
 void *MenuSortAddrGet(int listIndex)
 {
@@ -1227,4 +1843,66 @@ MenuListEntry *MenuListGet(int listIndex)
     return mw_list[listIndex];
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_1", MenuFileNameGet);
+char *MenuFileNameGet(int id, unsigned int resourceKind)
+{
+    short modelId = id;
+
+    switch (resourceKind) {
+    case 0:
+    case 1:
+    case 2:
+        if (modelId == 0x2201) {
+            strcpy(fname_13, f_base_14[2]);
+            strcat(fname_13, f_ukn_name_16[0]);
+        } else {
+            RES_GetMdlFileName(fname_13, modelId);
+        }
+        strcat(fname_13, f_exten_15[resourceKind]);
+        break;
+    case 3:
+        switch ((modelId >> 12) & 15) {
+        case 0:
+            strcpy(fname_13, f_base_14[0]);
+            strcat(fname_13, f_char_mot_17[0]);
+            strcat(fname_13, f_exten_15[3]);
+            break;
+        case 2:
+            if (modelId == 0x2201) {
+                strcpy(fname_13, f_base_14[0]);
+                strcat(fname_13, f_char_mot_17[1]);
+                strcat(fname_13, f_exten_15[3]);
+            } else {
+                strcpy(fname_13, f_base_14[0]);
+                strcat(fname_13, f_char_mot_17[2]);
+                strcat(fname_13, f_exten_15[3]);
+            }
+            break;
+        case 4:
+            {
+                int monsterId = modelId == 0x4037 ? 114 : modelId - 0x4000;
+                char *motionName = f_mons_mot_18[0];
+
+                strcpy(fname_13, f_base_14[1]);
+                motionName[7] = monsterId % 10 + '0';
+                monsterId /= 10;
+                motionName[6] = monsterId % 10 + '0';
+                monsterId /= 10;
+                motionName[5] = monsterId % 10 + '0';
+                strcat(fname_13, motionName);
+                strcat(fname_13, f_exten_15[4]);
+            }
+            break;
+        }
+        break;
+    case 4:
+    case 5:
+        RES_GetMdlFileName(fname_13, modelId + 0x10000);
+        if (resourceKind == 4) {
+            strcat(fname_13, f_exten_15[0]);
+        } else {
+            strcat(fname_13, f_exten_15[2]);
+        }
+        break;
+    }
+    return fname_13;
+}

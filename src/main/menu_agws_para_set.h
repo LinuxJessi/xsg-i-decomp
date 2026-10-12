@@ -1,6 +1,44 @@
 #ifndef MENU_AGWS_PARA_SET_H
 #define MENU_AGWS_PARA_SET_H
 
+typedef struct AgwsTextName {
+    const char *name;
+    const unsigned char *auxiliary;
+} AgwsTextName;
+
+typedef struct AgwsInfoContents {
+    short textOffset[2]; /* MenuInfoWindow adds these to the window x and y. */
+    unsigned char unmodeled_04[8];
+    char *text;
+    unsigned char unmodeled_10[0x1B0 - 0x10];
+} AgwsInfoContents;
+
+typedef struct AgwsInfoWindow {
+    short x;
+    short y;
+    int color;
+    short width;
+    short height;
+    const char *title;
+    unsigned char state;
+    unsigned char unmodeled_11[3];
+    void (*callback)(void *window, void *contents);
+    AgwsInfoContents *callbackArg;
+    unsigned char unmodeled_1c[0x194 - 0x1C];
+} AgwsInfoWindow;
+
+typedef struct AgwsInfoWork {
+    unsigned char state;
+    unsigned char unmodeled_01;
+    unsigned char detail;
+    unsigned char unmodeled_03;
+    int color;
+    AgwsInfoWindow window;
+    unsigned char unmodeled_19c[4];
+    AgwsInfoContents contents;
+    char text[256];
+} AgwsInfoWork;
+
 typedef struct AgwsCharPara {
     short maxHp;
     unsigned char unmodeled_02[0x04 - 0x02];
@@ -37,7 +75,11 @@ typedef struct AgwsMenuWork {
     signed char weaponHand;
     signed char equipSlot;
     signed char selectedIndex;
-    unsigned char unmodeled_57[0x64 - 0x57];
+    signed char selectedWeapon; /* +0x57 */
+    signed char selectedAmmo; /* +0x58 */
+    signed char selectedAccessory; /* +0x59 */
+    signed char nameRow;
+    unsigned char unmodeled_5b[0x64 - 0x5B];
     short chrNo;
     unsigned char unmodeled_66[0x80 - 0x66];
 } AgwsMenuWork;
@@ -52,6 +94,12 @@ typedef struct AgwsUnitOrg {
     short hp;
     unsigned char unmodeled_36[0x54 - 0x36];
     short agwsId;
+    unsigned char unmodeled_56[0x5A - 0x56]; /* +0x56 */
+    signed char hand[3]; /* +0x5a */
+    unsigned char unmodeled_5d; /* +0x5d */
+    short weaponId[3]; /* +0x5e */
+    short accessoryId[3]; /* +0x64 */
+    unsigned short ammoId[3]; /* +0x6a */
 } AgwsUnitOrg;
 
 typedef struct AgwsParaDisplay {
@@ -90,7 +138,8 @@ enum {
 #define PAD_R1 0x0008
 
 typedef struct AgwsListRow {
-    unsigned char unmodeled_00[0x08];
+    const char *text; /* +0x0 */
+    unsigned char unmodeled_004[0x8 - 0x4];
     unsigned char flag;
     unsigned char equipped;
     unsigned char unmodeled_0a[0x0C - 0x0A];
@@ -380,5 +429,50 @@ void MenuModelControl2(AgwsModelUnit *unit, int mode);
 void MenuModelUnitOpen(AgwsModelUnit *unit, int drawType);
 int MenuModelWeaponCreate(AgwsModelUnit *unit, int drawType, int weaponIndex);
 int MenuEquipStealMaskCheck(void);
+
+typedef struct AgwsSelectContents {
+    unsigned char unmodeled_00[2];
+    unsigned short mode;
+    int selectedIndex;
+    char *text;
+    char *annotation;
+    unsigned char unmodeled_10[0x5F8 - 0x10];
+} AgwsSelectContents;
+
+typedef union AgwsSelectCallbackStorage {
+    void (*function)(void *window, void *contents);
+    unsigned char bytes[sizeof(void (*)(void *, void *))];
+} AgwsSelectCallbackStorage;
+
+typedef union AgwsSelectContextStorage {
+    AgwsSelectContents *contents;
+    unsigned char bytes[sizeof(AgwsSelectContents *)];
+} AgwsSelectContextStorage;
+
+typedef struct AgwsSelectWindow {
+    short x;
+    short y;
+    int color;
+    short width;
+    short height;
+    char *title;
+    signed char state;
+    unsigned char unmodeled_11[3];
+    AgwsSelectCallbackStorage callback;
+    AgwsSelectContextStorage callbackArg;
+    unsigned char unmodeled_1c[0x194 - 0x1C];
+} AgwsSelectWindow;
+
+typedef struct AgwsSelectWork {
+    unsigned char state;
+    unsigned char visible;
+    signed char selectNo;
+    unsigned char unmodeled_03;
+    int color;
+    AgwsSelectWindow window[4];
+    AgwsSelectContents contents[4];
+} AgwsSelectWork;
+
+extern AgwsSelectWork *AgwsSelect;
 
 #endif

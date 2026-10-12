@@ -97,7 +97,20 @@ void GAME_initLight(void)
     xglLightSetDefault(light);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/game_init_camera", STR_indexReverse);
+char *STR_indexReverse(char *string, int length, int character)
+{
+    int index = (int)((unsigned int)length - 1U);
+
+    while (index >= 0) {
+        char *cursor = &string[index];
+        const long current_character = *cursor;
+
+        --index;
+        if (current_character == character)
+            return cursor;
+    }
+    return 0;
+}
 
 void PAD_getKey(PADKeyResult *result, int pad_index, unsigned int button_mask)
 {

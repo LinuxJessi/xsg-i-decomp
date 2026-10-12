@@ -4,6 +4,8 @@
 
 #include "yajima_test.h"
 
+extern char h_50[7];
+
 extern int printf(const char *format, ...);
 
 extern int sceFormat(char *device, char *block_device, void *argument, int argument_size);
@@ -191,6 +193,49 @@ static int xtxdec_sleep(void);
 
 static int xtxdec_sub(char *filename);
 
+extern int sceRead(int descriptor, void *buffer, int bytes);
+
+extern void *memcpy(void *destination, const void *source, unsigned int size);
+
+extern int sceGsSyncPath(int mode, unsigned int timeout);
+
+extern void sceGsSetDefLoadImage(void *image, short address, short width, short psm, short x,
+                                 short y, short w, short h);
+
+extern int sceGsExecLoadImage(void *image, void *source);
+
+extern int sceGsSetDefStoreImage(void *image, short address, short width, short psm, short x,
+                                 short y, short w, short h);
+
+extern int sceGsExecStoreImage(void *image, void *destination);
+
+
+extern char D_004C13D8[];
+
+extern char D_004C13E8[];
+
+extern char D_004C13F8[];
+
+extern char D_004C1408[];
+
+extern char D_004C1418[];
+
+typedef struct XtxHeader {
+    int magic[2]; /* +0x0 */
+    int image_count;
+    int table_offset;
+} XtxHeader;
+
+typedef struct XtxImageEntry {
+    unsigned int dimensions;
+    short height;
+    unsigned char unmodeled_06[2];
+    unsigned int vram_address;
+    unsigned char unmodeled_0c[4];
+    unsigned int data_offset;
+} XtxImageEntry;
+
+
 extern void sceVif1PkAddDirectDataN(XglPacket *packet, const void *data, int count);
 
 static unsigned char TestEnv_0_0036A030[];
@@ -315,7 +360,7 @@ const char D_004DA390[];
 
 const char D_004DA398[];
 
-#include "xgl_menu.h"
+#include "main/xgl_menu.h"
 
 /* Leaf rows encode the action ID in the menu next-node slot. */
 
@@ -388,6 +433,68 @@ extern char test4_41[];
 extern int GameSnapShotNumber(int number);
 
 extern void GameSnapShotCheck(void);
+
+extern void xglFontDebugHex(int x, int y, int value, int digits);
+
+extern void FlushCache(int mode);
+
+extern int rate_2_004D9F60;
+
+extern int dir_3;
+
+extern int rate_8;
+
+extern int dir_9;
+
+extern char D_004C0838[];
+
+extern char D_004C0888[];
+
+extern char D_004C08A0[];
+
+extern char D_004C08B0[];
+
+extern unsigned char test_1[];
+
+extern char test_4[];
+
+extern char test_5[];
+
+extern char test1_6[];
+
+extern char test2_7[];
+
+extern char test_10[];
+
+extern unsigned char txt_11[];
+
+extern unsigned char xy3_12[];
+
+extern unsigned char xy5_13[];
+
+extern unsigned char xy7_14[];
+
+extern unsigned char xy9_15[];
+
+extern char test_16[];
+
+extern char test_17[];
+
+extern char test_18[];
+
+extern char test_19[];
+
+extern char init_20[];
+
+extern char test_21[];
+
+extern char test_22[];
+
+extern char test_23[];
+
+extern char test_24[];
+
+extern char test_25[];
 
 static void FontTestP0(void);
 
@@ -720,7 +827,93 @@ static void FontTestSub(void)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/yajima_test", FontTestP0);
+static void FontTestP0(void)
+{
+    int i;
+    int offset;
+    unsigned char *table;
+
+    if (PAD_U16_AT(42) & 0x20) {
+        xglFontLoad(0, 0);
+    }
+    if (PAD_U16_AT(42) & 0x40) {
+        xglFontLoad(1, 0);
+    }
+    if (PAD_U16_AT(42) & 0x10) {
+        FontTestSub();
+    }
+    xglFontDebugPrintf(16, 16, D_004C0838);
+    xglFontDebugPrintf(16, 32, D_004C0888);
+    xglFontDebugPrintf(16, 48, D_004C08A0);
+    rate_2_004D9F60 += dir_3;
+    if (rate_2_004D9F60 <= 0) {
+        dir_3 = 1;
+    }
+    if (rate_2_004D9F60 >= 128) {
+        dir_3 = -1;
+    }
+    test_1[3] = rate_2_004D9F60;
+    test_1[1] = 68;
+    test_1[2] = 0;
+    FlushCache(0);
+    xglFontDebugPrintf(16, 64, (char *)test_1);
+    xglFontDebugHex(0, 64, rate_2_004D9F60, 2);
+    xglFontDebugPrintf(48, 80, test_4);
+    xglFontDebugPrintf(16, 80, test_5);
+    xglFontDebugPrintf(20, 96, test1_6);
+    xglFontDebugPrintf(16, 99, test2_7);
+    xglFontPrint(0, 0, 0xFFFFFF, test_10);
+    txt_11[1] = 32;
+    txt_11[3] = 0;
+    xglFontPrint(0, 0, 0xFFFFFF, (char *)txt_11);
+    table = xy3_12;
+    for (i = 0, offset = 2; i < table[0]; i++, offset += 2) {
+        txt_11[1] = table[offset] + 32;
+        txt_11[3] = table[offset + 1] + 32;
+        FlushCache(0);
+        xglFontPrint(0, 0, 0xFFFFFF, (char *)txt_11);
+    }
+    table = xy5_13;
+    for (i = 0, offset = 2; i < table[0]; i++, offset += 2) {
+        txt_11[1] = table[offset] + 32;
+        txt_11[3] = table[offset + 1] + 64;
+        FlushCache(0);
+        xglFontPrint(0, 0, 0xFFFFFF, (char *)txt_11);
+    }
+    table = xy7_14;
+    for (i = 0, offset = 2; i < table[0]; i++, offset += 2) {
+        txt_11[1] = table[offset] + 32;
+        txt_11[3] = table[offset + 1] + 96;
+        FlushCache(0);
+        xglFontPrint(0, 0, 0xFFFFFF, (char *)txt_11);
+    }
+    table = xy9_15;
+    for (i = 0, offset = 2; i < table[0]; i++, offset += 2) {
+        txt_11[1] = table[offset] + 32;
+        txt_11[3] = table[offset + 1] + 128;
+        FlushCache(0);
+        xglFontPrint(0, 0, 0xFFFFFF, (char *)txt_11);
+    }
+    rate_8 += dir_9;
+    if (rate_8 < 2) {
+        dir_9 = 1;
+    }
+    if (rate_8 >= 127) {
+        dir_9 = -1;
+    }
+    xglFontDebugHex(0, 128, rate_8, 2);
+    xglFontDebugPrintf(96, 32, test_16);
+    xglFontDebugPrintf(96, 48, test_17);
+    xglFontDebugPrintf(96, 64, test_18);
+    xglFontDebugPrintf(96, 80, test_19);
+    xglFontPrint(0, 0, 0x10000, init_20);
+    xglFontPrint(192, 192, 0x10000, D_004C08B0);
+    xglFontDebugPrintf(96, 112, test_21);
+    xglFontDebugPrintf(96, 128, test_22);
+    xglFontDebugPrintf(96, 144, test_23);
+    xglFontDebugPrintf(96, 160, test_24);
+    xglFontDebugPrintf(96, 176, test_25);
+}
 
 static void FontTestP1(void)
 {
@@ -1863,7 +2056,185 @@ static void xtxdec_put4byte(LittleEndianWord *destination, int value)
     (*destination)[3] = value >> 24;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/yajima_test", xtxdec_sub);
+static int xtxdec_sub(char *filename)
+{
+    char path[256];
+    unsigned char load_image[96];
+    unsigned char store_image[112];
+    int bits_per_pixel;
+    int left;
+    int top;
+    int width;
+    int height;
+    int origin_x;
+    int origin_y;
+    int palette_size;
+    int count;
+    int tbw;
+    int i;
+    int j;
+    int fd;
+    int read_size;
+    unsigned int dimensions;
+    int pixel_width;
+    char *line;
+    char *src_name;
+    char *dst;
+    unsigned char *out;
+    unsigned char *vram_dst;
+    XtxImageEntry *entry;
+    XtxHeader *header;
+    unsigned char *bmp;
+    unsigned char *palette;
+    int status;
+
+    tbw = 64;
+    bmp = (unsigned char *)0x01410000;
+    sprintf(path, D_004C13D8, filename);
+    memset((void *)0x01000000, 0, 0x10000);
+    fd = sceOpen(path, 1);
+    read_size = sceRead(fd, (void *)0x01000000, 0x10000);
+    printf(D_004C13E8, fd, path, read_size);
+    sceClose(fd);
+    if (((XtxHeader *)0x01000000)->magic[0] != 0x58455423 ||
+        ((XtxHeader *)0x01000000)->magic[1] != 0x314C5455)
+        return -1;
+    line = xtxdec_nextline((char *)0x01000000);
+    if (line == 0)
+        return -1;
+    line = xtxdec_nextline(line);
+    if (line == 0)
+        return -1;
+    sprintf(path, D_004C13F8, filename);
+    memset((void *)0x01010000, 0, 256);
+    fd = sceOpen(path, 1);
+    count = 0;
+    read_size = sceRead(fd, (void *)0x01010000, 0x400000);
+    printf(D_004C13E8, fd, path, read_size);
+    sceClose(fd);
+    xglSleep();
+    sceGsSyncPath(0, 0);
+    header = (XtxHeader *)0x01010000;
+    entry = (XtxImageEntry *)((char *)header + header->table_offset);
+    for (; count < header->image_count; count++) {
+        dimensions = entry->dimensions;
+        pixel_width = dimensions & 0xFFFF;
+        if (dimensions == pixel_width)
+            tbw = (pixel_width + 63) >> 6;
+        else
+            tbw = dimensions >> 16;
+        printf(D_004C1408, tbw, entry->vram_address);
+        sceGsSetDefLoadImage(load_image, (entry->vram_address + 0xE0000) >> 6, tbw, 0, 0, 0,
+                             pixel_width, entry->height);
+        FlushCache(0);
+        sceGsExecLoadImage(load_image, (void *)(0x01010020 + entry->data_offset));
+        entry++;
+    }
+    while (line != 0) {
+        dst = path;
+        for (src_name = h_50; *src_name != 0; src_name++)
+            *dst++ = (unsigned char)*src_name;
+        if (*line != '"')
+            return -1;
+        line++;
+        dst = path + 6;
+        while (*line != '"') {
+            *dst++ = *line;
+            if (*line == '\\')
+                dst = path + 6;
+            line++;
+        }
+        *dst = 0;
+        out = (unsigned char *)0x01410036;
+        status = 0;
+        line = xtxdec_getdec(line + 2, 0);
+        line = xtxdec_getdec(line, &bits_per_pixel);
+        line = xtxdec_getdec(line, 0);
+        line = xtxdec_getdec(line, &left);
+        line = xtxdec_getdec(line, &top);
+        line = xtxdec_getdec(line, &width);
+        line = xtxdec_getdec(line, &height);
+        line = xtxdec_getdec(line, 0);
+        line = xtxdec_getdec(line, &origin_x);
+        line = xtxdec_getdec(line, &origin_y);
+        printf(D_004C1418, path, bits_per_pixel, left, top, width, height, origin_x, origin_y);
+        switch (bits_per_pixel) {
+        default:
+            palette_size = 0;
+            break;
+        case 4:
+            sceGsSetDefStoreImage(store_image, 0x3800, tbw, 0, origin_x, origin_y, 8, 2);
+            FlushCache(0);
+            sceGsExecStoreImage(store_image, (void *)0x01810000);
+            palette_size = 64;
+            break;
+        case 8:
+            vram_dst = (unsigned char *)0x01810000;
+            for (i = 0; i < 16; i += 2) {
+                for (j = 0; j < 16; j += 8) {
+                    sceGsSetDefStoreImage(store_image, 0x3800, tbw, 0, origin_x + j,
+                                          origin_y + i, 8, 2);
+                    FlushCache(0);
+                    sceGsExecStoreImage(store_image, vram_dst);
+                    vram_dst += 64;
+                }
+            }
+            palette_size = 1024;
+            break;
+        }
+        palette = (unsigned char *)0x01810000;
+        for (i = 0; i < palette_size; i += 4) {
+            out[0] = palette[i + 2];
+            out[1] = palette[i + 1];
+            out[2] = palette[i];
+            out[3] = 0;
+            out += 4;
+        }
+        for (i = height - 1; i >= 0; i--) {
+            j = 0;
+            switch (bits_per_pixel) {
+            case 4: break;
+            case 8:
+                sceGsSetDefStoreImage(store_image, 0x3800, tbw * 2, 19, left, top + i, width, 1);
+                j = width;
+                break;
+            case 16: case 24: case 32: break;
+            }
+            if (out != 0) {
+                FlushCache(0);
+                sceGsExecStoreImage(store_image, (void *)0x01810000);
+                memcpy(out, (void *)0x01810000, j);
+                out += j;
+            }
+        }
+        i = out - bmp;
+        out = (unsigned char *)0x0141000E;
+        vram_dst = (unsigned char *)0x01410000;
+        *vram_dst++ = 'B';
+        *vram_dst++ = 'M';
+        xtxdec_put4byte((LittleEndianWord *)0x01410002, i);
+        xtxdec_put4byte((LittleEndianWord *)0x01410006, 0);
+        xtxdec_put4byte((LittleEndianWord *)0x0141000A, palette_size + 54);
+        xtxdec_put4byte((LittleEndianWord *)out, 40);
+        xtxdec_put4byte((LittleEndianWord *)0x01410012, width);
+        xtxdec_put4byte((LittleEndianWord *)0x01410016, height);
+        out[12] = 1;
+        out[13] = 0;
+        out[14] = bits_per_pixel;
+        out[15] = 0;
+        xtxdec_put4byte((LittleEndianWord *)0x0141001E, 0);
+        xtxdec_put4byte((LittleEndianWord *)0x01410022, 0);
+        xtxdec_put4byte((LittleEndianWord *)0x01410026, 0);
+        xtxdec_put4byte((LittleEndianWord *)0x0141002A, 0);
+        xtxdec_put4byte((LittleEndianWord *)0x0141002E, 0);
+        xtxdec_put4byte((LittleEndianWord *)0x01410032, 0);
+        fd = sceOpen(path, 0x602);
+        sceWrite(fd, (void *)0x01410000, i);
+        sceClose(fd);
+        line = xtxdec_nextline(line);
+    }
+    return status;
+}
 
 static int xtxdec_sleep(void)
 {
@@ -2059,5 +2430,3 @@ static XglMenuRow i1_52[7] = {
     { D_004C1508, XGL_MENU_ACTION(7) }
 };
 static XglMenuNode l1_53 = { 7, { 255, 1, 8 }, 0, { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, i1_52 };
-
-

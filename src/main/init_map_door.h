@@ -59,6 +59,7 @@ typedef struct DoorParams {
  */
 typedef union DoorPosition {
     Vector4 values;
+    float lanes[4]; /* scalar view of values; the stores into the linked unit index this */
     u64 words[2];
 } DoorPosition;
 
@@ -95,9 +96,13 @@ typedef struct DoorUnit {
 typedef struct DoorMapUnit {
     unsigned char unmodeled_000[0x10];
     DoorPosition model_position; /* +0x10: position written by GetPartsPos */
-    unsigned char unmodeled_020[0x82];
+    unsigned char unmodeled_020[0x60];
+    DoorModel *model; /* +0x80 */
+    unsigned char unmodeled_084[0x1e];
     signed char open_phase; /* +0xa2: linked doors are marked complete */
-    unsigned char unmodeled_0a3[0x1d];
+    unsigned char unmodeled_0a3[5];
+    unsigned short open_timer; /* +0xa8 */
+    unsigned char unmodeled_0aa[0x16];
     DoorPosition position; /* +0xc0: original ld/sd copy from model_position */
     unsigned char unmodeled_0d0[0xd0];
     DoorParams params; /* +0x1a0 */

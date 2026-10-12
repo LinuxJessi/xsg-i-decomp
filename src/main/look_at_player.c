@@ -1,22 +1,9 @@
 #include "common.h"
 
 #include "shared.h"
+#include "debug_break.h"
 
-typedef struct PlayerLookAtState {
-    u32 unmodeled_00;
-    void *player_actor;
-    u32 unmodeled_08;
-    u32 unmodeled_0c;
-    u32 flags;
-    u8 unmodeled_14[0xc];
-    u32 map_flags;
-    u8 unmodeled_24[0x9c];
-    u8 move_mode;
-    u8 unmodeled_c1[0x29e80];
-    signed char look_at_target;
-    u8 unmodeled_29f42[0x2a014 - 0x29f42];
-    void *effect;
-} PlayerLookAtState;
+#include "main/near_dir.h"
 
 typedef struct ActorUndulation {
     u8 unmodeled_00[8];
@@ -27,6 +14,12 @@ typedef struct PlayerEffect {
     u8 unmodeled_00[0x6bc];
     struct LookAtPlayerActor *owner;
 } PlayerEffect;
+
+typedef struct PlayerEnemyWork {
+    u8 unmodeled_00[0x3830];
+    s16 encount_lock;
+    u8 unmodeled_3832[0x38b0 - 0x3832];
+} PlayerEnemyWork;
 
 typedef struct LookAtPlayerActor {
     u32 flags;
@@ -44,7 +37,14 @@ typedef struct LookAtPlayerActor {
     Vector4 scale;
     u8 unmodeled_70[0x10];
     u8 number;
-    u8 unmodeled_81[0x4c8 - 0x81];
+    u8 signal;
+    u8 unmodeled_82[0x88 - 0x82];
+    s16 frame_counter;
+    u8 unmodeled_8a[0x124 - 0x8a];
+    enum { LOCATOR_FLAGS_PLAYER_INIT = 0x70000 } locator_flags;
+    u8 unmodeled_128[0x4c0 - 0x128];
+    void *java_object;
+    u8 unmodeled_4c4[0x4c8 - 0x4c4];
     ActorUndulation undulation;
     u8 unmodeled_4d2[0x4e8 - 0x4d2];
     u64 terrain_flags;
@@ -74,6 +74,32 @@ typedef struct LookAtPlayerActor {
     u8 unmodeled_a34[0xa70 - 0xa34];
 } LookAtPlayerActor;
 
+extern PlayerEnemyWork enepc[16];
+
+typedef struct PlayerLookAtState {
+    u32 unmodeled_00;
+    void *player_actor;
+    u32 unmodeled_08;
+    u32 unmodeled_0c;
+    u32 flags;
+    u8 unmodeled_14[0xc];
+    u32 map_flags;
+    u8 unmodeled_24[0x9c];
+    u8 move_mode;
+    u8 unmodeled_c1[0x29e80];
+    signed char look_at_target;
+    unsigned char unmodeled_29f42[0x29fa0 - 0x29f42];
+    signed char ladder_direction[16]; /* +0x29fa0 */
+    unsigned char ladder_bottom_exit[16]; /* +0x29fb0 */
+    float ladder_height[16]; /* +0x29fc0 */
+    unsigned char unmodeled_2a000[0x2a014 - 0x2a000];
+    void *effect;
+} PlayerLookAtState;
+
+
+
+
+
 typedef union PlayerAimVector {
     Vector4 vector;
     u64 doublewords[2];
@@ -86,6 +112,46 @@ typedef struct PlayerAimMapUnit {
 } PlayerAimMapUnit;
 
 extern PlayerLookAtState GameLoopState;
+
+typedef struct LookAtSavedPartyPrefix {
+    unsigned char unmodeled_00[0x100a4];
+    u16 player_character_id;
+} LookAtSavedPartyPrefix;
+
+typedef struct LookAtGameResource {
+    u32 address;
+    int size;
+    int handle;
+    int state;
+} LookAtGameResource;
+
+extern unsigned char SaveData[];
+
+extern LookAtGameResource GameResource[128];
+
+void GameCfPlayerLoadResource(int use_cache);
+
+void *GameResourceAlloc(int size);
+
+void *GameResourceGetFreeAddr(void);
+
+void RES_GetLeaderSeName(char *name);
+
+char *RES_GetMotBaseName(int id);
+
+void RES_GetMdlFileName(char *name, int id);
+
+int xglCdReadFile(const char *name, void *address, int size, int arg);
+
+void xglSoundSendEffect(void *first, void *second, int id);
+
+void xglSoundLoadEffect(const char *name, void *address, int id);
+
+int xglFlagsGet(int flag, int value);
+
+void ACT_setModelWrapper(LookAtPlayerActor *player_actor, int mode);
+
+void ACT_setHumanHand(LookAtPlayerActor *player_actor, int mode);
 
 extern LookAtPlayerActor actor[64];
 
@@ -1692,7 +1758,55 @@ void LookAt_Player(LookAtPlayerActor *player_actor)
     Actor_LookAt_Release(player_actor, 1);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/look_at_player", Player_System_Init);
+void Actor_LookAt_Init(LookAtPlayerActor *player_actor);
+extern void UnduParamInit(void *undulation);
+
+void Player_System_Init(LookAtPlayerActor *player_actor)
+{
+    SequenceState *sequence;
+    PlayerEnemyWork *enemy_work;
+    LookAtPlayerActor *player;
+    int i;
+
+    enemy_work = &enepc[player_actor->number];
+    player_actor->signal = 0;
+    player_actor->java_object = 0;
+    player_actor->locator_flags = LOCATOR_FLAGS_PLAYER_INIT;
+    player_actor->frame_counter = 0;
+    player_actor->scale.x = player_actor->scale.y = player_actor->scale.z = player_actor->scale.w = 1.0f;
+    sequence = &actSequence[player_actor->number].state;
+    sequence->flags = 0;
+    sequence->state_flags = 0;
+    sequence->cleared_on_init = 0;
+    sequence->cleared_on_init_run[0] = 0;
+    sequence->cleared_on_init_run[1] = 0;
+    sequence->cleared_on_init_run[2] = 0;
+    sequence->cleared_on_init_run[3] = 0;
+    sequence->handler[0] = 0;
+    sequence->handler[1] = 0;
+    sequence->handler[2] = 0;
+    sequence->handler[3] = 0;
+    UnduParamInit(&player_actor->undulation);
+    player_actor->undulation.attr_mask = 0x1910;
+    for (i = 7; i >= 0; i--) {
+        player_actor->effects[i] = 0;
+    }
+    player_actor->effect_timer = -1;
+    player_actor->effect_slot = 0;
+    if (GameLoopState.effect != 0) {
+        sefDeleteEffectCf(GameLoopState.effect);
+    }
+    GameLoopState.effect = 0;
+    player = GameLoopState.player_actor;
+    player->flash_timer = 0;
+    enemy_work->encount_lock = 0;
+    for (i = 0; i < 16; i++) {
+        GameLoopState.ladder_direction[i] = 0;
+        GameLoopState.ladder_height[i] = 0;
+        GameLoopState.ladder_bottom_exit[i] = 1;
+    }
+    Actor_LookAt_Init(player_actor);
+}
 
 void GameCfPlayerMoveParamSet(float walkThreshold, float runThreshold, float vectorRate)
 {
@@ -2024,4 +2138,99 @@ void PlayerLookAtAim(void)
     Actor_LookAt(player_actor);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/look_at_player", GameCfPlayerLoadResource);
+extern u16 GameCfPlayerLoadResource_preCID;
+
+extern u8 GameCfPlayerLoadResource_preCurry;
+
+void GameCfPlayerLoadResource(int use_cache)
+{
+    char path[256];
+    char leader_se_name[64];
+    char *name_end;
+    unsigned short player_id;
+    unsigned char curry;
+    void *player;
+    int header_0;
+    int header_2;
+
+    player_id = ((LookAtSavedPartyPrefix *)SaveData)->player_character_id;
+    curry = 0;
+    player = GameLoopState.player_actor;
+    if (GameResource[1].address == 0) {
+        GameResourceAlloc(0x12a000);
+    } else if (GameResource[0].size != 0x12a000) {
+        DEBUG_BREAK();
+    }
+    if (GameResource[2].address == 0) {
+        GameResourceAlloc(0);
+    }
+    if (player_id == 1) {
+        if (xglFlagsGet(0x19, 1) != 0) {
+            if (xglFlagsGet(0x1a, 1) == 0) {
+                player_id = 9;
+            }
+        }
+        if (xglFlagsGet(0x73, 1) != 0) {
+            curry = (xglFlagsGet(0x7b, 1) == 0);
+        }
+    }
+    RES_GetLeaderSeName(leader_se_name);
+    xglSoundSendEffect(0, 0, 2);
+    xglSoundLoadEffect(leader_se_name, GameResourceGetFreeAddr(), 2);
+
+    if (use_cache == 0) {
+        header_0 = *(int *)0x01000000;
+        if (header_0 == 0x78656c) {
+            if (*(int *)0x01070800 == 0x585458) {
+                header_2 = *(int *)0x010B1000;
+                if (header_2 == 0x544e4a) {
+                    if (*(int *)0x010B4000 == header_0) {
+                        if (*(int *)0x010E6000 == header_2 &&
+                            (*(int *)0x010E7000 & 0xffffff) == 0x4b5046 &&
+                            GameCfPlayerLoadResource_preCID == player_id) {
+                            if (GameCfPlayerLoadResource_preCurry == curry) {
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    GameCfPlayerLoadResource_preCID = player_id;
+    GameCfPlayerLoadResource_preCurry = curry;
+    RES_GetMdlFileName(path, player_id);
+    name_end = path;
+    if (path[0] != 0) {
+        do {
+            name_end++;
+        } while (*name_end != 0);
+    }
+    __builtin_strcpy(name_end, ".lex");
+    xglCdReadFile(path, (void *)0x01000000, 0, 1);
+    __builtin_strcpy(name_end, ".xtx");
+    xglCdReadFile(path, (void *)0x01070800, 0, 1);
+    __builtin_strcpy(name_end, ".jnt");
+    xglCdReadFile(path, (void *)0x010B1000, 0, 1);
+    RES_GetMdlFileName(path, player_id | 0x10000);
+    name_end = path;
+    if (path[0] != 0) {
+        do {
+            name_end++;
+        } while (*name_end != 0);
+    }
+    __builtin_strcpy(name_end, ".lex");
+    xglCdReadFile(path, (void *)0x010B4000, 0, 1);
+    __builtin_strcpy(name_end, ".jnt");
+    xglCdReadFile(path, (void *)0x010E6000, 0, 1);
+    if (curry == 0) {
+        sprintf(path, "data\\motion\\%s.fpk", RES_GetMotBaseName(player_id));
+    } else {
+        __builtin_strcpy(path, "data\\motion\\shion_curry.fpk");
+    }
+    xglCdReadFile(path, (void *)0x010E7000, 0, 1);
+    ACT_setMotion2(player, 0, 8);
+    ACT_setModelWrapper(player, 0);
+    ACT_setHumanHand(player, 0);
+}

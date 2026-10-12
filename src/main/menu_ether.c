@@ -225,7 +225,11 @@ typedef struct EtherPasMessage {
     short x; /* +0x04 */
     short y; /* +0x06 */
     int color; /* +0x08 */
-    unsigned char unmodeled_0c[0x44 - 0x0C];
+    unsigned char unmodeled_0c[0x10 - 0x0C];
+    signed char glyphColor[4]; /* +0x10; first three bytes are RGB */
+    unsigned char unmodeled_14[0x18 - 0x14];
+    const char *text; /* +0x18 */
+    unsigned char unmodeled_1c[0x44 - 0x1C];
 } EtherPasMessage;
 
 typedef struct EtherPasBox {
@@ -268,7 +272,9 @@ typedef struct EtherMenuWindowDX {
     unsigned char unmodeled_11[0x14 - 0x11];
     void *select; /* +0x14 */
     void *selectArg; /* +0x18 */
-    unsigned char unmodeled_1c[0x194 - 0x1C];
+    unsigned char unmodeled_1c[0x9C - 0x1C];
+    const char *renderTitle; /* +0x9C; active title after initialization */
+    unsigned char unmodeled_a0[0x194 - 0xA0];
 } EtherMenuWindowDX;
 
 typedef struct EtherMenuList {
@@ -437,7 +443,7 @@ void MenuEtherListMake02(int mode);
 
 void MenuEtherListMake03(int mode);
 
-void MenuEtherEquip(void);
+int MenuEtherEquip(void);
 
 int xglCdReadFile(const char *name, void *buffer, int mode, int flags);
 
@@ -574,7 +580,24 @@ int MenuEtherUseCheck(short etherId) {
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_ether", MenuEtherCapSet);
+void MenuEtherCapSet(void) {
+    int chrNo;
+    for (chrNo = 1; chrNo < 8; chrNo++) {
+        EtherUnitRecord *unit = func_A191C0(chrNo);
+        short *equippedEther = unit->etherId;
+        int slot;
+        unit->capUsed = 0;
+        for (slot = 0; slot < 12; slot++) {
+            int etherId = *equippedEther++;
+            if (etherId != 0) {
+                unit->capUsed = (unsigned char)unit->capUsed +
+                    (unsigned char)func_A1A488(etherId)->capCost;
+            } else {
+                break;
+            }
+        }
+    }
+}
 
 void MenuEtherPasMain(void) {
     EtherPasWork *pas = MenuEtherPas;
@@ -763,7 +786,188 @@ void MenuEtherMenuMain(void) {
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_ether", MenuEtherExMain);
+typedef struct EtherDetailRibbon {
+    short x;
+    short y;
+    int work;
+    short width;
+    short height;
+    unsigned char unmodeled_0c[0x70 - 0x0C];
+} EtherDetailRibbon;
+typedef struct EtherDetailFont {
+    unsigned char unmodeled_00[4];
+    short x;
+    short y;
+    int work;
+    unsigned char unmodeled_0c[0x20 - 0x0C];
+} EtherDetailFont;
+typedef struct EtherDetailNumber {
+    short x;
+    short y;
+    int work;
+    unsigned char unmodeled_08[6];
+    unsigned char format;
+    unsigned char digits;
+    unsigned char unmodeled_10[4];
+    int value;
+    unsigned char unmodeled_18[0x90 - 0x18];
+} EtherDetailNumber;
+typedef struct EtherDetailRow {
+    EtherDetailRibbon ribbon;
+    EtherDetailFont font;
+    EtherDetailNumber number;
+} EtherDetailRow;
+typedef struct EtherDetailWork {
+    unsigned char state;
+    unsigned char unmodeled_01[3];
+    int work;
+    EtherDetailRow rows[2];
+    EtherPasMessage message;
+} EtherDetailWork;
+extern const char *msg00_3_0036DC28[];
+extern char *msg01_4_0036DC30[];
+void eRibbonSet(void *ribbon, int mode);
+void eRibbonMain(void *ribbon);
+void eTagFontSet(void *font, const char *text);
+void eTagFontMain(void *font);
+void eNumberSet(void *number, int mode);
+void eNumberMain(void *number);
+
+void MenuEtherExMain(void)
+{
+  EtherDetailWork *screen = (void *) MenuEtherEx;
+  short rowTargets[2];
+  short messageTarget;
+  int i;
+  int equippedSum;
+  EtherUnitRecord *unit;
+  char *messageColor;
+  switch (screen->state)
+  {
+    case 0:
+      screen->work = 0x00FFFFF0;
+      for (i = 0; i < 2; i++)
+    {
+      eRibbonSet(&screen->rows[i].ribbon, 3);
+      screen->rows[i].ribbon.x = -256;
+      screen->rows[i].ribbon.work = screen->work;
+      screen->rows[i].ribbon.y = 48;
+      screen->rows[i].ribbon.width = 256;
+      screen->rows[i].ribbon.height = 24;
+      eTagFontSet(&screen->rows[i].font, msg00_3_0036DC28[i]);
+      screen->rows[i].font.work = screen->work + 2;
+      eNumberSet(&screen->rows[i].number, 0);
+      screen->rows[i].number.work = screen->work + 2;
+    }
+
+      eMessageSet(&screen->message, msg01_4_0036DC30[0]);
+      screen->message.mode = 32;
+      screen->message.x = 528;
+      screen->message.y = 120;
+      screen->message.color = screen->work;
+      screen->state = 2;
+
+    case 2:
+      break;
+
+    default:
+      return;
+
+  }
+
+  messageTarget = 528;
+  rowTargets[1] = -256;
+  rowTargets[0] = -256;
+  switch (MenuWork.state)
+  {
+    case 80:
+      rowTargets[1] = 0;
+      messageTarget = 48;
+      break;
+
+    case 32:
+
+    case 112:
+
+    case 114:
+
+    case 116:
+
+    case 118:
+
+    case 120:
+
+    case 128:
+
+    case 130:
+
+    case 132:
+
+    case 134:
+      rowTargets[0] = 0;
+      break;
+
+  }
+
+  for (i = 0; i < 2; i++)
+  {
+    /* The row's widget updates use the initialized screen work. */
+    EtherDetailWork *renderWork = screen;
+    MoveSlide(&screen->rows[i].ribbon.x, &rowTargets[i], 3.0f);
+    eRibbonMain(&renderWork->rows[i].ribbon);
+    if (i == 0)
+    {
+      renderWork->rows[i].font.x = (screen->rows[i].ribbon.x + renderWork->rows[i].ribbon.width) - 68;
+    }
+    else
+    {
+      screen->rows[i].font.x = (renderWork->rows[i].ribbon.x + screen->rows[i].ribbon.width) - 78;
+    }
+    renderWork->rows[i].font.y = renderWork->rows[i].ribbon.y + 4;
+    eTagFontMain(&screen->rows[i].font);
+    screen->rows[i].number.y = screen->rows[i].ribbon.y + 4;
+    if (i == 0)
+    {
+      EtherCharRecord *character = func_A19210(MenuWork.chrNo);
+      renderWork->rows[i].number.x = (renderWork->rows[i].ribbon.x + renderWork->rows[i].ribbon.width) - 60;
+      screen->rows[i].number.digits = 4;
+      renderWork->rows[i].number.format = 0;
+      screen->rows[i].number.value = character->points;
+    }
+    else
+    {
+      unit = func_A191C0(MenuWork.chrNo);
+      renderWork->rows[i].number.x = (screen->rows[i].ribbon.x + renderWork->rows[i].ribbon.width) - 48;
+      screen->rows[i].number.digits = 2;
+      screen->rows[i].number.format = 3;
+      screen->rows[i].number.value = 0x000C0000 + unit->capUsed;
+    }
+    eNumberMain(&renderWork->rows[i].number);
+  }
+
+  equippedSum = 0;
+  messageColor = &msg01_4_0036DC30[0][1];
+  unit = func_A191C0(MenuWork.chrNo);
+  for (i = 0; i < 12; i++)
+  {
+    equippedSum += unit->etherId[i];
+  }
+
+  if (equippedSum == 0)
+  {
+    messageColor[2] = 64;
+    messageColor[1] = 64;
+    messageColor[0] = 64;
+  }
+  else
+  {
+    messageColor[2] = -128;
+    messageColor[1] = -128;
+    messageColor[0] = -128;
+  }
+  MoveSlide(&screen->message.x, &messageTarget, 3.0f);
+  eMessageMain(&screen->message);
+}
 
 void MenuEtherL1R1Main(void) {
     EtherL1R1Work *self = MenuEtherL1R1;
@@ -834,6 +1038,7 @@ INCLUDE_ASM("asm/main/nonmatchings/menu_ether", MenuEtherStatusMain);
 INCLUDE_ASM("asm/main/nonmatchings/menu_ether", MenuEtherStatusMain2);
 
 INCLUDE_ASM("asm/main/nonmatchings/menu_ether", MenuEtherListMain);
+
 
 INCLUDE_ASM("asm/main/nonmatchings/menu_ether", MenuEtherListMain2);
 
@@ -922,7 +1127,28 @@ void MenuEtherListMake02(int listIndex) {
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_ether", MenuEtherListMake03);
+void MenuEtherListMake03(int listIndex) {
+    EtherListRow *rows = MenuListGet(listIndex);
+    int *sortRow = MenuSortAddrGet(listIndex);
+    EtherCharRecord *character = func_A19210(MenuWork.targetChrNo);
+    int maskByte = (MenuWork.etherId - 1) / 8;
+    int count;
+    int i;
+
+    character->etherMask[maskByte] |= 1 << ((MenuWork.etherId - 1) % 8);
+    MenuSortSet(listIndex, 128, MenuWork.targetChrNo);
+    character->etherMask[maskByte] &= ~(1 << ((MenuWork.etherId - 1) % 8));
+    MenuListMake(listIndex, 0);
+    count = MenuSortCheck(listIndex);
+    for (i = 0; i < count; i++) {
+        rows[i].amount = func_A1A488((short)sortRow[i])->pointCost;
+        if ((short)sortRow[i] == MenuWork.etherId) {
+            rows[i].flag = 1;
+        } else {
+            rows[i].flag = 0;
+        }
+    }
+}
 
 INCLUDE_ASM("asm/main/nonmatchings/menu_ether", MenuEtherEquip);
 

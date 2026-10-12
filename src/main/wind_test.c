@@ -4,6 +4,10 @@
 
 static signed char wtype;
 
+static StudioCamera *pCamera;
+
+static float crx;
+
 /* A pp_init particle (ppInit/ppNextStart/ppNextEnd read and write it up to
  * +0x34).  The original wind particles lie 0x40 apart (wpos 0x00585180, wvec
  * 0x005851C0, after cpos 0x00585140), the same 0x40-byte extent colli_test's
@@ -16,6 +20,8 @@ typedef struct WindParticle {
     float damping;
     unsigned char unmodeled_38[8];
 } WindParticle;
+
+static WindParticle cpos;
 
 static WindParticle wpos;
 
@@ -62,11 +68,16 @@ extern void xglRenderClearFrame(void);
 
 extern void xglSleep(void);
 
-extern int InitTest(void);
+static int InitTest(void);
 
-extern void MoveCamera(void);
+static void MoveCamera(void);
 
 static void MoveWind2(void);
+
+typedef union WindVectorBlock {
+    Vector4 vector;
+    u64 words[2];
+} WindVectorBlock;
 
 struct Actor;
 
@@ -84,6 +95,8 @@ extern double dpsub(double left, double right);
 
 extern float dptofp(double value);
 
+extern float atan2f(float y, float x);
+
 extern double cos(double angle);
 
 extern double sin(double angle);
@@ -92,6 +105,10 @@ extern double sin(double angle);
  * 0x004DC62C, shake 0x004DC630); the INCLUDE_ASM functions reach cry and pAct
  * as cry_004DC61C and pAct_004DC62C. */
 static float cry;
+
+static float crvx;
+
+static float crvy;
 
 static struct Actor *pAct;
 
@@ -117,7 +134,76 @@ typedef struct WindTestDirectionalRecord {
 
 INCLUDE_ASM("asm/main/nonmatchings/wind_test", InitTest_002D9430);
 
-INCLUDE_ASM("asm/main/nonmatchings/wind_test", MoveCamera);
+static void MoveCamera(void)
+{
+    float lookX;
+    float lookZ;
+    float lookHeight;
+    float moveX;
+    float moveZ;
+    double position;
+    double horizontalMove;
+    double verticalMove;
+    double rotatedMove;
+
+    if (PadData[0].buttons.input.held & 2) {
+        crvx -= 0.01f;
+    }
+    if (PadData[0].buttons.input.held & 8) {
+        crvx += 0.01f;
+    }
+    crvy -= (float)PadData[0].axis[0] * 0.0001f;
+    crvx += (float)PadData[0].axis[1] * 0.0001f;
+    cry += crvy;
+    if (cry < 0.0f) {
+        cry += 6.2831855f;
+    } else if (cry > 6.2831855f) {
+        cry -= 6.2831855f;
+    }
+    crx += crvx;
+    if (crx < 0.0f) {
+        crx += 6.2831855f;
+    } else if (crx > 6.2831855f) {
+        crx -= 6.2831855f;
+    }
+    crvy *= 0.8f;
+    crvx *= 0.8f;
+    if ((PadData[0].buttons.input.pressed & 0x400) != 0 ||
+        ((PadData[0].buttons.input.held & 1) != 0 &&
+         (PadData[0].buttons.input.held & 2) != 0)) {
+        crx = crvx = 0.0f;
+    }
+    if ((PadData[0].buttons.input.held & 0x40) != 0) {
+        lookX = -cpos.position.x;
+        lookZ = -cpos.position.z;
+        lookHeight = 1.0f - cpos.position.y;
+        cry = -atan2f(lookX, cpos.position.z);
+        crx = atan2f(lookHeight, __builtin_sqrtf(lookX * lookX + lookZ * lookZ));
+        crvx = crvy = 0.0f;
+    }
+    ppNextStart(&cpos);
+    if (PadData[0].buttons.input.held & 1) {
+        cpos.position.y -= 0.01f;
+    }
+    if (PadData[0].buttons.input.held & 4) {
+        cpos.position.y += 0.01f;
+    }
+    moveX = (float)PadData[0].axis[2] * 0.0001f;
+    moveZ = (float)PadData[0].axis[3] * 0.0001f;
+    position = fptodp(cpos.position.x);
+    horizontalMove = moveX;
+    rotatedMove = horizontalMove * cos(-cry);
+    verticalMove = moveZ;
+    cpos.position.x = position + (rotatedMove - verticalMove * sin(-cry));
+    position = cpos.position.z;
+    rotatedMove = verticalMove * cos(-cry);
+    cpos.position.z = position + (rotatedMove + horizontalMove * sin(-cry));
+    ppNextEnd(&cpos);
+    *(WindVectorBlock *)&pCamera->position = *(WindVectorBlock *)&cpos.position;
+    pCamera->rotation.x = crx;
+    pCamera->rotation.y = cry;
+    pCamera->rotation.z = 0.0f;
+}
 
 static void MoveWind(void)
 {

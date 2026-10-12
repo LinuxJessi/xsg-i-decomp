@@ -2,6 +2,8 @@
 #include "shared.h"
 #include "jthread.h"
 
+#include "main/jni.h"
+
 const char D_004DC080[] = "peer";
 const char D_004DC088[] = "%s.%s";
 

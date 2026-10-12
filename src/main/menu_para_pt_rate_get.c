@@ -4,6 +4,10 @@
 
 #include "main/xgl_task.h"
 
+#include "main/xgl_studio.h"
+#include "main/xgl_2.h"
+
+
 /* This TU defines these menu labels below; their pointer tables precede
  * the storage definitions. Declare their array type before use; the definitions retain each extent. */
 extern const char D_004C5550[];
@@ -198,6 +202,10 @@ typedef struct DirectCircle {
     int segments;                   /* +0x10 */
     unsigned char outerColor[4];    /* +0x14 */
 } DirectCircle;
+
+
+
+
 
 /* Screen-centre origin of the 12.4 fixed-point coordinates
  * xglRotTransPersN returns. */
@@ -2010,7 +2018,7 @@ void MenuCharModelMain(MenuCharacterModel *unit, void *argument);
 
 void MenuBattleModelMain(MenuCharacterModel *unit, void *argument);
 
-int tskCharLineField(XglTaskPrefix *task);
+static int tskCharLineField(XglTaskPrefix *task);
 
 /*
  * The character menu (status, equipment, parameter points and formation).
@@ -2172,7 +2180,36 @@ unsigned short MenuParaUpMaxGet(int statIndex)
     return max;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_para_pt_rate_get", MenuParaNextPointGet);
+int MenuParaNextPointGet(int chrNo, int statIndex, int count)
+{
+    unsigned short base;
+    unsigned short rate;
+    unsigned short now;
+    int increment;
+
+    base = MenuParaPtBaseGet(chrNo, statIndex);
+    rate = MenuParaPtRateGet(chrNo, statIndex);
+    now = MenuParaPtNowGet(chrNo, statIndex);
+    switch (statIndex) {
+    case 0:
+        increment = count * 10;
+        break;
+    case 1:
+        increment = count * 2;
+        break;
+    default:
+        now += count;
+        goto calculateCost;
+    }
+    now += increment;
+
+calculateCost:
+    if (statIndex == 0) {
+        unsigned short normalized = now / 10;
+        return base + rate * normalized / 99;
+    }
+    return base + rate * now / 99;
+}
 
 void MenuParaUp(int chrNo, int statIndex)
 {
@@ -4199,7 +4236,10 @@ void CharPointMain(void)
     }
 }
 
+
 INCLUDE_ASM("asm/main/nonmatchings/menu_para_pt_rate_get", MenuCharCameraSet);
+
+
 
 INCLUDE_ASM("asm/main/nonmatchings/menu_para_pt_rate_get", MenuCharCameraMove);
 

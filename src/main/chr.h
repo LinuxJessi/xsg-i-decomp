@@ -3,6 +3,8 @@
 #ifndef SRC_MAIN_CHR_H
 #define SRC_MAIN_CHR_H
 
+#include "main/jni.h"
+
 typedef unsigned char u8;
 typedef unsigned short u16;
 typedef unsigned int u32;
@@ -251,11 +253,13 @@ typedef struct Actor {
     unsigned char unmodeled_4d2[0x4dc - 0x4d2];
     float translate_y;                          /* +0x4dc */
     LayoutHeader *data_header;                  /* +0x4e0 */
-    unsigned char unmodeled_4e4[0x620 - 0x4e4];
+    unsigned char unmodeled_4e4[0x600 - 0x4e4];
+    u32 look_clear_600[8]; /* +0x600 */
     /* The look_point native copies three float argument slots here. */
     float look_point[3];                     /* +0x620 */
     float look_eye_speed;                       /* +0x62c */
-    unsigned char unmodeled_630[0x660 - 0x630];
+    unsigned char unmodeled_630[0x640 - 0x630];
+    u32 look_clear_640[8]; /* +0x640 */
     float look_eye_angle[2];                     /* +0x660 */
     unsigned char unmodeled_668[0x66c - 0x668];
     float look_speed;                           /* +0x66c */
@@ -403,29 +407,6 @@ typedef union ChrResultValue {
  *                     it sized the allocation from (sh a1,0x40(a1) at
  *                     0x002f06a4).
  */
-typedef struct JThread {
-    unsigned int : 32;                  /* +0x00 */
-    struct JThread *previous;           /* +0x04 */
-    struct JThread *next;               /* +0x08 */
-    u8 kind;                            /* +0x0c */
-    u8 wait_kind;                       /* +0x0d */
-    unsigned short : 16;                /* +0x0e */
-    void *object;                       /* +0x10 */
-    void (*reset)(struct JThread *thread); /* +0x14 */
-    void *method;                       /* +0x18 */
-    unsigned int : 32;                  /* +0x1c */
-    unsigned int : 32;                  /* +0x20 */
-    u32 flags;                          /* +0x24 */
-    u32 *stack;                         /* +0x28 */
-    void *frames;                       /* +0x2c */
-    void *wait_target;                  /* +0x30 */
-    int wait_parameter;                 /* +0x34 */
-    u16 stack_offset;                   /* +0x38 */
-    short stack_limit;                  /* +0x3a */
-    u16 resume_frames;                  /* +0x3c */
-    u16 frame_depth;                    /* +0x3e */
-    short frame_limit;                  /* +0x40 */
-} JThread;
 
 /* The thread is blocked until the actor at wait_target clears Actor.flags
  * bit 1 -- case 4 of JTHREAD_waitFor's table (.L003057E0, 0x00305730). */

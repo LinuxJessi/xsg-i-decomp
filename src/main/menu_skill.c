@@ -396,7 +396,92 @@ void MenuSkillMenuMain(void)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_skill", MenuSkillExMain);
+void MenuSkillExMain(void)
+{
+    MenuSkillExWork *work = (MenuSkillExWork *)MenuSkillEx;
+    short ribbonTarget[2];
+    short messageTarget;
+    int i;
+    SkillUnitOrg *unit;
+    char *messageColor;
+
+    switch (work->state) {
+    case 0:
+        work->color = 0x00fffff0;
+        for (i = 0; i < 2; i++) {
+            eRibbonSet(&work->ribbon[i], 3);
+            work->ribbon[i].x = -272;
+            work->ribbon[i].y = 48 + i * 32;
+            work->ribbon[i].color = work->color;
+            work->ribbon[i].width = 256;
+            work->ribbon[i].height = 24;
+            eTagFontSet(&work->tag[i], msg00_3_0036DD78[i]);
+            work->tag[i].color = work->color + 2;
+            eNumberSet(&work->number[i], 0);
+            work->number[i].color = work->color + 2;
+        }
+        eMessageSet(&work->message, msg00_3_0036DD78[2]);
+        work->message.mode = 32;
+        work->message.x = 528;
+        work->message.y = 120;
+        work->message.color = work->color + 2;
+        work->state = 2;
+        /* fallthrough */
+    case 2:
+        break;
+    default:
+        return;
+    }
+    ribbonTarget[1] = -272;
+    ribbonTarget[0] = -272;
+    messageTarget = 528;
+    switch (MenuWork.state) {
+    case SKILL_EQUIP:
+        messageTarget = 288;
+        /* fallthrough */
+    case SKILL_COMMAND:
+    case SKILL_LEARN:
+    case SKILL_CONFIRM:
+    case SKILL_EXTRACT:
+        ribbonTarget[1] = 0;
+        ribbonTarget[0] = 0;
+        break;
+    }
+    for (i = 0; i < 2; i++) {
+        MoveSlide(&work->ribbon[i].x, &ribbonTarget[i], 3.0f);
+        eRibbonMain(&work->ribbon[i]);
+        work->tag[i].x = work->ribbon[i].x + work->ribbon[i].width - 68;
+        work->tag[i].y = work->ribbon[i].y + 4;
+        eTagFontMain(&work->tag[i]);
+        work->number[i].x = work->ribbon[i].x + work->ribbon[i].width - 60;
+        work->number[i].y = work->ribbon[i].y + 4;
+        work->number[i].style = 0;
+        if (i == 0) {
+            work->number[i].digits = 1;
+            work->number[i].value = SkillCharSkillLvGet(MenuWork.characterNo);
+        } else {
+            PlayerCharacter *character;
+
+            work->number[i].digits = 4;
+            character = dataPlChaGet(MenuWork.characterNo);
+            work->number[i].value = character->skill_points;
+        }
+        eNumberMain(&work->number[i]);
+    }
+    messageColor = msg00_3_0036DD78[2] + 1;
+    unit = func_A191C0(MenuWork.characterNo);
+    if (MenuWork.list_select < 0 || unit->setSkill[0] + unit->setSkill[1] + unit->setSkill[2] == 0) {
+        messageColor[2] = 64;
+        messageColor[1] = 64;
+        messageColor[0] = 64;
+    } else {
+        messageColor[2] = -128;
+        messageColor[1] = -128;
+        messageColor[0] = -128;
+    }
+    MoveSlide(&work->message.x, &messageTarget, 3.0f);
+    eMessageMain(&work->message);
+}
 
 void MenuSkillL1R1Main(void)
 {
@@ -731,7 +816,136 @@ static int MenuSkillListChange01(void)
     return WindowSPSelect(window, 0);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_skill", MenuSkillListMain);
+void MenuSkillListMain(void)
+{
+    MenuSkillListWork *work = MenuSkillList;
+    short target;
+    int equippedCount;
+    int i;
+
+    switch (work->state) {
+    case 0:
+    {
+        work->window.x = 528;
+        work->window.y = 64;
+        work->color = 0x00fffff8;
+        work->window.color = 0x00fffff8;
+        work->window.rowCount = 7;
+        work->window.title = D_004DB600;
+        work->window.rows = 11;
+        work->window.height = 270;
+        work->window.state = 0;
+        work->window.items = 0;
+        WindowSPSet(&work->window);
+        work->window.state = 17;
+        for (equippedCount = 0; equippedCount < 3; equippedCount++) {
+            eSpriteSet(&work->equipped[equippedCount], 1546);
+            work->equipped[equippedCount].work = 0x00ffffff;
+        }
+        for (equippedCount = 0; equippedCount < 8; equippedCount++) {
+            eNumberSet(&work->levelNumber[equippedCount], 0);
+            work->levelNumber[equippedCount].color = 0x00fffffa;
+        }
+        work->resetPending = 0;
+        work->state = 2;
+        work->visible = 0;
+        work->displayMode = 0;
+        /* fallthrough */
+    }
+    case 2:
+        work->visible = 0;
+        work->displayMode = 0;
+        switch (MenuWork.state) {
+        case SKILL_LEARN:
+            work->state = 10;
+            break;
+        case SKILL_EQUIP:
+            work->state = 20;
+            break;
+        }
+        break;
+    case 10:
+    case 20:
+        work->window.x = 528;
+        work->window.y = 160;
+        work->visible = 1;
+        if (work->state == 10) {
+            MenuSkillListChange00();
+            work->displayMode = 1;
+            work->state = 11;
+        } else {
+            MenuSkillListChange01();
+            work->displayMode = 2;
+            work->state = 21;
+        }
+        work->window.state = 17;
+        /* fallthrough */
+    case 11:
+    case 13:
+    case 21:
+        target = 528;
+        switch (work->state) {
+        case 11:
+            target = 220;
+            break;
+        case 21:
+            target = 240;
+            break;
+        }
+        MoveSlide(&work->window.x, &target, 3.0f);
+        if (work->window.x == target) {
+            switch (work->state) {
+            case 11:
+            case 21:
+                work->state = 12;
+                break;
+            case 13:
+                work->state = 2;
+                break;
+            }
+        }
+        break;
+    case 12:
+        if (MenuWork.state == SKILL_COMMAND)
+            work->state = 13;
+        break;
+    }
+    if (work->visible == 0)
+        return;
+    WindowSPMain(&work->window);
+    if (work->displayMode != 0) {
+        equippedCount = 0;
+        if (work->window.itemCount > 0) {
+            for (i = 0; i < 8; i++) {
+                int row = work->window.firstRow + i;
+                if (row < work->window.itemCount) {
+                    if (work->displayMode == 1) {
+                        work->levelNumber[i].x = work->window.x + work->window.width - 85;
+                        work->levelNumber[i].y = work->window.y + i * 24 + 8;
+                        work->levelNumber[i].digits = 1;
+                        work->levelNumber[i].style = 0;
+                        work->levelNumber[i].value = work->window.items[row].level;
+                        if ((signed char)work->window.items[row].locked == 0) {
+                            work->levelNumber[i].blue = -128;
+                            work->levelNumber[i].green = -128;
+                            work->levelNumber[i].red = -128;
+                        } else {
+                            work->levelNumber[i].blue = 64;
+                            work->levelNumber[i].green = 64;
+                            work->levelNumber[i].red = 64;
+                        }
+                        eNumberMain(&work->levelNumber[i]);
+                    } else if (work->window.items[row].level != 0) {
+                        work->equipped[equippedCount].x = work->window.x + work->window.width - 39;
+                        work->equipped[equippedCount].y = work->window.y + i * 24 + 3;
+                        eSpriteMain(&work->equipped[equippedCount]);
+                        equippedCount++;
+                    }
+                }
+            }
+        }
+    }
+}
 
 void MenuSkill(void)
 {

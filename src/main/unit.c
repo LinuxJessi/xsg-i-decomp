@@ -2,35 +2,12 @@
 
 #include "shared.h"
 #include "main/jni.h"
+#include "main/jthread.h"
 
 #include "unit.h"
 
 /* Partial native field views; unknown spans remain byte storage. */
-typedef struct JThreadHandle JThreadHandle;
 typedef struct JThreadNode JThreadNode;
-struct JThread {
-    unsigned int : 32;                  /* +0x00 */
-    struct JThread *previous;           /* +0x04 */
-    struct JThread *next;               /* +0x08 */
-    u8 kind;                            /* +0x0c */
-    u8 wait_kind;                       /* +0x0d */
-    unsigned short : 16;                /* +0x0e */
-    void *object;                       /* +0x10 */
-    void (*reset)(JThreadHandle *thread); /* +0x14 */
-    void *method;                       /* +0x18 */
-    unsigned int : 32;                  /* +0x1c */
-    unsigned int : 32;                  /* +0x20 */
-    u32 flags;                          /* +0x24 */
-    u32 *stack;                         /* +0x28 */
-    void *frames;                       /* +0x2c */
-    void *wait_target;                  /* +0x30 */
-    int wait_parameter;                 /* +0x34 */
-    u16 stack_offset;                   /* +0x38 */
-    short stack_limit;                  /* +0x3a */
-    u16 resume_frames;                  /* +0x3c */
-    u16 frame_depth;                    /* +0x3e */
-    short frame_limit;                  /* +0x40 */
-};
 
 #define UNIT_THREAD_KIND 5
 #define UNIT_WAIT_UNIT 6
@@ -38,7 +15,6 @@ extern SceneString *TYPE_Void;
 extern SceneMethod *findMethod(SceneClass *scene_class, SceneString *name,
                               void *signature_or_type);
 extern void JNI_initThread(SceneVm *vm);
-extern void JTHREAD_defaultUnit(JThreadHandle *thread);
 extern JThreadNode *JTHREAD_get(SceneObject object);
 
 typedef struct UnitVector3 {
@@ -95,6 +71,7 @@ typedef struct UnitNativePeer {
     int render_command;                               /* +0x2e4 */
     int filter_mode;                                  /* +0x2e8 */
     int sort_offset;                                  /* +0x2ec */
+    float filter_params[1];                           /* +0x2f0 */
 } UnitNativePeer;
 
 typedef struct UnitTrack {
@@ -256,6 +233,25 @@ typedef struct UnitRotCall {
     UnitCallSlot slot[3];
 } UnitRotCall;
 
+/*
+ * The rotation natives that follow another unit take it as an Object
+ * argument in the slot the other signatures use for the float or the frame
+ * count.
+ */
+typedef struct UnitRotFramesFollowCall {
+    u8 *object;
+    int frames;  /* +0x04 */
+    u8 *target;  /* +0x08 */
+    u8 wait;     /* +0x0c */
+} UnitRotFramesFollowCall;
+
+typedef struct UnitRotRateFollowCall {
+    u8 *object;
+    u8 *target;  /* +0x04 */
+    float rate;  /* +0x08 */
+    u8 wait;     /* +0x0c */
+} UnitRotRateFollowCall;
+
 typedef struct UnitMoveCall {
     u8 *object;
     UnitCallSlot slot[4];
@@ -327,9 +323,6 @@ extern const char D_004DC1F8[];
  * `JThread` in src/main/chr.h (main's chr TU). This TU forwards a pointer
  * to it without touching any member, so only the tag is declared here.
  */
-
-typedef struct JThread JThread;
-
 /*
  * UNIT_rotY/UNIT_rotZ/UNIT_sclX/UNIT_sclY/UNIT_sclZ are this TU's own
  * INCLUDE_ASM functions (0x00301d58, 0x003020a8, 0x00302ef8, 0x00303168,
@@ -585,7 +578,7 @@ static void UNIT_moveXZ(int mode, JThread *thread, void *arguments,
         if (thread->kind != UNIT_THREAD_KIND && (thread->flags & 0x40) == 0)
             return;
         if ((thread->flags & 0x40) != 0) {
-            thread->wait_target = peer;
+            thread->wait_target.object = peer;
             thread->wait_kind = UNIT_WAIT_UNIT;
             thread->resume_frames = thread->frame_depth;
             thread->flags |= 4;
@@ -595,7 +588,86 @@ static void UNIT_moveXZ(int mode, JThread *thread, void *arguments,
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/unit", UNIT_rotX);
+static void UNIT_rotX(int mode, JThread *thread, void *arguments,
+               u32 *failure_result)
+{
+    UnitRotCall *call = arguments;
+    JavaField *peer_field;
+    JavaField *algorithm_field;
+    UnitNativePeer *peer;
+    float *source;
+    UnitNativeSequence *sequence;
+    UnitRotChannel *channel;
+    u8 *object;
+    UnitRotFramesFollowCall *frames_follow = arguments;
+    UnitRotRateFollowCall *rate_follow = arguments;
+    void *chr_peer;
+    int wait;
+
+    wait = 0;
+    object = call->object;
+    peer_field = lookupClassField(classJava_xeno_Unit,
+                                  loadConstString(D_004DC1D0, -1), 0);
+    peer = *(UnitNativePeer **)(object + peer_field->offset);
+    algorithm_field = lookupClassField(classJava_xeno_Unit,
+                                       loadConstString(D_004D16F8, -1), 0);
+
+    if (*(u32 *)(object + algorithm_field->offset) & 1)
+        source = &peer->rotation.x;
+    else
+        source = defaultOffset_0043C1D0;
+
+    sequence = (UnitNativeSequence *)&unitSequence[peer->serial];
+    sequence->rotateSequence = SEQ_rotateUnit;
+    sequence->state |= 2;
+    channel = &sequence->rotation;
+
+    switch (mode) {
+    case 0:
+        channel->frames[0] = call->slot[0].integer;
+        channel->flags &= ~1;
+        channel->target[0] = (call->slot[1].floating + source[0]) / 180.0f * 3.1415927f;
+        wait = call->slot[2].byte;
+        break;
+    case 1:
+        channel->frames[0] = -1;
+        channel->flags &= ~1;
+        channel->target[0] = (call->slot[0].floating + source[0]) / 180.0f * 3.1415927f;
+        channel->step[0] = call->slot[1].floating / 180.0f * 3.1415927f / 30.0f;
+        wait = call->slot[2].byte;
+        break;
+    case 2:
+        chr_peer = *(void **)(frames_follow->target + algorithm_field->offset);
+        channel->frames[0] = call->slot[0].integer;
+        channel->flags |= 1;
+        channel->track.source = chr_peer;
+        wait = call->slot[2].byte;
+        break;
+    case 3:
+        chr_peer = *(void **)(rate_follow->target + algorithm_field->offset);
+        channel->frames[0] = -1;
+        channel->flags |= 1;
+        channel->track.source = chr_peer;
+        channel->step[0] = call->slot[1].floating / 180.0f * 3.1415927f / 30.0f;
+        wait = call->slot[2].byte;
+        break;
+    }
+
+    if (wait == 1) {
+        peer->flags |= 2;
+        if (thread->kind != UNIT_THREAD_KIND && (thread->flags & 0x40) == 0)
+            return;
+        if ((thread->flags & 0x40) != 0) {
+            thread->wait_target.object = peer;
+            thread->wait_kind = UNIT_WAIT_UNIT;
+            thread->resume_frames = thread->frame_depth;
+            thread->flags |= 4;
+        }
+        thread->resume_frames = thread->frame_depth;
+        thread->flags |= 1;
+    }
+}
+
 
 static void UNIT_rotY(int mode, JThread *thread, void *arguments,
                u32 *failure_result)
@@ -669,7 +741,7 @@ static void UNIT_rotY(int mode, JThread *thread, void *arguments,
         if (thread->kind != UNIT_THREAD_KIND && (thread->flags & 0x40) == 0)
             return;
         if ((thread->flags & 0x40) != 0) {
-            thread->wait_target = peer;
+            thread->wait_target.object = peer;
             thread->wait_kind = UNIT_WAIT_UNIT;
             thread->resume_frames = thread->frame_depth;
             thread->flags |= 4;
@@ -679,7 +751,90 @@ static void UNIT_rotY(int mode, JThread *thread, void *arguments,
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/unit", UNIT_rotZ);
+static void UNIT_rotZ(int mode, JThread *thread, void *arguments,
+               u32 *failure_result)
+{
+    UnitRotCall *call = arguments;
+    JavaField *peer_field;
+    JavaField *algorithm_field;
+    UnitNativePeer *peer;
+    float *source;
+    UnitNativeSequence *sequence;
+    UnitRotChannel *channel;
+    u8 *object;
+    UnitRotFramesFollowCall *frames_follow = arguments;
+    UnitRotRateFollowCall *rate_follow = arguments;
+    void *chr_peer;
+    int wait;
+
+    wait = 0;
+    object = call->object;
+    if (JNI_isInstanceOf(object, classJava_xeno_Unit) == 0) {
+        *failure_result = 0;
+        return;
+    }
+    peer_field = lookupClassField(classJava_xeno_Unit,
+                                  loadConstString(D_004DC1D0, -1), 0);
+    peer = *(UnitNativePeer **)(object + peer_field->offset);
+    algorithm_field = lookupClassField(classJava_xeno_Unit,
+                                       loadConstString(D_004D16F8, -1), 0);
+
+    if (*(u32 *)(object + algorithm_field->offset) & 1)
+        source = &peer->rotation.x;
+    else
+        source = defaultOffset_0043C1D0;
+
+    sequence = (UnitNativeSequence *)&unitSequence[peer->serial];
+    sequence->rotateSequence = SEQ_rotateUnit;
+    sequence->state |= 8;
+    channel = &sequence->rotation;
+
+    switch (mode) {
+    case 0:
+        channel->frames[2] = call->slot[0].integer;
+        channel->flags &= ~4;
+        channel->target[2] = (call->slot[1].floating + source[2]) / 180.0f * 3.1415927f;
+        wait = call->slot[2].byte;
+        break;
+    case 1:
+        channel->frames[2] = -1;
+        channel->flags &= ~4;
+        channel->target[2] = (call->slot[0].floating + source[2]) / 180.0f * 3.1415927f;
+        channel->step[2] = call->slot[1].floating / 180.0f * 3.1415927f / 30.0f;
+        wait = call->slot[2].byte;
+        break;
+    case 2:
+        chr_peer = *(void **)(frames_follow->target + algorithm_field->offset);
+        channel->frames[2] = call->slot[0].integer;
+        channel->flags |= 4;
+        channel->track.source = chr_peer;
+        wait = call->slot[2].byte;
+        break;
+    case 3:
+        chr_peer = *(void **)(rate_follow->target + algorithm_field->offset);
+        channel->frames[2] = -1;
+        channel->flags |= 2;
+        channel->track.source = chr_peer;
+        channel->step[2] = call->slot[1].floating / 180.0f * 3.1415927f / 30.0f;
+        wait = call->slot[2].byte;
+        break;
+    }
+
+    if (wait == 1) {
+        peer->flags |= 2;
+        if (thread->kind != UNIT_THREAD_KIND && (thread->flags & 0x40) == 0)
+            return;
+        if ((thread->flags & 0x40) != 0) {
+            thread->wait_target.object = peer;
+            thread->wait_kind = UNIT_WAIT_UNIT;
+            thread->resume_frames = thread->frame_depth;
+            thread->flags |= 4;
+        }
+        thread->resume_frames = thread->frame_depth;
+        thread->flags |= 1;
+    }
+}
+
 
 void Java_xeno_Unit_getRotate__(JThread *thread, UnitObjectCall *arguments)
 {
@@ -798,7 +953,7 @@ void Java_xeno_Unit_move__Lxeno_util_Spline_IZ(JThread *thread,
         if (thread->kind != UNIT_THREAD_KIND && (thread->flags & 0x40) == 0)
             return;
         if ((thread->flags & 0x40) != 0) {
-            thread->wait_target = peer;
+            thread->wait_target.object = peer;
             thread->wait_kind = UNIT_WAIT_UNIT;
             thread->resume_frames = thread->frame_depth;
             thread->flags |= 4;
@@ -846,7 +1001,7 @@ void Java_xeno_Unit_rotate__Lxeno_util_Spline_IZ(JThread *thread,
         if (thread->kind != UNIT_THREAD_KIND && (thread->flags & 0x40) == 0)
             return;
         if ((thread->flags & 0x40) != 0) {
-            thread->wait_target = peer;
+            thread->wait_target.object = peer;
             thread->wait_kind = UNIT_WAIT_UNIT;
             thread->resume_frames = thread->frame_depth;
             thread->flags |= 4;
@@ -914,7 +1069,7 @@ void UNIT_motion(int mode, JThread *thread, void *arguments,
         if (thread->kind != UNIT_THREAD_KIND && (thread->flags & 0x40) == 0)
             return;
         if ((thread->flags & 0x40) != 0) {
-            thread->wait_target = peer;
+            thread->wait_target.object = peer;
             thread->wait_kind = UNIT_WAIT_UNIT;
             thread->resume_frames = thread->frame_depth;
             thread->flags |= 4;
@@ -1043,7 +1198,7 @@ void Java_xeno_Unit_scale__Lxeno_util_Spline_IZ(JThread *thread,
         if (thread->kind != UNIT_THREAD_KIND && (thread->flags & 0x40) == 0)
             return;
         if ((thread->flags & 0x40) != 0) {
-            thread->wait_target = peer;
+            thread->wait_target.object = peer;
             thread->wait_kind = UNIT_WAIT_UNIT;
             thread->resume_frames = thread->frame_depth;
             thread->flags |= 4;
@@ -1107,7 +1262,7 @@ static void UNIT_sclX(int mode, JThread *thread, void *arguments,
         if (thread->kind != UNIT_THREAD_KIND && (thread->flags & 0x40) == 0)
             return;
         if ((thread->flags & 0x40) != 0) {
-            thread->wait_target = peer;
+            thread->wait_target.object = peer;
             thread->wait_kind = UNIT_WAIT_UNIT;
             thread->resume_frames = thread->frame_depth;
             thread->flags |= 4;
@@ -1183,7 +1338,7 @@ static void UNIT_sclY(int mode, JThread *thread, void *arguments,
         if (thread->kind != UNIT_THREAD_KIND && (thread->flags & 0x40) == 0)
             return;
         if ((thread->flags & 0x40) != 0) {
-            thread->wait_target = peer;
+            thread->wait_target.object = peer;
             thread->wait_kind = UNIT_WAIT_UNIT;
             thread->resume_frames = thread->frame_depth;
             thread->flags |= 4;
@@ -1259,7 +1414,7 @@ static void UNIT_sclZ(int mode, JThread *thread, void *arguments,
         if (thread->kind != UNIT_THREAD_KIND && (thread->flags & 0x40) == 0)
             return;
         if ((thread->flags & 0x40) != 0) {
-            thread->wait_target = peer;
+            thread->wait_target.object = peer;
             thread->wait_kind = UNIT_WAIT_UNIT;
             thread->resume_frames = thread->frame_depth;
             thread->flags |= 4;
@@ -1603,7 +1758,24 @@ void Java_xeno_Unit_setArgs__ILjava_lang_Object_I(JThread *thread,
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/unit", Java_xeno_Unit_setArgs__IIIII);
+void Java_xeno_Unit_setArgs__IIIII(JThread *thread,
+                                   UnitArgsRowCall *arguments)
+{
+    JavaField *peer_field;
+    u8 *object;
+    int row;
+    UnitArgsPeer *peer;
+
+    object = arguments->object;
+    row = arguments->row;
+    peer_field = lookupClassField(classJava_xeno_Unit,
+                                  loadConstString(D_004DC1D0, -1), 0);
+    peer = *(UnitArgsPeer **)(object + peer_field->offset);
+    peer->rows[row].word[0] = arguments->word[0];
+    peer->rows[row].word[1] = arguments->word[1];
+    peer->rows[row].word[2] = arguments->word[2];
+    peer->rows[row].word[3] = arguments->word[3];
+}
 
 void Java_xeno_Unit_getScale__(JThread *thread, UnitObjectCall *arguments,
                                UnitResultValue *result)
@@ -1901,7 +2073,27 @@ void Java_xeno_Unit_setFilter__I(JThread *thread, UnitIntCall *arguments,
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/unit", Java_xeno_Unit_setFilterParam__aF);
+void Java_xeno_Unit_setFilterParam__aF(JThread *thread,
+                                       UnitFilterParamCall *arguments)
+{
+    JavaField *peer_field;
+    u8 *object;
+    UnitNativePeer *peer;
+    UnitFloatArray *values;
+    float *destination;
+    unsigned int count;
+    unsigned int i;
+
+    object = arguments->object;
+    peer_field = lookupClassField(classJava_xeno_Unit,
+                                  loadConstString(D_004DC1D0, -1), 0);
+    values = arguments->values;
+    count = values->length;
+    peer = *(UnitNativePeer **)(object + peer_field->offset);
+    destination = peer->filter_params;
+    for (i = 0; i < count; i++)
+        destination[i] = values->data[i];
+}
 
 void Java_xeno_Unit_setShadow__II(JThread *thread, UnitShadowCall *arguments)
 {

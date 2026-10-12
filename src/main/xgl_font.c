@@ -254,6 +254,8 @@ static const char D_004D2458[16] = "data\\font1.tex";
 
 extern void xglFontReloadTexture(struct FontDrawCursor *cursor, int flags);
 
+extern void sceVif1PkCloseDirectHLCode(XglPacket *packet);
+
 extern int xglFontCheckProportional(unsigned int high, unsigned int low);
 
 extern unsigned int xglFontGetProportionalSize(int code);
@@ -269,6 +271,64 @@ extern int WindowTexLoad(unsigned char *buffer, unsigned int request);
 extern const unsigned char D_004DC2A0[];
 
 extern unsigned char spcode_0[32];
+
+struct FontGsRegisterWrite {
+    unsigned long long value;
+    unsigned long long register_address;
+};
+
+struct FontModePacket {
+    unsigned int vif_commands[4];
+    unsigned long long gif_tag[2];
+    struct FontGsRegisterWrite frame;
+    struct FontGsRegisterWrite state_registers[5];
+};
+
+extern struct FontModePacket ModeEnv[2];
+
+struct FontWindowTextureHeader {
+    char signature[4];
+    unsigned int total_size;
+    int subimage_count;
+    unsigned int table_offset;
+};
+
+struct FontWindowTextureEntry {
+    unsigned int width_and_buffer_width;
+    unsigned int height_word;
+    unsigned int gs_offset;
+    unsigned int dma_quadwords;
+    unsigned int data_offset;
+};
+
+struct FontWindowTransferPacket {
+    unsigned int vif_commands[4];
+    unsigned long long gif_tag[2];
+    struct FontGsRegisterWrite bitbltbuf;
+    struct FontGsRegisterWrite trxpos;
+    struct FontGsRegisterWrite trxreg;
+    struct FontGsRegisterWrite trxdir;
+};
+
+extern const unsigned char KanjiTex0Env_8[];
+
+extern const unsigned char KanjiTex1Env_9[];
+
+extern const unsigned char TestEnv_11_00490BC0[];
+
+extern const unsigned char TestEnv_12_00490C20[];
+
+extern const unsigned char TestEnv_13[];
+
+extern struct FontWindowTransferPacket WinTexEnv_10;
+
+extern unsigned int LoopCount;
+
+extern void sceVif1PkAddDataN(XglPacket *packet, const void *data, int words);
+
+extern void sceVif1PkCnt(XglPacket *packet, int mode);
+
+extern void sceVif1PkOpenDirectHLCode(XglPacket *packet, int mode);
 
 INCLUDE_ASM("asm/main/nonmatchings/xgl_font", xglFontDebugMode);
 
@@ -502,6 +562,8 @@ static void buffer_reset(void)
     state->queue_reset_flag = 0;
 }
 
+extern void sceVif1PkAddDirectDataN(XglPacket *packet, const void *data, int size);
+
 INCLUDE_ASM("asm/main/nonmatchings/xgl_font", xglFontFlushSub);
 
 static void xglFontFlushSubHex(int digit)
@@ -522,6 +584,7 @@ static void xglFontFlushSubCRLF(void)
         cursor->y = normal_y;
     }
 }
+
 
 INCLUDE_ASM("asm/main/nonmatchings/xgl_font", xglFontFlushCore);
 
@@ -598,9 +661,141 @@ unsigned int xglFontAscii2Euc(signed char character, signed char **text)
     return code;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/xgl_font", xglFontReloadTexture);
+void xglFontReloadTexture(struct FontDrawCursor *cursor, int flags)
+{
+    XglPacket *packet = cursor->packet;
+    unsigned int *saved_direct_state;
 
-INCLUDE_ASM("asm/main/nonmatchings/xgl_font", xglFontFlush);
+    cursor->flags |= 0x40;
+    if (packet->directCode && (saved_direct_state = packet->directState)) {
+        sceVif1PkCloseDirectHLCode(packet);
+        if (*saved_direct_state == 0x51000000)
+            cursor->packet->write_cursor -= 4;
+    }
+
+    flags &= 3;
+    if (flags == 1) {
+        sceVif1PkRef(cursor->packet, KanjiTex0Env_8, 7, 0, 0, 0);
+        sceVif1PkRef(cursor->packet, FS.state.font_image, 15362, 0, 0, 0);
+        sceVif1PkRef(cursor->packet, &KanjiClutEnv, 15, 0, 0, 0);
+        sceVif1PkRef(cursor->packet, KanjiTex1Env_9, 7, 0, 0, 0);
+        sceVif1PkRef(cursor->packet,
+                    (unsigned char *)FS.state.font_image + 0x3c020,
+                    15362, 0, 0, 0);
+    }
+    if (flags == 2) {
+        struct FontWindowTextureHeader *window = FS.state.window_image;
+        struct FontWindowTextureEntry *entry =
+            (struct FontWindowTextureEntry *)((unsigned char *)window + window->table_offset);
+        int subimage = 0;
+
+        while (subimage < window->subimage_count) {
+            unsigned int buffer_width = entry->width_and_buffer_width >> 16;
+            unsigned int transfer_width = entry->width_and_buffer_width & 0xffff;
+            unsigned int gs_block = (entry->gs_offset + 0xf0000) >> 6;
+
+            WinTexEnv_10.bitbltbuf.value =
+                ((unsigned long long)gs_block << 32) |
+                ((unsigned long long)buffer_width << 48);
+            WinTexEnv_10.trxreg.value = transfer_width |
+                ((unsigned long long)entry->height_word << 32);
+            sceVif1PkCnt(cursor->packet, 0);
+            sceVif1PkAddDataN(cursor->packet, &WinTexEnv_10, 24);
+            sceVif1PkRef(cursor->packet, (unsigned char *)window + entry->data_offset,
+                        entry->dma_quadwords, 0, 0, 0);
+            entry++;
+            subimage++;
+        }
+    }
+
+    sceVif1PkRef(cursor->packet, TestEnv_11_00490BC0, 6, 0, 0, 0);
+    if (FS.state.debug_mode) {
+        sceVif1PkRef(cursor->packet, &ModeEnv[LoopCount & 1], 8, 0, 0, 0);
+    } else {
+        const unsigned char *environment;
+
+        switch (cursor->effect) {
+        case 0:
+        case 2:
+        case 3:
+        case 4:
+            environment = TestEnv_12_00490C20;
+            break;
+        case 1:
+        default:
+            environment = TestEnv_13;
+            break;
+        }
+        sceVif1PkRef(cursor->packet, environment, 6, 0, 0, 0);
+    }
+    sceVif1PkCnt(cursor->packet, 0);
+    sceVif1PkOpenDirectHLCode(cursor->packet, 0);
+}
+
+extern unsigned char zbuf_14[];
+extern unsigned char test_15[];
+
+struct FontQueueRecord {
+    unsigned char next_low;
+    unsigned char next_high;
+};
+
+void xglFontFlush(void)
+{
+    /* The font drawing cursor resides at the base of EE scratchpad RAM. */
+    struct FontDrawCursor *cursor = (struct FontDrawCursor *)0x70000000;
+    FontQueueSlot *slot;
+    int remaining;
+
+    *FS.state.queue_cursor = 0;
+    cursor->depth = -1;
+    cursor->blue = 127;
+    cursor->green = 127;
+    cursor->red = 127;
+    if (FS.state.debug_mode) {
+        cursor->offset_x = 0;
+        cursor->offset_y = 0;
+    } else {
+        cursor->offset_x = 0x700;
+        cursor->offset_y = 0x720;
+    }
+    cursor->flags = 0;
+    cursor->draw_state_high = 0;
+    cursor->attributes = 255;
+    cursor->effect_y = cursor->effect_x = cursor->effect = 1;
+    cursor->effect_red = 0;
+    cursor->scale_x = 16;
+    cursor->effect_green = 0;
+    cursor->primitive_flags = 0x44;
+    cursor->alpha = 0x80;
+    cursor->effect_blue = 0;
+    cursor->primitive_mode = 0;
+    cursor->scale_y = 16;
+    remaining = 15;
+    cursor->packet = xglPacketGetCurrent();
+    xglFontReloadTexture(cursor, 0x80000001);
+
+    slot = D_008811A0.slots;
+    do {
+        unsigned short offset = slot->link;
+        if (offset) {
+            do {
+                struct FontQueueRecord *record =
+                    (struct FontQueueRecord *)&D_008811A0.bytes[offset];
+                unsigned char *text = (unsigned char *)(record + 1);
+                offset = record->next_low + (record->next_high << 8);
+                xglFontFlushCore(cursor, text);
+            } while (offset);
+        }
+        remaining--;
+        slot++;
+    } while (remaining >= 0);
+    if (FS.state.debug_mode)
+        sceVif1PkAddDirectDataN(cursor->packet, zbuf_14, 6);
+    sceVif1PkAddDirectDataN(cursor->packet, test_15, 2);
+    sceVif1PkCloseDirectHLCode(cursor->packet);
+    buffer_reset();
+}
 
 INCLUDE_ASM("asm/main/nonmatchings/xgl_font", xglFontGetStringWidth2);
 

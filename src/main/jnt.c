@@ -5,10 +5,13 @@
 #include "jnt.h"
 
 typedef struct JntHairIdSource {
-    unsigned char unmodeled_00[6];
+    unsigned char unmodeled_00[4];
+    unsigned short version;
     unsigned short channel_limit;
     unsigned short primary_id;   /* 0x08 */
     unsigned short secondary_id; /* 0x0A */
+    unsigned char unmodeled_0c[4];
+    int channel_offset;
 } JntHairIdSource;
 
 typedef struct JntChannelTag {
@@ -116,7 +119,7 @@ typedef struct JntTransformRecord {
     Vector4 rotation;
 } JntTransformRecord;
 
-typedef struct JntWork {
+struct JntWork {
     JntProducer *producer;         /* +0x000 */
     unsigned short *cursor;        /* +0x004: FCV2 packed-curve state */
     unsigned char unmodeled_008[0x28 - 0x08];
@@ -128,7 +131,7 @@ typedef struct JntWork {
      */
     int current_index; /* 0x2C */
     void *channels;                /* +0x030 */
-    unsigned char unmodeled_034[4];
+    void *model;
     unsigned int flags;            /* +0x038 */
     unsigned short channel_index;  /* +0x03c */
     unsigned char unmodeled_03e[2];
@@ -163,7 +166,9 @@ typedef struct JntWork {
     JntInterruptElement *elements;
     int channel_start_index;       /* +0x81c */
     JntProductionOwner *owner;     /* +0x820 */
-} JntWork;
+    unsigned char unmodeled_824[0x0c];
+    JntInterruptElement default_element; /* +0x830: default element storage */
+};
 
 /*
  * A joint element is a fixed-size record: JNT_getElement indexes an array of
@@ -265,24 +270,23 @@ typedef union JntRotationPayload {
  * 0x40 bytes, the same stride as JntElement.
  */
 
-typedef struct JntStaticChannel {
+struct JntStaticChannel {
     unsigned short type;           /* 0x00 */
-    unsigned char unmodeled_02[0x0C];
+    unsigned char unmodeled_02[2];
+    int rotation_limits_offset;
+    unsigned char unmodeled_08[6];
     unsigned short matrix_index;   /* 0x0E */
     float translate[3];            /* 0x10 */
     unsigned char unmodeled_1c[4];
     JntRotationPayload rotate;     /* 0x20 */
     unsigned char unmodeled_2C[0x14];
-} JntStaticChannel;
+};
 
-struct JntStaticChannel;
-typedef void *(*JntProductionConsumer)(JntWork *work,
-                                      struct JntStaticChannel *channels,
-                                      int argument);
+
 
 struct JntProducer {
     int count;              /* 0x00 */
-    unsigned char unmodeled_04[0x20];
+    int consumer_ids[8];
     JntProductionConsumer consumers[8]; /* 0x24, called by JNT_startProduction */
     int consumer_arguments[8];         /* 0x44 */
     int pending_output;     /* 0x64 */
@@ -318,7 +322,8 @@ float FCV2_getPackValue(unsigned short **cursor, float frame);
 static unsigned char dummyAttr[0x10] = {0};
 
 struct FcvPackAttribute {
-    unsigned char unmodeled_00[6];
+    unsigned char unmodeled_00[4];
+    unsigned short channel_flags;
     unsigned short value_mask; /* 0x06 */
 };
 
@@ -502,6 +507,8 @@ struct FcvPackAttribute *FCV_getAttrAndValue(float *values,
     }
     return attribute;
 }
+
+
 
 INCLUDE_ASM("asm/main/nonmatchings/jnt", JNT_getVal);
 
@@ -797,9 +804,43 @@ void *JNT_getRootElement(void *joint)
     return (unsigned char *)root_element_offset + *root_element_offset;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/jnt", JNT_setModel);
+void JNT_setModel(void *model, JntHairIdSource *joint)
+{
+    JntWork *work = JNT_SCRATCH_BASE;
 
-INCLUDE_ASM("asm/main/nonmatchings/jnt", JNT_setFCurve);
+    work->model = model;
+    work->hair_id_source = joint;
+    work->attribute_key = 0;
+    if (joint == 0) {
+        work->channels = 0;
+        return;
+    }
+    if (joint->version >= 2) {
+        int *attribute_header = &joint->channel_offset;
+
+        JNT_readAttribute(work, attribute_header);
+        work->channels = (unsigned char *)attribute_header + *attribute_header;
+        return;
+    }
+    work->channels = &joint->channel_offset;
+}
+
+void JNT_setFCurve(void *pack, unsigned int channel_index)
+{
+    JntWork *work = JNT_SCRATCH_BASE;
+
+    work->channel_index = channel_index;
+    work->root_translation.w = 1.0f;
+    work->flags |= 1;
+    work->root_rotation.w = 1.0f;
+    work->root_scale.w = 1.0f;
+    if (pack == 0) {
+        work->flags |= 0x20;
+    } else {
+        FCV2_resetPack(&work->cursor, pack);
+    }
+    work->elements = &work->default_element;
+}
 
 void JNT_setFCurve2(void *pack, void *matrix_buffer,
                     unsigned int channel_index)
@@ -849,7 +890,28 @@ JntRootStorage JNT_getRootScale(volatile JntRootSlot *destination)
     return value;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/jnt", JNT_addConsumer);
+int JNT_addConsumer(JntProducer *producer, int consumer_id,
+                    JntProductionConsumer consumer, int argument)
+{
+    int count = producer->count;
+    int entry = -1;
+    int index;
+
+    for (index = 0; index < count; index++) {
+        if (producer->consumer_ids[index] == consumer_id) {
+            entry = index;
+            break;
+        }
+    }
+    if (entry < 0) {
+        entry = count;
+        producer->count = entry + 1;
+    }
+    producer->consumer_ids[entry] = consumer_id;
+    producer->consumers[entry] = consumer;
+    producer->consumer_arguments[entry] = argument;
+    return 0;
+}
 
 void JNT_initProducer(JntProducer *producer)
 {

@@ -1,6 +1,7 @@
 #include "common.h"
 #include "shared.h"
 #include "main/jni.h"
+#include "main/nml_model_set.h"
 
 typedef struct JThread JThread;
 
@@ -123,15 +124,13 @@ void Java_xeno_Light_setGlobalPointLightCol__IFFF(
         int integer;
         float real;
     } *arguments = argument_block;
-    void nmlModelSetGlobalPointLightCol(int light_id,
-                                        const float (*color)[3]);
-    float color[3];
+    Vector4 color;
 
-    color[0] = arguments[2].real;
-    color[1] = arguments[3].real;
-    color[2] = arguments[4].real;
+    color.x = arguments[2].real;
+    color.y = arguments[3].real;
+    color.z = arguments[4].real;
     nmlModelSetGlobalPointLightCol(
-        arguments[1].integer, (const float (*)[3])&color);
+        arguments[1].integer, &color);
 }
 
 void Java_xeno_Light_setGlobalPointLightPos__IFFF(

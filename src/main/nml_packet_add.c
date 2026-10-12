@@ -10,6 +10,40 @@
 
 #include "main/ssd_init.h"
 
+typedef unsigned int Quadword __attribute__((mode(TI)));
+
+typedef union NmlPacketData128 {
+    u32 words[4];
+    float lanes[4];
+    Quadword quad;
+} NmlPacketData128;
+
+extern const u32 D_004AE5A0[];
+
+extern const u8 D_004AE5B0[];
+
+extern int s_nPixelTestType;
+
+extern int s_nModelParts;
+
+extern NmlPacketData128 s_inLc0[4];
+
+typedef unsigned int GameLoopStateWords[];
+
+extern GameLoopStateWords GameLoopState;
+
+extern const float D_004D8950;
+
+typedef struct XglLoadImage {
+    u64 giftag;
+    unsigned char unmodeled_08[0x58];
+} XglLoadImage;
+
+typedef struct NmlScreenGsScratchEntry {
+    GsTag payload;
+    GsTag address;
+} NmlScreenGsScratchEntry;
+
 typedef struct NmlAttributePacket NmlAttributePacket;
 
 /* One current packet is shared by the SDK writer and attribute allocator. */
@@ -139,10 +173,6 @@ static UcodeTableRow s_aUcodeTbl[6] = {
  * at [2 * count + 2] and its register address at [2 * count + 3]. Some writers
  * store the data as two 32-bit words.
  */
-typedef union GsTag {
-    u64 value;
-    u32 words[2];
-} GsTag;
 
 GsTag g_aGsTag[162] = {{0}};
 
@@ -154,7 +184,6 @@ extern int g_aSubWindow[4];
 
 /* One VIF unpack value passed to sceVif1PkAddUpkData128 by value. */
 
-typedef unsigned int Quadword __attribute__((mode(TI)));
 
 /* The allocation cursor addresses byte payloads and aligned quadword
  * payloads in the same packet buffer. Both views are used below. */
@@ -169,10 +198,6 @@ struct NmlAttributePacket {
     NmlAttributeCursor cursor;
 };
 
-typedef union NmlPacketData128 {
-    u32 words[4];
-    Quadword quad;
-} NmlPacketData128;
 
 extern void sceVif1PkAddUpkData128(NmlPacket packet, Quadword data);
 
@@ -199,8 +224,15 @@ typedef struct NmlPixelTestPacket {
 extern int sceVif1PkSize(XglPacket *packet);
 
 typedef struct NmlZbufRenderState {
-    unsigned char unmodeled_00[8];
+    unsigned char unmodeled_00[2];
+    short frame_psm;
+    short frame_width;
+    short frame_height; /* +0x6 */
     u16 depth_buffer_base;
+    unsigned char unmodeled_0a[0x10]; /* +0xa */
+    u16 texture_buffer_base; /* +0x1a */
+    unsigned char unmodeled_1c[4]; /* +0x1c */
+    u16 display_buffer_base; /* +0x20 */
 } NmlZbufRenderState;
 
 extern NmlZbufRenderState sRender;
@@ -417,11 +449,75 @@ INCLUDE_ASM("asm/main/nonmatchings/nml_packet_add", nmlPacketAddGsFlushWide);
 
 INCLUDE_ASM("asm/main/nonmatchings/nml_packet_add", nmlPacketAddReflectParam);
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_packet_add", nmlPacketAddTransMicrocodeInit);
+void nmlPacketAddTransMicrocodeInit(void)
+{
+    Matrix4 matrix;
+    NmlCurrentPacket selected;
+    XglPacket *packet = xglPacketGetCurrent();
+
+    selected.sdk = packet;
+    s_pPacket = selected;
+    sceVif1PkRef(packet, D_004AE5B0, D_004AE5A0[0], 0, 0, 0);
+    s_nProgType = 2;
+    s_nPixelTestType = -1;
+    s_pCacheTexture = 0;
+    s_pMatrixCache = 0;
+    s_pModelCache = 0;
+    s_nModelParts = 0;
+    s_pLightLayout = 0;
+    s_inReflRotX = xglSin(s_inReflRotY);
+    if (!(GameLoopState[4] & 1))
+        s_inReflRotY += D_004D8950;
+    xglMatrixUnit(matrix);
+    selected = s_pPacket;
+    sceVif1PkCnt(selected.sdk, 0);
+    selected = s_pPacket;
+    sceVif1PkOpenUpkCode(selected.sdk, 1004, 108, 1, 1);
+    selected = s_pPacket;
+    sceVif1PkAddUpkData128N(selected.sdk, matrix, 3);
+    selected = s_pPacket;
+    sceVif1PkCloseUpkCode(selected.sdk);
+    s_nReflRotType = 1;
+    /* The SDK zero-vector operation clears all four light parcels. */
+    __asm__ __volatile__(
+        "sq $0, 0(%0)\n\t"
+        "sq $0, 16(%0)\n\t"
+        "sq $0, 32(%0)\n\t"
+        "sq $0, 48(%0)"
+        : : "r"(s_inLc0) : "memory"
+    );
+    s_inLc0[3].lanes[0] = s_inLc0[3].lanes[1] =
+        s_inLc0[3].lanes[2] = s_inLc0[3].lanes[3] = 1.0f;
+}
 
 INCLUDE_ASM("asm/main/nonmatchings/nml_packet_add", nmlPacketAddTransMicrocode);
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_packet_add", nmlPacketAddScreen);
+void nmlPacketAddScreen(NmlModelRenderState *model)
+{
+    NmlPacketData128 translation;
+    XglPacket *packet = xglPacketGetCurrent();
+
+    s_pPacket.sdk = packet;
+    sceVif1PkCnt(packet, 0);
+    /* The SDK copy pins its quadword scratch register; the second parcel
+     * below is an ordinary native-TI argument load. */
+    __asm__ __volatile__(
+        "lq $2, 0(%1)\n\t"
+        "sq $2, 0(%0)"
+        :
+        : "r"(&translation), "r"(&model->screen_translation)
+        : "$2", "memory"
+    );
+    translation.lanes[3] = 0.0f;
+    if ((sRender.texture_buffer_base << 5) != 0x3800)
+        translation.lanes[3] = 3.1415927f;
+    sceVif1PkOpenUpkCode(s_pPacket.sdk, 967, 108, 1, 1);
+    sceVif1PkAddUpkData128(s_pPacket.sdk, translation.quad);
+    sceVif1PkCloseUpkCode(s_pPacket.sdk);
+    sceVif1PkOpenUpkCode(s_pPacket.sdk, 966, 108, 1, 1);
+    sceVif1PkAddUpkData128(s_pPacket.sdk, model->screen_scale);
+    sceVif1PkCloseUpkCode(s_pPacket.sdk);
+}
 
 void nmlPacketAddPixelTestPacket(int first_address, u64 first_value,
                                u64 first_test, int second_address,
@@ -472,9 +568,103 @@ INCLUDE_ASM("asm/main/nonmatchings/nml_packet_add", nmlPacketAddBlockMaterial);
 
 INCLUDE_ASM("asm/main/nonmatchings/nml_packet_add", nmlPacketMakeCircleTexture);
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_packet_add", nmlPacketSendCircleTexture);
+extern void sceGsSetDefLoadImage(XglLoadImage *image, short address,
+                               short width, short psm, short x, short y,
+                               short w, short h);
+extern void sceVif1PkOpenDirectCode(XglPacket *packet, int mode);
+extern void sceVif1PkAddDirectDataN(XglPacket *packet, const void *data,
+                                 int count);
+extern void sceVif1PkCloseDirectCode(XglPacket *packet);
+u8 *nmlPacketSetAttributeData16N(const void *data, int count);
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_packet_add", nmlPacketTextureTrans);
+void nmlPacketSendCircleTexture(const void *indices, const void *palette)
+{
+    XglLoadImage image;
+    NmlCurrentPacket selected;
+    XglPacket *packet = xglPacketGetCurrent();
+    u8 *palette_copy;
+
+    selected.sdk = packet;
+    s_pPacket = selected;
+    sceVif1PkCnt(packet, 0);
+    selected = s_pPacket;
+    sceVif1PkAddCode(selected.sdk, VIF_CODE_FLUSH);
+    sceGsSetDefLoadImage(&image, sRender.texture_buffer_base << 5,
+                         1, 19, 0, 0, 64, 64);
+    image.giftag |= 0x8000;
+    selected = s_pPacket;
+    sceVif1PkOpenDirectCode(selected.sdk, 0);
+    selected = s_pPacket;
+    sceVif1PkAddDirectDataN(selected.sdk, &image, 5);
+    selected = s_pPacket;
+    sceVif1PkCloseDirectCode(selected.sdk);
+    selected = s_pPacket;
+    sceVif1PkRef(selected.sdk, indices, 258, 0, 0, 0);
+    selected = s_pPacket;
+    sceVif1PkCnt(selected.sdk, 0);
+    sceGsSetDefLoadImage(&image, (sRender.texture_buffer_base << 5) + 128,
+                         1, 0, 0, 0, 16, 16);
+    image.giftag |= 0x8000;
+    selected = s_pPacket;
+    sceVif1PkOpenDirectCode(selected.sdk, 0);
+    selected = s_pPacket;
+    sceVif1PkAddDirectDataN(selected.sdk, &image, 5);
+    selected = s_pPacket;
+    sceVif1PkCloseDirectCode(selected.sdk);
+    palette_copy = nmlPacketSetAttributeData16N(palette, 66);
+    selected = s_pPacket;
+    sceVif1PkRef(selected.sdk, palette_copy, 66, 0, 0, 0);
+}
+
+static void nmlPacketTextureTrans(NmlModelRenderState *model)
+{
+    XglLoadImage image;
+    NmlCurrentPacket selected;
+    NmlModelResource *resource;
+    NmlTextureResourceSet *set;
+    u32 texture_set_address;
+    const u32 *offset;
+    int index;
+
+    selected.sdk = xglPacketGetCurrent();
+    s_pPacket = selected;
+    resource = model->resource;
+    if (resource->texture_reference == 0)
+        return;
+    /* Serialized references use byte offsets in the 32-bit EE address space. */
+    texture_set_address = resource->texture_reference + (u32)resource;
+    set = (NmlTextureResourceSet *)texture_set_address;
+    /* The serialized offset list follows the fixed set header. */
+    offset = (const u32 *)(set + 1);
+    for (index = 0; index < set->count; index++) {
+        NmlTextureResourceEntry *entry;
+        u32 entry_address;
+        int address;
+
+        entry_address = offset[index] + (u32)set;
+        entry = (NmlTextureResourceEntry *)entry_address;
+        selected = s_pPacket;
+        sceVif1PkCnt(selected.sdk, 0);
+        selected = s_pPacket;
+        sceVif1PkAddCode(selected.sdk, VIF_CODE_FLUSH);
+        address = sRender.texture_buffer_base << 5;
+        address += entry->vram_offset;
+        sceGsSetDefLoadImage(&image, (short)address,
+                            entry->buffer_width, entry->psm, 0, 0,
+                            entry->width, entry->height);
+        image.giftag |= 0x8000;
+        selected = s_pPacket;
+        sceVif1PkOpenDirectCode(selected.sdk, 0);
+        selected = s_pPacket;
+        sceVif1PkAddDirectDataN(selected.sdk, &image, 5);
+        selected = s_pPacket;
+        sceVif1PkCloseDirectCode(selected.sdk);
+        /* Pixel bytes follow the fixed image descriptor. */
+        selected = s_pPacket;
+        sceVif1PkRef(selected.sdk, entry + 1, entry->pixel_bytes / 16,
+                     0, 0, 0);
+    }
+}
 
 void nmlPacketClrTextureCache(void)
 {
@@ -489,7 +679,70 @@ void nmlPacketClrModelCache(void)
     s_pLightLayout = 0;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_packet_add", nmlPacketAddTexture);
+extern void xglPacketTextureTrans(void *texture);
+void nmlPacketTextureTrans(NmlModelRenderState *model);
+
+int nmlPacketAddTexture(NmlModelRenderState *model)
+{
+    NmlProRealParam *proreal = model->proreal;
+    NmlCurrentPacket selected;
+    XglPacket *packet;
+    int size;
+    u32 texture_reference;
+    struct XglTextureTransSet *texture;
+
+    if (model->proreal_override)
+        proreal = model->proreal_override;
+    packet = xglPacketGetCurrent();
+    selected.sdk = packet;
+    s_pPacket = selected;
+    size = sceVif1PkSize(packet);
+    selected = s_pPacket;
+    packet = selected.sdk;
+    if (size * 0x10u +
+            (packet->limit - (u32)packet->cursor) + 0x10000u >
+        0x200000u)
+        return 1;
+
+    if (model->render_status & 0x800u) {
+        void *cached_texture;
+        texture = proreal->texture;
+        cached_texture = s_pCacheTexture;
+        if (texture && cached_texture != texture) {
+            s_pCacheTexture = texture;
+            xglPacketTextureTrans(texture);
+            selected = s_pPacket;
+            packet = selected.sdk;
+        }
+    } else {
+        texture_reference = model->resource->texture_reference;
+        if (texture_reference - 1 <= 0x7ffffeu) {
+            if (s_pCacheTexture != (void *)texture_reference) {
+                nmlPacketTextureTrans(model);
+                s_pCacheTexture = (void *)model->resource->texture_reference;
+                selected = s_pPacket;
+                packet = selected.sdk;
+            }
+        } else {
+            texture = model->texture;
+            if (texture && s_pCacheTexture != texture) {
+                void **texture_slot = &model->texture;
+                s_pCacheTexture = texture;
+                xglPacketTextureTrans(*texture_slot);
+                selected = s_pPacket;
+                packet = selected.sdk;
+            }
+        }
+    }
+    size = sceVif1PkSize(packet);
+    {
+        XglPacket *finished_packet = s_pPacket.sdk;
+
+        return size * 0x10u +
+                (finished_packet->limit - (u32)finished_packet->cursor) +
+                0x10000u > 0x200000u;
+    }
+}
 
 INCLUDE_ASM("asm/main/nonmatchings/nml_packet_add", nmlPacketAddParts);
 
@@ -966,7 +1219,68 @@ void nmlPacketAddReflRot(const NmlMaterialRenderState *material,
     s_nReflRotType = type;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_packet_add", nmlPacketAddScreenClear);
+static inline void nmlScreenClearSetScratch(NmlScreenGsScratchEntry *entry,
+                                          u32 address, u64 value)
+{
+    entry->payload.value = value;
+    entry->address.value = address;
+}
+
+static inline void nmlScreenClearAppendGs(u32 address, const u64 *value)
+{
+    g_aGsTag[g_nGsEntry * 2 + 2].value = *value;
+    g_aGsTag[g_nGsEntry * 2 + 3].value = address;
+    g_nGsEntry++;
+}
+
+void nmlPacketAddGsFlushWide(void);
+
+void nmlPacketAddScreenClear(void)
+{
+    u64 depth_format = 0x01000000;
+    NmlScreenGsScratchEntry *scratch;
+    NmlScreenGsScratchEntry *alpha_override = (NmlScreenGsScratchEntry *)0x70000000;
+    NmlScreenGsScratchEntry *depth_buffer = (NmlScreenGsScratchEntry *)0x70000010;
+    NmlScreenGsScratchEntry *pixel_test = (NmlScreenGsScratchEntry *)0x70000020;
+    NmlScreenGsScratchEntry *frame_buffer = (NmlScreenGsScratchEntry *)0x70000030;
+    NmlScreenGsScratchEntry *rgba = (NmlScreenGsScratchEntry *)0x70000040;
+    NmlScreenGsScratchEntry *primitive = (NmlScreenGsScratchEntry *)0x70000050;
+    NmlScreenGsScratchEntry *first_corner = (NmlScreenGsScratchEntry *)0x70000060;
+    NmlScreenGsScratchEntry *last_corner = (NmlScreenGsScratchEntry *)0x70000070;
+    int remaining;
+    int frame_width;
+    int frame_height;
+    u64 rgba_value;
+
+    rgba_value = 0x3f80000000000000ULL;
+
+    nmlScreenClearSetScratch(alpha_override, 74, 0);
+    nmlScreenClearSetScratch(depth_buffer, 78,
+        sRender.depth_buffer_base | depth_format);
+    nmlScreenClearSetScratch(pixel_test, 71, 0x30000);
+    frame_width = sRender.frame_width;
+    nmlScreenClearSetScratch(frame_buffer, 76,
+        sRender.display_buffer_base |
+        (u64)((frame_width / 64) * 0x10000) |
+        ((u64)sRender.frame_psm << 24));
+    nmlScreenClearSetScratch(rgba, 1, rgba_value);
+    primitive->payload.value = 6;
+    primitive->address.value = 0;
+    frame_height = sRender.frame_height;
+    nmlScreenClearSetScratch(first_corner, 4,
+        ((u64)(2048 - frame_width) << 4) |
+        ((u64)(2048 - frame_height) << 20));
+    nmlScreenClearSetScratch(last_corner, 4,
+        ((u64)(2048 + frame_width) << 4) |
+        ((u64)(2048 + frame_height) << 20));
+    scratch = (NmlScreenGsScratchEntry *)0x70000000;
+    g_nGsEntry = 0;
+    for (remaining = 7; remaining >= 0; remaining--) {
+        nmlScreenClearAppendGs(scratch[0].address.words[0], &scratch[0].payload.value);
+        scratch++;
+    }
+    nmlPacketAddGsFlushWide();
+}
 
 void nmlPacketGsInit(void)
 {
@@ -1064,11 +1378,36 @@ void nmlPacketAddGsFBA1(u32 fba)
     g_nGsEntry++;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_packet_add", nmlPacketAddGsFogCol);
+void nmlPacketAddGsFogCol(const float color[3])
+{
+    u64 red = (u32)color[0];
+    u64 green = (u64)(u32)color[1] << 8;
+    u64 blue = (u64)(u32)color[2] << 16;
+    int entry = g_nGsEntry * 2;
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_packet_add", nmlPacketAddGsFrame);
+    g_aGsTag[entry + 2].words[0] = red | green | blue;
+    g_nGsEntry++;
+    g_aGsTag[entry + 2].words[1] = 0;
+    g_aGsTag[entry + 3].value = 61;
+}
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_packet_add", nmlPacketAddGsFrame1);
+void nmlPacketAddGsFrame(int frame_base, int frame_mask)
+{
+    g_aGsTag[g_nGsEntry * 2 + 2].value =
+        (frame_base & 0xffff) | ((u64)(sRender.frame_width / 64) << 16) |
+        ((u64)sRender.frame_psm << 24) | ((u64)frame_mask << 32);
+    g_aGsTag[g_nGsEntry * 2 + 3].value = 76;
+    g_nGsEntry++;
+}
+
+void nmlPacketAddGsFrame1(int frame_base, int frame_mask)
+{
+    g_aGsTag[g_nGsEntry * 2 + 2].value =
+        (frame_base & 0xffff) | ((u64)(sRender.frame_width / 64) << 16) |
+        ((u64)sRender.frame_psm << 24) | ((u64)frame_mask << 32);
+    g_aGsTag[g_nGsEntry * 2 + 3].value = 77;
+    g_nGsEntry++;
+}
 
 void nmlPacketAddGsPAbe(u64 pabe)
 {

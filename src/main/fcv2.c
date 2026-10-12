@@ -47,7 +47,7 @@ static f32 FCV_getPackVal2f(FCVPack *pack, s32 keyCount, f32 frame);
  * VA 0x0030d060).
  */
 
-static f32 FCV2_getVal(void *output, void *data, u16 key, f32 frame);
+static f32 FCV2_getVal(void *output, void *data, s32 key, f32 frame);
 
 /*
  * FCV2Value is the curve FCV2_getValue samples: a cursor into its key table,
@@ -91,7 +91,27 @@ typedef struct FCVCurve {
     u16 unmodeled_0A;
 } FCVCurve;
 
-f32 FCV_getPackVal2s(FCVPack *pack, u16 keyCount, f32 frame);
+/* Compact spline keys extend their type/frame prefix with value and tangents. */
+typedef struct FCV2SampleValues {
+    f32 value;
+    f32 in_tangent;
+    f32 out_tangent;
+} FCV2SampleValues;
+
+typedef struct FCV2Sample {
+    u16 type;
+    u16 frame;
+    FCV2SampleValues values;
+} FCV2Sample;
+
+/* Float-frame keys use the same variable-length value/tangent payload. */
+typedef struct FCVFloatSample {
+    u32 type;
+    f32 frame;
+    FCV2SampleValues values;
+} FCVFloatSample;
+
+static f32 FCV_getPackVal2s(FCVPack *pack, u32 keyCount, f32 frame);
 
 static s32 FCV_getFKeyType(u32 keyIndex, u8 *types);
 
@@ -138,7 +158,7 @@ typedef struct FCV2KeyHeader {
     f32 value_or_spline_data;
 } FCV2KeyHeader;
 
-static f32 FCV2_getPackVal(FCV2Pack *pack, void *key_data, u16 key_count, f32 frame);
+static f32 FCV2_getPackVal(FCV2Pack *pack, void *key_data, s32 key_count, f32 frame);
 
 extern f32 D_004D8528;
 
@@ -291,9 +311,345 @@ f32 FCV_getPackValue(FCVPack *pack, f32 frame)
     return value;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/fcv2", FCV_getPackVal2f);
+static f32 FCV_getPackVal2f(FCVPack *pack, s32 key_count, f32 frame)
+{
+    FCVFloatSample *previous = (FCVFloatSample *)pack->key_values;
+    FCVFloatSample *next;
+    FCVFloatSample *last;
+    FCVFloatSample *end;
+    FCV2SampleValues *values;
+    u32 previous_type = previous->type;
+    u32 index;
+    f32 boundary_frame;
+    f32 previous_frame;
+    f32 next_frame;
+    f32 previous_value;
+    f32 next_value;
+    f32 previous_out_tangent;
+    f32 next_in_tangent;
 
-INCLUDE_ASM("asm/main/nonmatchings/fcv2", FCV_getPackVal2s);
+    switch (previous_type) {
+    case 0:
+    case 2:
+    case 3:
+        next = (FCVFloatSample *)((f32 *)previous + 3);
+        break;
+    case 4:
+        next = (FCVFloatSample *)((f32 *)previous + 4);
+        break;
+    case 1:
+        next = previous;
+        break;
+    default:
+        next = previous;
+        break;
+    }
+
+    last = previous;
+    end = next;
+    for (index = 1; index < key_count; index++) {
+        last = end;
+        switch (last->type) {
+        case 0:
+        case 2:
+        case 3:
+            end = (FCVFloatSample *)((f32 *)end + 3);
+            break;
+        case 4:
+            end = (FCVFloatSample *)((f32 *)end + 4);
+            break;
+        case 1:
+            end = (FCVFloatSample *)((f32 *)last + 5);
+            break;
+        default:
+            break;
+        }
+    }
+
+    boundary_frame = previous->frame;
+    pack->key_values = (f32 *)end;
+    if (frame < boundary_frame) {
+        return previous->values.value;
+    }
+    boundary_frame = last->frame;
+    if (boundary_frame <= frame) {
+        return last->values.value;
+    }
+
+    next_frame = next->frame;
+    for (index = 1; index < key_count; index++) {
+        if (frame <= next_frame) {
+            if (frame == next_frame) {
+                return next->values.value;
+            }
+            break;
+        }
+
+        previous = next;
+        previous_type = previous->type;
+        switch (previous_type) {
+        case 0:
+        case 2:
+            next = (FCVFloatSample *)((f32 *)next + 3);
+            next_frame = next->frame;
+            break;
+        case 1:
+            next = (FCVFloatSample *)((f32 *)previous + 5);
+            next_frame = next->frame;
+            break;
+        case 4:
+            next = (FCVFloatSample *)((f32 *)previous + 4);
+            next_frame = next->frame;
+            break;
+        default:
+            break;
+        }
+    }
+
+    previous_frame = previous->frame;
+    values = &next->values;
+    switch (next->type) {
+    case 0:
+    case 2:
+        next_in_tangent = 0.0f;
+        next_value = values->value;
+        break;
+    case 1:
+    case 4:
+        next_value = values->value;
+        next_in_tangent = values->in_tangent;
+        break;
+    default:
+        next_in_tangent = 0.0f;
+        next_value = 0.0f;
+        break;
+    }
+
+    values = &previous->values;
+    switch (previous_type) {
+    case 0:
+    case 2:
+        previous_out_tangent = 0.0f;
+        previous_value = values->value;
+        break;
+    case 4:
+        previous_value = values->value;
+        previous_out_tangent = values->in_tangent;
+        break;
+    case 1:
+        previous_value = values->value;
+        previous_out_tangent = values->out_tangent;
+        break;
+    default:
+        previous_out_tangent = 0.0f;
+        previous_value = 0.0f;
+        break;
+    }
+
+    switch (previous_type) {
+    case 0:
+        return previous_value +
+            ((next_value - previous_value) * (frame - previous_frame)) /
+            (next_frame - previous_frame);
+    case 1:
+    case 2:
+    case 4: {
+        f32 inverse_span = 1.0f / (next_frame - previous_frame);
+        f32 frame_offset = frame - previous_frame;
+        f32 offset_squared = frame_offset * frame_offset;
+        f32 offset_cubed = offset_squared * frame_offset;
+        f32 three_times_offset_squared = offset_squared * 3.0f;
+        f32 inverse_span_squared = inverse_span * inverse_span;
+        f32 offset_squared_over_span = offset_squared * inverse_span;
+        f32 offset_cubed_over_span_squared = offset_cubed * inverse_span_squared;
+        f32 three_offset_squared_over_span_squared =
+            three_times_offset_squared * inverse_span_squared;
+        f32 twice_offset_cubed_over_span_cubed =
+            (offset_cubed_over_span_squared + offset_cubed_over_span_squared) *
+            inverse_span;
+        f32 next_tangent_weight =
+            offset_cubed_over_span_squared - offset_squared_over_span;
+        f32 previous_tangent_weight =
+            (next_tangent_weight - offset_squared_over_span) + frame_offset;
+        f32 previous_value_weight =
+            (twice_offset_cubed_over_span_cubed -
+             three_offset_squared_over_span_squared) + 1.0f;
+        f32 next_value_weight =
+            three_offset_squared_over_span_squared -
+            twice_offset_cubed_over_span_cubed;
+
+        return previous_value * previous_value_weight +
+            next_value * next_value_weight +
+            previous_out_tangent * previous_tangent_weight +
+            next_in_tangent * next_tangent_weight;
+    }
+    default:
+        return 0.0f;
+    }
+}
+
+static f32 FCV_getPackVal2s(FCVPack *pack, u32 key_count, f32 frame)
+{
+    FCV2Sample *previous = (FCV2Sample *)pack->key_values;
+    FCV2Sample *next = (FCV2Sample *)((u16 *)previous + 8);
+    FCV2Sample *last;
+    FCV2Sample *end;
+    FCV2SampleValues *values;
+    u16 previous_type = previous->type;
+    s32 next_frame_index;
+    u32 index;
+    f32 previous_frame;
+    f32 next_frame;
+    f32 previous_value;
+    f32 next_value;
+    f32 previous_out_tangent;
+    f32 next_in_tangent;
+    f32 frame_scale;
+    f32 boundary_frame;
+
+    switch (previous_type) {
+    case 0:
+    case 2:
+        next = (FCV2Sample *)((u16 *)previous + 4);
+        break;
+    case 1:
+        break;
+    default:
+        next = previous;
+        break;
+    }
+
+    last = previous;
+    end = next;
+    for (index = 1; index < key_count; index++) {
+        last = end;
+        switch (last->type) {
+        case 0:
+        case 2:
+            end = (FCV2Sample *)((u16 *)end + 4);
+            break;
+        case 1:
+            end = (FCV2Sample *)((u16 *)last + 8);
+            break;
+        default:
+            break;
+        }
+    }
+
+    frame_scale = 0.033333335f;
+    boundary_frame = (f32)previous->frame * frame_scale;
+    pack->key_values = (f32 *)end;
+    if (frame < boundary_frame) {
+        return previous->values.value;
+    }
+    boundary_frame = (f32)last->frame * frame_scale;
+    if (boundary_frame <= frame) {
+        return last->values.value;
+    }
+
+    for (index = 1;
+         (next_frame_index = next->frame, index < key_count);
+         index++) {
+        boundary_frame = (f32)next_frame_index * 0.033333335f;
+
+        if (frame <= boundary_frame) {
+            if (frame == boundary_frame) {
+                return next->values.value;
+            }
+            break;
+        }
+
+        previous = next;
+        previous_type = previous->type;
+        switch (previous_type) {
+        case 0:
+        case 2:
+            next = (FCV2Sample *)((u16 *)next + 4);
+            break;
+        case 1:
+            next = (FCV2Sample *)((u16 *)previous + 8);
+            break;
+        default:
+            break;
+        }
+    }
+
+    next_frame = (f32)next->frame * 0.033333335f;
+    previous_frame = (f32)previous->frame * 0.033333335f;
+    values = &next->values;
+    switch (next->type) {
+    case 0:
+    case 2:
+        next_in_tangent = 0.0f;
+        next_value = values->value;
+        break;
+    case 1:
+        next_value = values->value;
+        next_in_tangent = values->in_tangent;
+        break;
+    default:
+        next_value = 0.0f;
+        next_in_tangent = 0.0f;
+        break;
+    }
+
+    values = &previous->values;
+    switch (previous_type) {
+    case 0:
+    case 2:
+        previous_out_tangent = 0.0f;
+        previous_value = values->value;
+        break;
+    case 1:
+        previous_value = values->value;
+        previous_out_tangent = values->out_tangent;
+        break;
+    default:
+        previous_value = 0.0f;
+        previous_out_tangent = 0.0f;
+        break;
+    }
+
+    switch (previous_type) {
+    case 0:
+        return previous_value +
+            ((next_value - previous_value) * (frame - previous_frame)) /
+            (next_frame - previous_frame);
+    case 1:
+    case 2: {
+        f32 inverse_span = 1.0f / (next_frame - previous_frame);
+        f32 frame_offset = frame - previous_frame;
+        f32 offset_squared = frame_offset * frame_offset;
+        f32 offset_cubed = offset_squared * frame_offset;
+        f32 three_times_offset_squared = offset_squared * 3.0f;
+        f32 inverse_span_squared = inverse_span * inverse_span;
+        f32 offset_squared_over_span = offset_squared * inverse_span;
+        f32 offset_cubed_over_span_squared = offset_cubed * inverse_span_squared;
+        f32 three_offset_squared_over_span_squared =
+            three_times_offset_squared * inverse_span_squared;
+        f32 twice_offset_cubed_over_span_cubed =
+            (offset_cubed_over_span_squared + offset_cubed_over_span_squared) *
+            inverse_span;
+        f32 next_tangent_weight =
+            offset_cubed_over_span_squared - offset_squared_over_span;
+        f32 previous_tangent_weight =
+            (next_tangent_weight - offset_squared_over_span) + frame_offset;
+        f32 previous_value_weight =
+            (twice_offset_cubed_over_span_cubed -
+             three_offset_squared_over_span_squared) + 1.0f;
+        f32 next_value_weight =
+            three_offset_squared_over_span_squared -
+            twice_offset_cubed_over_span_cubed;
+
+        return previous_value * previous_value_weight +
+            next_value * next_value_weight +
+            previous_out_tangent * previous_tangent_weight +
+            next_in_tangent * next_tangent_weight;
+    }
+    default:
+        return 0.0f;
+    }
+}
 
 static s32 FCV_getFKeyType(u32 keyIndex, u8 *types)
 {
@@ -301,9 +657,348 @@ static s32 FCV_getFKeyType(u32 keyIndex, u8 *types)
     return (packed >> ((3 - (keyIndex & 3)) * 2)) & 3;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/fcv2", FCV2_getPackVal);
+static f32 FCV2_getPackVal(FCV2Pack *pack, void *key_data, s32 key_count, f32 frame)
+{
+    FCV2Sample *keys = key_data;
+    FCV2Sample *previous = keys;
+    FCV2Sample *next = previous;
+    FCV2Sample *near_previous;
+    FCV2Sample *near_next;
+    FCV2SampleValues *values;
+    u16 previous_type;
+    s32 index;
+    f32 frame_scale;
+    f32 first_frame;
+    f32 near_distance;
+    f32 previous_frame;
+    f32 next_frame;
+    f32 previous_value;
+    f32 next_value;
+    f32 previous_out_tangent;
+    f32 next_in_tangent;
 
-INCLUDE_ASM("asm/main/nonmatchings/fcv2", FCV2_getVal);
+    switch (previous->type) {
+    case 0:
+    case 2:
+    case 3:
+        next = (FCV2Sample *)((u16 *)keys + 4);
+        break;
+    case 4:
+        next = (FCV2Sample *)((u16 *)keys + 6);
+        break;
+    case 1:
+        next = (FCV2Sample *)((u16 *)keys + 8);
+        break;
+    default:
+        break;
+    }
+
+    frame_scale = pack->frame_scale;
+    frame += pack->frame_offset;
+    first_frame = (f32)keys->frame * frame_scale;
+    /* A selected bracket replaces this initial endpoint measure. */
+    near_distance = first_frame;
+    if (frame <= first_frame) {
+        values = &keys->values;
+        for (index = 1; index < key_count; index++) {
+            switch (next->type) {
+            case 0:
+            case 2:
+            case 3:
+                next = (FCV2Sample *)((u16 *)next + 4);
+                break;
+            case 4:
+                next = (FCV2Sample *)((u16 *)next + 6);
+                break;
+            case 1:
+                next = (FCV2Sample *)((u16 *)next + 8);
+                break;
+            default:
+                break;
+            }
+        }
+        pack->cursor = next;
+        return values->value;
+    }
+
+    near_previous = 0;
+    near_next = 0;
+    for (index = 1; index < key_count; index++) {
+        f32 key_frame = (f32)next->frame * frame_scale;
+        f32 distance = frame - key_frame;
+
+        if (near_previous == 0 && distance < pack->step) {
+            near_distance = __builtin_fabsf(distance);
+            near_previous = previous;
+            near_next = next;
+        }
+        previous = next;
+        switch (previous->type) {
+        case 0:
+        case 2:
+        case 3:
+            next = (FCV2Sample *)((u16 *)next + 4);
+            break;
+        case 4:
+            next = (FCV2Sample *)((u16 *)next + 6);
+            break;
+        case 1:
+            next = (FCV2Sample *)((u16 *)next + 8);
+            break;
+        default:
+            break;
+        }
+    }
+    pack->cursor = next;
+    if (near_previous == 0) {
+        return previous->values.value;
+    }
+    if (near_distance < pack->step * 0.5f) {
+        return near_next->values.value;
+    }
+
+    previous_frame = frame_scale * (f32)near_previous->frame;
+    next_frame = frame_scale * (f32)near_next->frame;
+    values = &near_next->values;
+    switch (near_next->type) {
+    case 2:
+    case 0:
+        next_in_tangent = 0.0f;
+        next_value = values->value;
+        break;
+    case 1:
+    case 4:
+        next_value = values->value;
+        next_in_tangent = values->in_tangent;
+        break;
+    default:
+        next_in_tangent = 0.0f;
+        next_value = 0.0f;
+        break;
+    }
+
+    previous_type = near_previous->type;
+    values = &near_previous->values;
+    switch (previous_type) {
+    case 0:
+    case 2:
+    case 3:
+        previous_out_tangent = 0.0f;
+        previous_value = values->value;
+        break;
+    case 4:
+        previous_value = values->value;
+        previous_out_tangent = values->in_tangent;
+        break;
+    case 1:
+        previous_value = values->value;
+        previous_out_tangent = values->out_tangent;
+        break;
+    default:
+        previous_out_tangent = 0.0f;
+        previous_value = 0.0f;
+        break;
+    }
+
+    switch (near_previous->type) {
+    case 3:
+        return previous_value;
+    case 0:
+        return previous_value +
+            ((next_value - previous_value) * (frame - previous_frame)) /
+            (next_frame - previous_frame);
+    case 1:
+    case 2:
+    case 4: {
+        f32 inverse_span = 1.0f / (next_frame - previous_frame);
+        f32 frame_offset = frame - previous_frame;
+        f32 offset_squared = frame_offset * frame_offset;
+        f32 offset_cubed = offset_squared * frame_offset;
+        f32 three_times_offset_squared = offset_squared * 3.0f;
+        f32 inverse_span_squared = inverse_span * inverse_span;
+        f32 offset_squared_over_span = offset_squared * inverse_span;
+        f32 offset_cubed_over_span_squared = offset_cubed * inverse_span_squared;
+        f32 three_offset_squared_over_span_squared =
+            three_times_offset_squared * inverse_span_squared;
+        f32 twice_offset_cubed_over_span_cubed =
+            (offset_cubed_over_span_squared + offset_cubed_over_span_squared) *
+            inverse_span;
+        f32 next_tangent_weight =
+            offset_cubed_over_span_squared - offset_squared_over_span;
+        f32 previous_tangent_weight =
+            (next_tangent_weight - offset_squared_over_span) + frame_offset;
+        f32 previous_value_weight =
+            (twice_offset_cubed_over_span_cubed -
+             three_offset_squared_over_span_squared) + 1.0f;
+        f32 next_value_weight =
+            three_offset_squared_over_span_squared -
+            twice_offset_cubed_over_span_cubed;
+
+        return previous_value * previous_value_weight +
+            next_value * next_value_weight +
+            previous_out_tangent * previous_tangent_weight +
+            next_in_tangent * next_tangent_weight;
+    }
+    default:
+        return 0.0f;
+    }
+}
+
+extern f32 D_004D850C;
+extern f32 D_004D8514;
+
+static f32 FCV2_getVal(void *output, void *data, s32 key_count, f32 frame)
+{
+    FCV2Sample **key_output = output;
+    FCV2Sample *previous = data;
+    FCV2Sample *next = (FCV2Sample *)((u16 *)previous + 8);
+    FCV2SampleValues *values;
+    u16 previous_type = previous->type;
+    s32 index;
+    f32 key_frame;
+    f32 previous_frame;
+    f32 next_frame;
+    f32 previous_value;
+    f32 next_value;
+    f32 previous_out_tangent;
+    f32 next_in_tangent;
+
+    switch (previous_type) {
+    case 0:
+    case 2:
+    case 3:
+        next = (FCV2Sample *)((u16 *)previous + 4);
+        break;
+    case 1:
+        break;
+    default:
+        next = previous;
+        break;
+    }
+
+    if (output != 0) {
+        *key_output = 0;
+    }
+    key_frame = (f32)previous->frame * D_004D850C;
+    if (frame <= key_frame) {
+        if (__builtin_fabsf(frame - key_frame) < D_004D850C && output != 0) {
+            *key_output = previous;
+        }
+        return previous->values.value;
+    }
+
+    for (index = 1; index < key_count; index++) {
+        f32 next_key_frame = (f32)next->frame * 0.033333335f;
+
+        if (frame <= next_key_frame) {
+            if (__builtin_fabsf(frame - next_key_frame) < 0.033333335f) {
+                if (output != 0) {
+                    *key_output = next;
+                }
+                return next->values.value;
+            }
+            break;
+        }
+
+        previous = next;
+        previous_type = previous->type;
+        switch (previous_type) {
+        case 0:
+        case 2:
+        case 3:
+            next = (FCV2Sample *)((u16 *)next + 4);
+            break;
+        case 1:
+            next = (FCV2Sample *)((u16 *)previous + 8);
+            break;
+        default:
+            break;
+        }
+    }
+
+    if (index == key_count) {
+        return previous->values.value;
+    }
+
+    previous_frame = (f32)previous->frame * D_004D8514;
+    next_frame = (f32)next->frame * D_004D8514;
+    values = &next->values;
+    switch (next->type) {
+    case 0:
+    case 2:
+        next_in_tangent = 0.0f;
+        next_value = values->value;
+        break;
+    case 1:
+        next_value = values->value;
+        next_in_tangent = values->in_tangent;
+        break;
+    default:
+        next_in_tangent = 0.0f;
+        next_value = 0.0f;
+        break;
+    }
+
+    values = &previous->values;
+    switch (previous_type) {
+    case 0:
+    case 2:
+    case 3:
+        previous_out_tangent = 0.0f;
+        previous_value = values->value;
+        break;
+    case 1:
+        previous_value = values->value;
+        previous_out_tangent = values->out_tangent;
+        break;
+    default:
+        previous_out_tangent = 0.0f;
+        previous_value = 0.0f;
+        break;
+    }
+
+    switch (previous_type) {
+    case 3:
+        return previous_value;
+    case 0:
+        return previous_value +
+            ((next_value - previous_value) * (frame - previous_frame)) /
+            (next_frame - previous_frame);
+    case 1:
+    case 2: {
+        f32 inverse_span = 1.0f / (next_frame - previous_frame);
+        f32 frame_offset = frame - previous_frame;
+        f32 offset_squared = frame_offset * frame_offset;
+        f32 offset_cubed = offset_squared * frame_offset;
+        f32 three_times_offset_squared = offset_squared * 3.0f;
+        f32 inverse_span_squared = inverse_span * inverse_span;
+        f32 offset_squared_over_span = offset_squared * inverse_span;
+        f32 offset_cubed_over_span_squared = offset_cubed * inverse_span_squared;
+        f32 three_offset_squared_over_span_squared =
+            three_times_offset_squared * inverse_span_squared;
+        f32 twice_offset_cubed_over_span_cubed =
+            (offset_cubed_over_span_squared + offset_cubed_over_span_squared) *
+            inverse_span;
+        f32 next_tangent_weight =
+            offset_cubed_over_span_squared - offset_squared_over_span;
+        f32 previous_tangent_weight =
+            (next_tangent_weight - offset_squared_over_span) + frame_offset;
+        f32 previous_value_weight =
+            (twice_offset_cubed_over_span_cubed -
+             three_offset_squared_over_span_squared) + 1.0f;
+        f32 next_value_weight =
+            three_offset_squared_over_span_squared -
+            twice_offset_cubed_over_span_cubed;
+
+        return previous_value * previous_value_weight +
+            next_value * next_value_weight +
+            previous_out_tangent * previous_tangent_weight +
+            next_in_tangent * next_tangent_weight;
+    }
+    default:
+        return 0.0f;
+    }
+}
 
 f32 FCV2_getValue(FCV2Value *curve, f32 frame)
 {
@@ -519,4 +1214,32 @@ u16 *FCV2_getKey(u16 *cursor, f32 frame)
     return 0;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/fcv2", FCV2_dump);
+void FCV2_dump(u16 *data)
+{
+    u16 key_count;
+    u16 *cursor;
+    s32 index;
+
+    if (data[1] == 3) {
+        key_count = data[0];
+        cursor = data + 2;
+        index = 0;
+        if (key_count != 0) {
+            do {
+                switch (cursor[0]) {
+                case 0:
+                case 2:
+                case 3:
+                    cursor += 4;
+                    break;
+                case 1:
+                    cursor += 8;
+                    break;
+                default:
+                    break;
+                }
+                index++;
+            } while (index < key_count);
+        }
+    }
+}

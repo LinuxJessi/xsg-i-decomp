@@ -1,6 +1,9 @@
 #include "common.h"
 
 #include "shared.h"
+#include "main/menu_1.h"
+#include "main/e_battle_win_open.h"
+#include "main/menu_top_command_check.h"
 
 #define MENU_ITEM_SPECIAL_ID 36
 
@@ -13,6 +16,71 @@
 #define MENU_ITEM_USE_STATE_BIT 0x10
 
 #define MENU_ITEM_SPECIAL_ENABLED_BITS 0x20400000
+
+
+
+typedef struct MenuItemPasWindow {
+    short x;
+    short y;
+    int color;
+    short width;
+    short height;
+    u8 unmodeled_0c[0x10 - 0x0C];
+    signed char state;
+    u8 unmodeled_11[0x14 - 0x11];
+    void (*callback)(WindowDX *window, void *work);
+    void *callbackArg;
+    u8 unmodeled_1c[0x194 - 0x1C];
+} MenuItemPasWindow;
+
+typedef struct MenuItemInfoText {
+    unsigned short x;
+    unsigned short y;
+    unsigned char unmodeled_04[8];
+    const char *message;
+    unsigned char unmodeled_10[0x1B0 - 0x10];
+} MenuItemInfoText;
+
+typedef struct MenuItemInfoWork {
+    unsigned char state;
+    unsigned char unmodeled_01[2];
+    unsigned char help;
+    unsigned char unmodeled_04[4];
+    int color;
+    MenuItemPasWindow window;
+    MenuItemInfoText text;
+    char buffer[128];
+} MenuItemInfoWork;
+
+typedef struct MenuItemInfoLabels {
+    const char *sortMethods[3];
+    const char *sortPrefix;
+    const char *cancel;
+} MenuItemInfoLabels;
+
+extern const MenuItemInfoLabels D_004C4ED0;
+
+typedef struct MenuItemInfoHelpLabels {
+    const char *unavailable;
+    const char *restricted;
+} MenuItemInfoHelpLabels;
+
+extern const MenuItemInfoHelpLabels D_004DAAC8[];
+
+typedef struct MenuItemInfoPad {
+    unsigned char unmodeled_00[0x2A];
+    unsigned short pressed;
+    unsigned char unmodeled_2C[8];
+    unsigned short activity;
+} MenuItemInfoPad;
+
+extern const unsigned char D_004DAAD0[];
+
+extern const char D_004DAAD8[];
+
+extern MenuItemInfoPad PadData;
+
+
 
 typedef struct {
     u8 unmodeled_00[4];
@@ -61,7 +129,7 @@ typedef struct MenuItemListWork {
 } MenuItemListWork;
 
 typedef struct MenuItemMessage {
-    u8 unmodeled_00;
+    u8 active;
     u8 mode;
     u8 unmodeled_02[2];
     short x;
@@ -76,19 +144,6 @@ typedef struct MenuItemExWork {
     MenuItemMessage message;
 } MenuItemExWork;
 
-typedef struct MenuItemPasWindow {
-    short x;
-    short y;
-    int color;
-    short width;
-    short height;
-    u8 unmodeled_0c[0x10 - 0x0C];
-    signed char state;
-    u8 unmodeled_11[0x14 - 0x11];
-    void (*callback)(void);
-    void *callbackArg;
-    u8 unmodeled_1c[0x194 - 0x1C];
-} MenuItemPasWindow;
 
 typedef struct MenuItemPasMessage {
     u8 unmodeled_00;
@@ -123,13 +178,23 @@ typedef struct MenuItemPasWork {
 typedef struct MenuItemWorkData {
     u8 unmodeled_00[3];
     u8 mode;
-    u8 unmodeled_04[0x2C];
+    u8 unmodeled_04[0x20 - 0x04];
+    u8 flags;
+    unsigned char unmodeled_021[0x22 - 0x21];
+    u8 busy; /* +0x22 */
+    unsigned char unmodeled_023[0x30 - 0x23];
     signed char listTab;
     signed char sortAbility;
     signed char sortNormal;
     signed char sortCategory[3];
     u8 unmodeled_36[0x1A];
     int selectDir;
+    u8 unmodeled_54[0x62 - 0x54];
+    signed char agwsMode;
+    signed char selectedAgws;
+    signed char agwsCount;
+    u8 unmodeled_65[0x72 - 0x65]; /* +0x65 */
+    signed char sortSelection; /* +0x72 */
 } MenuItemWorkData;
 
 extern MenuItemPasWork *MenuItemPas;
@@ -154,11 +219,11 @@ extern void *MenuItemSegment;
 
 extern MenuItemWorkData MenuWork;
 
-extern void MenuPasWindow(void);
 
-extern void WindowDXSet(void *window);
 
-extern void WindowDXMain(void *window);
+
+
+
 
 extern void endPrintExtFunc(int color, int id, void *data);
 
@@ -182,9 +247,9 @@ extern void MenuSortSet(int list, int type, int order);
 
 extern void MenuSortChange(int list, int index);
 
-extern void WindowSPItemChange(MenuItemWindowSP *window);
 
-extern void WindowSPSetSelect(MenuItemWindowSP *window, unsigned char *savedSelection);
+
+
 
 extern void MoveSlide(short *current, short *target, float rate);
 
@@ -245,16 +310,16 @@ void MenuItemPasMain(void)
         pas->x = -272;
         pas->y = 8;
         pas->color = 0xFFFFF0;
-        WindowDXSet(&pas->window);
+        WindowDXSet((WindowDX *)&pas->window);
         pas->window.x = pas->x;
         pas->window.y = pas->y;
         pas->window.color = pas->color;
         pas->window.width = 272;
         pas->window.height = 30;
-        pas->window.callback = MenuPasWindow;
+        pas->window.callback = (void (*)(WindowDX *, void *))MenuPasWindow;
         pas->window.callbackArg = pas->callbackWork;
         pas->window.state = 1;
-        WindowDXMain(&pas->window);
+        WindowDXMain((WindowDX *)&pas->window);
         pas->window.state = 3;
         for (i = 0; i < 9; i++) {
             eMessageSet(&pas->message[i], msg00[i]);
@@ -291,7 +356,7 @@ void MenuItemPasMain(void)
     }
 
     MoveSlide(&pas->window.x, &slideTarget, 3.0f);
-    WindowDXMain(&pas->window);
+    WindowDXMain((WindowDX *)&pas->window);
     pas->box.x = pas->window.x + 3;
     pas->box.y = pas->window.y + 3;
     pas->box.color = pas->color;
@@ -306,13 +371,266 @@ void MenuItemPasMain(void)
     endPrintExtFunc(pas->color, 0x66, 0);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_item", MenuItemInfoMain);
+void MenuItemInfoMain(void)
+{
+    MenuItemInfoWork *info = MenuItemInfo;
+    MenuItemInfoLabels labels = D_004C4ED0;
+    MenuItemInfoHelpLabels helpLabels = D_004DAAC8[0];
+    short targetY;
+    short targetHeight;
+
+    switch (info->state) {
+    case 0: {
+        signed char windowState;
+        unsigned short *textX;
+
+        info->color = 0xFFFFF0;
+        WindowDXSet((WindowDX *)&info->window);
+        info->window.x = -16;
+        info->window.y = 480;
+        info->window.width = 544;
+        info->window.height = 54;
+        info->window.color = info->color;
+        info->window.callback = (void (*)(WindowDX *, void *))MenuInfoWindow;
+        windowState = 1;
+        info->window.callbackArg = &info->text;
+        textX = info->window.callbackArg;
+        *textX = 0;
+        info->window.state = windowState;
+        info->text.y = 0;
+        info->text.message = 0;
+        WindowDXMain((WindowDX *)&info->window);
+        info->window.state = 3;
+        info->help = 0;
+        memset(info->buffer, 0, sizeof(info->buffer));
+        info->state = 2;
+    }
+        /* fall through */
+    case 2:
+        break;
+    default:
+        return;
+    }
+
+    targetY = 384;
+    targetHeight = 54;
+    if (MenuWork.flags & 1) {
+        info->help = 0;
+    }
+    if (info->help == 0) {
+        if (PadData.pressed & 32) {
+            info->help = 1;
+        }
+    } else if (PadData.activity != 0) {
+        info->help = 0;
+    }
+
+    switch (MenuWork.mode) {
+    case 32:
+    case 34:
+    case 64:
+        if (MenuWork.busy == 0) {
+            if (MenuWork.selectDir >= 0) {
+                strcpy(info->buffer, (const char *)MenuTextGet(MenuSortGet(0, MenuWork.selectDir))->auxiliary);
+                if (MenuWork.listTab == 0 && info->help == 1) {
+                    signed char use = MenuListGet(0)[MenuWork.selectDir].state;
+
+                    if (use == 1) {
+                        strcpy(info->buffer, helpLabels.unavailable);
+                    } else if (use == 2) {
+                        strcpy(info->buffer, helpLabels.restricted);
+                    }
+                }
+            } else {
+                info->buffer[0] = D_004DAAD0[0];
+            }
+        }
+        break;
+    case 128:
+        if (MenuWork.sortSelection == 3) {
+            strcpy(info->buffer, labels.cancel);
+        } else {
+            strcpy(info->buffer, labels.sortPrefix);
+            strcat(info->buffer, labels.sortMethods[MenuWork.sortSelection]);
+            strcat(info->buffer, D_004DAAD8);
+        }
+        break;
+    case 48:
+        targetY = 408;
+        targetHeight = 30;
+        break;
+    default:
+        targetY = 464;
+        break;
+    }
+
+    info->text.message = info->buffer;
+    MoveSlide(&info->window.y, &targetY, 3.0f);
+    MoveSlide(&info->window.height, &targetHeight, 3.0f);
+    WindowDXMain((WindowDX *)&info->window);
+}
+
 
 INCLUDE_ASM("asm/main/nonmatchings/menu_item", MenuItemLineMain);
 
 INCLUDE_ASM("asm/main/nonmatchings/menu_item", MenuItemStatusMain);
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_item", MenuItemStatusAgwsMain);
+typedef struct MenuItemAgwsTag {
+    u8 unmodeled_00[4];
+    short x;
+    short y;
+    int work;
+    signed char color[4];
+    struct {
+        short x;
+        short y;
+        int work;
+        signed char color[4];
+        const char *text;
+    } render;
+} MenuItemAgwsTag;
+
+typedef struct MenuItemAgwsNumber {
+    unsigned short x;
+    unsigned short y;
+    int work;
+    u8 unmodeled_08[6];
+    u8 format;
+    u8 digitCount;
+    u8 unmodeled_10[4];
+    int value;
+    u8 unmodeled_18[0x90 - 0x18];
+} MenuItemAgwsNumber;
+
+typedef struct MenuItemAgwsRow {
+    MenuItemPasWindow window;
+    MenuItemPasMessage name;
+    MenuItemAgwsTag hpLabel;
+    MenuItemAgwsNumber hpNumber;
+} MenuItemAgwsRow;
+
+typedef struct MenuItemAgwsCursor {
+    u8 mode;
+    u8 unmodeled_01[3];
+    short x;
+    short y;
+    int work;
+} MenuItemAgwsCursor;
+
+typedef struct MenuItemAgwsStatusWork {
+    u8 state;
+    u8 unmodeled_01[3];
+    int color;
+    MenuItemAgwsRow rows[6];
+    MenuItemAgwsCursor cursor;
+} MenuItemAgwsStatusWork;
+
+typedef struct MenuItemHpParameters {
+    short maxHp;
+    u8 unmodeled_02[0x34 - 0x02];
+    short hp;
+} MenuItemHpParameters;
+
+extern short MenuItemAgws[];
+extern const char D_004DAAE0[];
+extern const char *MenuCharNameGet(int character);
+extern void eTagFontSet(void *tag, const char *text);
+extern void eTagFontMain(void *tag);
+extern void eNumberSet(void *number, int mode);
+extern void eNumberMain(void *number);
+extern void eCursolSet(void *cursor, int mode);
+extern void eCursolMain(void *cursor);
+extern MenuItemHpParameters *func_00A11108(int character, int *attack, int *defense);
+
+void MenuItemStatusAgwsMain(void)
+{
+    MenuItemAgwsStatusWork *status = MenuItemStatusAgws;
+    short targetX[6];
+    int attack[3];
+    int defense[2];
+    register int i;
+
+    switch (status->state) {
+    case 0: {
+        status->color = 0xF000F0;
+        for (i = 0; i < MenuWork.agwsCount; i++) {
+            WindowDXSet((WindowDX *)&status->rows[i].window);
+            status->rows[i].window.width = 240;
+            status->rows[i].window.height = 50;
+            status->rows[i].window.color = status->color;
+            status->rows[i].window.x = -272;
+            status->rows[i].window.state = 1;
+            status->rows[i].window.y = i * status->rows[i].window.height + 64;
+            WindowDXMain((WindowDX *)&status->rows[i].window);
+            status->rows[i].window.state = 3;
+            eMessageSet(&status->rows[i].name, MenuCharNameGet(MenuItemAgws[i]));
+            status->rows[i].name.mode = 32;
+            status->rows[i].name.color = status->rows[i].window.color + 2;
+            eTagFontSet(&status->rows[i].hpLabel, D_004DAAE0);
+            status->rows[i].hpLabel.work = status->color + 2;
+            status->rows[i].hpLabel.color[0] = 112;
+            eNumberSet(&status->rows[i].hpNumber, 0);
+            status->rows[i].hpNumber.work = status->color + 2;
+            status->rows[i].hpNumber.format = 12;
+            status->rows[i].hpNumber.digitCount = 4;
+        }
+        eCursolSet(&status->cursor, 0);
+        status->cursor.mode = 32;
+        status->state = 2;
+        status->cursor.work = status->color + 4;
+    }
+        /* fall through */
+    case 2:
+        break;
+    default:
+        return;
+    }
+
+    for (i = 0; i < MenuWork.agwsCount; i++) {
+        targetX[i] = -272;
+    }
+    if (MenuWork.mode == 32 || MenuWork.mode == 34) {
+        if (MenuWork.flags & 1) {
+            if (MenuWork.mode == 32) {
+                status->cursor.mode = 0;
+            } else {
+                status->cursor.mode = 32;
+            }
+        }
+        if (MenuWork.agwsMode == 1) {
+            for (i = 0; i < MenuWork.agwsCount; i++) {
+                targetX[i] = 16;
+            }
+        }
+    }
+    i = 0;
+    while (i < MenuWork.agwsCount) {
+        MenuItemHpParameters *parameters = func_00A11108(MenuItemAgws[i], attack, defense);
+
+        MoveSlide(&status->rows[i].window.x, &targetX[i], 3.0f);
+        WindowDXMain((WindowDX *)&status->rows[i].window);
+        status->rows[i].name.x = status->rows[i].window.x + 19;
+        status->rows[i].name.y = status->rows[i].window.y + 3;
+        eMessageMain(&status->rows[i].name);
+        status->rows[i].hpLabel.x = status->rows[i].window.x + 123;
+        status->rows[i].hpLabel.y = status->rows[i].window.y + 29;
+        eTagFontMain(&status->rows[i].hpLabel);
+        {
+            unsigned int packedHp = parameters->hp + ((unsigned int)parameters->maxHp << 16);
+
+            status->rows[i].hpNumber.value = packedHp;
+            status->rows[i].hpNumber.x = status->rows[i].hpLabel.x + 52;
+            status->rows[i].hpNumber.y = status->rows[i].hpLabel.y;
+        }
+        eNumberMain(&status->rows[i].hpNumber);
+        i++;
+    }
+    if (MenuWork.agwsCount != 0) {
+        status->cursor.x = status->rows[MenuWork.selectedAgws].window.x + 3;
+        status->cursor.y = status->rows[MenuWork.selectedAgws].window.y + 19;
+        eCursolMain(&status->cursor);
+    }
+}
 
 void MenuItemListMake00(void)
 {
@@ -355,8 +673,8 @@ void MenuItemListMake00(void)
     MenuItemList->window.width = 224;
     MenuItemList->window.height = MenuItemList->window.rows * 24 + 6;
     MenuItemList->window.items = MenuListGet(0);
-    WindowSPItemChange(&MenuItemList->window);
-    WindowSPSetSelect(&MenuItemList->window, MenuKeepSelect);
+    WindowSPItemChange((WindowSPCursor *)&MenuItemList->window);
+    WindowSPSetSelect((WindowSPCursor *)&MenuItemList->window, MenuKeepSelect);
 }
 
 void MenuItemListMake00_1(void)
@@ -396,8 +714,8 @@ void MenuItemListMake00_1(void)
     MenuItemList->window.width = 224;
     MenuItemList->window.height = MenuItemList->window.rows * 24 + 6;
     MenuItemList->window.items = MenuListGet(0);
-    WindowSPItemChange(&MenuItemList->window);
-    WindowSPSetSelect(&MenuItemList->window, MenuKeepSelect);
+    WindowSPItemChange((WindowSPCursor *)&MenuItemList->window);
+    WindowSPSetSelect((WindowSPCursor *)&MenuItemList->window, MenuKeepSelect);
 }
 
 void MenuItemListMake01(int category)
@@ -435,8 +753,8 @@ void MenuItemListMake01(int category)
     MenuItemList->window.width = 468;
     MenuItemList->window.height = MenuItemList->window.rows * 24 + 6;
     MenuItemList->window.items = MenuListGet(0);
-    WindowSPItemChange(&MenuItemList->window);
-    WindowSPSetSelect(&MenuItemList->window, &MenuKeepSelect[category * 5 + 10]);
+    WindowSPItemChange((WindowSPCursor *)&MenuItemList->window);
+    WindowSPSetSelect((WindowSPCursor *)&MenuItemList->window, &MenuKeepSelect[category * 5 + 10]);
 }
 
 void MenuItemListMake02(void)
@@ -457,8 +775,8 @@ void MenuItemListMake02(void)
     MenuItemList->window.height = MenuItemList->window.rows * 0x18 + 6;
     MenuItemList->window.items = MenuListGet(0);
 
-    WindowSPItemChange(&MenuItemList->window);
-    WindowSPSetSelect(&MenuItemList->window, &MenuKeepSelect[5]);
+    WindowSPItemChange((WindowSPCursor *)&MenuItemList->window);
+    WindowSPSetSelect((WindowSPCursor *)&MenuItemList->window, &MenuKeepSelect[5]);
 }
 
 INCLUDE_ASM("asm/main/nonmatchings/menu_item", MenuItemListMain);
@@ -466,6 +784,7 @@ INCLUDE_ASM("asm/main/nonmatchings/menu_item", MenuItemListMain);
 INCLUDE_ASM("asm/main/nonmatchings/menu_item", MenuItemSelectMain);
 
 INCLUDE_ASM("asm/main/nonmatchings/menu_item", MenuItemIconMain);
+
 
 INCLUDE_ASM("asm/main/nonmatchings/menu_item", MenuItemExMain);
 

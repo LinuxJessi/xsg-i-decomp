@@ -2,6 +2,8 @@
 
 #include "ether_tree.h"
 
+extern void endSpriteSet(struct PrintSpriteInfo *sprite, int flags);
+
 /*
  * EtherTreeObject points at a table of 80 tree-object records of 0x70 bytes
  * (EtherTreeObjectSet clears 0x2300 bytes of it; EtherTreeObjectGet matches a
@@ -10,7 +12,39 @@
  * No function claimed here reads a record, so the record type stays opaque.
  */
 
+
 typedef struct EtherTreeObjectData EtherTreeObjectData;
+
+typedef struct PrintSpriteInfo EtherTreeSprite;
+
+typedef struct EtherTreeRibbonPoint {
+    short x;
+    short y;
+    unsigned int depth;
+    unsigned char color[4];
+} EtherTreeRibbonPoint;
+
+typedef struct EtherTreeLineDrawMethods {
+    void (*byChildCount[4])(EtherTreeLineData *line);
+} EtherTreeLineDrawMethods;
+
+extern const EtherTreeLineDrawMethods D_004C9AD0;
+
+typedef struct EtherTreeGeometrySegment {
+    EtherTreePosition from;
+    unsigned char fromColor[4];
+    unsigned char unmodeled_14[12];
+    EtherTreePosition to;
+    unsigned char toColor[4];
+    unsigned char unmodeled_34[12];
+} EtherTreeGeometrySegment;
+
+typedef struct EtherTreeLineGeometry {
+    EtherTreeObjectData *object;
+    unsigned char unmodeled_04[12];
+    EtherTreeGeometrySegment segments[6];
+} EtherTreeLineGeometry;
+
 
 EtherTreeObjectData *EtherTreeObject = 0;
 
@@ -51,7 +85,9 @@ typedef struct EtherTreeSystemData {
     EtherTreeCoordinates targetNode;
     unsigned char unmodeled_48[0x08];
     EtherTreeObjectData *targetObject;
-    unsigned char unmodeled_54[0x1c];
+    EtherTreeObjectData *joutoObjects; /* +0x54 */
+    unsigned char unmodeled_058[0x5c - 0x58];
+    EtherTreeSprite cursor; /* +0x5c */
     unsigned char *windowTexAddr;
 } EtherTreeSystemData;
 
@@ -133,11 +169,17 @@ struct EtherTreeRightData *EtherTreeRight = 0;
 typedef struct EtherTreeRightData {
     unsigned char flags;
     unsigned char mode;
-    unsigned char unmodeled_02[0x1e];
+    unsigned char unmodeled_002[0x10 - 0x2];
+    EtherTreePosition position; /* +0x10 */
     EtherTreeObjectData *object;
-    unsigned char unmodeled_24[0x0c];
+    short screenX; /* +0x24 */
+    short screenY; /* +0x26 */
+    unsigned int depth; /* +0x28 */
+    unsigned char color[4]; /* +0x2c */
     int counter;
-    unsigned char unmodeled_34[0x0c];
+    int height; /* +0x34 */
+    unsigned char borderColor[4]; /* +0x38 */
+    unsigned char unmodeled_3c[4];
 } EtherTreeRightData;
 
 extern void subEtherTreeRightMain(EtherTreeRightData *record);
@@ -154,6 +196,7 @@ typedef struct EtherTreeBlackData {
     unsigned char unmodeled_00;
     unsigned char mode;
     short counter;
+    EtherTreeRibbonPoint points[5]; /* +0x4 */
 } EtherTreeBlackData;
 
 EtherTreeBlackData *EtherTreeBlack = 0;
@@ -259,6 +302,44 @@ void subPosSet3(void);
 void subJoutoPosSet(void);
 
 void subMoveSlide(float *position, float *target, float rate);
+
+static inline unsigned char *subRightPalettePrepare(EtherTreeRightData *record)
+{
+    record->borderColor[3] = 0;
+    record->borderColor[0] = record->borderColor[1] = record->borderColor[2] =
+        record->color[0] = record->color[1] = record->color[2] = 128;
+    return record->color;
+}
+
+static inline EtherTreeObjectData *subLine2ChildAtIndex(
+    unsigned int selectedIndex, EtherTreeObjectData **children)
+{
+    EtherTreeObjectData **selectedChild = children + selectedIndex;
+
+    return *selectedChild;
+}
+
+static inline int subLine2SelectForY(EtherTreeLine2Data *line2,
+                                   unsigned int *selection)
+{
+    return *selection = line2->selectedIndex;
+}
+
+static inline void subLine2SettleYAtChild(EtherTreeLine2Data *line2,
+                                         int selectedIndex,
+                                         EtherTreeObjectData **children)
+{
+    EtherTreeObjectData *child = subLine2ChildAtIndex(selectedIndex, children);
+
+    line2->to[1].vector.y = child->position.vector.y;
+    line2->to[2] = child->position;
+    line2->from[2].vector = line2->to[2].vector;
+    line2->from[2].vector.x -= 28.5f;
+    line2->to[2].vector.x -= 28.5f;
+    line2->counter = 3;
+}
+
+extern int subLine2_OpenType_1(EtherTreeLine2Data *record);
 
 void EtherTreeObjectGetClear(void)
 {
@@ -457,7 +538,41 @@ void sub2JoutoYGet(EtherTreeObjectData *object, float *y)
         *y = object->position.vector.y;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/ether_tree", subJoutoPosSet);
+void subJoutoPosSet(void)
+{
+    unsigned short firstDataIndex = EtherTreeSystem->firstDataIndex;
+    EtherTreeNodeTransform *node = &EtherTreeSystem->node;
+    float baseX = 57.0f;
+    EtherTreeObjectData *root = EtherTreeObjectWorkGet();
+    EtherTreeObjectData *object;
+    float columnSpacing = baseX;
+    float baseY[4];
+    int count = 0;
+    int id = 1;
+
+    EtherTreeSystem->joutoObjects = root;
+    sub2JoutoYGet(EtherTreeObject, baseY);
+    object = root;
+    baseY[0] += 72.0f;
+    do {
+        if (firstDataIndex != (unsigned short)MenuEtherWhoCheck(id)) {
+            if (func_A19578(firstDataIndex, id)) {
+                int row = count / 4;
+                int column = count - row * 4;
+                unsigned short objectId = id;
+
+                object->flags |= 8;
+                object->id = objectId;
+                object->position.vector.x = baseX + column * columnSpacing;
+                object->position.vector.y = baseY[0] + row * 72.0f;
+                object->position.vector.z = node->z;
+                count++;
+                object++;
+            }
+        }
+    } while (++id < 80);
+    root->childCount = count;
+}
 
 void EtherTreeParaSet(EtherTreeObjectData *object)
 {
@@ -648,9 +763,58 @@ void EtherTreeCenterMove(void)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/ether_tree", EtherTreeRightSet);
+void EtherTreeRightSet(int id, int index)
+{
+    EtherTreeRightData *record = &EtherTreeRight[index];
+    EtherTreeObjectData *object;
+    unsigned char initialAlpha;
+    unsigned char enabled = EtherTreeSystem->flags & 1;
 
-INCLUDE_ASM("asm/main/nonmatchings/ether_tree", EtherTreeRightModeChange);
+    if (!enabled)
+        return;
+    object = record->object = EtherTreeObjectGet(id);
+    if (object == 0)
+        return;
+
+    record->mode = 0;
+    record->flags |= 1;
+    record->counter = 0;
+    record->position = object->position;
+    initialAlpha = record->color[3] = 32;
+    subRightPalettePrepare(record);
+    record->height = initialAlpha;
+}
+
+void EtherTreeRightModeChange(int mode, int index)
+{
+    EtherTreeRightData *record = &EtherTreeRight[index];
+    unsigned char currentMode;
+
+    if (EtherTreeSystem->flags & 1) {
+        if (record->flags & 1) {
+            currentMode = record->mode;
+            switch (currentMode) {
+            case 1:
+            case 2:
+                if (mode == 1 || mode == 2)
+                    break;
+                record->mode = mode;
+                break;
+            case 3:
+                if (mode == currentMode)
+                    break;
+                if (mode == 0)
+                    break;
+                record->mode = mode;
+                break;
+            case 0:
+                if (currentMode == 0)
+                    record->mode = mode;
+                break;
+            }
+        }
+    }
+}
 
 void EtherTreeRightTargetChange(int id, int index)
 {
@@ -663,7 +827,34 @@ void EtherTreeRightTargetChange(int id, int index)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/ether_tree", subEtherTreeRightMain);
+void subEtherTreeRightMain(EtherTreeRightData *record)
+{
+    if (EtherTreeSystem->flags & 1) {
+        if (record->flags & 1) {
+            switch (record->mode) {
+            case 0:
+                break;
+            case 1:
+                record->counter += 8;
+                if (record->counter < 48)
+                    break;
+                record->mode = 2;
+                /* fall through */
+            case 2:
+                record->counter = 48;
+                break;
+            case 3:
+                record->counter -= 8;
+                if (record->counter <= 0) {
+                    record->flags &= ~1;
+                    record->mode = 0;
+                    record->counter = 0;
+                }
+                break;
+            }
+        }
+    }
+}
 
 void EtherTreeRightMain(void)
 {
@@ -677,26 +868,215 @@ void EtherTreeRightMain(void)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/ether_tree", subRightDraw);
+void subRightDraw(EtherTreeRightData *record)
+{
+    EtherTreeSystemData *system = EtherTreeSystem;
+    float *positionX = &record->position.vector.x;
+    float *positionY = &record->position.vector.y;
+    EtherTreeNodeTransform *node;
+    EtherTreeCoordinates *center;
+    float screenX;
+    float screenY;
+    float depth;
 
-INCLUDE_ASM("asm/main/nonmatchings/ether_tree", EtherTreeRightDraw);
+    subMoveSlide(positionX, &record->object->position.vector.x, 0.2f);
+    node = &system->node;
+    center = &system->center;
+    subMoveSlide(positionY, &record->object->position.vector.y, 0.2f);
+    screenX = (*positionX + node->x) + center->x;
+    screenY = (*positionY + node->y) + center->y;
+    depth = node->z + 4.0f;
+    record->screenX = screenX;
+    record->screenY = screenY;
+    record->depth = depth;
+    endPrintExtFunc(0, 17, &record->screenX);
+}
+
+void subRightDraw(EtherTreeRightData *record);
+
+void EtherTreeRightDraw(void)
+{
+    int i;
+
+    if (!(EtherTreeSystem->flags & 1))
+        return;
+    for (i = 0; i < 2; i++) {
+        EtherTreeRightData *record = &EtherTreeRight[i];
+
+        if (record->flags & 1) {
+            if (record->mode != 0)
+                subRightDraw(record);
+        }
+    }
+}
 
 void EtherTreeBlackSet(void)
 {
     EtherTreeBlack->counter = (EtherTreeBlack->mode = 0);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/ether_tree", EtherTreeBlackModeChange);
+void EtherTreeBlackModeChange(int mode)
+{
+    EtherTreeBlackData *record = EtherTreeBlack;
+    unsigned char currentMode;
 
-INCLUDE_ASM("asm/main/nonmatchings/ether_tree", EtherTreeBlackDraw);
+    if (EtherTreeSystem->flags & 1) {
+        currentMode = record->mode;
+        switch (currentMode) {
+        case 1:
+        case 2:
+            if (mode == 1 || mode == 2)
+                break;
+            record->mode = mode;
+            break;
+        case 3:
+            if (mode == currentMode)
+                break;
+            if (mode == 0)
+                break;
+            record->mode = mode;
+            break;
+        case 0:
+            if (currentMode == 0)
+                record->mode = mode;
+            break;
+        }
+    }
+    return;
+}
 
-INCLUDE_ASM("asm/main/nonmatchings/ether_tree", EtherTreeBlackMain);
+void EtherTreeBlackDraw(void)
+{
+    EtherTreeSystemData *system = EtherTreeSystem;
+    EtherTreeBlackData *record = EtherTreeBlack;
+    EtherTreeRibbonPoint *points = record->points;
+    unsigned int depth;
 
-INCLUDE_ASM("asm/main/nonmatchings/ether_tree", EtherTreeLine2Set);
+    if (system->flags & 1) {
+        if (record->mode != 0) {
+            EtherTreeRibbonPoint *lowerLeft = &record->points[1];
+            EtherTreeRibbonPoint *upperRight = &record->points[2];
+            EtherTreeRibbonPoint *lowerRight = &record->points[3];
+            depth = system->node.z + 2.0f;
+            points[0].x = 0;
+            points[0].y = 0;
+            points[1].x = 0;
+            points[1].y = 448;
+            points[2].x = 512;
+            points[2].y = 0;
+            points[3].x = 512;
+            points[3].y = 448;
+            points[0].depth = lowerLeft->depth = upperRight->depth = lowerRight->depth = depth;
+            points[0].color[2] = points[1].color[2] = points[2].color[2] = points[3].color[2] = 0;
+            points[0].color[1] = points[1].color[1] = points[2].color[1] = points[3].color[1] = 0;
+            points[0].color[0] = points[1].color[0] = points[2].color[0] = points[3].color[0] = 0;
+            points[0].color[3] = points[1].color[3] = points[2].color[3] = points[3].color[3] = record->counter;
+            points[4].depth = 0;
+            endPrintExtFunc(0, 3, points);
+        }
+    }
+}
 
-INCLUDE_ASM("asm/main/nonmatchings/ether_tree", EtherTreeLine2ModeChange);
+void EtherTreeBlackMain(void)
+{
+    EtherTreeBlackData *record = EtherTreeBlack;
 
-INCLUDE_ASM("asm/main/nonmatchings/ether_tree", EtherTreeLine2SelectChange);
+    if (EtherTreeSystem->flags & 1) {
+        switch (record->mode) {
+        case 0:
+            break;
+        case 1:
+            record->counter += 8;
+            if (record->counter < 80)
+                break;
+            record->mode = 2;
+            /* fall through */
+        case 2:
+            record->counter = 80;
+            break;
+        case 3:
+            record->counter -= 8;
+            if (record->counter <= 0) {
+                record->counter = 0;
+                record->mode = 0;
+            }
+            break;
+        }
+    }
+}
+
+void EtherTreeLine2Set(int id, int selectionType)
+{
+    EtherTreeLine2Data *record = EtherTreeLine2;
+    EtherTreeObjectData *object;
+    EtherTreeObjectData *nextObject;
+    int i;
+
+    if (EtherTreeSystem->flags & 1) {
+        object = EtherTreeObjectGet(id);
+        record->object = object;
+        for (i = 0; i < object->childCount; i++, object = nextObject) {
+            record->to[i].vector = object->position.vector;
+            nextObject = record->object;
+            record->from[i].vector = record->to[i].vector;
+        }
+        record->selectionType = selectionType;
+        record->mode = 0;
+        record->flags |= 1;
+        record->counter = 0;
+    }
+}
+
+void EtherTreeLine2ModeChange(int mode)
+{
+    EtherTreeLine2Data *record = EtherTreeLine2;
+    int i;
+
+    if (EtherTreeSystem->flags & 1) {
+        if (record->flags & 1) {
+            switch (mode) {
+            case 1:
+            case 2:
+                if (record->mode == 1 || record->mode == 2)
+                    break;
+                record->mode = mode;
+                if (record->mode == 1) {
+                    record->counter = 0;
+                    for (i = 0; i < 3; i++) {
+                        record->to[i].vector = record->object->position.vector;
+                        record->from[i].vector = record->to[i].vector;
+                    }
+                }
+                break;
+            case 3:
+                if (record->mode == 3 || record->mode == 0)
+                    break;
+                record->mode = mode;
+                break;
+            case 0:
+                record->mode = mode;
+                break;
+            }
+        }
+    }
+}
+
+void EtherTreeLine2ModeChange(int mode);
+
+void EtherTreeLine2SelectChange(int index)
+{
+    EtherTreeLine2Data *record = EtherTreeLine2;
+
+    if (EtherTreeSystem->flags & 1) {
+        if (record->flags & 1) {
+            if (record->selectedIndex != index) {
+                record->selectedIndex = index;
+                EtherTreeLine2ModeChange(0);
+            }
+            EtherTreeLine2ModeChange(1);
+        }
+    }
+}
 
 static inline float *line2EndpointY(EtherTreeLine2Data *line2, unsigned int index)
 {
@@ -767,11 +1147,150 @@ int subLine2_OpenType_0(EtherTreeLine2Data *line2)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/ether_tree", subLine2_OpenType_1);
+int subLine2_OpenType_1(EtherTreeLine2Data *line2)
+{
+    EtherTreeObjectData *object = line2->object;
+    EtherTreeObjectData **children;
+    EtherTreeObjectData *child;
+    unsigned int selectedIndex;
+    float cornerX;
 
-INCLUDE_ASM("asm/main/nonmatchings/ether_tree", EtherTreeLine2Main);
+    switch (line2->counter) {
+    case 0:
+        line2->counter = 1;
+        line2->to[0] = object->position;
+        line2->from[0].vector = line2->to[0].vector;
+        /* fall through */
+    case 1:
+        line2->to[0].vector.x += 4.0f;
+        cornerX = (object->position.vector.x + 19.0f) + 9.5f;
+        if (line2->to[0].vector.x < cornerX)
+            return 0;
+        line2->to[0].vector.x = cornerX;
+        line2->to[1] = object->position;
+        line2->from[1].vector = line2->to[1].vector;
+        line2->from[1].vector.x += 28.5f;
+        line2->to[1].vector.x += 28.5f;
+        line2->counter = 2;
+        /* fall through */
+    case 2: {
+        int ySelection = subLine2SelectForY(line2, &selectedIndex);
 
-INCLUDE_ASM("asm/main/nonmatchings/ether_tree", sub2ObjectLampDraw);
+        if (ySelection == 0) {
+            EtherTreeObjectData **directionChildren = children = object->children;
+            EtherTreeObjectData *directionChild = directionChildren[0];
+            float steppedY = line2->to[1].vector.y - 8.0f;
+
+            line2->to[1].vector.y = steppedY;
+            if (directionChild->position.vector.y < steppedY)
+                return 0;
+        } else {
+            EtherTreeObjectData **directionChildren = children = object->children;
+            EtherTreeObjectData *directionChild = subLine2ChildAtIndex(ySelection, directionChildren);
+            float steppedY = line2->to[1].vector.y + 8.0f;
+
+            line2->to[1].vector.y = steppedY;
+            if (directionChild->position.vector.y > steppedY)
+                return 0;
+        }
+        subLine2SettleYAtChild(line2, selectedIndex, children);
+        break;
+    }
+    case 3:
+        selectedIndex = line2->selectedIndex;
+        children = object->children;
+        break;
+    default:
+        goto pending;
+    }
+    child = subLine2ChildAtIndex(selectedIndex, children);
+    line2->to[2].vector.x += 4.0f;
+    if (line2->to[2].vector.x < child->position.vector.x)
+        return 0;
+    line2->to[2].vector.x = child->position.vector.x;
+    return 1;
+pending:
+    return 0;
+}
+
+void EtherTreeLine2Main(void)
+{
+    EtherTreeLine2Data *record = EtherTreeLine2;
+    unsigned char flags;
+    unsigned char mode;
+    int childCount;
+
+    if (EtherTreeSystem->flags & 1) {
+        flags = record->flags;
+        if (flags & 1) {
+            mode = record->mode;
+            switch (mode) {
+            case 0:
+                break;
+            case 1:
+                childCount = record->object->childCount;
+                switch (childCount) {
+                case 0:
+                    record->mode = 2;
+                    break;
+                case 1:
+                    if (!subLine2_OpenType_0(record))
+                        break;
+                    /* fall through */
+                case 2:
+                case 3:
+                    if (subLine2_OpenType_1(record))
+                        record->mode = 2;
+                    break;
+                default:
+                    record->mode = 2;
+                    break;
+                }
+                break;
+            case 2:
+                break;
+            case 3:
+                record->mode = 0;
+                record->flags = flags & ~1;
+                break;
+            }
+        }
+    }
+}
+
+void sub2ObjectLampDraw(EtherTreeObjectData *object)
+{
+    EtherTreeSprite *lamp = &object->lamp;
+    EtherTreeNodeTransform *node = &EtherTreeSystem->node;
+    float sizeScale;
+    float positionScale;
+    float lampWidth;
+    float lampHeight;
+    float originX;
+
+    object->lampBrightness += object->setValue;
+    if (object->lampBrightness < 0) {
+        object->lampBrightness = 0;
+        object->setValue = -object->setValue;
+    } else if (object->lampBrightness > 128) {
+        object->lampBrightness = 128;
+        object->setValue = -object->setValue;
+    }
+    object->lamp.uv = 0x1203;
+    endSpriteSet(lamp, 255);
+    lampWidth = object->lamp.width;
+    sizeScale = node->scale;
+    object->lamp.color[3] = object->lampBrightness;
+    originX = object->sprite.x;
+    positionScale = node->scale;
+    lampHeight = object->lamp.height;
+    object->lamp.width = lampWidth * sizeScale;
+    object->lamp.height = lampHeight * sizeScale;
+    object->lamp.depth = (unsigned int)object->sprite.depth + 1;
+    lamp->x = (originX + positionScale * 27.0f) - 2.0f;
+    object->lamp.y = (object->sprite.y + positionScale) - 3.0f;
+    endPrintExtFunc(0, 2, lamp);
+}
 
 INCLUDE_ASM("asm/main/nonmatchings/ether_tree", EtherTreeObjectDraw);
 
@@ -806,15 +1325,169 @@ void subTreeLineDraw_type_0(void)
 {
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/ether_tree", subTreeLineDraw_type_1);
+void subTreeLineDraw_type_1(void *context)
+{
+    EtherTreeLineGeometry *line = context;
+    EtherTreeObjectData *object = line->object;
+    EtherTreeObjectData *child = object->children[0];
+    int colorIndex;
 
-INCLUDE_ASM("asm/main/nonmatchings/ether_tree", subTreeLineDraw_type_2);
+    line->segments[0].from = object->position;
+    line->segments[0].to = child->position;
+    colorIndex = (child->flags & 1) ? 2 : 1;
+    subTreeLineDraw(context, &colorIndex);
+}
 
-INCLUDE_ASM("asm/main/nonmatchings/ether_tree", subTreeLineDraw_type_3);
+void subTreeLineDraw_type_2(void *context)
+{
+    EtherTreeLineGeometry *line = context;
+    EtherTreeObjectData *object = line->object;
+    int colorIndices[5];
+    EtherTreeObjectData **colorChild;
+    int *colorPair;
+    int childCount;
+    int activeColor;
+    int inactiveColor;
+    EtherTreeObjectData *geometryObject;
+    EtherTreeObjectData **geometryChild;
 
-INCLUDE_ASM("asm/main/nonmatchings/ether_tree", EtherTreeLineDraw);
+    if (object->children[0]->flags & 1)
+        colorIndices[0] = 2;
+    else if (object->children[1]->flags & 1)
+        colorIndices[0] = 2;
+    else
+        colorIndices[0] = 1;
+    activeColor = 2;
+    inactiveColor = 1;
+    colorPair = &colorIndices[1];
+    colorChild = object->children;
+    childCount = 1;
+    do {
+        if ((*colorChild)->flags & 1)
+            colorPair[0] = colorPair[1] = activeColor;
+        else
+            colorPair[0] = colorPair[1] = inactiveColor;
+        colorChild++;
+        colorPair += 2;
+    } while (--childCount >= 0);
 
-INCLUDE_ASM("asm/main/nonmatchings/ether_tree", EtherTreeCursolDraw);
+    geometryObject = line->object;
+    line->segments[0].from = line->segments[0].to = geometryObject->position;
+    line->segments[0].to.vector.x += 28.5f;
+    geometryChild = geometryObject->children;
+    for (childCount = 0; childCount < 2; childCount++) {
+        EtherTreeObjectData *child = *geometryChild;
+        int verticalSegment = childCount * 2 + 1;
+        float junctionX;
+
+        line->segments[verticalSegment].from =
+            line->segments[verticalSegment].to = line->segments[0].to;
+        junctionX = line->segments[verticalSegment].to.vector.x;
+        line->segments[verticalSegment].to.vector.y = child->position.vector.y;
+        line->segments[verticalSegment + 1].from =
+            line->segments[verticalSegment + 1].to = child->position;
+        line->segments[verticalSegment + 1].from.vector.x = junctionX;
+        geometryChild++;
+    }
+    subTreeLineDraw(context, colorIndices);
+}
+
+void subTreeLineDraw_type_3(void *context)
+{
+    EtherTreeLineGeometry *line = context;
+    EtherTreeObjectData *object;
+    int colorIndices[7];
+    int childCount;
+    EtherTreeObjectData **colorChild;
+    int *colorPair;
+    int activeColor;
+    int inactiveColor;
+    EtherTreeObjectData *geometryObject;
+    EtherTreeObjectData *middleChild;
+    float junctionX;
+
+    colorIndices[0] = 1;
+    for (childCount = 0; childCount < 3; childCount++) {
+        object = line->object;
+        if (object->children[0]->flags & 1) {
+            colorIndices[0] = 2;
+            break;
+        }
+    }
+    activeColor = 2;
+    inactiveColor = 1;
+    colorPair = &colorIndices[1];
+    colorChild = line->object->children;
+    childCount = 2;
+    do {
+        if ((*colorChild)->flags & 1)
+            colorPair[0] = colorPair[1] = activeColor;
+        else
+            colorPair[0] = colorPair[1] = inactiveColor;
+        colorChild++;
+        colorPair += 2;
+    } while (--childCount >= 0);
+
+    geometryObject = line->object;
+    line->segments[0].from = line->segments[0].to = geometryObject->position;
+    line->segments[0].to.vector.x += 28.5f;
+    for (childCount = 0; childCount < 2; childCount++) {
+        EtherTreeObjectData *child = geometryObject->children[childCount * 2];
+        int verticalSegment = childCount * 2 + 1;
+        float branchX;
+
+        line->segments[verticalSegment].from =
+            line->segments[verticalSegment].to = line->segments[0].to;
+        branchX = line->segments[verticalSegment].to.vector.x;
+        line->segments[verticalSegment].to.vector.y = child->position.vector.y;
+        line->segments[verticalSegment + 1].from =
+            line->segments[verticalSegment + 1].to = child->position;
+        line->segments[verticalSegment + 1].from.vector.x = branchX;
+    }
+
+    middleChild = geometryObject->children[1];
+    junctionX = line->segments[0].to.vector.x;
+    line->segments[5].from = line->segments[5].to = middleChild->position;
+    line->segments[5].from.vector.x = junctionX;
+    subTreeLineDraw(context, colorIndices);
+}
+
+void EtherTreeLineDraw(void)
+{
+    EtherTreeLineData *records = EtherTreeLine;
+    EtherTreeLineDrawMethods methods = D_004C9AD0;
+    int remaining = 15;
+    EtherTreeLineData *line = records;
+
+    do {
+        if (line->object != 0)
+            methods.byChildCount[line->object->childCount](line);
+        line++;
+    } while (--remaining >= 0);
+}
+
+void EtherTreeCursolDraw(void)
+{
+    EtherTreeSystemData *system = EtherTreeSystem;
+    EtherTreeSprite *cursor = &system->cursor;
+    EtherTreeObjectData *target = system->targetObject;
+    EtherTreeNodeTransform *node;
+    EtherTreeCoordinates *center = &system->center;
+    Vector4 *position;
+
+    cursor->uv = 0x1204;
+    endSpriteSet(cursor, 255);
+    node = &system->node;
+    position = &target->position.vector;
+    cursor->x = (position->x - 23.0f) + (node->x + center->x);
+    cursor->y = (position->y - 28.0f) + (node->y + center->y);
+    cursor->width = cursor->width * node->scale;
+    cursor->height = cursor->height * node->scale;
+    cursor->x = cursor->x * node->scale;
+    cursor->y = cursor->y * node->scale;
+    cursor->depth = (unsigned int)(node->z + 2.0f);
+    endPrintExtFunc(0, 2, cursor);
+}
 
 void EtherTreeDraw(void)
 {

@@ -1,4 +1,15 @@
 #include "common.h"
+#include "debug_break.h"
+
+/* The collision solver distinguishes positive and negative zero by their
+ * 32-bit IEEE representation; copying bytes avoids incompatible scalar aliases. */
+static __inline__ int unduSlopeBits(const float *value)
+{
+    int bits;
+
+    __builtin_memcpy(&bits, value, 4);
+    return bits;
+}
 
 /*
  * TU-local declarations of main/tu273 (src/main/Undulate.c).
@@ -34,7 +45,8 @@ typedef struct UnduTriangle {
     float planeOffset;
     unsigned short vertexOffset[3];
     unsigned short normalOffset;
-    unsigned char unmodeled_10[8];
+    short neighbor[3];
+    unsigned char unmodeled_16[2];
 } UnduTriangle;
 
 typedef struct UnduResult {
@@ -105,7 +117,9 @@ typedef struct UnduDataHeaderIndex {
 } UnduDataHeaderIndex;
 
 typedef struct UnduGameLoopState {
-    unsigned char unmodeled_00[0x5c];
+    unsigned char unmodeled_00[0x10];
+    unsigned int flags;
+    unsigned char unmodeled_14[0x48];
     float attributeHeights[32];
 } UnduGameLoopState;
 extern UnduGameLoopState GameLoopState;
@@ -130,7 +144,8 @@ typedef struct UnduWork {
     float heightTolerance;
     float collisionHeight;
     unsigned short *collisionAttribute;
-    unsigned char unmodeled_a0[2];
+    unsigned char crossCheckCountX;
+    unsigned char crossCheckCountZ;
     unsigned char collisionType;
     unsigned char unmodeled_a3[5];
     UnduWallAttributes wallAttributes;
@@ -151,8 +166,7 @@ typedef struct UnduDataHeader {
 /* Fields of the per-query collision state, in its original byte order. */
 /* The query is also the result passed by UnduCheck to
  * UnduCheckResultCheck. Both views share bytes0x00..0x27. */
-typedef union UnduQueryPrefix {
-    struct {
+typedef struct UnduQueryParameters {
     unsigned short *attribute;
     unsigned short *previousAttribute;
     short flags;
@@ -165,7 +179,10 @@ typedef union UnduQueryPrefix {
     UnduDataHeader *header;
     UnduWork *scratchpad;
     UnduWallAttributes attributes;
-    } parameters;
+} UnduQueryParameters;
+
+typedef union UnduQueryPrefix {
+    UnduQueryParameters parameters;
     UnduResult result;
 } UnduQueryPrefix;
 
@@ -192,7 +209,18 @@ static int UnduCheckSubHeightCheck(UnduWork *work, int subOffset, float height);
 
 float UnduCheck(float *sample, void *output, UnduQuery *query);
 
+
+static void UnduCheckSubCrossCheck(UnduWork *work, UnduQuery *query, int subOffset);
+
+extern float atan2f(float y, float x);
+extern float xglSin(float x);
+extern float xglCos(float x);
+extern const float D_004DC3B4[];
+
 extern float UnduGet2(int flag, float x, float z);
+
+#define UNDU_ORIENT(x0, z0, x1, z1, x2, z2) \
+    ((x0) * (z1) + (x1) * (z2) + (x2) * (z0) - (x0) * (z2) - (x1) * (z0) - (x2) * (z1))
 
 #define UNDU_RELOCATE(field, base) \
     do { \
@@ -576,7 +604,371 @@ static int CheckWallAttr(UnduWork *work, const unsigned short *wallAttribute)
     return 0;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/Undulate", UnduCheckSubCrossCheck);
+static void UnduCheckSubCrossCheck(UnduWork *work, UnduQuery *query, int subOffset)
+{
+    UnduTriangle *triangle = (UnduTriangle *)subOffset;
+    UnduQueryParameters *parameters = &query->prefix.parameters;
+    UnduTriangle *neighbor;
+    UnduVertex *vertexA;
+    UnduVertex *vertexB;
+    UnduVertex *vertexC;
+    UnduVertex *edgeStart;
+    UnduVertex *edgeEnd;
+    float moveSlope;
+    float edgeSlope;
+    UnduVertex *normal;
+    float *move;
+    float edgeAB;
+    float edgeBC;
+    float edgeCA;
+    float edgeQ;
+    float sideStart;
+    float sideEnd;
+    float low;
+    float high;
+    float margin;
+    float py;
+    float highLimit;
+    float lowZ;
+    float highZ;
+    float lowX;
+    float highX;
+    float dx;
+    float moveDx;
+    float dz;
+    float moveDz;
+    float edgeDx;
+    float edgeDz;
+    float crossX;
+    float crossZ;
+    float moveDistance;
+    float distance;
+    float scale;
+    float crossLength;
+    float angle;
+    float moveAngle;
+    float turn;
+    float flipped;
+    float *hitPoint = work->hitPoint;
+    float *collisionPoint = work->collisionPoint;
+    float cx;
+    float cz;
+    float startX;
+    float startZ;
+    int status;
+    int inside;
+    int mode;
+    unsigned int flags;
+
+    work->crossCheckCountX = parameters->crossCheckCountX;
+    if (work->crossCheckCountX != 0) {
+        float nearZeroMax;
+        float nearZeroMin;
+
+        nearZeroMin = -0.01f;
+        nearZeroMax = 0.01f;
+
+        do {
+            vertexC = 0;
+            vertexB = 0;
+            vertexA = 0;
+            status = 0;
+            work->crossCheckCountZ = parameters->crossCheckCountZ;
+            if (work->crossCheckCountZ != 0) {
+                do {
+                    vertexA = (UnduVertex *)(work->vertexData + triangle->vertexOffset[0]);
+                    vertexB = (UnduVertex *)(work->vertexData + triangle->vertexOffset[1]);
+                    vertexC = (UnduVertex *)(work->vertexData + triangle->vertexOffset[2]);
+                    edgeAB = UNDU_ORIENT(hitPoint[0], hitPoint[2], vertexA->x, vertexA->z, vertexB->x, vertexB->z);
+                    edgeBC = UNDU_ORIENT(hitPoint[0], hitPoint[2], vertexB->x, vertexB->z, vertexC->x, vertexC->z);
+                    edgeCA = UNDU_ORIENT(hitPoint[0], hitPoint[2], vertexC->x, vertexC->z, vertexA->x, vertexA->z);
+                    if (edgeAB <= 0.0f && edgeBC <= 0.0f && edgeCA <= 0.0f) {
+                        flags = (unsigned short)parameters->flags;
+                        inside = 0;
+                        if (flags & 0x400) {
+                            low = vertexA->y;
+                            high = vertexA->y;
+                            if (vertexA->y > vertexB->y)
+                                low = vertexB->y;
+                            if (vertexC->y < low)
+                                low = vertexC->y;
+                            margin = work->heightTolerance;
+                            low += margin;
+                            if (high < vertexB->y)
+                                high = vertexB->y;
+                            if (high < vertexC->y)
+                                high = vertexC->y;
+                            py = hitPoint[1];
+                            highLimit = high - margin;
+                            if (flags & 0x10) {
+                                if (highLimit < py) {
+                                    if (flags & 0x800)
+                                        inside = 1;
+                                    else if (low > py)
+                                        inside = 1;
+                                }
+                            } else {
+                                if (!(flags & 0x800) || highLimit < py)
+                                    inside = 1;
+                            }
+                        } else {
+                            inside = 1;
+                        }
+                        if (inside == 1) {
+                            normal = (UnduVertex *)(work->normalData + triangle->normalOffset);
+                            status = 4;
+                            UnduCheckSubHeightCheck(work, (int)triangle,
+                                (triangle->planeOffset - normal->x * work->hitPoint[0]
+                                    - normal->z * work->hitPoint[2]) / normal->y);
+                            break;
+                        }
+                    }
+                    edgeQ = UNDU_ORIENT(collisionPoint[0], collisionPoint[2], vertexA->x, vertexA->z, vertexB->x, vertexB->z);
+                    if (edgeQ <= 0.0f && edgeAB >= 0.0f && (edgeQ != 0.0f || edgeAB != 0.0f)) {
+                        sideStart = UNDU_ORIENT(vertexA->x, vertexA->z, collisionPoint[0], collisionPoint[2],
+                                                hitPoint[0], hitPoint[2]);
+                        sideEnd = UNDU_ORIENT(vertexB->x, vertexB->z, collisionPoint[0], collisionPoint[2],
+                                              hitPoint[0], hitPoint[2]);
+                        if ((sideStart <= 0.0f && sideEnd >= 0.0f) || (sideStart >= 0.0f && sideEnd <= 0.0f)) {
+                            if (triangle->neighbor[0] == -1) {
+                                status = 1;
+                                break;
+                            }
+                            neighbor = (UnduTriangle *)(work->subListOffset + triangle->neighbor[0]);
+                            if (CheckWallAttr(work, &neighbor->wallAttributeIndex) != 0) {
+                                status = 0x101;
+                                break;
+                            }
+                            triangle = neighbor;
+                            continue;
+                        }
+                    }
+                    edgeQ = UNDU_ORIENT(collisionPoint[0], collisionPoint[2], vertexB->x, vertexB->z, vertexC->x, vertexC->z);
+                    if (edgeQ <= 0.0f && edgeBC >= 0.0f && (edgeQ != 0.0f || edgeBC != 0.0f)) {
+                        sideStart = UNDU_ORIENT(vertexB->x, vertexB->z, collisionPoint[0], collisionPoint[2],
+                                                hitPoint[0], hitPoint[2]);
+                        sideEnd = UNDU_ORIENT(vertexC->x, vertexC->z, collisionPoint[0], collisionPoint[2],
+                                              hitPoint[0], hitPoint[2]);
+                        if ((sideStart <= 0.0f && sideEnd >= 0.0f) || (sideStart >= 0.0f && sideEnd <= 0.0f)) {
+                            if (triangle->neighbor[1] == -1) {
+                                status = 2;
+                                break;
+                            }
+                            neighbor = (UnduTriangle *)(work->subListOffset + triangle->neighbor[1]);
+                            if (CheckWallAttr(work, &neighbor->wallAttributeIndex) != 0) {
+                                status = 0x102;
+                                break;
+                            }
+                            triangle = neighbor;
+                            continue;
+                        }
+                    }
+                    edgeQ = UNDU_ORIENT(collisionPoint[0], collisionPoint[2], vertexC->x, vertexC->z, vertexA->x, vertexA->z);
+                    if (edgeQ <= 0.0f && edgeCA >= 0.0f && (edgeQ != 0.0f || edgeCA != 0.0f)) {
+                        sideStart = UNDU_ORIENT(vertexC->x, vertexC->z, collisionPoint[0], collisionPoint[2],
+                                                hitPoint[0], hitPoint[2]);
+                        sideEnd = UNDU_ORIENT(vertexA->x, vertexA->z, collisionPoint[0], collisionPoint[2],
+                                              hitPoint[0], hitPoint[2]);
+                        if ((sideStart <= 0.0f && sideEnd >= 0.0f) || (sideStart >= 0.0f && sideEnd <= 0.0f)) {
+                            if (triangle->neighbor[2] == -1) {
+                                status = 3;
+                                break;
+                            }
+                            neighbor = (UnduTriangle *)(work->subListOffset + triangle->neighbor[2]);
+                            if (CheckWallAttr(work, &neighbor->wallAttributeIndex) != 0) {
+                                status = 0x103;
+                                break;
+                            }
+                            triangle = neighbor;
+                            continue;
+                        }
+                    }
+                    break;
+                } while (--work->crossCheckCountZ != 0);
+            }
+            if (status == 0 || status == 4)
+                break;
+            work->collisionType = status;
+            if ((status & 0xff00) == 0) {
+                if (parameters->flags & 0x28) {
+                    UnduCheckSubCheckAll(work);
+                    if (work->collisionAttribute != 0) {
+                        if (CheckWallAttr(work, work->collisionAttribute) == 0) {
+                            if (parameters->flags & 8) {
+                                if (work->hitPoint[1] > work->collisionHeight)
+                                    break;
+                            } else if (work->collisionHeight > work->hitPoint[1] - work->heightTolerance
+                                       && work->collisionHeight < work->hitPoint[1] + work->heightTolerance) {
+                                break;
+                            }
+                        }
+                        work->collisionAttribute = 0;
+                        work->collisionHeight = -1000.0f;
+                    }
+                }
+            }
+            mode = parameters->flags & 7;
+            status &= 0xff;
+            switch (mode) {
+            case 2:
+                moveDistance = 0.0f;
+                moveAngle = 0.0f;
+                angle = 0.0f;
+                move = (float *)work->hasCollisionPoint;
+                if (move != 0) {
+                    moveAngle = atan2f(move[0], move[2]);
+                    moveDistance = __builtin_sqrtf(move[0] * move[0] + move[2] * move[2]);
+                }
+                switch (status) {
+                case 1:
+                    angle = atan2f(vertexB->x - vertexA->x, vertexB->z - vertexA->z);
+                    break;
+                case 2:
+                    angle = atan2f(vertexC->x - vertexB->x, vertexC->z - vertexB->z);
+                    break;
+                case 3:
+                    angle = atan2f(vertexA->x - vertexC->x, vertexA->z - vertexC->z);
+                    break;
+                }
+                turn = angle - moveAngle;
+                while (turn < -1.5707964f)
+                    turn += 6.2831855f;
+                flipped = turn - 3.1415927f;
+                if (0.0f > turn)
+                    turn = -turn;
+                if (0.0f > flipped)
+                    flipped = -flipped;
+                if (turn > flipped) {
+                    angle += 3.1415927f;
+                    turn = flipped;
+                }
+                distance = moveDistance * xglCos(turn);
+                if (work->hasCollisionPoint != 0) {
+                    hitPoint[0] = work->collisionPoint[0] + xglSin(angle) * distance;
+                    hitPoint[2] = work->collisionPoint[2] + xglCos(angle) * distance;
+                }
+                triangle = (UnduTriangle *)subOffset;
+                status = 0;
+                break;
+            case 3:
+                edgeStart = 0;
+                edgeEnd = 0;
+                switch (status) {
+                case 1:
+                    edgeStart = vertexA;
+                    edgeEnd = vertexB;
+                    break;
+                case 2:
+                    edgeStart = vertexB;
+                    edgeEnd = vertexC;
+                    break;
+                case 3:
+                    edgeStart = vertexC;
+                    edgeEnd = vertexA;
+                    break;
+                }
+                cx = collisionPoint[0];
+                cz = collisionPoint[2];
+                startX = edgeStart->x;
+                startZ = edgeStart->z;
+                moveDx = hitPoint[0] - cx;
+                highZ = hitPoint[2];
+                moveDz = hitPoint[2] - cz;
+                if (moveDx > nearZeroMin && moveDx < nearZeroMax)
+                    moveSlope = 0.0f;
+                else if (nearZeroMin < moveDz && moveDz < nearZeroMax)
+                    moveSlope = D_004DC3B4[0];
+                else
+                    moveSlope = moveDz / moveDx;
+                edgeDx = edgeEnd->x - startX;
+                edgeDz = edgeEnd->z - startZ;
+                if (nearZeroMin < edgeDx && edgeDx < nearZeroMax)
+                    edgeSlope = 0.0f;
+                else if (nearZeroMin < edgeDz && edgeDz < nearZeroMax)
+                    edgeSlope = D_004DC3B4[0];
+                else
+                    edgeSlope = edgeDz / edgeDx;
+                if (unduSlopeBits(&moveSlope) == 0) {
+                    if (unduSlopeBits(&edgeSlope) == 0) {
+                        lowZ = highZ;
+                        highZ = startZ;
+                        crossX = startX;
+                        if (startZ < lowZ) {
+                            highZ = lowZ;
+                            lowZ = startZ;
+                        }
+                        if (edgeEnd->z < highZ)
+                            highZ = edgeEnd->z;
+                        if (highZ < lowZ)
+                            highZ = lowZ;
+                        crossZ = highZ;
+                    } else {
+                        crossX = collisionPoint[0];
+                        crossZ = edgeSlope * (collisionPoint[0] - startX) + startZ;
+                    }
+                } else if (unduSlopeBits(&edgeSlope) == 0) {
+                    crossX = startX;
+                    crossZ = moveSlope * (startX - collisionPoint[0]) + collisionPoint[2];
+                } else if (unduSlopeBits(&moveSlope) == 0x80000000) {
+                    if (unduSlopeBits(&edgeSlope) == 0x80000000) {
+                        highX = startX;
+                        lowX = hitPoint[0];
+                        if (startX < hitPoint[0]) {
+                            highX = hitPoint[0];
+                            lowX = startX;
+                        }
+                        if (highX > edgeEnd->x)
+                            highX = edgeEnd->x;
+                        if (highX < lowX)
+                            highX = lowX;
+                        crossX = highX;
+                        crossZ = startZ;
+                    } else {
+                        crossX = (collisionPoint[2] - startZ) / edgeSlope + startX;
+                        crossZ = collisionPoint[2];
+                    }
+                } else if (unduSlopeBits(&edgeSlope) == 0x80000000) {
+                    crossX = (startZ - collisionPoint[2]) / moveSlope + collisionPoint[0];
+                    crossZ = startZ;
+                } else {
+                    crossX = (edgeSlope * startX - startZ
+                              - moveSlope * collisionPoint[0] + collisionPoint[2])
+                        / (edgeSlope - moveSlope);
+                    crossZ = moveSlope * (crossX - collisionPoint[0]) + collisionPoint[2];
+                }
+                dx = crossX - collisionPoint[0];
+                dz = crossZ - collisionPoint[2];
+                crossLength = __builtin_sqrtf(dx * dx + dz * dz);
+                dx = hitPoint[0] - collisionPoint[0];
+                dz = hitPoint[2] - collisionPoint[2];
+                scale = (crossLength - 0.001f) / __builtin_sqrtf(dx * dx + dz * dz);
+                status = 4;
+                work->collisionAttribute = &triangle->wallAttributeIndex;
+                normal = (UnduVertex *)(work->normalData + triangle->normalOffset);
+                crossX = collisionPoint[0] + dx * scale;
+                crossZ = collisionPoint[2] + dz * scale;
+                work->hitPoint[2] = crossZ;
+                work->hitPoint[0] = crossX;
+                work->hitPoint[1] = work->collisionHeight = (triangle->planeOffset - normal->x * work->hitPoint[0]
+                                     - normal->z * work->hitPoint[2]) / normal->y;
+                break;
+            case 1:
+            default:
+                status = 4;
+                break;
+            }
+            if (status == 4)
+                break;
+        } while (--work->crossCheckCountX != 0);
+    }
+    if (work->crossCheckCountX == 0) {
+        work->collisionAttribute = (unsigned short *)subOffset;
+        work->collisionHeight = parameters->height;
+        work->hitPoint[0] = work->collisionPoint[0];
+        work->hitPoint[1] = work->collisionPoint[1];
+        work->hitPoint[2] = work->collisionPoint[2];
+    }
+}
 
 static float UnduCheckResultCheck(UnduWork *work, UnduResult *result, float *point)
 {
@@ -612,6 +1004,8 @@ static float UnduCheckResultCheck(UnduWork *work, UnduResult *result, float *poi
 }
 
 INCLUDE_ASM("asm/main/nonmatchings/Undulate", UnduCheck);
+
+
 
 float UnduGet2(int queryAddress, float x, float z)
 {

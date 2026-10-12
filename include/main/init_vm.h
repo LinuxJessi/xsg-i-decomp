@@ -3,18 +3,31 @@
 
 #include "shared.h"
 
-/*
- * The class records of java.lang.Class, java.lang.Object, java.lang.String
- * and java.lang.StringBuffer, resolved by initVM (main/tu226).  _dummyClass
- * itself is the static class record find_native_method.c allocates for
- * java.lang.Class; classClass points at it.  classObject and classClass are
- * only read by the class loader, through its full JavaClass layout;
- * classString and classStringBuffer are passed to newObject.
- */
-extern JavaClass _dummyClass;
+#include "main/find_native_method.h"
+
 extern JavaClass *classClass;
+
 extern JavaClass *classObject;
+
 extern SceneClass *classString;
-extern SceneClass *classStringBuffer;
+
+typedef union VMSlot {
+    int i;
+    float f;
+    void *ref;
+    unsigned char b;
+    short s;
+    unsigned short c;
+} VMSlot;
+
+struct VMClass {
+    unsigned char unmodeled_00[4];
+    SceneString *name;
+    unsigned char unmodeled_08[2];
+    unsigned short type_flags;
+    unsigned char unmodeled_0c[0x2d];
+    signed char type_code;
+    unsigned char element_size;
+};
 
 #endif /* INCLUDE_MAIN_INIT_VM_H */

@@ -6,6 +6,8 @@
  * supplies its byte offset; its declared Java/native kind selects
  * the integer, floating or reference representation below. No fixed
  * Java-object field positions are assumed. */
+#include "main/jni.h"
+
 typedef union EffectFieldValue {
     NativeEffectPeer * effect;
     EffectUnitPeer * unit;

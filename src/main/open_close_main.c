@@ -3,6 +3,8 @@
 /* The controller's first 16 bytes are the rectangle passed to the drawing
  * routines; the phase/subtype/frame bytes follow at +0x10..+0x12. */
 
+#include "open_close_main.h"
+
 typedef struct OpenCloseDrawPrimitive {
     short x;
     short y;
@@ -80,22 +82,63 @@ typedef struct EWindow {
  * the same four-channel quad convention as that file's other e* widgets.
  */
 
-typedef struct ECursol {
-    signed char state;    /* +0x00 */
-    signed char active;    /* +0x01 */
-    signed char timer;      /* +0x02 */
-    signed char width;       /* +0x03 */
-    short x;                  /* +0x04 */
-    short y;                   /* +0x06 */
-    int work;                   /* +0x08 */
-    signed char color[4];        /* +0x0c..0x0f */
-} ECursol;
+typedef struct ECursolSprite {
+    short x;
+    short y;
+    int work;
+    short width;
+    short height;
+    signed char color[4];
+    short style;
+    signed char frame;
+    signed char flags;
+} ECursolSprite;
+
+
+/* Main updates the render descriptor that follows each setter's partial
+ * object layout. State and visibility bytes are read without sign extension. */
+typedef struct EWindowRenderPacket {
+    short x;
+    short y;
+    int work;
+    short width;
+    short height;
+    EWidgetColor color;
+} EWindowRenderPacket;
+
+typedef struct EWindowMainData {
+    int x;
+    int y;
+    int work;
+    int width;
+    int height;
+    EWidgetColor color;
+    unsigned char mode;
+    unsigned char flag;
+    unsigned char visible;
+    EWindowRenderPacket primitive;
+    OpenCloseController controller;
+} EWindowMainData;
+
+typedef struct ECursolMainData {
+    unsigned char state;
+    unsigned char active;
+    unsigned char timer;
+    unsigned char width;
+    unsigned short x;
+    unsigned short y;
+    int work;
+    unsigned char color[4];
+    ECursolSprite sprite;
+} ECursolMainData;
 
 extern float xglCos(float);
 
 extern float xglSin(float);
 
 extern void endPrintExtFunc(int, int, void *);
+
+extern void endSpriteSet(void *, int);
 
 static void OpenSubType00(OpenCloseController *controller)
 {
@@ -333,7 +376,72 @@ void OpenCloseMain(OpenCloseController *controller)
                     (controller->subtype & 15)](controller);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/open_close_main", eWindowMain);
+void eWindowMain(EWindowMainData *window)
+{
+    unsigned char mode = window->mode;
+
+    switch (mode) {
+    case 0:
+        window->mode = 1;
+        window->visible = 0;
+        break;
+    case 1:
+        break;
+    case 0x20:
+        window->primitive.x = (unsigned short)window->x;
+        window->primitive.y = (unsigned short)window->y;
+        window->primitive.work = window->work;
+        window->primitive.width = (unsigned short)window->width;
+        window->primitive.height = (unsigned short)window->height;
+        window->primitive.color.red = -128;
+        window->primitive.color.blue = -128;
+        window->primitive.color.green = -128;
+        window->primitive.color.alpha = 64;
+        window->visible = 1;
+        window->mode = mode;
+        /* fall through */
+    case 0x21:
+        window->mode = 0x50;
+        break;
+    case 0x22:
+        window->controller.x = (unsigned short)window->x;
+        window->controller.y = (unsigned short)window->y;
+        window->controller.work = window->work;
+        window->controller.width = (unsigned short)window->width;
+        window->controller.height = (unsigned short)window->height;
+        window->mode = 0x23;
+        window->controller.phase = 0;
+        window->controller.subtype = 0;
+        /* fall through */
+    case 0x23:
+        OpenCloseMain(&window->controller);
+        if (window->controller.phase < 0)
+            window->mode = 0x20;
+        break;
+    case 0x50:
+        window->mode = 0x51;
+        window->visible = 1;
+        /* fall through */
+    case 0x51:
+        window->primitive.x = (unsigned short)window->x;
+        window->primitive.y = (unsigned short)window->y;
+        window->primitive.work = window->work;
+        window->primitive.width = (unsigned short)window->width;
+        window->primitive.height = (unsigned short)window->height;
+        window->primitive.color.red = -128;
+        window->primitive.color.blue = -128;
+        window->primitive.color.green = -128;
+        window->primitive.color.alpha = 64;
+        break;
+    case 0xa0:
+        window->mode = -95;
+        break;
+    case 0xa1:
+        break;
+    }
+    if ((unsigned char)window->visible)
+        endPrintExtFunc(window->primitive.work, 1, &window->primitive);
+}
 
 /* The transition primitives in this TU set red, blue, then green. */
 #define E_WIDGET_SET_RGB(widget_value, red_value, green_value, blue_value) do { \
@@ -356,7 +464,85 @@ void eWindowSet(EWindow *window)
     window->visible = 0;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/open_close_main", eCursolMain);
+void eCursolMain(ECursolMainData *cursol)
+{
+    switch ((unsigned char)cursol->state) {
+    case 0:
+        cursol->active = 0;
+        cursol->state = 0;
+        break;
+    case 1:
+    case 0x10:
+    case 0x30:
+    case 0x40:
+    case 0x60:
+        break;
+    case 0x20:
+        cursol->active = 1;
+        cursol->state = 0x21;
+        /* fall through */
+    case 0x21:
+        cursol->sprite.x = (unsigned short)cursol->x;
+        cursol->sprite.y = (unsigned short)cursol->y;
+        cursol->sprite.style = (unsigned char)cursol->width;
+        cursol->state = 0x50;
+        break;
+    case 0x22:
+        cursol->active = 1;
+        cursol->timer = -4;
+        cursol->state = 0x23;
+        /* fall through */
+    case 0x23:
+        cursol->sprite.x = (unsigned short)cursol->x;
+        cursol->sprite.y = cursol->y - (signed char)cursol->timer + 8;
+        cursol->sprite.width = 24 - (signed char)cursol->timer;
+        cursol->sprite.height = (signed char)cursol->timer * 2;
+        cursol->sprite.style = (unsigned char)cursol->width;
+        if ((signed char)cursol->timer == 8)
+            cursol->state = 0x50;
+        else
+            cursol->timer = (unsigned char)cursol->timer + 1;
+        break;
+    case 0x50:
+        cursol->active = 1;
+        cursol->state = 0x51;
+        cursol->timer = 0;
+        /* fall through */
+    case 0x51:
+        cursol->sprite.x = (unsigned short)cursol->x;
+        cursol->sprite.y = (unsigned short)cursol->y;
+        cursol->sprite.style = (unsigned char)cursol->width;
+        break;
+    case 0x70:
+        cursol->active = 0;
+        cursol->state = 0x71;
+        break;
+    case 0x71:
+        break;
+    }
+    if ((unsigned char)cursol->active) {
+        int frame = cursol->timer + 1;
+        unsigned char style = cursol->width;
+        int phase;
+
+        cursol->sprite.color[0] = (unsigned char)cursol->color[0];
+        cursol->sprite.color[1] = (unsigned char)cursol->color[1];
+        cursol->sprite.color[2] = (unsigned char)cursol->color[2];
+        cursol->sprite.color[3] = (unsigned char)cursol->color[3];
+        cursol->timer = frame;
+        cursol->sprite.flags = 0;
+        if (style == 0) {
+            phase = (unsigned long long)frame >> 1;
+            cursol->sprite.frame = phase % 8;
+        } else {
+            phase = (unsigned long long)frame >> 2;
+            cursol->sprite.frame = phase % 4;
+        }
+        cursol->sprite.work = cursol->work;
+        endSpriteSet(&cursol->sprite, 1);
+        endPrintExtFunc(cursol->sprite.work, 2, &cursol->sprite);
+    }
+}
 
 void eCursolModeChange(unsigned char *state, unsigned int mode)
 {

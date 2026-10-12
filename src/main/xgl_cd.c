@@ -157,7 +157,9 @@ static int BCD2INT(unsigned char x);
 /* extract (below) is still INCLUDE_ASM; declare it so its callers do not see
  * an implicit declaration. */
 
-static void extract(void *destination, void *source, int byte_count);
+static void extract(u32 *destination, u32 *source, int byte_count);
+
+extern int xglArxExtract(u32 *dest, u32 *src);
 
 extern int sceCdStRead(int sectors, void *buffer, int mode, int *result);
 
@@ -237,8 +239,8 @@ typedef struct CdReadControl {
     u8 disk_state;                               /* +0x1c */
     u8 disk_flags;                               /* +0x1d */
     u8 unmodeled_01e[2];                         /* +0x1e..0x1f */
-    u8 *extract_source;                          /* +0x20 */
-    u8 *extract_destination;                     /* +0x24 */
+    void *extract_source;                         /* +0x20 */
+    void *extract_destination;                    /* +0x24 */
     int extract_byte_count;                      /* +0x28 */
     u8 unmodeled_02c[0x4];                       /* +0x2c..0x2f */
     signed char dispatch_state;                  /* +0x30 */
@@ -392,7 +394,7 @@ typedef struct CdFileSelect {
     short first_row;                               /* +0x21e */
     short cursor;                                  /* +0x220 */
     unsigned char unmodeled_222[2];                /* +0x222 */
-    int unmodeled_224;                             /* +0x224 */
+    int list_index;                                /* +0x224 */
     char *list_position;                           /* +0x228 */
     unsigned char unmodeled_22c[0x268 - 0x22c];    /* +0x22c */
 } CdFileSelect;
@@ -452,7 +454,19 @@ void xglCdPowerOffCB(void)
     LW.power_off_pending = 1;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/xgl_cd", extract);
+static void extract(u32 *destination, u32 *source, int byte_count)
+{
+    if (source[0] == CD_PACKED_MAGIC && source[3] == 0) {
+        do {
+            xglArxExtract(destination, source);
+        } while (0);
+    } else if (destination != source) {
+        while (byte_count > 0) {
+            *destination++ = *source++;
+            byte_count -= 4;
+        }
+    }
+}
 
 static int queue_next(void)
 {
@@ -1521,7 +1535,127 @@ static void FileSelectListReload(CdFileSelect *select)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/xgl_cd", FileSelectSub);
+static void FileSelectSub(CdFileSelect *select)
+{
+    char prefix[256];
+    char *src;
+    char *dst;
+    char *name;
+    char *probe;
+    char *part;
+    char *cursor;
+    char *last;
+    char first;
+    int prefix_start;
+    unsigned char character;
+    char expected;
+    int mismatch;
+
+    switch (select->state) {
+    case 0:
+    default:
+        FileSelectListReload(select);
+        select->path[0] = 0;
+        select->list_index = 0;
+        select->list_position = select->list;
+        select->entry_count = 1;
+        select->first_row = 0;
+        select->state = 1;
+    case 1:
+        src = select->path;
+        dst = prefix;
+        character = *src;
+        if (*src == 0) {
+            prefix[0] = '.';
+            prefix[1] = ':';
+            prefix[2] = 0;
+        } else {
+            do {
+                *dst++ = character;
+                src++;
+                character = *src;
+            } while (*src != 0);
+            *dst = 0;
+            dst[-1] = ':';
+        }
+        name = select->list;
+        prefix_start = 0;
+        while (*name != 0) {
+            first = *name;
+            if (first == '.')
+                name += 2;
+            mismatch = 0;
+            part = prefix + prefix_start;
+            if (*part != 0) {
+                if (*name != 0 && *name == *part) {
+                    for (;;) {
+                        name++;
+                        expected = *++part;
+                        if (expected == 0)
+                            break;
+                        if (*name == 0 || *name != expected) {
+                            mismatch = 1;
+                            break;
+                        }
+                    }
+                } else {
+                    mismatch = 1;
+                }
+            }
+            if (!mismatch) {
+                do {
+                    select->list_position = name + 1;
+                } while (0);
+                break;
+            }
+            {
+                unsigned char character;
+
+                while ((character = *name++) != 0) {
+                    do {
+                        character = *name++;
+                    } while (character != 0);
+                }
+            }
+        }
+        probe = select->list_position;
+        select->entry_count = 0;
+        if (select->path[0] != 0)
+            select->entry_count = 1;
+        if (*probe != 0) {
+            unsigned char character;
+
+            probe++;
+            for (;;) {
+                character = *probe++;
+                if (character != 0)
+                    continue;
+                select->entry_count++;
+                character = *probe;
+                if (character == 0)
+                    break;
+            }
+        }
+        select->state = 2;
+        break;
+    case 2:
+        return;
+    case 3:
+        last = select->path;
+        for (cursor = last; *cursor != 0; cursor++) {
+            if (*cursor == '/') {
+                if (cursor[1] == 0) {
+                    *last = 0;
+                    break;
+                }
+                last = cursor + 1;
+            }
+        }
+        *last = 0;
+        select->state = 1;
+        break;
+    }
+}
 
 /* FileSelect reads the first pad record at +0x2a and +0x2c. */
 typedef struct CdSelectPad {

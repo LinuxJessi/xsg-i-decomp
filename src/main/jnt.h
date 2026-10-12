@@ -22,6 +22,17 @@ typedef unsigned int JntMatrixSelect;
 
 typedef struct JntProducer JntProducer;
 
+typedef struct JntWork JntWork;
+typedef struct JntStaticChannel JntStaticChannel;
+
+typedef void *(*JntProductionConsumer)(JntWork *work,
+                                      JntStaticChannel *channels,
+                                      int argument);
+
+int JNT_addConsumer(JntProducer *producer, int consumer_id,
+                    JntProductionConsumer consumer, int argument);
+
+
 void JNT_setFlags(int flags);
 
 void JNT_setClipR(float clip_radius);

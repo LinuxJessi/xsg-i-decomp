@@ -38,4 +38,10 @@ typedef struct StudioLight {
 
 extern void xglStudioGetLight(StudioLight **light_out);
 
+extern StudioCamera *xglStudioSelectGetActiveCamera(int studio_index);
+
+extern StudioCamera *xglStudioMainCameraMove(void);
+
+extern void xglStudioMove(void);
+
 #endif /* INCLUDE_MAIN_XGL_STUDIO_H */

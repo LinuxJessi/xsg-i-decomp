@@ -29,7 +29,8 @@ typedef struct RssdRpcResponse {
     short result;                  /* +0x02: nonzero -> error status (-1) */
     int _unmodeled_04;             /* +0x04: 32-bit word, meaning not recovered */
     int value;                     /* +0x08: command result value */
-    int _unmodeled_0c[5];          /* +0x0c..0x1f: 32-bit words, not read here */
+    int data_size; /* +0xc */
+    unsigned char unmodeled_010[0x20 - 0x10];          /* +0x0c..0x1f: 32-bit words, not read here */
 } RssdRpcResponse;
 
 /* canon: config/header-canon.json chose src/core/main-00240188/private.h over 1 other accepted spelling */
@@ -44,31 +45,64 @@ typedef struct RssdRpcResponse {
  */
 struct SsdMemoryBlock;
 
+/*
+ * The parameter records SsdInit passes to CreateSema and CreateThread. Only
+ * the offsets this function stores are named; the libkernel owner layouts
+ * (src/main/xgl_thread.h, core private.h) are other TUs' headers and are not
+ * completed here.
+ */
+typedef struct SsdSemaCreateInfo {
+    int _unmodeled_00;                    /* +0x00 */
+    int max_count;                        /* +0x04 */
+    int init_count;                       /* +0x08 */
+    unsigned char _unmodeled_0c[0x08];    /* +0x0c..0x13 */
+    unsigned int option;                  /* +0x14 */
+} SsdSemaCreateInfo;
+
+typedef struct SsdThreadCreateInfo {
+    int _unmodeled_00;                    /* +0x00 */
+    void (*func)(void);                   /* +0x04 */
+    void *stack;                          /* +0x08 */
+    int stack_size;                       /* +0x0c */
+    void *gp_reg;                         /* +0x10 */
+    int initial_priority;                 /* +0x14 */
+    unsigned char _unmodeled_18[0x08];    /* +0x18..0x1f */
+    unsigned int option;                  /* +0x20 */
+} SsdThreadCreateInfo;
+
 typedef struct RssdWorkFlags {
     int flags;                            /* +0x000: bit 3 cleared on RPC completion; bit 5 is the success status */
-    unsigned char _unmodeled_004[4];      /* +0x004..0x007 */
+    int rpc_buffer_size;                  /* +0x004: RPC buffer capacity */
     int request_parameter;                /* +0x008: copied by RssdBusy from its request */
-    unsigned char _unmodeled_00c[4];      /* +0x00c..0x00f */
+    int init_parameter;                   /* +0x00c: SsdInit argument */
     unsigned short sample_rate;           /* +0x010: samples per second used by SsdGetTimeCode */
     short request_channel_count;          /* +0x012: copied by RssdBusy from its request */
     int request_size;                     /* +0x014: copied by RssdBusy from its request */
-    unsigned char _unmodeled_018[0x08];   /* +0x018..0x01f */
+    unsigned char _unmodeled_018[0x04];   /* +0x018..0x01b */
+    int server_call_count;                /* +0x01c: server request count */
     /*
      * Stored verbatim by SsdSetServerCallback (main:0x002403b0)
-     * `sw $5,36($2)` / `sw $4,32($2)`, $2 = &RssdWork. No recovered function
-     * reads them back, so their call signature is not evidenced and they
-     * stay untyped pointers named after the store site.
+     * `sw $5,36($2)` / `sw $4,32($2)`, $2 = &RssdWork. RssdSifRpcServer
+     * (main:0x0023fc90) calls the callback (`jalr $2`, +0x20) for every
+     * command it does not handle itself, with the command in $a0, the
+     * request record in $a1 and the stored argument (+0x24) in $a2.
      */
-    void *server_callback;                /* +0x020: SsdSetServerCallback arg0 */
+    void (*server_callback)(unsigned int command, void *request,
+                            void *arg);   /* +0x020: SsdSetServerCallback arg0 */
     void *server_callback_arg;            /* +0x024: SsdSetServerCallback arg1 */
     void (*complete_callback)(int status, RssdRpcResponse *response,
                               void *arg); /* +0x028: one-shot, cleared after use */
     void *callback_arg;                   /* +0x02c: third complete_callback argument */
-    unsigned char _unmodeled_030[0x04];   /* +0x030..0x033 */
+    void *client_buffer_base;             /* +0x030: original client storage */
     RssdRpcResponse *response_source;     /* +0x034: SIF RPC receive buffer */
     unsigned char _unmodeled_038[0x48];   /* +0x038..0x07f */
     RssdRpcResponse response;             /* +0x080..0x09f: copy of *response_source */
-    unsigned char _unmodeled_0a0[0xa8];   /* +0x0a0..0x147 */
+    void *server_buffer_base;             /* +0x0a0: original server storage */
+    void *server_buffer;                  /* +0x0a4: aligned server buffer */
+    unsigned char unmodeled_0a8[0x100 - 0xa8];
+    RssdRpcResponse server_packet; /* +0x100 */
+    unsigned char rpc_client[0x24]; /* +0x120 */
+    void *rpc_client_serve; /* +0x144 */   /* +0x0a8..0x147 */
     /*
      * The SCE SDK RPC server registration record: RssdInitIop
      * (main:0x0023fbb8, still asm) passes its address as the `sd` argument of
@@ -126,21 +160,23 @@ typedef struct RssdWorkFlags {
      * Two (callback, argument) pairs stored verbatim by main/tu112:
      * SsdSetSampleDmaCallback (main:0x002410a0) `sw $4,488($2)` /
      * `sw $5,492($2)` and SsdSetSampleKeyoffCallback (main:0x002410b8)
-     * `sw $4,496($2)` / `sw $5,500($2)`, $2 = &RssdWork. No recovered
-     * function reads them back, so their call signature is not evidenced
-     * and they stay untyped pointers named after the store site.
+     * `sw $4,496($2)` / `sw $5,500($2)`, $2 = &RssdWork. RssdSifRpcServer
+     * (main:0x0023fc90) calls the DMA callback (`lw $4,492($6)`) with the
+     * stored argument for command 218 and the key-off callback with
+     * `$a0 = 0` and the stored argument in $a1 for command 219.
      */
-    void *sample_dma_callback;            /* +0x1e8: SsdSetSampleDmaCallback arg0 */
+    void (*sample_dma_callback)(void *arg);          /* +0x1e8: SsdSetSampleDmaCallback arg0 */
     void *sample_dma_callback_arg;        /* +0x1ec: SsdSetSampleDmaCallback arg1 */
-    void *sample_keyoff_callback;         /* +0x1f0: SsdSetSampleKeyoffCallback arg0 */
+    void (*sample_keyoff_callback)(int channel, void *arg);       /* +0x1f0: SsdSetSampleKeyoffCallback arg0 */
     void *sample_keyoff_callback_arg;     /* +0x1f4: SsdSetSampleKeyoffCallback arg1 */
     /*
      * Stored verbatim by SsdSetStreamEndCallback (main:0x002403e0)
-     * `sw $5,508($2)` / `sw $4,504($2)`, $2 = &RssdWork. No recovered
-     * function reads them back, so their call signature is not evidenced
-     * and they stay untyped pointers named after the store site.
+     * `sw $5,508($2)` / `sw $4,504($2)`, $2 = &RssdWork. RssdSifRpcServer
+     * (main:0x0023fc90) calls the callback for command 10 once per set bit
+     * 0..3 of the request word at +0x10, with the bit index in $a0 and the
+     * stored argument in $a1.
      */
-    void *stream_end_callback;            /* +0x1f8: SsdSetStreamEndCallback arg0 */
+    void (*stream_end_callback)(int channel, void *arg);          /* +0x1f8: SsdSetStreamEndCallback arg0 */
     void *stream_end_callback_arg;        /* +0x1fc: SsdSetStreamEndCallback arg1 */
 } RssdWorkFlags;
 

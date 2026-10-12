@@ -3,7 +3,7 @@
 
 /* Image-mapper resource types: every slot of the resource state is indexed by
  * the type it registers with svAddImageMapper. */
-enum {
+typedef enum {
     SRS_RES_IMAGE = 0,
     SRS_RES_EFFECT_IMAGE = 1,
     SRS_RES_WEAPON = 2,         /* 3 characters x 3 weapon effects */
@@ -12,7 +12,7 @@ enum {
     SRS_RES_CF_IMAGE = 15,
     SRS_RES_EFFECT = 16,        /* 24 loaded effect slots */
     SRS_RES_COUNT = 40
-};
+} SrsResourceType;
 
 /* The complete 0x1A0-byte resource state shared with sef.c. The pending
  * mapper arguments and resource numbers are tables indexed by the resource
@@ -31,5 +31,9 @@ typedef struct SrsMemRes {
 } SrsMemRes;
 
 extern SrsMemRes _srsMemRes;
+
+int srsLoadEffectData(void *buffer, int effectNo);
+
+int srsFileLoadCf(int cfId, int effectNo);
 
 #endif /* INCLUDE_MAIN_SRS_H */

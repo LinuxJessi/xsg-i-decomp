@@ -2,6 +2,8 @@
 #include "shared.h"
 #include "scene_1.h"
 
+#include "main/jni.h"
+
 const char scene_window_class_name[24] = "xeno/util/Window";
 const char scene_constructor_format[8] = "(L%s;)V";
 const char scene_message_field_name[8] = "msg";

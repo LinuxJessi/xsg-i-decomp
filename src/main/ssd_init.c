@@ -1,12 +1,25 @@
 #include "common.h"
 
+extern void sceSifRegisterRpc(void *server, int rpc_number, void *(*function)(),
+                              void *buffer, void *(*cfunction)(), void *cbuffer, void *queue);
+
+
 #include "shared.h"
 
 #include "ssd_init.h"
+void RssdBusy(RssdRequest *request);
+void RssdSpuRead(RssdRequest *request);
+
 
 /*
  * libkernel syscall stub (main:0x00200550).
  */
+
+void *RssdSifRpcServer(unsigned int command, void *data, int size);
+
+extern const char D_004D4A60[];
+
+extern const char D_004D4A80[];
 
 extern int iSignalSema(int sema_id);
 
@@ -39,12 +52,11 @@ extern int DeleteThread(int thread_id);
 extern int TerminateThread(int thread_id);
 
 /*
- * This TU's own RPC completion wait and its poll (both defined below);
+ * This TU's own RPC completion handler (its body is still scaffold below);
  * sceSifRemoveRpc is the SCE SDK RPC server deregistration call.
  */
 
 extern int RssdFuncCallCompleted(int status);
-extern int RssdGetCallCompletedCode(void);
 
 extern void *sceSifRemoveRpc(void *sd, void *qd);
 
@@ -67,7 +79,79 @@ const char D_004D4AA0[] = "Rssd get result error !\n";
 
 extern int SignalSema(int sema_id);
 
-INCLUDE_ASM("asm/main/nonmatchings/ssd_init", SsdInit);
+extern int CreateSema(SsdSemaCreateInfo *sema);
+extern int CreateThread(SsdThreadCreateInfo *thread);
+extern int StartThread(int thread_id, void *args);
+extern int WaitSema(int sema_id);
+extern void *_gp;
+extern unsigned char MYclientPtr[0x10040];
+extern unsigned char MYserverPtr[0x10020];
+extern unsigned char MYthreadStack[0x4000];
+extern unsigned char MYwaveTransThStack[0x4000];
+extern void RSsdSifRpcThread(void);
+extern void RssdBackNextWaveThread(void);
+
+void SsdInit(int init_size)
+{
+    SsdSemaCreateInfo sema;
+    SsdThreadCreateInfo thread;
+    void *gp_value;
+
+    if (RssdWork.flags & 1)
+        return;
+
+    RssdWork.rpc_buffer_size = 0x10000;
+    sema.init_count = 1;
+    sema.max_count = 1;
+    RssdWork.client_buffer_base = MYclientPtr;
+    RssdWork.server_buffer_base = MYserverPtr;
+    RssdWork.init_parameter = init_size;
+    sema.option = 0;
+    RssdWork.response_source = (RssdRpcResponse *)(((unsigned int)MYclientPtr + 63) & -64);
+    RssdWork.server_buffer = (void *)(((unsigned int)MYserverPtr + 63) & -64);
+    RssdWork.flags = 0;
+    RssdWork.request_parameter = 0;
+    RssdWork.sample_rate = 0;
+    RssdWork.request_channel_count = 0;
+    RssdWork.request_size = 0;
+    RssdWork.server_call_count = 0;
+    RssdWork.server_callback = 0;
+    RssdWork.server_callback_arg = 0;
+    RssdWork.complete_callback = 0;
+    RssdWork.callback_arg = 0;
+    RssdWork.stream_end_callback = 0;
+    RssdWork.stream_end_callback_arg = 0;
+    RssdWork.sema_id = CreateSema(&sema);
+
+    sema.max_count = 1;
+    sema.init_count = 0;
+    sema.option = 0;
+    RssdWork.busy_sema_id = CreateSema(&sema);
+
+    RssdWork.rpc_thread_stack = MYthreadStack;
+    thread.func = RSsdSifRpcThread;
+    thread.stack = RssdWork.rpc_thread_stack;
+    thread.stack_size = 16384;
+    thread.initial_priority = 6;
+    gp_value = &_gp;
+    thread.gp_reg = gp_value;
+    thread.option = 0;
+    RssdWork.rpc_thread_id = CreateThread(&thread);
+    StartThread(RssdWork.rpc_thread_id, 0);
+
+    RssdWork.next_wave_thread_stack = MYwaveTransThStack;
+    thread.func = RssdBackNextWaveThread;
+    thread.stack = RssdWork.next_wave_thread_stack;
+    thread.stack_size = 16384;
+    thread.initial_priority = 6;
+    thread.gp_reg = gp_value;
+    thread.option = 0;
+    RssdWork.next_wave_thread_id = CreateThread(&thread);
+    StartThread(RssdWork.next_wave_thread_id, 0);
+
+    WaitSema(RssdWork.busy_sema_id);
+    DeleteSema(RssdWork.busy_sema_id);
+}
 
 void SsdQuit(void)
 {
@@ -91,9 +175,69 @@ void RSsdSifRpcThread(void)
     sceSifRpcLoop(RssdWork.rpc_queue);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/ssd_init", RssdInitIop);
+void RssdInitIop(void)
+{
+    RssdRequest request;
 
-INCLUDE_ASM("asm/main/nonmatchings/ssd_init", RssdSifRpcServer);
+    if (sceSifBindRpc(RssdWork.rpc_client, 2304, 1) < 0)
+        return;
+    while (sceSifCheckStatRpc(RssdWork.rpc_client) != 0)
+        ;
+    if (RssdWork.rpc_client_serve == 0) {
+        printf(D_004D4A60, 2304);
+        return;
+    }
+    RssdWork.flags = 1;
+    sceSifSetRpcQueue(RssdWork.rpc_queue, GetThreadId());
+    sceSifRegisterRpc(RssdWork.rpc_server, 2305, RssdSifRpcServer,
+                      RssdWork.server_buffer, 0, 0, RssdWork.rpc_queue);
+    request.arg[0].value = RssdWork.init_parameter;
+    RssdCallFunc(1, &request, 0, 0);
+}
+
+void *RssdSifRpcServer(unsigned int command, void *data, int size)
+{
+    RssdRpcResponse *packet = data;
+    RssdRequest *request = data;
+    int channel;
+
+    RssdWork.server_packet = *packet;
+    RssdWork.server_packet.error_code = command;
+    RssdWork.server_packet.result = 0;
+    RssdWork.server_call_count++;
+    switch (command) {
+    case 4096:
+        RssdBusy(data);
+        break;
+    case 27:
+        RssdSpuRead(data);
+        break;
+    case 37:
+        RssdBackgroundNextWave(data);
+        break;
+    case 218:
+        if (RssdWork.sample_dma_callback != 0)
+            RssdWork.sample_dma_callback(RssdWork.sample_dma_callback_arg);
+        break;
+    case 219:
+        if (RssdWork.sample_keyoff_callback != 0)
+            RssdWork.sample_keyoff_callback(0, RssdWork.sample_keyoff_callback_arg);
+        break;
+    case 10:
+        if (RssdWork.stream_end_callback != 0) {
+            for (channel = 0; channel < 4; channel++) {
+                if ((request->arg[0].value >> channel) & 1)
+                    RssdWork.stream_end_callback(channel, RssdWork.stream_end_callback_arg);
+            }
+        }
+        break;
+    default:
+        if (RssdWork.server_callback != 0)
+            RssdWork.server_callback(command, data, RssdWork.server_callback_arg);
+        break;
+    }
+    return data;
+}
 
 void RssdBusy(RssdRequest *request)
 {
@@ -161,7 +305,47 @@ void RssdBackNextWaveThread(void)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/ssd_init", RssdCallFunc);
+int RssdCallFunc(int command, RssdRequest *request, void *data, int size)
+{
+    RssdRpcResponse *packet;
+    RssdRpcResponse *source;
+    void *record;
+    int total_size;
+    int result;
+
+    WaitSema(RssdWork.sema_id);
+    if (data == 0)
+        size = 0;
+    RssdWork.flags |= 0x8;
+    RssdWork.response.error_code = -1;
+    packet = RssdWork.response_source;
+    if (request != 0) {
+        record = request;
+        source = record;
+        *packet = *source;
+    }
+    packet->error_code = command;
+    packet->data_size = size;
+    total_size = ((size + 15) & -16) + sizeof(*packet);
+    if (total_size > 0x10020) {
+        printf(D_004D4A80);
+        RssdWork.flags &= ~0x8;
+        SignalSema(RssdWork.sema_id);
+        return -1;
+    }
+    if (size != 0)
+        SsdCopyMemory(packet + 1, data, size);
+    FlushCache(0);
+    result = sceSifCallRpc(RssdWork.rpc_client, command, 1, packet, total_size,
+                           packet, sizeof(*packet), RssdSifRpcCallback, &RssdWork);
+    if (result < 0) {
+        RssdWork.flags &= ~0x8;
+        SignalSema(RssdWork.sema_id);
+    } else {
+        RssdFuncCallCompleted(1);
+    }
+    return result;
+}
 
 void RssdSifRpcCallback(void)
 {
@@ -222,7 +406,22 @@ int SsdGetResultValue(int *value)
     return result;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/ssd_init", SsdGetResultParam);
+int SsdGetResultParam(RssdRpcResponse *out)
+{
+    int flags;
+    int result;
+
+    flags = RssdWork.flags;
+    if (flags & 0x8) {
+        result = (flags & RSSD_FLAG_SUCCESS) ? -1 : -2;
+    } else if (RssdWork.response.error_code >= 0) {
+        *out = RssdWork.response;
+        result = (flags & RSSD_FLAG_SUCCESS) == 0;
+    } else {
+        result = -3;
+    }
+    return result;
+}
 
 void SsdSetServerCallback(void *callback, void *arg)
 {

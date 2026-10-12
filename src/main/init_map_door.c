@@ -6,10 +6,6 @@
 
 extern signed char printflg;
 
-const char D_004CA3B8[16] = "id=%d DoorOpen\n";
-
-const char D_004CA3C8[24] = "id=%d DoorClose\n";
-
 int printf(const char *, ...);
 
 /*
@@ -90,6 +86,17 @@ void GetPartsSize();
 
 void MAP_updateUnitDoor(DoorUnit *door);
 
+void AutoDoorFunc(DoorUnit *door);
+
+int EventDoorFunc(DoorUnit *door);
+
+int HalfAutoDoorFunc(DoorUnit *door);
+
+int MjDoorFunc(DoorUnit *door);
+
+/* MAP_updateUnitDoor passes the door; DoubleDoorFunc itself takes no parameter. */
+void DoubleDoorFunc();
+
 const char D_004CA280[56] = "InitMapDoor id=%d kind=%d doorType=%d doorRange=%f\n";
 
 const char D_004CA2B8[32] = "doorpos[X]=%f Y=%f Z=%f\n";
@@ -153,7 +160,43 @@ void InitMapDoor(DoorUnit *door)
            params->trigger_distance, params->open_limit);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/init_map_door", MAP_updateUnitDoor);
+void MAP_updateUnitDoor(DoorUnit *door)
+{
+    DoorParams *params = &door->params;
+
+    /* Case 5 is written before case 4: the original emitted the HalfAutoDoorFunc block first. */
+    switch (params->door_type) {
+    case 1:
+        AutoDoorFunc(door);
+        break;
+    case 2:
+        EventDoorFunc(door);
+        break;
+    case 3:
+        DoubleDoorFunc(door);
+        break;
+    case 5:
+        HalfAutoDoorFunc(door);
+        break;
+    case 4:
+        MjDoorFunc(door);
+        break;
+    }
+    door->model_x = door->model->x;
+    door->model_y = door->model->y;
+    door->model_z = door->model->z;
+    if (params->linked_unit != -1) {
+        int index = params->linked_unit;
+        DoorModel *model;
+
+        MapUnit[index].open_timer = door->open_timer;
+        DoorCommonFunc((DoorUnit *) &MapUnit[index]);
+        model = MapUnit[index].model;
+        MapUnit[index].model_position.lanes[0] = model->x;
+        MapUnit[index].model_position.lanes[1] = model->y;
+        MapUnit[index].model_position.lanes[2] = model->z;
+    }
+}
 
 void AutoDoorFunc(DoorUnit *door)
 {
@@ -354,6 +397,11 @@ int AutoDoorCloseOpeFunc(DoorUnit *door)
         }
     }
 }
+
+/* Defined here, after the tables of the functions above, to keep .rodata in original address order. */
+const char D_004CA3B8[16] = "id=%d DoorOpen\n";
+
+const char D_004CA3C8[24] = "id=%d DoorClose\n";
 
 void EventDoorStanbyFunc(DoorUnit *door)
 {

@@ -17,7 +17,11 @@ typedef u32 ConstantPoolWord;
 typedef union ClassConstantPoolValue {
     void *object;
     unsigned char *tags;
+    unsigned int word;
+    unsigned short index;
 } ClassConstantPoolValue;
+
+DataBufferByte DataBuffer_getUByteAt(DataBuffer *buffer);
 
 typedef struct ClassFieldRecord {
     SceneString *name;

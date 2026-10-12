@@ -320,7 +320,36 @@ void MATRIX_transpose3(Matrix4 matrix)
     matrix[1][2] = upper12;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/matrix_print", MATRIX_rotate4);
+void MATRIX_rotate4(Matrix4 rotation, float angle, float axisX, float axisY, float axisZ)
+{
+    float sine = xglSin(angle);
+    float cosine = xglCos(angle);
+    float length = __builtin_sqrtf(axisX * axisX + axisY * axisY + axisZ * axisZ);
+    float one = 1.0f;
+    float zero = 0.0f;
+    float oneMinusCos;
+
+    axisX = axisX / length;
+    axisY = axisY / length;
+    axisZ = axisZ / length;
+    oneMinusCos = one - cosine;
+    rotation[3][3] = one;
+    rotation[2][3] = zero;
+    rotation[1][0] = oneMinusCos * (axisX * axisY) - axisZ * sine;
+    rotation[1][3] = zero;
+    rotation[0][3] = zero;
+    rotation[3][2] = zero;
+    rotation[3][1] = zero;
+    rotation[2][0] = oneMinusCos * (axisZ * axisX) + axisY * sine;
+    rotation[2][1] = oneMinusCos * (axisY * axisZ) - axisX * sine;
+    rotation[2][2] = oneMinusCos * (axisZ * axisZ) + cosine;
+    rotation[1][1] = oneMinusCos * (axisY * axisY) + cosine;
+    rotation[1][2] = oneMinusCos * (axisY * axisZ) + axisX * sine;
+    rotation[0][2] = oneMinusCos * (axisZ * axisX) - axisY * sine;
+    rotation[0][0] = oneMinusCos * (axisX * axisX) + cosine;
+    rotation[3][0] = zero;
+    rotation[0][1] = oneMinusCos * (axisX * axisY) + axisZ * sine;
+}
 
 void MATRIX_rotXYZ(void)
 {
@@ -483,7 +512,63 @@ void QUAT_toAxis(const float quaternion[4], float axisAngle[4])
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/matrix_print", QUAT_toMatrix4);
+static inline void quaternionDiagonalProducts(float x, float y, float z,
+    float *xx, float *yy, float *zz)
+{
+    *xx = x * (x + x);
+    *yy = y * (y + y);
+    *zz = z * (z + z);
+}
+
+static inline void quaternionCrossProducts(float x, float y, float z, float w,
+    float *xy, float *xz, float *yz, float *wx, float *wy, float *wz)
+{
+    *xy = x * (y + y);
+    *xz = x * (z + z);
+    *yz = y * (z + z);
+    *wx = w * (x + x);
+    *wy = w * (y + y);
+    *wz = w * (z + z);
+}
+
+void QUAT_toMatrix4(const float quaternion[4], Matrix4 matrix)
+{
+    float x = quaternion[0];
+    float y = quaternion[1];
+    float z = quaternion[2];
+    float w = quaternion[3];
+    float xx;
+    float yy;
+    float zz;
+    float xy;
+    float xz;
+    float yz;
+    float wx;
+    float wy;
+    float wz;
+    float zero = 0.0f;
+    float one = 1.0f;
+
+    quaternionDiagonalProducts(x, y, z, &xx, &yy, &zz);
+    quaternionCrossProducts(x, y, z, w, &xy, &xz, &yz, &wx, &wy, &wz);
+
+    matrix[0][0] = one - (yy + zz);
+    matrix[3][2] = zero;
+    matrix[1][1] = one - (xx + zz);
+    matrix[3][1] = zero;
+    matrix[1][0] = xy - wz;
+    matrix[3][0] = zero;
+    matrix[2][0] = xz + wy;
+    matrix[2][1] = yz - wx;
+    matrix[2][2] = one - (xx + yy);
+    matrix[0][1] = xy + wz;
+    matrix[0][2] = xz - wy;
+    matrix[1][2] = yz + wx;
+    matrix[2][3] = zero;
+    matrix[1][3] = zero;
+    matrix[3][3] = one;
+    matrix[0][3] = zero;
+}
 
 void QUAT_interpS(float firstWeight, float secondWeight,
                   Vector4 *destination, const Vector4 *first,

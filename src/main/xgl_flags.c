@@ -11,7 +11,48 @@
 
 int xglFlagsSet(int bit_offset, int bit_count, int value);
 
-INCLUDE_ASM("asm/main/nonmatchings/xgl_flags", xglFlagsSet);
+int xglFlagsSet(int bit_offset, int bit_count, int value)
+{
+    union XglPackedFlagWindow flag_window;
+    int bit_shift;
+    int byte_count;
+    int byte_offset;
+    signed long long mask;
+    int byte_index;
+    signed long long old_word;
+    signed long long shifted_mask;
+    signed long long replacement_word;
+    int old_value;
+
+    bit_shift = bit_offset & 7;
+    /* The callers use up to 32 field bits; the EE word shift masks its count
+       to five bits, so a count of 32 produces a zero mask in the binary. */
+    mask = (int)((1u << bit_count) - 1u);
+    byte_count = (bit_count + bit_shift + 7) >> 3;
+    byte_offset = bit_offset >> 3;
+
+    for (byte_index = 0; byte_index < byte_count; byte_index++) {
+        flag_window.bytes[byte_index] =
+            SaveData[0x74 + byte_offset + byte_index];
+    }
+
+    /* Like xglFlagsGet, the word load observes the byte window after only
+       its requested prefix was copied from SaveData. */
+    old_word = flag_window.signed_value;
+    old_value = (int)((old_word >> bit_shift) & mask);
+    shifted_mask = (signed long long)((unsigned long long)mask << bit_shift);
+    replacement_word =
+        (old_word & ~shifted_mask) |
+        ((signed long long)((unsigned long long)(value & mask) << bit_shift));
+    flag_window.signed_value = replacement_word;
+
+    for (byte_index = 0; byte_index < byte_count; byte_index++) {
+        SaveData[0x74 + byte_offset + byte_index] =
+            flag_window.bytes[byte_index];
+    }
+
+    return old_value;
+}
 
 int xglFlagsSet1(int bit_offset, int value)
 {

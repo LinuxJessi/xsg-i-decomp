@@ -14,7 +14,8 @@ extern XglPacket *xglPacketGetCurrent(void);
  * writes stays unmodeled.
  */
 struct XglPacket {
-    unsigned char unmodeled_00[4];
+    /* xglFontReloadTexture decrements this forward cursor by four words. */
+    u32 *write_cursor;
     /*
      * +0x04: the address xglPacketSend hands to xglDmaDirectSrcChain as the
      * DMA source-chain start whenever a packet is pending (main
@@ -36,7 +37,7 @@ struct XglPacket {
  * by the sceVif1Pk* library.
  */
     u32 directCode;
-    u32 directState;
+    u32 *directState;
     unsigned char unmodeled_10[0x10];
     /*
      * +0x20: the packet's fixed top-of-buffer address. xglPacketInit sets it
@@ -59,5 +60,12 @@ struct XglPacket {
      */
     u8 *cursor;
 };
+
+/* The entry list starts at entryOffset and contains count records. */
+typedef struct XglTextureTransSet {
+    unsigned char unmodeled_00[8];
+    int count;
+    u32 entryOffset;
+} XglTextureTransSet;
 
 #endif /* INCLUDE_MAIN_XGL_PACKET_H */

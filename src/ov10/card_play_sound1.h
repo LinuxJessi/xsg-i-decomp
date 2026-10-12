@@ -54,11 +54,15 @@ extern char ZenkakuListA[];
 /*
  * PadData is the 0xd0-byte table of two 0x68-byte per-pad records at
  * 0x00490d90 (the same layout ov12/xrg_pad.c views as PadDataEntry). Each
- * record starts with the canonical PadPrefix; CardMainProc also reads the
+ * record starts with a local 0x2c-byte partial view; CardMainProc also reads the
  * d-pad direction halfword at +0x2c and, in 2P battles, the second record.
  */
 typedef struct CardPadEntry {
-    PadPrefix prefix;
+    struct {
+        u8 pad_00[0x28];
+        u16 half_28;
+        u16 half_2a;
+    } prefix;
     u16 directions;                /* +0x2c: d-pad direction bits */
     u8 unmodeled_2e[0x68 - 0x2e];
 } CardPadEntry;

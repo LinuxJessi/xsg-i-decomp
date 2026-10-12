@@ -34,15 +34,42 @@ typedef struct SequenceState {
     u32 unmodeled_08;
     u32 cleared_on_init;
     u32 unmodeled_10;
-    u32 cleared_on_init_run[4];
+    void *cleared_on_init_run[4];
     void *handler[4];
 } SequenceState;
 
-/* Each actor owns one 0x260-byte sequence record. The recovered head and
- * byte storage share that allocation; the unmodeled tracks retain their extent. */
-typedef union ActSequenceEntry {
+typedef struct MoveTrack {
+    struct Actor *target_actor;
+    int frames;
+    u8 unmodeled_08[0x10 - 0x08];
+    Vector4 start;
+    Vector4 target;
+} MoveTrack;
+
+typedef struct MotionTrack {
+    float time;
+    u8 unmodeled_04[0x08 - 0x04];
+    u32 motion;
+    u8 unmodeled_0c[0x10 - 0x0c];
+    short loop_start;
+    short loop_end;
+    u8 blend;
+    u8 unmodeled_15[0x18 - 0x15];
+    u32 flags;
+    float speed;
+} MotionTrack;
+
+typedef struct ActSequenceEntry {
     SequenceState state;
-    u8 bytes[0x260];
+    u32 frame_counter;
+    MoveTrack move;
+    u8 unmodeled_68[0x138 - 0x68];
+    MotionTrack motion;
+    u8 unmodeled_158[0x238 - 0x158];
+    u32 unmodeled_238;
+    u32 unmodeled_23c;
+    Vector4 anchor;
+    u8 unmodeled_250[0x260 - 0x250];
 } ActSequenceEntry;
 
 /* The original array at 0x0046f460 has 64 records, totaling 0x9800 bytes. */

@@ -2,6 +2,10 @@
 
 #include "shared.h"
 
+#include "main/control_entry.h"
+
+extern float xglFRand(void);
+
 static unsigned char TestEnv_0_00367AA0[0x60] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x51, 0x01, 0x80, 0x00, 0x00, 0x00, 0x40, 0x03, 0x40, 0x1E, 0x55, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x10, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x47, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xF8, 0x6F, 0x00, 0x00, 0xF7, 0x71, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0xF8, 0x8F, 0x00, 0x00, 0xF7, 0x8D, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00
 };
@@ -194,6 +198,85 @@ void GameBgDrawType1Entry(void)
     GameBgDrawType1Param.initialized = 0;
 }
 
+typedef struct GameBgBand {
+    float angular_velocity;
+    float texture_velocity;
+    float angle;
+    float texture_phase;
+    /* Interleaved x, y coordinates for the circular point ring. */
+    float coordinates[128];
+} GameBgBand;
+
+typedef struct GameBgDepth {
+    float z;
+    unsigned int unmodeled_04;
+} GameBgDepth;
+
+typedef struct GameBgBandTexture GameBgBandTexture;
+
+typedef struct GameBgBandParameters {
+    unsigned char initialized;
+    unsigned char unmodeled_01[2];
+    unsigned char point_count;
+    float radius;
+    float angular_step;
+    float scale;
+    GameBgBand bands[4];
+    GameBgDepth depths[7];
+    unsigned char unmodeled_888[72];
+    GameBgBandTexture *texture_packet;
+} GameBgBandParameters;
+
+extern GameBgBandParameters GameBgDrawType2Param;
+void GameBgDrawType2(void);
+
+struct GameBgBandTexture {
+    unsigned int header[8];
+    unsigned int pixels[2048];
+};
+
+
+
+
+
+
+
+
 INCLUDE_ASM("asm/main/nonmatchings/game_bg_draw_type", GameBgDrawType2);
 
-INCLUDE_ASM("asm/main/nonmatchings/game_bg_draw_type", GameBgDrawType2Entry);
+struct StageBackground;
+
+void GameBgDrawType2Entry(int parameter, struct StageBackground *background)
+{
+    GameBgBandParameters *param = &GameBgDrawType2Param;
+    float radius;
+    const float texture_velocity = 0.01f;
+
+    param->point_count = 16;
+    param->angular_step = 0.3926991f;
+    radius = 100.0f;
+    param->radius = radius;
+    param->bands[0].angular_velocity = 0.01f;
+    param->scale = 1.0f;
+    param->initialized = 0;
+    param->bands[0].angle = xglFRand();
+    param->bands[1].angular_velocity = 0.017f;
+    param->bands[1].angle = xglFRand();
+    param->bands[2].angular_velocity = -0.011f;
+    param->bands[2].angle = xglFRand();
+    param->bands[3].angular_velocity = -0.018f;
+    param->bands[3].angle = xglFRand();
+    param->bands[3].texture_velocity = texture_velocity;
+    param->bands[1].texture_velocity = 0.001f;
+    param->bands[0].texture_velocity = 0.0f;
+    param->bands[2].texture_velocity = -0.01f;
+    GameLoopState.background_draw = GameBgDrawType2;
+    param->depths[0].z = -2000.0f;
+    param->depths[1].z = -500.0f;
+    param->depths[2].z = -100.0f;
+    param->depths[3].z = 0.0f;
+    param->depths[4].z = radius;
+    param->depths[5].z = 500.0f;
+    param->depths[6].z = 2000.0f;
+    GameLoopState.background_sync = nullfunc;
+}

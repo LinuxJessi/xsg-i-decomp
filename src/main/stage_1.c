@@ -6,6 +6,8 @@
 
 /* Twenty-four halfwords occupy the stage peer block returned by STAGE_create. */
 
+#include "main/jni.h"
+
 static u16 defaultStage[24];
 
 /* CameraWork's independently evidenced prefix: creation fills the object tag

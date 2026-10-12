@@ -1,6 +1,14 @@
 #ifndef INCLUDE_MAIN_WINDOW_TEX_LOAD_H
 #define INCLUDE_MAIN_WINDOW_TEX_LOAD_H
 
+#include "main/xgl_studio.h"
+
+void UmnMailBoxSet(int box_id);
+
+unsigned char *UmnMailDataGet(int box_id);
+
+void MoveSlide(short *current, short *target, float rate);
+
 /*
  * The UMN database's saved state: the 0x9c-byte window of the save record
  * that build/main/aliases.ld names `UmnDataBaseStateData = SaveData + 66140`
@@ -35,5 +43,11 @@ typedef struct UmnDataBase {
     unsigned char _unmodeled_8c[0x0c];      /* +0x8c..+0x97 */
     unsigned char monster_analysed[4];      /* +0x98: one bit per monster id */
 } UmnDataBase;
+
+void ChangeTopLevel(int top_level);
+
+void MenuKeepSelectReset(void);
+
+int MenuSelectMove(int selection, int count, int wrap);
 
 #endif /* INCLUDE_MAIN_WINDOW_TEX_LOAD_H */
