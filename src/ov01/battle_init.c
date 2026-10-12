@@ -201,14 +201,41 @@ typedef struct ScenarioStep {
 } ScenarioStep;
 typedef void (*ScenarioPhaseFunc)(void);
 /*
+ * One destination record. scenarioDstSet (still asm) appends a whole 0x28-byte
+ * record built by unitJobTypeAtk/unitCmdItemSub (src/ov01/unit_cmd.c) at
+ * dest[count]; scenarioDstGet hands out &dest[index + offset]. Only the words
+ * this TU's callers of scenarioDstGet touch are modeled:
+ *   +0x00 unit: scenarioBatEnd reads unit->work (+0x10) and clears bit 0x4000
+ *         in its first word; scenarioBatExecMain passes the word at unit+0x14
+ *         to sefIsSeSignal.
+ *   +0x08: battleExec copies it into D_00A57B78.
+ *   +0x14: scenarioBatExecPhase30 zeroes it after scenarioEffCall.
+ */
+typedef struct ScenarioDstEntry {
+    ObjectTask *unit;                 /* +0x00 */
+    unsigned char unmodeled_04[4];
+    int word08;                       /* +0x08 */
+    unsigned char unmodeled_0c[8];
+    int word14;                       /* +0x14 */
+    unsigned char unmodeled_18[0x10];
+} ScenarioDstEntry;
+
+/*
+ * The record limit scenarioDstSet and scenarioDstGet both test (`slti 0xD`).
+ * scenarioDst itself spans 0x1E0 bytes (0x00a57978..0x00a57b58), twelve
+ * records; a thirteenth accepted record would land on scenarioPtr.
+ */
+#define SCENARIO_DST_LIMIT 13
+
+/*
  * scenarioBatInit also writes +0x08, the destination buffer scenarioBatInit
  * pairs with source: both are set from the fixed scenarioSrc/scenarioDst
- * byte arrays, so dest is typed the same as source's own backing array.
+ * arrays.
  */
 typedef struct ScenarioBatState {
     int count;                    /* +0x00: index is clamped to this */
     int index;                    /* +0x04: advanced by source->stride each call */
-    unsigned char *dest;          /* +0x08 */
+    ScenarioDstEntry *dest;       /* +0x08: scenarioDstSet appends at dest[count] */
     ScenarioStep *source;         /* +0x0C */
     ScenarioPhaseFunc nextPhase; /* +0x10 */
     int phaseTimer;              /* +0x14 */
@@ -226,7 +253,7 @@ static int keyBuffIdx;
 static int keyBuff[8];
 static int batMainFlag;
 static ScenarioStep scenarioSrc[8];
-static ScenarioStep scenarioDst[24];
+static ScenarioDstEntry scenarioDst[12];
 static ScenarioBatState scenarioPtr;
 static int helpFlag;
 static CamEvent D_00A57B80;
@@ -701,7 +728,7 @@ void scenarioBatInit(void)
     scenarioPtr.source = (ScenarioStep *)scenarioSrc;
     scenarioPtr.count = 0;
     scenarioPtr.index = 0;
-    scenarioPtr.dest = (unsigned char *)scenarioDst;
+    scenarioPtr.dest = scenarioDst;
     scenarioPtrFuncSet(scenarioBatExecPhase10);
 }
 
@@ -724,7 +751,16 @@ int scenarioSrcGet(void)
     return (int)scenarioPtr.source;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", scenarioDstGet);
+/* The destination record `offset` steps past the current index, or NULL. */
+ScenarioDstEntry *scenarioDstGet(int offset)
+{
+    int index = scenarioPtr.index + offset;
+
+    if (index >= SCENARIO_DST_LIMIT || index >= scenarioPtr.count) {
+        return 0;
+    }
+    return &scenarioPtr.dest[index];
+}
 
 int scenarioBatNext(void)
 {
