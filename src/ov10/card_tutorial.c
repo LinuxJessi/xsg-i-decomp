@@ -156,8 +156,24 @@ void CardTutorialInit(void)
     CardTutorialFileLoad(0);
 }
 
-/* Translation {1.2f, -1.82f, 0.0f, 1.0f} as two packed doublewords. */
-typedef struct CardTutorialTranslation {
+/* Tutorial page count and the pad actions CardTutorialProc handles. Evidence (OV10, CardTutorialProc 0x00a215e0):
+ * `slti a0,a1,47` at 0x00a2163c ends the pages after tutopage++ (valid pages are 0..46); `andi v0,a1,0x8` at 0x00a21618
+ * advances (sound 1, tutopage++, load the page); `andi v0,a1,0x4` at 0x00a21690 goes back (tutopage--, sound 2, load the
+ * page); `andi v1,a1,0x800` at 0x00a216d0 closes the viewer (returns 0). */
+#define CARD_TUTORIAL_PAGE_COUNT 47
+
+#define CARD_TUTORIAL_PAD_NEXT 0x0008
+
+#define CARD_TUTORIAL_PAD_PREV 0x0004
+
+#define CARD_TUTORIAL_PAD_CLOSE 0x0800
+
+/* Translation vector {1.2f, -1.82f, 0.0f, 1.0f}, read by xglMatrixTrans as four floats. The original copies the 16 bytes from
+ * D_00A4E4D0 with two doubleword moves (`ld`/`ld`/`sd`/`sd` at 0x00a21600..0x00a21610). A plain float[4] or struct of floats has
+ * only 4-byte alignment and compiles to unaligned ldl/ldr/sdl/sdr pairs; the u64 member gives the aggregate the 8-byte alignment
+ * that yields the doubleword copy. */
+typedef union CardTutorialTranslation {
+    float v[4];
     u64 words[2];
 } CardTutorialTranslation;
 extern const CardTutorialTranslation D_00A4E4D0;
@@ -172,10 +188,10 @@ int CardTutorialProc(CardGameWork *work)
 
     xglMatrixUnit(source);
     pressed = work->command.input[0].pressed;
-    if (pressed & 0x8) {
+    if (pressed & CARD_TUTORIAL_PAD_NEXT) {
         xglSoundEffectNormalID(1, 0);
         tutopage++;
-        if (tutopage >= 47) {
+        if (tutopage >= CARD_TUTORIAL_PAGE_COUNT) {
             printf(D_00A4E4E0);
             return 0;
         }
@@ -187,7 +203,7 @@ int CardTutorialProc(CardGameWork *work)
         }
         pressed = work->command.input[0].pressed;
     }
-    if (pressed & 0x4) {
+    if (pressed & CARD_TUTORIAL_PAD_PREV) {
         tutopage--;
         if (tutopage < 0) {
             tutopage = 0;
@@ -197,10 +213,10 @@ int CardTutorialProc(CardGameWork *work)
             pressed = work->command.input[0].pressed;
         }
     }
-    if (pressed & 0x800) {
+    if (pressed & CARD_TUTORIAL_PAD_CLOSE) {
         return 0;
     }
-    xglMatrixTrans(placed, source, (const float *)translation.words);
+    xglMatrixTrans(placed, source, translation.v);
     nmlModelSetTexture(tuxtx_tbl[0]);
     nmlModelSetPlace(placed);
     nmlModelSetRenderLevel(2);
