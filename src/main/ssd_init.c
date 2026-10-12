@@ -39,11 +39,12 @@ extern int DeleteThread(int thread_id);
 extern int TerminateThread(int thread_id);
 
 /*
- * This TU's own RPC completion handler (its body is still scaffold below);
+ * This TU's own RPC completion wait and its poll (both defined below);
  * sceSifRemoveRpc is the SCE SDK RPC server deregistration call.
  */
 
-extern void RssdFuncCallCompleted(int status);
+extern int RssdFuncCallCompleted(int status);
+extern int RssdGetCallCompletedCode(void);
 
 extern void *sceSifRemoveRpc(void *sd, void *qd);
 
@@ -184,7 +185,20 @@ void RssdSifRpcCallback(void)
     return;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/ssd_init", RssdFuncCallCompleted);
+/*
+ * Polls RssdGetCallCompletedCode until the pending RPC call has completed
+ * (code 0) or, with status 0, just once; returns the last code. The return
+ * value is real: it stays in $2 while the loop tests a copy in $3.
+ */
+int RssdFuncCallCompleted(int status)
+{
+    int code;
+
+    do {
+        code = RssdGetCallCompletedCode();
+    } while (status != 0 && code != 0);
+    return code;
+}
 
 int RssdGetCallCompletedCode(void)
 {
