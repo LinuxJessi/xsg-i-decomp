@@ -63,6 +63,8 @@ typedef struct WpnData WpnData;
 struct WpnData {
     unsigned char unmodeled_00[0x10]; /* +0x00 */
     u8 equipped;                      /* +0x10: calcAttWpnChk's own check */
+    unsigned char unmodeled_11[0x18 - 0x11];
+    short dblAct;                     /* +0x18: calcDblActChk requires nonzero */
 };
 
 extern WpnData *dataWpnGet(int weaponId);
@@ -753,7 +755,31 @@ int calcFrameEquipOrg(int charaId, int frameId)
     return 1;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcDblActChk);
+/*
+ * The CalcUnitParam.dblActKind value calcDblActChk requires (`addiu $4,$0,6`
+ * against `lb $2,0x3A($17)`); nothing else in this TU names it.
+ */
+#define CALC_DBL_ACT_KIND 6
+
+/* calcSameWpnChk (this TU, still asm): a weapon slot of unit, or -1. */
+extern int calcSameWpnChk(ObjectTask *unit);
+
+int calcDblActChk(ObjectTask *unit)
+{
+    CalcUnitParam *up;
+    int slot;
+
+    up = calcUPGet(unit);
+    slot = calcSameWpnChk(unit);
+    if (slot != -1 && up->dblActKind == CALC_DBL_ACT_KIND
+        && dataWpnGet(up->weaponId[slot])->dblAct != 0) {
+        if (calcAttWpnChk(up->weaponId[slot]) == 0 || up->wpnSlotValue[slot] > 0) {
+            return 1;
+        }
+        return 0;
+    }
+    return 0;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcSameWpnChk);
 

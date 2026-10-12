@@ -20,11 +20,18 @@ enum CalcTechniqueCount { CALC_NORMAL_TECHNIQUE_COUNT = 6 };
  * - charaId (+0x38): the character/type id. unitCidGet feeds it to
  *   dataCidGet, and unitLoad range-tests it (0xBB..0xC2) to decide whether
  *   the unit still needs its sound-effect setup call.
- * - sefSetupParams (+0x5E/+0x60/+0x62): the three shorts unitLoad hands to
- *   sefSetupPlayer as its second through fourth arguments (lh 0x5e/0x60/0x62
- *   at 0x00a018d8..0x00a018e8). sefSetupPlayer stores them, next to the id,
- *   in its _battlePrm slot (sh at +0x10/+0x12/+0x14,
- *   0x002e6d84..0x002e6d8c); nothing says more about what they select.
+ * - weaponId (+0x5E/+0x60/+0x62): the per-slot weapon ids. calcDblActChk
+ *   (this TU, 0x00a16898) indexes them with calcSameWpnChk's slot and passes
+ *   the id to dataWpnGet and calcAttWpnChk; CalcCharParaData keeps its own
+ *   weaponId at the same offset. unitLoad hands all three to sefSetupPlayer
+ *   as its second through fourth arguments (lh 0x5e/0x60/0x62 at
+ *   0x00a018d8..0x00a018e8), which stores them next to the id in its
+ *   _battlePrm slot (sh at +0x10/+0x12/+0x14, 0x002e6d84..0x002e6d8c).
+ * - dblActKind (+0x3A): a signed byte calcDblActChk loads with
+ *   `lb $2,0x3A($17)` and requires to be CALC_DBL_ACT_KIND.
+ * - wpnSlotValue (+0x70/+0x72/+0x74): a halfword per weapon slot that
+ *   calcDblActChk (`lh $3,0x70($3)` at slot * 2) requires to be positive
+ *   when calcAttWpnChk holds for that slot's weapon.
  * - linkedUnit (+0x50): another unit's parameter block. menuStatChrIdGet
  *   (ov01/tu009) loads it with `lw $2,0x50($18)` from its saved calcUPGet
  *   result and returns that block's charaId (`lh $17,0x38($2)`, 0x00a29cac)
@@ -112,16 +119,18 @@ struct CalcUnitParam {
     u16 currentHp;           /* +0x34: calcPara2OrgSub's copy source */
     u16 currentEp;           /* +0x36: calcPara2OrgSub's copy source */
     short charaId;           /* +0x38 */
-    unsigned char unmodeled_3a[0x3E - 0x3A];
+    signed char dblActKind;     /* +0x3A: calcDblActChk */
+    unsigned char unmodeled_3b[0x3E - 0x3B];
     short turnBias;             /* +0x3E: calcWct/calcTurnEnd */
     short waitCount;            /* +0x40: calcTurnEnd/calcWctDec */
     short waitCountBase;        /* +0x42: calcTurnEnd */
     unsigned char unmodeled_44[0x50 - 0x44];
     CalcUnitParam *linkedUnit;   /* +0x50: menuStatChrIdGet reads its charaId */
     unsigned char unmodeled_54[0x5E - 0x54];
-    short sefSetupParams[3]; /* +0x5E: sefSetupPlayer's extra arguments */
+    short weaponId[3];       /* +0x5E: per-slot weapon ids */
     short accessoryId[3];    /* +0x64: calcMagDefGet's per-slot item ids */
-    unsigned char unmodeled_6a[0x76 - 0x6A];
+    unsigned char unmodeled_6a[0x70 - 0x6A];
+    short wpnSlotValue[3];   /* +0x70: calcDblActChk, per weapon slot */
     short normalTechniqueId[CALC_NORMAL_TECHNIQUE_COUNT]; /* +0x76 */
     unsigned char unmodeled_82[0xAC - 0x82];
     u16 statActiveMask[8];   /* +0xAC: calcStatTurn's per-category bit set */

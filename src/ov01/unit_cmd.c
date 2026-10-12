@@ -183,8 +183,8 @@ void unitLoad(ObjectTask *unit, int mode)
     up = calcUPGet(unit);
     if (calcUPGet(unit)->charaId < 0xBB || calcUPGet(unit)->charaId >= 0xC3) {
         if (!(((Actor *)unit->work)->flags & ACTOR_FLAG_ENEMY)) {
-            sefSetupPlayer(up->charaId, up->sefSetupParams[0],
-                           up->sefSetupParams[1], up->sefSetupParams[2]);
+            sefSetupPlayer(up->charaId, up->weaponId[0],
+                           up->weaponId[1], up->weaponId[2]);
         } else {
             sefSetupEnemy(up->charaId);
         }

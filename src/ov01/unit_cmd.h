@@ -147,7 +147,7 @@ extern void ACT_setMotion(Actor *actor, unsigned int dataId);
  */
 #define ACTOR_FLAG_CMD_PENDING 0x2u
 
-/* The three shorts after charaId are CalcUnitParam.sefSetupParams[0..2]. */
+/* The three shorts after charaId are CalcUnitParam.weaponId[0..2]. */
 extern void sefSetupPlayer(short charaId, short, short, short);
 extern void sefSetupEnemy(short charaId);
 extern void dataUnitFileLoad(ObjectTask *unit, int mode);
