@@ -5,6 +5,8 @@ compilations with SKIP_ASM: neither fallback nor standalone assembly earns C
 credit. IOP originals have no base. All binary inputs remain local.
 """
 from concurrent.futures import ThreadPoolExecutor
+from bisect import bisect_left
+from functools import lru_cache
 import hashlib
 import ast
 import json
@@ -15,9 +17,86 @@ import subprocess
 
 import coverage_report as cov
 from tu import data_carve
+from tu import data_gate
+from tu.storage_directives import emitted_storage as parse_emitted_storage
 from tu import verify_report as verification
 from tu.elfinfo import Elf
 from tu.toolchain import Toolchain
+
+
+emitted_storage = lru_cache(maxsize=16)(parse_emitted_storage)
+_compiler_only_section = lru_cache(maxsize=32)(data_gate.compiler_only_section)
+
+
+def compiler_only_section(assembly, preprocessed, unit_dir, section):
+    # Includes have external file dependencies: always re-check their contents.
+    # Without includes the proof depends only on these immutable text inputs.
+    if re.search(r'\.include\b', assembly):
+        return data_gate.compiler_only_section(assembly, preprocessed, unit_dir, section)
+    return _compiler_only_section(assembly, preprocessed, unit_dir, section)
+
+
+@lru_cache(maxsize=64)
+def parsed_elf(data):
+    """Reuse read-only parsing by exact bytes, never by a potentially stale path."""
+    return Elf(data)
+
+
+@lru_cache(maxsize=6)
+def original_symbol_indexes(data):
+    """Index the same original-symbol candidates used by joint assembly."""
+    by_address, by_name, names = {}, {}, set()
+    for symbol in parsed_elf(data).symbols:
+        names.add(symbol.name)
+        if symbol.type in (0, 1):
+            by_address.setdefault((symbol.shndx, symbol.value), []).append(symbol)
+        if symbol.shndx not in (0, 0xfff1):
+            spelling = symbol.name.replace('.', '_')
+            for name in (symbol.name, spelling, spelling + f'_{symbol.value:08X}'):
+                by_name.setdefault(name, set()).add(symbol.value)
+    return by_address, by_name, names
+
+
+def c_literal_bytes(spelling):
+    """Decode a narrow C/assembler literal, including C's escaped question mark."""
+    if len(spelling) < 2 or spelling[0] not in ('"', "'") or spelling[-1] != spelling[0]:
+        raise ValueError('expected a quoted byte string')
+    escapes = {'a': 7, 'b': 8, 'f': 12, 'n': 10, 'r': 13, 't': 9, 'v': 11,
+               '\\': 92, "'": 39, '"': 34, '?': 63}
+    out = bytearray()
+    at, end = 1, len(spelling) - 1
+    while at < end:
+        char = spelling[at]
+        at += 1
+        if char != '\\':
+            if char in (spelling[0], '\n', '\r'):
+                raise ValueError('unescaped string delimiter or newline')
+            out.extend(char.encode('latin1'))
+            continue
+        if at == end:
+            raise ValueError('unterminated escape')
+        char = spelling[at]
+        at += 1
+        if char in escapes:
+            out.append(escapes[char])
+        elif char in '01234567':
+            digits = char
+            while at < end and len(digits) < 3 and spelling[at] in '01234567':
+                digits += spelling[at]
+                at += 1
+            out.append(int(digits, 8))
+        elif char == 'x':
+            start = at
+            while at < end and spelling[at] in '0123456789abcdefABCDEF':
+                at += 1
+            if at == start:
+                raise ValueError('empty hexadecimal escape')
+            out.append(int(spelling[start:at], 16))
+        elif char == '\n':
+            continue
+        else:
+            raise ValueError('unsupported byte-string escape: ' + char)
+    return bytes(out)
 
 
 def run(argv, cwd):
@@ -28,9 +107,7 @@ def run(argv, cwd):
 def allocate_registered_layout(base, assembly, preprocessed, registry, output,
                                linker, run, cwd):
     from tu.elfinfo import Elf
-    from tu.storage_directives import emitted_storage
-    from tu.data_gate import compiler_only_section
-    before = Elf(base.read_bytes())
+    before = parsed_elf(base.read_bytes())
     compiler_only_section(assembly, preprocessed, cwd, '.sbss')
     storage = emitted_storage(assembly)
     assert storage.get('layoutManagerId', {}).get('directive') == 'comm'
@@ -55,7 +132,7 @@ def allocate_registered_layout(base, assembly, preprocessed, registry, output,
         ('.scommon', (0, 4), ('0x004dc6b4', '0x004dc6b8'), ('layoutManagerId',))]
     allocated = output.with_name('ordinary-allocated.o')
     run([linker, '-r', '-d', '-EL', '-m', 'elf32lr5900', '-o', allocated, base], cwd)
-    native = Elf(allocated.read_bytes())
+    native = parsed_elf(allocated.read_bytes())
     # GNU ld's own relocatable link adjusts local GPREL16 addends when it
     # changes the provisional GP in REGINFO. Prove their ABI equivalence;
     # never rewrite either object's words or relocation records ourselves.
@@ -99,7 +176,7 @@ def allocate_registered_layout(base, assembly, preprocessed, registry, output,
     script.write_text('SECTIONS { .sbss 0 : { *(.sbss) *(.scommon) } }\n')
     run([linker, '-r', '-EL', '-m', 'elf32lr5900', '-T', script,
          '-o', output, allocated], cwd)
-    after = Elf(output.read_bytes())
+    after = parsed_elf(output.read_bytes())
     assert after.section('.sbss').size == 8
     assert after.section('.sbss').type == 8
     assert not any(s.shndx in (0xfff2, 0xff03) for s in after.symbols)
@@ -132,8 +209,7 @@ def registered_data_symbol_mappings(target, base, original, assembly, preprocess
     diagnostically through actual cc1 relocations and compared with retail bytes;
     neither input object nor the native report is rewritten.
     """
-    from tu.data_gate import compiler_only_section
-    compiled=Elf(base.read_bytes());reference=Elf(target.read_bytes())
+    compiled=parsed_elf(base.read_bytes());reference=parsed_elf(target.read_bytes())
     emitted=typed_compiler_data(assembly);mappings={};proofs=[]
     spans=[(section,span) for section,runs in registry.items() if isinstance(runs,list)
            for row in runs for span in row.get('c_input_spans',[])
@@ -233,10 +309,11 @@ def build_target(unit_dir, stem, unit):
 
 
 def functions(path):
-    return {s.name: s.size for s in Elf(path.read_bytes()).symbols
+    return {s.name: s.size for s in parsed_elf(path.read_bytes()).symbols
             if s.type == 2 and s.shndx not in (0, 0xfff1) and s.size}
 
 
+@lru_cache(maxsize=32)
 def typed_compiler_data(assembly):
     """Read cc1 OBJECT directives, including its standard .rdata alias.
 
@@ -301,8 +378,8 @@ def original_text(reference, original_path, start, end, destination, cwd, obj, a
     relocation the C object cannot have.
     This local report assembly never replaces build scaffolding or C source.
     """
-    original = Elf(original_path.read_bytes())
-    scaffold = Elf(reference.read_bytes())
+    original = parsed_elf(original_path.read_bytes())
+    scaffold = parsed_elf(reference.read_bytes())
     text = scaffold.section('.text')
     padded_end = (end + text.align - 1) // text.align * text.align
     verification.require(start + text.size <= padded_end,
@@ -323,7 +400,8 @@ def original_text(reference, original_path, start, end, destination, cwd, obj, a
                                      for s in original.symbols if s.shndx == section.index),
                              f'{obj["id"]}: reference tail is not original alignment padding')
     literal_sections = [s for s in original.sections if s.name in ('.lit4', '.lit8')]
-    literal_operands = bool(original.gp and literal_sections)
+    gp = original.gp
+    literal_operands = bool(gp and literal_sections)
     loaded = [s for s in original.sections if s.flags & 2 and s.size]
     assembly = destination.with_suffix('.s')
     body = Path(str(reference) + '.s').read_text()
@@ -367,7 +445,7 @@ def original_text(reference, original_path, start, end, destination, cwd, obj, a
             verification.require(data.hex().lower() == line[3].lower(), 'stale original disassembly bytes')
             word = int.from_bytes(data, 'little')
             immediate = (word & 0xffff) - (0x10000 if word & 0x8000 else 0)
-            address = original.gp + immediate
+            address = gp + immediate
             if (word >> 21) & 31 != 28 or not any(s.addr <= address < s.addr + s.size
                                                  for s in literal_sections):
                 return line[0]
@@ -393,7 +471,7 @@ def original_text(reference, original_path, start, end, destination, cwd, obj, a
     gflag = next(flag for flag in flags if flag.startswith('-G'))
     run([assembler, '-EL', '-m5900', '-mabi=eabi', gflag, '-I.', '-Iinclude',
          '-o', destination, assembly], cwd)
-    extracted = Elf(destination.read_bytes())
+    extracted = parsed_elf(destination.read_bytes())
     verification.require(extracted.section_bytes(extracted.section('.text')) == expected and
                          functions(destination) == functions(reference),
                          f'{obj["id"]}: numeric disassembly changed other instructions or function scope')
@@ -421,8 +499,9 @@ def original_literal_pool(reference, original_path, start, extent, destination, 
     """
     if not extent:
         return reference, False
-    original = Elf(original_path.read_bytes())
-    before = Elf(reference.read_bytes())
+    original = parsed_elf(original_path.read_bytes())
+    before = parsed_elf(reference.read_bytes())
+    gp = original.gp
     lo, hi = extent
     lit = next((s for s in original.sections if s.name == '.lit4' and s.addr <= lo < hi <= s.addr+s.size), None)
     if lit is None or any(s.type in (1, 2) and lo <= s.value < hi for s in original.symbols):
@@ -444,7 +523,7 @@ def original_literal_pool(reference, original_path, start, extent, destination, 
         path = Path(match[1])
         path = path if path.is_absolute() else cwd/path
         def load(line):
-            address = original.gp + int(line[5]) if original.gp else -1
+            address = gp + int(line[5]) if gp else -1
             if not lo <= address <= hi-4:
                 return line[0]
             va = int(line[2], 16)
@@ -477,7 +556,7 @@ def original_literal_pool(reference, original_path, start, extent, destination, 
         gflag = next(flag for flag in flags if flag.startswith('-G'))
         run([assembler, '-EL', '-m5900', '-mabi=eabi', gflag, '-I.', '-Iinclude',
              '-o', destination, assembly], cwd)
-        after = Elf(destination.read_bytes())
+        after = parsed_elf(destination.read_bytes())
         actual_lit = after.section('.lit4')
     except (subprocess.CalledProcessError, StopIteration):
         return reference, False
@@ -527,7 +606,7 @@ def original_literal_pool(reference, original_path, start, extent, destination, 
         word, = struct.unpack_from('<I', current, offset)
         addend = (word & 0xffff) - (0x10000 if word & 0x8000 else 0)
         address = lo+relocations[offset]+addend+assembler_gp
-        resolved = word & 0xffff0000 | ((address-original.gp) & 0xffff)
+        resolved = word & 0xffff0000 | ((address-gp) & 0xffff)
         if address != loads[offset]['address'] or resolved != loads[offset]['word']:
             return reference, False
     identities = lambda elf: {(s.name,s.value,s.size,s.type,s.bind) for s in elf.symbols if s.type == 2}
@@ -583,20 +662,34 @@ def original_references(original, begin, end):
     Check original relocations, stored pointers, GP accesses and LUI address
     constructions. False positives retain a pad; they never remove real data.
     """
+    addresses = original_reference_addresses(original.data)
+    at = bisect_left(addresses, begin)
+    return at < len(addresses) and addresses[at] < end
+
+
+@lru_cache(maxsize=6)
+def original_reference_addresses(data):
+    """Index precisely the same conservative witnesses once per original ELF."""
+    original = parsed_elf(data)
+    addresses = set()
+    symbols = {}
+    for symbol in original.symbols:
+        symbols.setdefault(symbol.index, symbol)
+    gp = original.gp
     for section in original.sections:
         if section.type == 9:
             for offset in range(section.offset, section.offset + section.size, section.entsize):
                 address, info = struct.unpack_from('<II', original.data, offset)
-                symbol = next((s for s in original.symbols if s.index == info >> 8), None)
-                if begin <= address < end or symbol and begin <= symbol.value < end:
-                    return True
+                symbol = symbols.get(info >> 8)
+                addresses.add(address)
+                if symbol:
+                    addresses.add(symbol.value)
         if not section.flags & 2 or section.type == 8:
             continue
         data = original.section_bytes(section)
         if not section.flags & 4:
-            if any(begin <= struct.unpack_from('<I', data, offset)[0] < end
-                   for offset in range(0, len(data) - 3, 4)):
-                return True
+            addresses.update(struct.unpack_from('<I', data, offset)[0]
+                             for offset in range(0, len(data) - 3, 4))
             continue
         upper = {}
         for offset in range(0, len(data) - 3, 4):
@@ -609,13 +702,13 @@ def original_references(original, begin, end):
             elif opcode in (8, 9, 0xd) or 0x20 <= opcode <= 0x3f:
                 if rs in upper and offset - upper[rs][1] <= 128:
                     value = upper[rs][0] | immediate if opcode == 0xd else upper[rs][0] + signed
-                    if begin <= value < end:
-                        return True
-                if rs == 28 and original.gp and begin <= original.gp + signed < end:
-                    return True
-    return False
+                    addresses.add(value)
+                if rs == 28 and gp:
+                    addresses.add(gp + signed)
+    return tuple(sorted(addresses))
 
 
+@lru_cache(maxsize=8)
 def function_static_source_bindings(preprocessed, compiler, assembly):
     """Witness lexical static declarations and their actual cc1 local names.
 
@@ -901,7 +994,7 @@ def numeric_character_source_objects(preprocessed, compiler, assembly):
         at=m.end();payload=None;form=None
         literal=re.match(r'("(?:\\.|[^"\\])*"(?:\s*"(?:\\.|[^"\\])*")*)\s*;',preprocessed[at:])
         if literal:
-            try:payload=b''.join(ast.literal_eval(token).encode('latin1') for token in re.findall(r'"(?:\\.|[^"\\])*"',literal[1]))+b'\0'
+            try:payload=b''.join(c_literal_bytes(token) for token in re.findall(r'"(?:\\.|[^"\\])*"',literal[1]))+b'\0'
             except (ValueError,SyntaxError,UnicodeError):continue
             if len(payload)>count:continue
             payload+=bytes(count-len(payload));form='literal string with explicit char capacity'
@@ -1233,6 +1326,7 @@ def typed_literal_source_objects(preprocessed, compiler, assembly):
     return result
 
 
+@lru_cache(maxsize=8)
 def numeric_source_objects(preprocessed, compiler, assembly):
     """Literal-only numeric source objects, with independently emitted storage.
 
@@ -1437,10 +1531,10 @@ def original_data(reference, source, original_path, destination, cwd, obj,
     body = source.read_text()
     if '.word' not in body and 'Automatically generated and unreferenced pad' not in body:
         return reference
-    original = Elf(original_path.read_bytes())
-    before = Elf(reference.read_bytes())
+    original = parsed_elf(original_path.read_bytes())
+    before = parsed_elf(reference.read_bytes())
     arrays = integer_literal_arrays(preprocessed) if preprocessed else {}
-    numeric_objects = (numeric_source_objects(preprocessed,Elf(compiler_object.read_bytes()),compiler_assembly.read_text())
+    numeric_objects = (numeric_source_objects(preprocessed,parsed_elf(compiler_object.read_bytes()),compiler_assembly.read_text())
                        if compiler_object and compiler_assembly else {})
     section_name = re.search(r'^\.section\s+(\.[\w.]+)', body, re.M)
     if section_name is None or section_name[1] in ('.bss', '.sbss'):
@@ -1513,7 +1607,7 @@ def original_data(reference, source, original_path, destination, cwd, obj,
                             owner.get('address','').lower()!=f'0x{begin:08x}' or owner.get('size')!=symbol.size or
                             owner.get('name') not in registered.get('c_owned_symbols',[]) or
                             compiler_object is None):continue
-                        compiled=Elf(compiler_object.read_bytes())
+                        compiled=parsed_elf(compiler_object.read_bytes())
                         for span in registered.get('c_input_spans',[]):
                             extent=explicit_object_range(span)
                             if not extent or span.get('section')!=compiled.sections[cs.shndx].name or owner['name'] not in span.get('symbols',[]):continue
@@ -1635,7 +1729,7 @@ def original_data(reference, source, original_path, destination, cwd, obj,
     run([str(assembler_prefix) + 'as', '-EL', '-march=r5900', '-mabi=eabi', '-mgp64',
          '-G0', '-no-pad-sections', '-mno-fix-r5900', '-I.', '-Iinclude', '-o', destination,
          assembly], cwd)
-    after = Elf(destination.read_bytes())
+    after = parsed_elf(destination.read_bytes())
     for old in before.sections:
         if old.flags & 2:
             new = after.section(old.name)
@@ -1731,7 +1825,6 @@ def compiler_string_identity(part, original, compiled, assembly, preprocessed,
     the storage, but does not establish an original named OBJECT identity.
     No genuine original named OBJECT qualifies for identity removal.
     """
-    from tu.data_gate import compiler_only_section
     import tu_audit
     section_match=re.search(r'^\.section\s+(\.[\w.]+)',part,re.M)
     if not section_match or section_match[1] not in ('.rodata','.sdata'):return part,[]
@@ -1748,7 +1841,7 @@ def compiler_string_identity(part, original, compiled, assembly, preprocessed,
         if row['section'] not in (section.name,'.rdata' if section.name=='.rodata' else section.name) or row['directive']!='.ascii':
             fragments=[];continue
         if fragments and row['line']!=fragments[-1][0]['line']+1:fragments=[]
-        try:fragment=ast.literal_eval(row['operands']).encode('latin1')
+        try:fragment=c_literal_bytes(row['operands'])
         except (ValueError,SyntaxError,AttributeError,UnicodeError):
             fragments=[];continue
         fragments.append((row,fragment))
@@ -1759,7 +1852,7 @@ def compiler_string_identity(part, original, compiled, assembly, preprocessed,
             fragments=[]
     literals=[]
     for token in re.findall(r'"(?:\\.|[^"\\])*"',preprocessed):
-        try:literals.append(ast.literal_eval(token).encode('latin1')+b'\0')
+        try:literals.append(c_literal_bytes(token)+b'\0')
         except (ValueError,SyntaxError,UnicodeError):pass
     symbols={s.index:s for s in compiled.symbols};relocations={}
     for rel in compiled.sections:
@@ -1788,7 +1881,7 @@ def compiler_string_identity(part, original, compiled, assembly, preprocessed,
         else:lo=int(first[1],16)
         if re.fullmatch(r'D_[\da-fA-F]+',name) and int(name[2:],16)!=lo:return match[0]
         runs=[r for r in registry.get(section.name,[]) if int(r['range'][0],16)<=lo<int(r['range'][1],16) and name in r.get('c_owned_symbols',[])]
-        try:payload=word_payload if word_payload is not None else ast.literal_eval(first[2]).encode('latin1')+b'\0'
+        try:payload=word_payload if word_payload is not None else c_literal_bytes(first[2])+b'\0'
         except (ValueError,SyntaxError,UnicodeError):return match[0]
         entries=[s for s in scaffold.symbols if s.name==name and s.type==1]
         if len(entries)!=1:return match[0]
@@ -1816,7 +1909,7 @@ def compiler_string_identity(part, original, compiled, assembly, preprocessed,
             definition=re.compile(r'(?<![\w])(?:static\s+)?const\s+(?:unsigned\s+)?char\s+'+re.escape(name)+r'\s*\[\s*(?:\d+)?\s*\]\s*=\s*("(?:\\.|[^"\\])*")\s*;')
             definitions=list(definition.finditer(preprocessed))
             if len(definitions)!=1:return match[0]
-            try:initializer=ast.literal_eval(definitions[0][1]).encode('latin1')+b'\0'
+            try:initializer=c_literal_bytes(definitions[0][1])+b'\0'
             except (ValueError,SyntaxError,UnicodeError):return match[0]
             if initializer!=payload:return match[0]
             named=dict(c_name=candidate.name,binding=candidate.bind,type=candidate.type,size=candidate.size,
@@ -1888,7 +1981,6 @@ def compiler_switch_identity(part, original, compiled, assembly, preprocessed,
                              scope, registry, tu, cwd):
     """Restore anonymous switch-table identity, with source and target proof."""
     if 'dlabel jtbl_' not in part:return part, []
-    from tu.data_gate import compiler_only_section
     try:emission=compiler_only_section(assembly,preprocessed,cwd,'.rodata')
     except (RuntimeError,ValueError):return part, []
     regions={r['function']:r for r in emission.get('compiler_region_switch_tables',[])}
@@ -1986,7 +2078,6 @@ def compiler_nobits_alias_identity(part, original, compiled, assembly,
     is not invented. Original bytes, real names and allocation gaps remain.
     """
     if not re.search(r'^\.section\s+\.bss\s*$',part,re.M):return part,[]
-    from storage_directives import emitted_storage
     section=original.section('.bss');csection=next((s for s in compiled.sections if s.name=='.bss'),None)
     if not csection:return part,[]
     if section.type!=8 or csection.type!=8:return part,[]
@@ -2058,7 +2149,6 @@ def registered_nobits_foreign_aliases(body, reference, original, compiled,
     identities, source objects, owner extents and allocation gaps are retained;
     the caller additionally requires identical allocated bytes and relocations.
     """
-    from storage_directives import emitted_storage
     definitions=emitted_storage(assembly);proofs=[];replacements={}
     used=set()
     for rel in reference.sections:
@@ -2179,7 +2269,7 @@ def registered_anonymous_char_identities(body, reference, original, compiled,
             literal=re.match(r'"(?:\\.|[^"\\])*"\s*;',preprocessed[at:])
             if not literal:return match[0]
             spelling=literal[0][:-1].strip()
-            try:initializer=ast.literal_eval(spelling).encode('latin1')+b'\0'
+            try:initializer=c_literal_bytes(spelling)+b'\0'
             except (ValueError,SyntaxError,UnicodeError):return match[0]
             if len(initializer)>count:return match[0]
             initializer+=bytes(count-len(initializer))
@@ -2271,7 +2361,6 @@ def compiler_original_static_name(part, original, compiled, assembly,
     original_section=original.section(section_name)
     current=next((s for s in compiled.sections if s.name==section_name),None)
     if not current or original_section.type!=current.type:return part,[]
-    from storage_directives import emitted_storage
     storage=emitted_storage(assembly);typed=typed_compiler_data(assembly)
     bindings=function_static_source_bindings(preprocessed,compiled,assembly)
     claimed={f['original_symbol']:f for f in scope};proofs=[]
@@ -2341,7 +2430,6 @@ def compiler_function_static_identity(part, original, compiled, assembly,
     """
     if not re.search(r'^\.section\s+\.bss\s*$',part,re.M):return part,[]
     import tu_edit
-    from storage_directives import emitted_storage
     original_section=original.section('.bss')
     current_section=next((s for s in compiled.sections if s.name=='.bss'),None)
     if not current_section or original_section.type!=8 or current_section.type!=8:return part,[]
@@ -2549,7 +2637,8 @@ def joint_original(reference, text_reference, data, original_path, destination,
     every relocation at the original section addresses; all allocated bytes
     must equal the original before this reference can be used.
     """
-    original, before = Elf(original_path.read_bytes()), Elf(reference.read_bytes())
+    original, before = parsed_elf(original_path.read_bytes()), parsed_elf(reference.read_bytes())
+    symbols_by_address, values_by_name, original_names = original_symbol_indexes(original.data)
     source = text_reference.with_suffix('.s')
     if not source.is_file():source=Path(str(text_reference)+'.s')
     if not source.is_file():return reference, []
@@ -2562,29 +2651,29 @@ def joint_original(reference, text_reference, data, original_path, destination,
         part=re.sub(r'^\s*\.include\s+"macro.inc"\s*$', '',part,flags=re.M)
         part=re.sub(r'^(\.section\s+\.[\w.]+),[^\n]*$',r'\1',part,flags=re.M)
         if compiler_object and compiler_assembly:
-            part,pad_proofs=source_alignment_padding(part,original,Elf(compiler_object.read_bytes()),
-                compiler_assembly.read_text(),registry or {},tu,Elf(path.read_bytes()))
+            part,pad_proofs=source_alignment_padding(part,original,parsed_elf(compiler_object.read_bytes()),
+                compiler_assembly.read_text(),registry or {},tu,parsed_elf(path.read_bytes()))
             padding_proofs.extend(pad_proofs)
-            part,literal_proofs=compiler_string_identity(part,original,Elf(compiler_object.read_bytes()),
-                compiler_assembly.read_text(),preprocessed,scope,registry or {},cwd,Elf(path.read_bytes()))
+            part,literal_proofs=compiler_string_identity(part,original,parsed_elf(compiler_object.read_bytes()),
+                compiler_assembly.read_text(),preprocessed,scope,registry or {},cwd,parsed_elf(path.read_bytes()))
             string_proofs.extend(literal_proofs)
-            part,alias_proofs=compiler_nobits_alias_identity(part,original,Elf(compiler_object.read_bytes()),
+            part,alias_proofs=compiler_nobits_alias_identity(part,original,parsed_elf(compiler_object.read_bytes()),
                 compiler_assembly.read_text(),preprocessed,registry or {},tu,obj['id'])
             nobits_proofs.extend(alias_proofs)
-            part,local_proofs=compiler_function_static_identity(part,original,Elf(compiler_object.read_bytes()),
+            part,local_proofs=compiler_function_static_identity(part,original,parsed_elf(compiler_object.read_bytes()),
                 compiler_assembly.read_text(),preprocessed,scope,registry or {},tu)
             static_proofs.extend(local_proofs)
-            part,natural_proofs=compiler_original_static_name(part,original,Elf(compiler_object.read_bytes()),
+            part,natural_proofs=compiler_original_static_name(part,original,parsed_elf(compiler_object.read_bytes()),
                 compiler_assembly.read_text(),preprocessed,scope,registry or {},tu)
             static_proofs.extend(natural_proofs)
         if compiler_object and compiler_assembly and 'dlabel jtbl_' in part:
-            part,table_proofs=compiler_switch_identity(part,original,Elf(compiler_object.read_bytes()),
+            part,table_proofs=compiler_switch_identity(part,original,parsed_elf(compiler_object.read_bytes()),
                 compiler_assembly.read_text(),preprocessed,scope,registry or {},tu,cwd)
             switch_proofs.extend(table_proofs)
         section=re.search(r'^\.section\s+(\.[\w.]+)',part,re.M)
         if not section:return reference, []
         native=original.section(section[1])
-        part,aliases=splat_data_marker_identity(part,original,Elf(path.read_bytes()),before,cwd/'include/macro.inc')
+        part,aliases=splat_data_marker_identity(part,original,parsed_elf(path.read_bytes()),before,cwd/'include/macro.inc')
         marker_proofs.extend(aliases)
         identity_source=part
         for label in re.finditer(r'^dlabel\s+(\S+)\s*$',identity_source,re.M):
@@ -2592,8 +2681,8 @@ def joint_original(reference, text_reference, data, original_path, destination,
             address=re.search(r'/\*\s+(?:\S+\s+)?([0-9A-Fa-f]{8})(?:\s|\s*\*/)',identity_source[label.end():])
             if not address:continue
             va=int(address[1],16)
-            matches=[s for s in original.symbols if s.shndx==native.index and s.value==va
-                     and s.type in (0,1) and name in (s.name,s.name.replace('.','_'),s.name.replace('.','_')+f'_{va:08X}')]
+            matches=[s for s in symbols_by_address.get((native.index,va), ())
+                     if name in (s.name,s.name.replace('.','_'),s.name.replace('.','_')+f'_{va:08X}')]
             if len(matches)!=1:continue
             symbol=matches[0]
             definition=f'.{"local" if symbol.bind==0 else "globl"} {name}\n'
@@ -2601,7 +2690,7 @@ def joint_original(reference, text_reference, data, original_path, destination,
             definition+=name+':'
             part=re.sub(r'^dlabel\s+'+re.escape(name)+r'\s*$',lambda _:definition,part,flags=re.M)
             removed_marker=False
-            if not any(s.name==name+'.NON_MATCHING' for s in original.symbols):
+            if name+'.NON_MATCHING' not in original_names:
                 part,count=re.subn(r'^\s*nonmatching\s+'+re.escape(name)+r'(?:\s*,\s*[^\n]+)?\s*$', '',part,flags=re.M)
                 removed_marker=bool(count)
             # This legacy assembler retains the first size directive. Splat's
@@ -2633,16 +2722,16 @@ def joint_original(reference, text_reference, data, original_path, destination,
     try:
         run([assembler,'-EL','-m5900','-mabi=eabi',next(f for f in flags if f.startswith('-G')),
              '-I.','-Iinclude','-o',destination,assembly],cwd)
-        after=Elf(destination.read_bytes())
+        after=parsed_elf(destination.read_bytes())
         anonymous_char_proofs=[]
         if compiler_object and compiler_assembly:
             rewritten,anonymous_char_proofs=registered_anonymous_char_identities(body,after,original,
-                Elf(compiler_object.read_bytes()),compiler_assembly.read_text(),preprocessed,registry,tu,cwd,destination)
+                parsed_elf(compiler_object.read_bytes()),compiler_assembly.read_text(),preprocessed,registry,tu,cwd,destination)
             if anonymous_char_proofs:
                 old=after;body=rewritten;assembly.write_text(body)
                 run([assembler,'-EL','-m5900','-mabi=eabi',next(f for f in flags if f.startswith('-G')),
                      '-I.','-Iinclude','-o',destination,assembly],cwd)
-                after=Elf(destination.read_bytes())
+                after=parsed_elf(destination.read_bytes())
                 if original_reference_signature(old)!=original_reference_signature(after):return reference,[]
                 removed={p['scaffold_name'] for p in anonymous_char_proofs}
                 temporaries={p['temporary_reference_name'] for p in anonymous_char_proofs}
@@ -2653,12 +2742,12 @@ def joint_original(reference, text_reference, data, original_path, destination,
         registered_nobits_proofs=[]
         if compiler_object and compiler_assembly:
             rewritten,registered_nobits_proofs=registered_nobits_foreign_aliases(body,after,original,
-                Elf(compiler_object.read_bytes()),compiler_assembly.read_text(),preprocessed,registry,tu,cwd,destination)
+                parsed_elf(compiler_object.read_bytes()),compiler_assembly.read_text(),preprocessed,registry,tu,cwd,destination)
             if registered_nobits_proofs:
                 old=after;assembly.write_text(rewritten)
                 run([assembler,'-EL','-m5900','-mabi=eabi',next(f for f in flags if f.startswith('-G')),
                      '-I.','-Iinclude','-o',destination,assembly],cwd)
-                after=Elf(destination.read_bytes())
+                after=parsed_elf(destination.read_bytes())
                 if original_reference_signature(old)!=original_reference_signature(after):return reference,[]
                 removed={p['scaffold_name'] for p in registered_nobits_proofs}
                 temporaries={p['temporary_reference_name'] for p in registered_nobits_proofs}
@@ -2670,7 +2759,7 @@ def joint_original(reference, text_reference, data, original_path, destination,
         if compiler_object and compiler_assembly:
             from types import SimpleNamespace
             helpers=SimpleNamespace(typed_compiler_data=typed_compiler_data,explicit_object_range=explicit_object_range,original_references=original_references)
-            compiled=Elf(compiler_object.read_bytes());cc1=compiler_assembly.read_text()
+            compiled=parsed_elf(compiler_object.read_bytes());cc1=compiler_assembly.read_text()
             body=assembly.read_text()
             body,found=reconstruct(body,after,original,compiled,cc1,preprocessed,registry or {},tu,helpers)
             storage_extent_proofs.extend(found)
@@ -2684,7 +2773,7 @@ def joint_original(reference, text_reference, data, original_path, destination,
                 previous=after;assembly.write_text(body)
                 run([assembler,'-EL','-m5900','-mabi=eabi',next(f for f in flags if f.startswith('-G')),
                      '-I.','-Iinclude','-o',destination,assembly],cwd)
-                after=Elf(destination.read_bytes())
+                after=parsed_elf(destination.read_bytes())
                 if original_reference_signature(previous)!=original_reference_signature(after):return reference,[]
                 sizes={p['symbol']:p['reconstructed_object_size'] for p in storage_extent_proofs if 'reconstructed_object_size' in p}
                 removed={n for p in storage_extent_proofs if p.get('retained_all_storage') for n in (p['symbol'],p['symbol']+'.NON_MATCHING')}
@@ -2726,8 +2815,7 @@ def joint_original(reference, text_reference, data, original_path, destination,
         for symbol in after.symbols:
             if symbol.shndx!=0 or not symbol.name:continue
             if symbol.name=='_gp':continue
-            values={s.value for s in original.symbols if s.shndx not in (0,0xfff1)
-                    and symbol.name in (s.name,s.name.replace('.','_'),s.name.replace('.','_')+f'_{s.value:08X}')}
+            values=set(values_by_name.get(symbol.name, ()))
             synthetic=re.fullmatch(r'D_([\da-fA-F]+)',symbol.name)
             if not values and synthetic:values={int(synthetic[1],16)}
             if not values:
@@ -2751,7 +2839,7 @@ def joint_original(reference, text_reference, data, original_path, destination,
         script=destination.with_suffix('.ld');script.write_text(f'_gp = 0x{original.gp:08X};\n'+ '\n'.join(definitions)+'\nSECTIONS {\n'+'\n'.join(placements)+'\n}\n')
         linked=destination.with_suffix('.elf')
         run([str(prefix)+'ld','-EL','-m','elf32lr5900','-T',script,'-o',linked,destination],cwd)
-        final=Elf(linked.read_bytes())
+        final=parsed_elf(linked.read_bytes())
         for section in final.sections:
             if not section.flags&2 or not section.size:continue
             original_section=original.section(section.name)
@@ -2789,7 +2877,7 @@ def strip_debug(prefix, source, destination, cwd, iop_reference=False):
     # Old GCC emits ECOFF debug records that objdiff's MIPS reader cannot parse
     # reliably. Remove debug records only; verify every allocated section and
     # function identity survives unchanged. No instruction/data normalization.
-    before = Elf(source.read_bytes())
+    before = parsed_elf(source.read_bytes())
     # IRX stores module-relative data addresses/relocations. Make its data
     # sections section-relative for objdiff, keeping text addresses and every
     # FUNC identity. Target-only IOP references have no base and earn zero.
@@ -2798,7 +2886,7 @@ def strip_debug(prefix, source, destination, cwd, iop_reference=False):
                   if s.flags & 2 and not s.flags & 4],
                 *[f'--keep-symbol={name}' for name in functions(source)]] if iop_reference else [])
     run([str(prefix) + 'objcopy', '--strip-debug', *options, source, destination], cwd)
-    after = Elf(destination.read_bytes())
+    after = parsed_elf(destination.read_bytes())
     allocated = lambda elf: {s.name: (s.type, s.flags,
                              0 if iop_reference and not s.flags & 4 else s.addr,
                              s.size, elf.section_bytes(s))
@@ -2844,7 +2932,7 @@ def character_storage(preprocessed, compiled, assembly, oi):
         payload = None
         if literal:
             try:
-                payload = b''.join(ast.literal_eval(t).encode('latin1') for t in re.findall(r'"(?:\\.|[^"\\])*"', literal[1])) + b'\0'
+                payload = b''.join(c_literal_bytes(t) for t in re.findall(r'"(?:\\.|[^"\\])*"', literal[1])) + b'\0'
             except (ValueError, SyntaxError, UnicodeError):
                 continue
         elif preprocessed[at:at+1] == '{':
@@ -2856,10 +2944,10 @@ def character_storage(preprocessed, compiled, assembly, oi):
             for item in values:
                 try:
                     if re.fullmatch(r"'(?:\\.|[^'\\])+'", item):
-                        value = ast.literal_eval(item)
-                        if not isinstance(value, str) or len(value) != 1:
+                        value = c_literal_bytes(item)
+                        if len(value) != 1:
                             break
-                        value = ord(value)
+                        value = value[0]
                     elif re.fullmatch(r'[-+]?(?:0[xX][\da-fA-F]+|\d+)[uUlL]*', item):
                         token = re.sub(r'[uUlL]+$', '', item)
                         value = int(token, 16 if 'x' in token.lower() else 10)
@@ -3023,7 +3111,6 @@ def nobits_registered_extents(body, reference, original, compiled, assembly, reg
     provides the identity; accepted storage spans provide the comparison view.
     Existing positive retail sizes and all section storage remain untouched.
     """
-    from storage_directives import emitted_storage
     emitted=emitted_storage(assembly)
     proofs=[]
     for rs in reference.symbols:
@@ -3089,7 +3176,6 @@ def registered_initialized_extents(body, reference, original, compiled, assembly
     establish capacity; the enclosing normal link proves all relocated values.
     No section bytes, extents or real original symbols are changed.
     """
-    from tu.data_gate import compiler_only_section
     typed=typed_compiler_data(assembly);proofs=[];eligible=set()
     for section in ('.data','.rodata','.sdata'):
         try:compiler_only_section(assembly,preprocessed,cwd,section)
@@ -3165,7 +3251,6 @@ def registered_anonymous_storage_section(body, reference, original, compiled,
     No original named identity is removed. Every byte and padding byte stays
     present, with the ordinary joint link checking the complete result.
     """
-    from tu.data_gate import compiler_only_section
     try:
         compiler_only_section(assembly, preprocessed, cwd, section_name)
     except (RuntimeError, ValueError):
@@ -3385,12 +3470,11 @@ def prepare(root, evidence):
                         for f in checked['functions']
                         if f['name'] != nested.get(f['original_symbol'], f['original_symbol'])}
             if joint_identities:
-                from storage_directives import emitted_storage
                 emitted_data={**emitted_storage(assembly.read_text()),**typed_compiler_data(assembly.read_text())}
-                compiled=Elf(base.read_bytes())
-                original_target=Elf(target.read_bytes())
+                compiled=parsed_elf(base.read_bytes())
+                original_target=parsed_elf(target.read_bytes())
                 source_sha=hashlib.sha256((root/obj['source']).read_bytes()).hexdigest()
-                original=Elf((unit_dir/'orig'/originals[unit]['file']).read_bytes())
+                original=parsed_elf((unit_dir/'orig'/originals[unit]['file']).read_bytes())
                 mapping_proofs=[]
                 for identity in joint_identities:
                     name=identity['original_name']
@@ -3448,7 +3532,7 @@ def prepare(root, evidence):
                     provenance['current_source_sha256']=source_sha
                     joint_proof.write_text(json.dumps(provenance,indent=2)+'\n')
             data_mappings,data_mapping_proofs=registered_data_symbol_mappings(target,base,
-                Elf((unit_dir/'orig'/originals[unit]['file']).read_bytes()),assembly.read_text(),Path(str(base)+'.i').read_text(),
+                parsed_elf((unit_dir/'orig'/originals[unit]['file']).read_bytes()),assembly.read_text(),Path(str(base)+'.i').read_text(),
                 data_registry.get(obj['id'],{}),tu,unit_dir)
             mappings.update(data_mappings)
             if obj['id']=='main/tu237':
