@@ -14,6 +14,7 @@ import struct
 import subprocess
 
 import coverage_report as cov
+from tu import data_carve
 from tu import verify_report as verification
 from tu.elfinfo import Elf
 from tu.toolchain import Toolchain
@@ -3261,7 +3262,7 @@ def prepare(root, evidence):
     prefix = Path(tc.dir('ps2dev-binutils')) / 'mips64r5900el-ps2-elf-'
     main = verification.read(build / 'main/tu-manifest.json')
     main_tus = {t['name']: t for t in main['tus']}
-    data_registry=verification.read(root/'config/tu/data-carves.json').get('tus',{})
+    data_registry=verification.read(data_carve.registry_input_path(root)).get('tus',{})
     mapcheck_path=build/'main/build/main.mapcheck.json'
     mapcheck=verification.read(mapcheck_path) if mapcheck_path.is_file() else {}
     overlays = {unit: verification.read(build / unit / 'compile-manifest.json')
