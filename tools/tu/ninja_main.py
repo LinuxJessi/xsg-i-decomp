@@ -503,6 +503,14 @@ def main(argv=None):
         for p in sections[sec]["order"]:
             n = p["tu"]
             t = by_name[n]
+            if not carve and p.get("linker_padding"):
+                proof = p["linker_padding"]
+                lo, hi = (int(v, 16) for v in proof["range"])
+                out.append(f"ASSERT(ABSOLUTE(.) == 0x{lo:X}, \"DATA padding start {p['piece']}\");")
+                out.append(f". = ALIGN({proof['alignment']});")
+                out.append(f"ASSERT(ABSOLUTE(.) == 0x{hi:X}, \"DATA padding end {p['piece']}\");")
+                prev_c = True
+                continue
             owner = t["owners"].get(sec)
             # A verified explicit input span can place a C raw section into a
             # different original scaffold family. Only that exact split piece

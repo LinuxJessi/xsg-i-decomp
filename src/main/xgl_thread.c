@@ -35,7 +35,14 @@ typedef struct {
 
 static int iRotateSignal;
 static unsigned int iCurrentThread;
-static active_thread_t asActiveThreadList[4];
+/*
+ * Storage-capacity hypothesis for original asActiveThreadList (0x00880fe8).
+ * Its original ELF size is unspecified. A 400-byte allocation followed by
+ * eight alignment bytes ends at the next TU's FS storage (0x00881180).
+ * Only the first four records are used by the original consumers below;
+ * this capacity does not establish twenty logical or initialized threads.
+ */
+static active_thread_t asActiveThreadList[20];
 extern int CreateThread(ee_thread_t *thread);
 extern void xglRenderEntry(void *argument);
 extern void xglCdControlThread(void *argument);

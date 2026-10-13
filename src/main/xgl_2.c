@@ -5,9 +5,9 @@
 
 #include "xgl_2.h"
 
-extern Matrix4 unit_0;
 
-extern Matrix4 unit_1;
+
+
 
 extern unsigned int D_004ADE80[];
 
@@ -644,6 +644,14 @@ void xglRotTransPersN(Vector4 *destination, const Matrix4 matrix,
 
 void xglMatrixUnit(float matrix[4][4])
 {
+    /* Original local unit matrix: four quadword loads consume all 64 bytes. */
+    static Matrix4 unit = {
+        {1.0f, 0.0f, 0.0f, 0.0f},
+        {0.0f, 1.0f, 0.0f, 0.0f},
+        {0.0f, 0.0f, 1.0f, 0.0f},
+        {0.0f, 0.0f, 0.0f, 1.0f}
+    };
+
     __asm__ __volatile__(
         "lq $2,0(%1)\n\t"
         "sq $2,0(%0)\n\t"
@@ -654,12 +662,20 @@ void xglMatrixUnit(float matrix[4][4])
         "lq $2,48(%1)\n\t"
         "sq $2,48(%0)"
         :
-        : "r"(matrix), "r"(unit_0)
+        : "r"(matrix), "r"(unit)
         : "$2", "memory");
 }
 
 void xglMatrixUnit4s(Matrix4 destination)
 {
+    /* Original local unit matrix: four quadword loads consume all 64 bytes. */
+    static Matrix4 unit = {
+        {1.0f, 0.0f, 0.0f, 1.0f},
+        {0.0f, 1.0f, 0.0f, 1.0f},
+        {0.0f, 0.0f, 1.0f, 1.0f},
+        {0.0f, 0.0f, 0.0f, 1.0f}
+    };
+
     __asm__ __volatile__(
         "lq $2,0(%1)\n\t"
         "sq $2,0(%0)\n\t"
@@ -670,7 +686,7 @@ void xglMatrixUnit4s(Matrix4 destination)
         "lq $2,48(%1)\n\t"
         "sq $2,48(%0)"
         :
-        : "r"(destination), "r"(unit_1)
+        : "r"(destination), "r"(unit)
         : "$2", "memory");
 }
 
@@ -1604,3 +1620,7 @@ float xglCos(float angle)
     );
     return result;
 }
+
+
+/* Defined after its consumer to retain the original runtime table copy. */
+const int D_004D27C8[3] = {1, 2, 0};

@@ -116,10 +116,7 @@ typedef struct {
     float components[4];
 } MapEntranceHeader;
 
-typedef struct {
-    char **names;
-    int count;
-} MapNameGroup;
+#include "main/maptbl.h"
 
 typedef struct {
     Vector4 color;
@@ -135,7 +132,7 @@ typedef struct {
 
 extern GameResourceEntry GameResource[];
 
-extern MapNameGroup maptbl[];
+
 
 extern MapEntranceHeader *UnduDataGetHeader(int map_index, int unit_index);
 

@@ -1753,6 +1753,43 @@
       ]
     },
     "main/tu086": {
+      ".bss": [
+        {
+          "range": [
+            "0x00880fa0",
+            "0x00881178"
+          ],
+          "generated": [
+            "0x00880fa0",
+            "0x00881178"
+          ],
+          "generated_by": [],
+          "c_owned_symbols": [
+            "sSemaParam.0",
+            "sThreadParam.1",
+            "asActiveThreadList"
+          ],
+          "also_referenced_by_c": [],
+          "c_input_spans": [
+            {
+              "section": ".bss",
+              "range": [
+                "0x00880fa0",
+                "0x00881178"
+              ],
+              "object_range": [
+                0,
+                472
+              ],
+              "symbols": [
+                "sSemaParam.0",
+                "sThreadParam.1",
+                "asActiveThreadList"
+              ]
+            }
+          ]
+        }
+      ],
       ".data": [
         {
           "range": [
@@ -1837,43 +1874,6 @@
               ],
               "symbols": [
                 "iRotateSignal"
-              ]
-            }
-          ]
-        }
-      ],
-      ".bss": [
-        {
-          "range": [
-            "0x00880fa0",
-            "0x00881038"
-          ],
-          "generated": [
-            "0x00880fa0",
-            "0x00881038"
-          ],
-          "generated_by": [],
-          "c_owned_symbols": [
-            "sSemaParam.0",
-            "sThreadParam.1",
-            "asActiveThreadList"
-          ],
-          "also_referenced_by_c": [],
-          "c_input_spans": [
-            {
-              "section": ".bss",
-              "range": [
-                "0x00880fa0",
-                "0x00881038"
-              ],
-              "object_range": [
-                0,
-                152
-              ],
-              "symbols": [
-                "sSemaParam.0",
-                "sThreadParam.1",
-                "asActiveThreadList"
               ]
             }
           ]
@@ -3118,6 +3118,40 @@
       ]
     },
     "main/tu100": {
+      ".data": [
+        {
+          "range": [
+            "0x004a8b00",
+            "0x004a8b80"
+          ],
+          "generated": [
+            "0x004a8b00",
+            "0x004a8b80"
+          ],
+          "generated_by": [],
+          "c_owned_symbols": [
+            "unit.0",
+            "unit.1"
+          ],
+          "c_input_spans": [
+            {
+              "section": ".data",
+              "range": [
+                "0x004a8b00",
+                "0x004a8b80"
+              ],
+              "object_range": [
+                0,
+                128
+              ],
+              "symbols": [
+                "unit.0",
+                "unit.1"
+              ]
+            }
+          ]
+        }
+      ],
       ".lit4": [
         {
           "range": [
@@ -3128,10 +3162,7 @@
             "0x004d881c",
             "0x004d885c"
           ],
-          "generated_by": [
-            "xglAtan2",
-            "xglGeometryInit"
-          ],
+          "generated_by": [],
           "c_owned_symbols": [
             "D_004D881C",
             "D_004D8820",
@@ -3150,7 +3181,54 @@
             "D_004D8854",
             "D_004D8858"
           ],
-          "also_referenced_by_c": []
+          "c_input_spans": [
+            {
+              "section": ".lit4",
+              "range": [
+                "0x004d881c",
+                "0x004d885c"
+              ],
+              "symbols": [],
+              "anonymous_emission": true,
+              "credit": "verified",
+              "object_range": [
+                0,
+                64
+              ]
+            }
+          ]
+        }
+      ],
+      ".rodata": [
+        {
+          "range": [
+            "0x004d27c8",
+            "0x004d27d4"
+          ],
+          "generated": [
+            "0x004d27c8",
+            "0x004d27d4"
+          ],
+          "generated_by": [],
+          "c_owned_symbols": [
+            "D_004D27C8"
+          ],
+          "c_input_spans": [
+            {
+              "section": ".rodata",
+              "range": [
+                "0x004d27c8",
+                "0x004d27d4"
+              ],
+              "object_range": [
+                0,
+                12
+              ],
+              "symbols": [
+                "D_004D27C8"
+              ]
+            }
+          ]
         }
       ],
       ".sbss": [
@@ -200953,35 +201031,150 @@
       ".data": [
         {
           "range": [
-            "0x00362e80",
-            "0x00364320"
+            "0x00362858",
+            "0x00362b04"
           ],
           "generated": [
-            "0x00362e80",
-            "0x00364320"
+            "0x00362858",
+            "0x00362b04"
           ],
           "generated_by": [],
           "c_owned_symbols": [
-            "CfCameraDefine"
+            "maptbl0000",
+            "maptbl0100",
+            "maptbl0200",
+            "maptbl0400",
+            "maptbl0500",
+            "maptbl0600",
+            "maptbl0700",
+            "maptbl0800"
           ],
-          "also_referenced_by_c": [],
-          "c_input_spans": [
-            {
-              "section": ".data",
-              "object_range": [
-                0,
-                5280
-              ],
-              "range": [
-                "0x00362e80",
-                "0x00364320"
-              ],
-              "symbols": [
-                "CfCameraDefine"
-              ],
-              "credit": "verified"
-            }
-          ]
+          "also_referenced_by_c": []
+        },
+        {
+          "range": [
+            "0x00362b08",
+            "0x00362b54"
+          ],
+          "generated": [
+            "0x00362b08",
+            "0x00362b54"
+          ],
+          "generated_by": [],
+          "c_owned_symbols": [
+            "maptbl0900"
+          ],
+          "also_referenced_by_c": []
+        },
+        {
+          "range": [
+            "0x00362b58",
+            "0x00362b5c"
+          ],
+          "generated": [
+            "0x00362b58",
+            "0x00362b5c"
+          ],
+          "generated_by": [],
+          "c_owned_symbols": [
+            "maptbl1000"
+          ],
+          "also_referenced_by_c": []
+        },
+        {
+          "range": [
+            "0x00362b60",
+            "0x00362b84"
+          ],
+          "generated": [
+            "0x00362b60",
+            "0x00362b84"
+          ],
+          "generated_by": [],
+          "c_owned_symbols": [
+            "maptbl1100"
+          ],
+          "also_referenced_by_c": []
+        },
+        {
+          "range": [
+            "0x00362b88",
+            "0x00362c2c"
+          ],
+          "generated": [
+            "0x00362b88",
+            "0x00362c2c"
+          ],
+          "generated_by": [],
+          "c_owned_symbols": [
+            "maptbl1200"
+          ],
+          "also_referenced_by_c": []
+        },
+        {
+          "range": [
+            "0x00362c30",
+            "0x00362cf4"
+          ],
+          "generated": [
+            "0x00362c30",
+            "0x00362cf4"
+          ],
+          "generated_by": [],
+          "c_owned_symbols": [
+            "maptbl1300",
+            "maptbl1400"
+          ],
+          "also_referenced_by_c": []
+        },
+        {
+          "range": [
+            "0x00362cf8",
+            "0x00362d44"
+          ],
+          "generated": [
+            "0x00362cf8",
+            "0x00362d44"
+          ],
+          "generated_by": [],
+          "c_owned_symbols": [
+            "maptbl1500",
+            "maptbl1600"
+          ],
+          "also_referenced_by_c": []
+        },
+        {
+          "range": [
+            "0x00362d48",
+            "0x00362e78"
+          ],
+          "generated": [
+            "0x00362d48",
+            "0x00362e78"
+          ],
+          "generated_by": [],
+          "c_owned_symbols": [
+            "maptbl1700",
+            "maptbl1800",
+            "maptbl"
+          ],
+          "also_referenced_by_c": []
+        },
+        {
+          "range": [
+            "0x00362e80",
+            "0x00364910"
+          ],
+          "generated": [
+            "0x00362e80",
+            "0x00364910"
+          ],
+          "generated_by": [],
+          "c_owned_symbols": [
+            "CfCameraDefine",
+            "save_cam"
+          ],
+          "also_referenced_by_c": []
         }
       ]
     },
@@ -203939,6 +204132,48 @@
             "0x004d8784",
             "0x004d8794"
           ]
+        }
+      ]
+    },
+    "main/tu266": {
+      ".data": [
+        {
+          "range": [
+            "0x00478fb0",
+            "0x0047900a"
+          ],
+          "generated": [
+            "0x00478fb0",
+            "0x0047900a"
+          ],
+          "generated_by": [],
+          "c_owned_symbols": [
+            "human_default"
+          ],
+          "also_referenced_by_c": []
+        },
+        {
+          "range": [
+            "0x00479010",
+            "0x004797e0"
+          ],
+          "generated": [
+            "0x00479010",
+            "0x004797e0"
+          ],
+          "generated_by": [],
+          "c_owned_symbols": [
+            "debug0",
+            "debug1",
+            "debug2",
+            "debug3",
+            "debug4",
+            "debug5",
+            "debug6",
+            "debug7",
+            "DropShadowDefineTable"
+          ],
+          "also_referenced_by_c": []
         }
       ]
     }

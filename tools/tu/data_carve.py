@@ -1300,6 +1300,8 @@ def apply_main(root, unit_dir, manifest, registry=None, write=True):
                                end=h8(hx(tail['end'])), object=f'build/data/{stem}.{sec[1:]}.o',
                                source=rel))
         tail['native_common_pieces'] = native
+    from data_completion import mark_alignment
+    report.extend(mark_alignment(root, unit_dir, m))
     return m, report
 
 

@@ -122,7 +122,7 @@ typedef struct CameraDefinition {
     } defocus[3];                         /* +0x88 */
 } CameraDefinition;
 
-extern CameraDefinition CfCameraDefine[33];
+
 
 /* The view block of the studio camera record, from StudioCamera + 0x90. */
 typedef struct CameraView {
@@ -195,11 +195,9 @@ extern Vector4 CamPosPos;
 extern LayoutHeader *UnduDataGetHeader(int, int);
 
 /* The camera record copied by value as doubleword pairs. */
-typedef struct CameraImage {
-    unsigned long long words[0x5f0 / 8];
-} CameraImage;
+#include "main/maptbl.h"
 
-extern CameraImage save_cam;
+
 
 extern StudioCamera *xglStudioGetActiveCamera(void);
 extern float xglAtan2(float, float);

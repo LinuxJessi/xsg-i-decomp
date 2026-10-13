@@ -1481,9 +1481,12 @@ def numeric_source_objects(preprocessed, compiler, assembly):
         fields=[]
         for f in records[typename].split(';'):
             if not f.strip():continue
-            m=re.fullmatch(r'\s*([\w ]+?)\s+(\w+)\s*',f)
-            if not m or not (int32(m[1]) or clean(m[1]) in pointer_types):break
-            fields.append((clean(m[1]),m[2]))
+            m=re.fullmatch(r'\s*([\w ]+?)\s+(\*\s*(?:\*\s*)*)?(\w+)\s*',f)
+            if not m or not (m[2] or int32(m[1]) or clean(m[1]) in pointer_types):break
+            # Explicit EE pointer declarators occupy four bytes. They only
+            # establish layout here; their initializer/relocations are never
+            # admitted as integer values or changed by the numeric proof.
+            fields.append(('explicit-pointer' if m[2] else clean(m[1]),m[3]))
         else:
             count=int(declaration[3].strip()[1:-1]);stride=len(fields)*4
             items=re.findall(r'\{([^{}]+)\}',initializer[1:-1])
@@ -2703,6 +2706,42 @@ def joint_original(reference, text_reference, data, original_path, destination,
             identities.append(dict(target_name=name,original_name=symbol.name,address=va,
                                    binding=symbol.bind,type=symbol.type,size=symbol.size,
                                    removed_invented_marker=removed_marker))
+            # A genuine empty DATA object may share the next positive object's
+            # address. Splat names only the empty alias; retain both retail
+            # identities without assigning any storage to the empty object.
+            if (not obj['functions'] and symbol.type == 1 and symbol.size == 0
+                    and compiler_object and compiler_assembly):
+                compiled = parsed_elf(compiler_object.read_bytes())
+                emitted = typed_compiler_data(compiler_assembly.read_text())
+                empty = [s for s in compiled.symbols if s.name == symbol.name
+                         and (s.bind, s.type, s.size) == (symbol.bind, 1, 0)
+                         and 0 < s.shndx < len(compiled.sections)
+                         and compiled.sections[s.shndx].name == native.name]
+                positive = [s for s in symbols_by_address.get((native.index, va), ())
+                            if s.type == 1 and s.size > 0 and s.bind == symbol.bind]
+                owners = [r for r in (registry or {}).get(native.name, [])
+                          if name in r.get('c_owned_symbols', [])
+                          and int(r['range'][0], 16) <= va
+                          and len(positive) == 1
+                          and va + positive[0].size <= int(r['range'][1], 16)]
+                if len(empty) == len(positive) == len(owners) == 1:
+                    owner = positive[0]
+                    peers = [s for s in compiled.symbols if s.name == owner.name
+                             and (s.bind, s.type, s.size, s.shndx, s.value) ==
+                             (owner.bind, 1, owner.size, empty[0].shndx, empty[0].value)]
+                    emission = emitted.get(owner.name)
+                    existing = re.search(r'^(?:dlabel\s+|\s*)' + re.escape(owner.name)
+                                         + r'(?::|\s*$)', identity_source, re.M)
+                    if (len(peers) == 1 and emission and not existing
+                            and (emission.get('section'), emission.get('size')) ==
+                            (native.name, owner.size)):
+                        part += (f'\n.{"local" if owner.bind == 0 else "globl"} {owner.name}\n'
+                                 f'.type {owner.name}, @object\n.equ {owner.name}, {name}\n'
+                                 f'.size {owner.name}, {owner.size}\n')
+                        identities.append(dict(target_name=owner.name, original_name=owner.name,
+                                               address=va, binding=owner.bind, type=1,
+                                               size=owner.size, restored_colocated_empty_alias=name,
+                                               registered_run=owners[0]['range']))
         body+='\n'+part
     if switch_proofs or string_proofs or nobits_proofs or static_proofs:
         replacements={p['scaffold_name']:p['temporary_reference_name'] for p in switch_proofs+string_proofs+nobits_proofs+static_proofs}
@@ -3375,8 +3414,10 @@ def prepare(root, evidence):
             if obj['functions']:
                 target_text = build_target(unit_dir, stem, unit)
             else:
+                empty_text_source=target_text.with_suffix('.s')
+                empty_text_source.write_text('.include "include/labels.inc"\n.section .text\n')
                 run([str(prefix) + 'as', '-EL', '-march=r5900', '-mabi=eabi', '-mgp64',
-                     '-o', target_text, '/dev/null'], unit_dir)
+                     '-I.', '-Iinclude', '-o', target_text, empty_text_source], unit_dir)
         else:
             tus = overlays[unit]['units'][unit]['tus']
             tu = next(t for t in tus if t['name'] == stem)
@@ -3393,7 +3434,13 @@ def prepare(root, evidence):
         # Source type evidence is available before reconstructing original data.
         # The compiled object itself remains unmodified and is compared natively.
         base, assembly = destination / 'base.o', None
-        if checked['functions']:
+        data_only=(unit=='main' and not obj['functions'] and not checked['functions'] and
+                   tu.get('kind')=='data-only' and tu.get('mode')=='c' and
+                   (root/obj['source']).is_file() and any(
+                       runs for section,runs in data_registry.get(obj['id'],{}).items()
+                       if section in data_carve.SECTIONS and section!='.text'))
+        compile_base=bool(checked['functions']) or data_only
+        if compile_base:
             assembly = compile_source(root, unit_dir, root / obj['source'], base,
                                       ccdir, assembler, flags, skip_asm=True)
         if checked['functions']:
@@ -3432,7 +3479,7 @@ def prepare(root, evidence):
         run([str(prefix) + 'ld', '-EL', '-m', 'elf32lr5900', '-r',
              '-o', target, stripped, *data], unit_dir)
         joint_identities=[]
-        if unit=='main' and checked['functions']:
+        if unit=='main' and compile_base:
             joint,joint_identities=joint_original(target,target_text,data_assembly,
                 unit_dir/'orig'/originals[unit]['file'],destination/'joint.o',
                 unit_dir,obj,tu,assembler,flags,prefix,compiler_object=base,
@@ -3443,7 +3490,7 @@ def prepare(root, evidence):
         unit_config = dict(name=name, target_path=str(target), metadata=dict(
             source_path=obj['source'], progress_categories=[unit], complete=checked['complete']))
         allowed = {f['original_symbol']: f['size'] for f in checked['functions']}
-        if allowed:
+        if compile_base:
             emitted = verification.compiler_functions(assembly.read_text())
             actual = functions(base)
             nested = nested_base_names(root, obj['id'], allowed, actual)
@@ -3553,7 +3600,7 @@ def prepare(root, evidence):
         credited = {name: f['size'] for f in checked['functions']
                     for name in (f['name'], f['original_symbol'])}
         return unit_config, dict(functions=target_functions, allowed=credited,
-                                 complete=checked['complete'])
+                                 complete=checked['complete'], data_only=data_only)
 
     with ThreadPoolExecutor(max_workers=4) as pool:
         prepared = list(pool.map(prepare_object, objects))
@@ -3595,7 +3642,7 @@ def validate(report, expected):
                                  f'{name}/{function["name"]}: scaffolding received matching credit')
         # Keep objdiff's native BSS measure. It describes uninitialized storage
         # matching, never recovered C declarations or source/link completeness.
-        if not checked['allowed']:
+        if not checked['allowed'] and not checked.get('data_only', False):
             verification.require(not any(int(s.get('size', 0)) and s['name'] not in ('.bss', '.sbss')
                                          and s.get('fuzzy_match_percent') == 100
                                          for s in unit.get('sections', [])),

@@ -80448,13 +80448,14 @@
       "in_scope": true,
       "kind": "data-only",
       "map_class": "game",
-      "mode": "asm",
+      "mode": "c",
       "name": "debug",
       "name_basis": "no .text; named after its static data (debug0, debug1, debug2, debug3)",
       "name_confidence": "low",
       "ordinal": 266,
       "owners": {
-        ".data": "asm"
+        ".data": "asm",
+        ".text": "c"
       },
       "path": "src/main/debug.c",
       "scaffold_path": "scaffold/src/main/debug.c",
@@ -80501,7 +80502,18 @@
         "start": "0x0031a190"
       },
       "toolchain_classification": "game",
-      "unit": "main"
+      "unit": "main",
+      "import": {
+        "mode": "c",
+        "note": "debug (game, unassigned): 0 of 0 functions accepted C (; task main-data-extra-tu266-20261013, submission 93917c7f239e3ccdd31e11b7174053a83ec3bf637b6fbde2f9f8bc4d29ba6d87, reviewed ready_to_integrate by codex-main-data-root-20261013). This TU's first published C source; the remaining functions stay INCLUDE_ASM.",
+        "source": {
+          "include_dirs": [
+            "include"
+          ],
+          "kind": "file",
+          "path": "src/main/debug.c"
+        }
+      }
     },
     {
       "accepted": {

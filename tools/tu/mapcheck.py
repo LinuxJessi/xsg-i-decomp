@@ -264,6 +264,16 @@ def main():
             owner = t["owners"].get(sec)
             for pc in p.get("pieces", [dict(name=n, start=p["start"], end=p["end"], c_split=False)]):
                 s, e = int(pc["start"], 16), int(pc["end"], 16)
+                if not a.carve and pc.get('linker_padding'):
+                    proof = pc['linker_padding']
+                    alignment = proof['alignment']
+                    if ((s + alignment - 1) // alignment * alignment != e or
+                            not (S[sec].type == 8 or original_zero_fill(orig, sec, s, e)) or
+                            any(start < e and s < start + size
+                                for start, size in placed.values())):
+                        problems.append(dict(kind='invalid-linker-padding', piece=pc['name']))
+                    checked += 1
+                    continue
                 own = "c" if c_owned_piece(t, sec, pc) else "asm"
                 if own == "c" and pc.get("c_input_spans"):
                     for part in pc["c_input_spans"]:
