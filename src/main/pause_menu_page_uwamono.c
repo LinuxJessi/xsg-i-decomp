@@ -2,17 +2,17 @@
 
 #include "shared.h"
 
-float D_004D7F88;
+#define D_004D7F88 (0.3926991f)
 
-float D_004D7F8C;
+#define D_004D7F8C (0.3926991f)
 
 extern float xglSin(float angle);
 
 extern float xglCos(float angle);
 
-float D_004D7F80;
+#define D_004D7F80 (0.3f)
 
-float D_004D7F84;
+#define D_004D7F84 (0.1f)
 
 typedef struct ItemBoxEntry {
     signed char category;
@@ -167,6 +167,32 @@ const char D_004CA7E8[];
 
 const char D_004CA7F8[];
 
+static int debmode = 0;
+
+const char D_004CA698[24] = "\xBC\xCD\xB7\xE2\xB5\xB0\xC0\xD7\xC9\xBD\xBC\xA8\xA1\xA1\xA1\xA1\xA5\xAA\xA5\xF3";
+
+const char D_004CA6B0[24] = "\xBC\xCD\xB7\xE2\xB5\xB0\xC0\xD7\xC9\xBD\xBC\xA8\xA1\xA1\xA1\xA1\xA5\xAA\xA5\xD5";
+
+const char D_004CA6C8[24] = "\xBE\xE5\xCA\xAA\xBE\xF0\xCA\xF3\xC9\xBD\xBC\xA8\xA1\xA1\xA1\xA1\xA5\xAA\xA5\xF3";
+
+const char D_004CA6E0[24] = "\xBE\xE5\xCA\xAA\xBE\xF0\xCA\xF3\xC9\xBD\xBC\xA8\xA1\xA1\xA1\xA1\xA5\xAA\xA5\xD5";
+
+const char D_004CA6F8[24] = "\xBE\xE5\xCA\xAA\xBE\xF0\xCA\xF3\xBD\xD0\xCE\xCF\xA1\xA1\xA1\xA1\xA5\xAA\xA5\xF3";
+
+const char D_004CA710[24] = "\xBE\xE5\xCA\xAA\xBE\xF0\xCA\xF3\xBD\xD0\xCE\xCF\xA1\xA1\xA1\xA1\xA5\xAA\xA5\xD5";
+
+const char D_004CA728[24] = "\xA5\xB3\xA5\xEA\xA5\xB8\xA5\xE7\xA5\xF3\xC9\xBD\xBC\xA8\xA1\xA1\xA5\xAA\xA5\xF3";
+
+const char D_004CA740[24] = "\xA5\xB3\xA5\xEA\xA5\xB8\xA5\xE7\xA5\xF3\xC9\xBD\xBC\xA8\xA1\xA1\xA5\xAA\xA5\xD5";
+
+const char D_004CA758[24] = "\xBC\xCD\xB7\xE2\xA5\xD5\xA5\xE9\xA5\xB0\xA1\xA1\xA1\xA1\xA1\xA1\xA5\xAA\xA5\xF3";
+
+const char D_004CA770[24] = "\xBC\xCD\xB7\xE2\xA5\xD5\xA5\xE9\xA5\xB0\xA1\xA1\xA1\xA1\xA1\xA1\xA5\xAA\xA5\xD5";
+
+const char D_004CA788[24] = "\xA5\xA4\xA5\xD9\xA5\xF3\xA5\xC8\xA5\xA2\xA5\xA4\xA5\xC6\xA5\xE0\xB0\xEC\xCD\xF7";
+
+const char D_004CA7A0[16] = "\xCA\xF5\xC8\xA2\xC3\xE6\xBF\xC8\xB0\xEC\xCD\xF7";
+
 void PauseMenuPageUwamono(void)
 {
     static int cursol = 0;
@@ -225,6 +251,12 @@ void PauseMenuPageUwamono(void)
     }
 }
 
+char D_004DB798[4] = "\xA1\xE4";
+
+const char D_004CA7E8[16] = "\xA1\xDF\xA5\xDC\xA5\xBF\xA5\xF3\xA4\xC7\xCC\xE1\xA4\xEB";
+
+const char D_004CA7F8[16] = "%3d %s %c";
+
 void DebDispEvtItem(void)
 {
     static int page = 0;
@@ -257,6 +289,10 @@ void DebDispEvtItem(void)
     }
     debmode = (PadData[0].pressed & 0x40) ? 0 : debmode;
 }
+
+const char D_004DB7A0[4] = "%s";
+
+static int page_2 = 0;
 
 void DebDispItemBox(void)
 {
@@ -535,19 +571,18 @@ void DispPillar(Vector4 *base, Vector4 *step, const int *colors)
     } corners[4];
     int segment = 0;
     float angle;
-    float angle_increment;
 
     base->w = 1.0f;
     do {
         /* Compute four local corners for each angular segment. */
         corners[0].vector = *base;
         corners[1].vector = *base;
-        angle_increment = D_004D7F88;
-        angle = (float)segment * angle_increment;
+        angle = D_004D7F88;
+        angle *= (float)segment;
         corners[0].vector.x += xglSin(angle) * step->x;
-        angle_increment = D_004D7F8C;
         corners[0].vector.z += xglCos(angle) * step->x;
-        angle = (float)(segment + 1) * angle_increment;
+        angle = D_004D7F8C;
+        angle *= (float)(segment + 1);
         corners[1].vector.x += xglSin(angle) * step->x;
         corners[1].vector.z += xglCos(angle) * step->x;
         corners[2] = corners[0];
@@ -558,28 +593,23 @@ void DispPillar(Vector4 *base, Vector4 *step, const int *colors)
     } while (segment < 17);
 }
 
-float D_004D7F88 = 0.3926991f;
-float D_004D7F8C = 0.3926991f;
-float D_004D7F80 = 0.3f;
-float D_004D7F84 = 0.1f;
-char D_004DB798[4] = "\xA1\xE4";
-const char D_004DB7A0[4] = "%s";
+char D_004DB798[4];
+const char D_004DB7A0[4];
 char D_004DB7D8[8] = "\015\000\312\365\310\242";
-static int debmode = 0;
-static int page_2 = 0;
-const char D_004CA698[24] = "\xBC\xCD\xB7\xE2\xB5\xB0\xC0\xD7\xC9\xBD\xBC\xA8\xA1\xA1\xA1\xA1\xA5\xAA\xA5\xF3";
-const char D_004CA6B0[24] = "\xBC\xCD\xB7\xE2\xB5\xB0\xC0\xD7\xC9\xBD\xBC\xA8\xA1\xA1\xA1\xA1\xA5\xAA\xA5\xD5";
-const char D_004CA6C8[24] = "\xBE\xE5\xCA\xAA\xBE\xF0\xCA\xF3\xC9\xBD\xBC\xA8\xA1\xA1\xA1\xA1\xA5\xAA\xA5\xF3";
-const char D_004CA6E0[24] = "\xBE\xE5\xCA\xAA\xBE\xF0\xCA\xF3\xC9\xBD\xBC\xA8\xA1\xA1\xA1\xA1\xA5\xAA\xA5\xD5";
-const char D_004CA6F8[24] = "\xBE\xE5\xCA\xAA\xBE\xF0\xCA\xF3\xBD\xD0\xCE\xCF\xA1\xA1\xA1\xA1\xA5\xAA\xA5\xF3";
-const char D_004CA710[24] = "\xBE\xE5\xCA\xAA\xBE\xF0\xCA\xF3\xBD\xD0\xCE\xCF\xA1\xA1\xA1\xA1\xA5\xAA\xA5\xD5";
-const char D_004CA728[24] = "\xA5\xB3\xA5\xEA\xA5\xB8\xA5\xE7\xA5\xF3\xC9\xBD\xBC\xA8\xA1\xA1\xA5\xAA\xA5\xF3";
-const char D_004CA740[24] = "\xA5\xB3\xA5\xEA\xA5\xB8\xA5\xE7\xA5\xF3\xC9\xBD\xBC\xA8\xA1\xA1\xA5\xAA\xA5\xD5";
-const char D_004CA758[24] = "\xBC\xCD\xB7\xE2\xA5\xD5\xA5\xE9\xA5\xB0\xA1\xA1\xA1\xA1\xA1\xA1\xA5\xAA\xA5\xF3";
-const char D_004CA770[24] = "\xBC\xCD\xB7\xE2\xA5\xD5\xA5\xE9\xA5\xB0\xA1\xA1\xA1\xA1\xA1\xA1\xA5\xAA\xA5\xD5";
-const char D_004CA788[24] = "\xA5\xA4\xA5\xD9\xA5\xF3\xA5\xC8\xA5\xA2\xA5\xA4\xA5\xC6\xA5\xE0\xB0\xEC\xCD\xF7";
-const char D_004CA7A0[16] = "\xCA\xF5\xC8\xA2\xC3\xE6\xBF\xC8\xB0\xEC\xCD\xF7";
-const char D_004CA7E8[16] = "\xA1\xDF\xA5\xDC\xA5\xBF\xA5\xF3\xA4\xC7\xCC\xE1\xA4\xEB";
-const char D_004CA7F8[16] = "%3d %s %c";
-
+static int debmode;
+static int page_2;
+const char D_004CA698[24];
+const char D_004CA6B0[24];
+const char D_004CA6C8[24];
+const char D_004CA6E0[24];
+const char D_004CA6F8[24];
+const char D_004CA710[24];
+const char D_004CA728[24];
+const char D_004CA740[24];
+const char D_004CA758[24];
+const char D_004CA770[24];
+const char D_004CA788[24];
+const char D_004CA7A0[16];
+const char D_004CA7E8[16];
+const char D_004CA7F8[16];
 

@@ -772,3 +772,41 @@ void eTagFontSet(ETagFont *tag, const char *text)
     tag->color[0] = -128;
     tag->text = text;
 }
+
+
+
+const char D_004C3380[88] = "Items\nEther\nTech Attack\nSkills\nCharacters\nA.G.W.S.\nBattle Formation\nU.M.N.\nGame Options";
+
+const char D_004C33D8[16] = "Save/Load data.";
+
+const char D_004C33E8[32] = "Set various game play options.";
+
+const char D_004C3408[48] = "Access the U.M.N. (Unus Mundus Network).";
+
+const char D_004C3438[48] = "Select combatants and change battle formation.";
+
+const char D_004C3468[56] = "Equip A.G.W.S. weapons and accessories. Assign pilots.";
+
+const char D_004C34A0[72] = "Equip character weapons and accessories. Change on-screen characters.";
+
+const char D_004C34E8[56] = "Set skills and extract new skills from accessories.";
+
+const char D_004C3520[32] = "Set and improve Tech Attacks.";
+
+const char D_004C3540[64] = "Use, set, and evolve Ether. Transfer Ether to other characters.";
+
+const char D_004C3580[80] = "Use items. View your inventory of special items, weapons, and accessories.";
+
+const char D_004C35D0[16] = "Game Options";
+
+const char D_004C35E0[24] = "Battle Formation";
+
+const char D_004C35F8[16] = "A.G.W.S.";
+
+const char D_004C3608[16] = "Characters";
+
+const char D_004C3618[16] = "Tech Attacks";
+
+
+
+const char D_004C3628[24] __attribute__((section(".rodata"))) = "\001Reserve";

@@ -8,65 +8,25 @@
 
 /* xglHddMount removes the high bit from this stored volume identifier. */
 
-static char partitionname[] = {
-    'h' ^ 0x80, 'd' ^ 0x80, 'd' ^ 0x80, '0' ^ 0x80, ':' ^ 0x80,
-    'P' ^ 0x80, 'P' ^ 0x80, '.' ^ 0x80, 'S' ^ 0x80, 'L' ^ 0x80,
-    'P' ^ 0x80, 'S' ^ 0x80, '-' ^ 0x80, '2' ^ 0x80, '9' ^ 0x80,
-    '0' ^ 0x80, '0' ^ 0x80, '2' ^ 0x80, '.' ^ 0x80, 'X' ^ 0x80,
-    'E' ^ 0x80, 'N' ^ 0x80, 'O' ^ 0x80, 'S' ^ 0x80, 'A' ^ 0x80,
-    'G' ^ 0x80, 'A' ^ 0x80, '1' ^ 0x80, '.' ^ 0x80, 'D' ^ 0x80,
-    'I' ^ 0x80, 'S' ^ 0x80, 'C' ^ 0x80, '1' ^ 0x80, ',' ^ 0x80,
-    'x' ^ 0x80, 'e' ^ 0x80, 'n' ^ 0x80, 'o' ^ 0x80, '1' ^ 0x80,
-    'd' ^ 0x80, '1' ^ 0x80, ',' ^ 0x80, 'x' ^ 0x80, 'e' ^ 0x80,
-    'n' ^ 0x80, 'o' ^ 0x80, '1' ^ 0x80, 'd' ^ 0x80, '1' ^ 0x80,
-    0
-};
+static char partitionname[];
 
-static char hddname[] = "pfs0:/xenosaga.00";
+static char hddname[];
 
-static u8 hddcheck[] = "pfs0:/xenosaga.hdd";
+static u8 hddcheck[];
 
-static char commonname[] = "hdd0:__common";
+static char commonname[];
 
-static char yoursaves[] = "pfs1:/Your Saves";
+static char yoursaves[];static HddErrorPacket TestEnv_0_004A8A80[1];extern const unsigned char D_004D2628[];
 
-/* VIF DIRECT hands five quadwords to GIF. The GIF tag selects one A+D
- * register write, one RGBAQ value and two XYZ2 corner records. */
+extern const char cd_filename[16];
 
-static HddErrorPacket TestEnv_0_004A8A80[1] = {{
-    0, 0, 0, 0x50000005,
-    {0x00008001, 0x40034000, 0x551e},
-    {0x30000, 0x47},
-    {0, 0x40, 0, 0x80},
-    {
-        {0x6ff8, 0x71f7, 0x00fffff0},
-        {0x8ff8, 0x8df7, 0x00fffff0},
-    },
-}};
+extern char xgl_hdd_device[];
 
-/* EUC-JP warning text: HDD application data cannot be read, so loading
- * continues from DVD; the final control-marked label says “Button: Continue”.
- * Preserve the embedded font controls and line breaks from the original. */
+extern char hdd_mc_path[];
 
-const unsigned char D_004D2628[] =
-    "\x0b\x0e\x01\x01\x00\x00\x00\x0d\x03\xa5\xcf\xa1\xbc\xa5\xc9\xa5\xc7\xa5\xa3\xa5"
-    "\xb9\xa5\xaf\xa5\xc9\xa5\xe9\xa5\xa4\xa5\xd6\xa4\xcb\xa4\xa2\xa4\xeb\xa5\xbc\xa5"
-    "\xce\xa5\xb5\xa1\xbc\xa5\xac\xa4\xce\x0a\x0a\xa5\xa2\xa5\xd7\xa5\xea\xa5\xb1\xa1"
-    "\xbc\xa5\xb7\xa5\xe7\xa5\xf3\xa5\xc7\xa1\xbc\xa5\xbf\xa4\xac\xc6\xc9\xa4\xdf\xb9"
-    "\xfe\xa4\xe1\xa4\xde\xa4\xbb\xa4\xf3\xa1\xa3\x0a\x0a\xa4\xb3\xa4\xec\xb0\xca\xb9"
-    "\xdf\xa4\xcf\xa3\xc4\xa3\xd6\xa3\xc4\xa4\xab\xa4\xe9\xc6\xc9\xa4\xdf\xb9\xfe\xa4"
-    "\xdf\xa4\xf2\xb9\xd4\xa4\xa4\xa4\xde\xa4\xb9\xa1\xa3\x0a\x0a\x0a\x0a\x0c\x80\x20"
-    "\x20\xa1\xfb\x0c\x80\x80\x80\xa5\xdc\xa5\xbf\xa5\xf3\xa1\xa7\xc2\xb3\xb9\xd4";
+extern u8 mount_device[];
 
-const char cd_filename[] = "xenosaga.00";
-
-char xgl_hdd_device[] = "hdd0:";
-
-char hdd_mc_path[] = "pfs1:";
-
-u8 mount_device[] = "pfs0:";
-
-HddInstallCBParam *HddInstallCBparam = 0;
+extern HddInstallCBParam *HddInstallCBparam;
 
 static u8 HddActive;
 
@@ -574,6 +534,8 @@ struct HddSaveImage {
     unsigned char payloadStart; /* First byte; the transfer header gives size. */
 };
 
+static unsigned char tbl_1_004A8AE0[4] __attribute__((section(".data")));
+
 int xglHddMcCreate(struct HddCheckState *state)
 {
     extern int sceIoctl2(int descriptor, int command, const void *input,
@@ -748,6 +710,8 @@ struct HddInstallImage {
     unsigned char unmodeled_30[0x1d0];
     unsigned char systemCnf[80];
 };
+
+static unsigned char dvdname_2[12];
 
 int xglHddInstall(int (*callback)(), int param)
 {
@@ -1031,3 +995,108 @@ int xglHddMount(void)
     HddActive = 1;
     return 1;
 }
+
+
+
+static unsigned char dvdname_2[12];
+
+extern char D_004D26C8[16];
+
+extern char D_004D26D8[16];
+
+extern char D_004DC378[8];
+
+extern char D_004DC380[8];
+
+extern char D_004DC388[8];
+
+extern unsigned char D_004DC390[8];
+
+extern char D_004DC3A0[8];
+
+extern char D_004DC3A8[8];
+
+
+
+static unsigned char tbl_1_004A8AE0[4] __attribute__((section(".data")));
+
+
+static char partitionname[] = {
+    'h' ^ 0x80, 'd' ^ 0x80, 'd' ^ 0x80, '0' ^ 0x80, ':' ^ 0x80,
+    'P' ^ 0x80, 'P' ^ 0x80, '.' ^ 0x80, 'S' ^ 0x80, 'L' ^ 0x80,
+    'P' ^ 0x80, 'S' ^ 0x80, '-' ^ 0x80, '2' ^ 0x80, '9' ^ 0x80,
+    '0' ^ 0x80, '0' ^ 0x80, '2' ^ 0x80, '.' ^ 0x80, 'X' ^ 0x80,
+    'E' ^ 0x80, 'N' ^ 0x80, 'O' ^ 0x80, 'S' ^ 0x80, 'A' ^ 0x80,
+    'G' ^ 0x80, 'A' ^ 0x80, '1' ^ 0x80, '.' ^ 0x80, 'D' ^ 0x80,
+    'I' ^ 0x80, 'S' ^ 0x80, 'C' ^ 0x80, '1' ^ 0x80, ',' ^ 0x80,
+    'x' ^ 0x80, 'e' ^ 0x80, 'n' ^ 0x80, 'o' ^ 0x80, '1' ^ 0x80,
+    'd' ^ 0x80, '1' ^ 0x80, ',' ^ 0x80, 'x' ^ 0x80, 'e' ^ 0x80,
+    'n' ^ 0x80, 'o' ^ 0x80, '1' ^ 0x80, 'd' ^ 0x80, '1' ^ 0x80,
+    0
+};
+
+static char hddname[] = "pfs0:/xenosaga.00";
+
+static u8 hddcheck[] = "pfs0:/xenosaga.hdd";
+
+static char commonname[] = "hdd0:__common";
+
+static char yoursaves[] = "pfs1:/Your Saves";
+
+/* VIF DIRECT hands five quadwords to GIF. The GIF tag selects one A+D
+ * register write, one RGBAQ value and two XYZ2 corner records. */
+
+static HddErrorPacket TestEnv_0_004A8A80[1] = {{
+    0, 0, 0, 0x50000005,
+    {0x00008001, 0x40034000, 0x551e},
+    {0x30000, 0x47},
+    {0, 0x40, 0, 0x80},
+    {
+        {0x6ff8, 0x71f7, 0x00fffff0},
+        {0x8ff8, 0x8df7, 0x00fffff0},
+    },
+}};
+
+static unsigned char tbl_1_004A8AE0[4] __attribute__((section(".data"))) = { 14, 9, 13, 15 };
+
+static unsigned char dvdname_2[12] = "xenosaga.00";
+
+/* EUC-JP warning text: HDD application data cannot be read, so loading
+ * continues from DVD; the final control-marked label says “Button: Continue”.
+ * Preserve the embedded font controls and line breaks from the original. */
+
+const unsigned char D_004D2628[] =
+    "\x0b\x0e\x01\x01\x00\x00\x00\x0d\x03\xa5\xcf\xa1\xbc\xa5\xc9\xa5\xc7\xa5\xa3\xa5"
+    "\xb9\xa5\xaf\xa5\xc9\xa5\xe9\xa5\xa4\xa5\xd6\xa4\xcb\xa4\xa2\xa4\xeb\xa5\xbc\xa5"
+    "\xce\xa5\xb5\xa1\xbc\xa5\xac\xa4\xce\x0a\x0a\xa5\xa2\xa5\xd7\xa5\xea\xa5\xb1\xa1"
+    "\xbc\xa5\xb7\xa5\xe7\xa5\xf3\xa5\xc7\xa1\xbc\xa5\xbf\xa4\xac\xc6\xc9\xa4\xdf\xb9"
+    "\xfe\xa4\xe1\xa4\xde\xa4\xbb\xa4\xf3\xa1\xa3\x0a\x0a\xa4\xb3\xa4\xec\xb0\xca\xb9"
+    "\xdf\xa4\xcf\xa3\xc4\xa3\xd6\xa3\xc4\xa4\xab\xa4\xe9\xc6\xc9\xa4\xdf\xb9\xfe\xa4"
+    "\xdf\xa4\xf2\xb9\xd4\xa4\xa4\xa4\xde\xa4\xb9\xa1\xa3\x0a\x0a\x0a\x0a\x0c\x80\x20"
+    "\x20\xa1\xfb\x0c\x80\x80\x80\xa5\xdc\xa5\xbf\xa5\xf3\xa1\xa7\xc2\xb3\xb9\xd4";
+
+char D_004D26C8[16] __attribute__((section(".rodata"))) = "data\\hdd.res";
+
+char D_004D26D8[16] __attribute__((section(".rodata"))) = "%s,256M,PFS";
+
+const char cd_filename[16] = "xenosaga.00";
+
+char xgl_hdd_device[] = "hdd0:";
+
+char hdd_mc_path[] = "pfs1:";
+
+char D_004DC378[8] = "pfs1:/";
+
+char D_004DC380[8] = ".";
+
+char D_004DC388[8] = "..";
+
+unsigned char D_004DC390[8] = "1G";
+
+u8 mount_device[] = "pfs0:";
+
+char D_004DC3A0[8] = "256M";
+
+char D_004DC3A8[8] = "pfs:";
+
+HddInstallCBParam *HddInstallCBparam = 0;

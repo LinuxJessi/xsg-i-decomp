@@ -6,6 +6,7 @@
 #define SRC_MAIN_YAJIMA_TEST_H
 
 #include "shared.h"
+#include "main/xgl_menu.h"
 
 typedef unsigned int SceStatRawWords[64 / sizeof(unsigned int)];
 
@@ -24,11 +25,12 @@ typedef unsigned char LittleEndianWord[4];
 
 /*
  * m_54 (0x0036A920, size 0x18): YajimaTest only touches the output-selection
- * pointer xglMenuOpen fills in at +0x14; the rest of the record is not
- * recovered.
+ * pointer xglMenuOpen fills in at +0x14. The initializer identifies the
+ * root menu pointer at +0x10; the preceding bytes remain partial.
  */
 typedef struct YajimaMenuState {
-    unsigned char unmodeled_00[0x14];
+    unsigned char unmodeled_00[0x10];
+    XglMenuNode *root_menu;
     int *selection;
 } YajimaMenuState;
 

@@ -10,6 +10,7 @@ def emitted_storage(text):
     """
     app = False
     section = '.text'
+    previous_section = section
     out = {}
     active_label = None
     for line in text.splitlines():
@@ -22,12 +23,17 @@ def emitted_storage(text):
         if app:
             continue
         sec = re.match(r'\s*\.section\s+([^,\s]+)', line)
-        simple = re.match(r'\s*(\.(?:data|sdata|bss|sbss|scommon|rodata|lit4|lit8))\s*(?:$|#)', line)
+        simple = re.match(r'\s*(\.(?:text|init|fini|data|sdata|bss|sbss|scommon|rodata|rdata|lit4|lit8))\s*(?:$|#)', line)
         if sec:
+            previous_section = section
             section = sec[1]
             active_label = None
         elif simple:
+            previous_section = section
             section = simple[1]
+            active_label = None
+        elif re.match(r'\s*\.previous\s*(?:$|#)', line):
+            section, previous_section = previous_section, section
             active_label = None
         common = re.match(r'\s*\.(comm|lcomm)\s+([^,\s]+)\s*,\s*(0x[\da-fA-F]+|\d+)(?:\s*,\s*(0x[\da-fA-F]+|\d+))?', line)
         if common:
@@ -58,4 +64,3 @@ def emitted_storage(text):
             out[active_label]['size'] += int(space[1], 0)
             out[active_label]['extent_kind'] = 'label-space'
     return out
-

@@ -232,7 +232,7 @@ void xglSoundEffectStopID(int soundEffectId, int source);
 
 #define D_004D8800 3.1415927f
 
-extern unsigned char count_3;
+static unsigned char count_3;
 
 static char anim_4_004DC358[4] = { '-', 0x7F, '|', '/' };
 
@@ -1107,3 +1107,7 @@ void xglSoundInitial(void)
     } while (index < 16);
     xglSoundReset();
 }
+
+
+
+static unsigned char count_3;

@@ -224,3 +224,7 @@ char *DB_pathFindName(char *path)
 
     return (slash != NULL) ? (slash + 1) : path;
 }
+
+
+
+const char D_004DA660[8] = "\031\000\261\363\306\243";

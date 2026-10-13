@@ -27,18 +27,18 @@ static u64 TestEnv_0_00369CC0[12] = {
     0x0000000000000000ULL, 0x0000000000000053ULL
 };
 
-static u64 TransEnv_1_00369D20[4] = {
+static GameOverDmaPacket4 TransEnv_1_00369D20 = { .words = {
     0x0000000000000000ULL, 0x5100000100000000ULL,
     0x0800000000007000ULL, 0x0000000000000000ULL
-};
+} };
 
-static u64 FlushEnv_2_00369D40[6] = {
+static GameOverDmaPacket6 FlushEnv_2_00369D40 = { .words = {
     0x0000000000000000ULL, 0x5100000200000000ULL,
     0x1000000000008001ULL, 0x000000000000000eULL,
     0x0000000000000000ULL, 0x000000000000003fULL
-};
+} };
 
-static u64 TestEnv_3_00369D70[20] = {
+static GameOverDmaPacket20 TestEnv_3_00369D70 = { .words = {
     0x0000000000000000ULL, 0x5000000900000000ULL,
     0x80ab400000008001ULL, 0x0000000053531e6eULL,
     0x0000000000030000ULL, 0x0000000000000047ULL,
@@ -49,25 +49,25 @@ static u64 TestEnv_3_00369D70[20] = {
     0x000071f800006ff8ULL, 0x0000000000000000ULL,
     0x00001c0000002000ULL, 0x0000000000000000ULL,
     0x00008df800008ff8ULL, 0x0000000000000000ULL
-};
+} };
 
-static u64 TestEnv4[12] = {
+static GameOverDmaPacket12 TestEnv4 = { .words = {
     0x0000000000000000ULL, 0x5000000500000000ULL,
     0x4023400000008001ULL, 0x000000000000551eULL,
     0x0000000000000000ULL, 0x0000000000000042ULL,
     0x0000008000000080ULL, 0x0000008000000080ULL,
     0x000071f800006ff8ULL, 0x0000000000000000ULL,
     0x00008df800008ff8ULL, 0x0000000000000000ULL
-};
+} };
 
-static u64 TestEnv5[12] = {
+static GameOverDmaPacket12 TestEnv5 = { .words = {
     0x0000000000000000ULL, 0x5000000500000000ULL,
     0x4023400000008001ULL, 0x000000000000551eULL,
     0x0000000000000000ULL, 0x0000000000000042ULL,
     0x0000008000000080ULL, 0x0000008000000080ULL,
     0x000071f800006ff8ULL, 0x0000000000000000ULL,
     0x00008df800008ff8ULL, 0x0000000000000000ULL
-};
+} };
 
 extern GameLoopStatePrefix GameLoopState;
 
@@ -192,11 +192,11 @@ static void DrawImage(void *framebuffer)
     TestEnv_0_00369CC0[4] = ((u64)sRender.buffer_select << 0x25) | ((u64)0x8000 << 0x24);
     sceVif1PkCnt(packet, 0);
     sceVif1PkAddDataN(packet, TestEnv_0_00369CC0, 0x18);
-    sceVif1PkRef(packet, TransEnv_1_00369D20, 2, 0, 0, 0);
+    sceVif1PkRef(packet, TransEnv_1_00369D20.words, 2, 0, 0, 0);
     sceVif1PkRef(packet, framebuffer, 0x7000, 0, 0x51007000, 0);
-    sceVif1PkRef(packet, TransEnv_1_00369D20, 2, 0, 0, 0);
+    sceVif1PkRef(packet, TransEnv_1_00369D20.words, 2, 0, 0, 0);
     sceVif1PkRef(packet, (u8 *)framebuffer + 0x70000, 0x7000, 0, 0x51007000, 0);
-    sceVif1PkRef(packet, FlushEnv_2_00369D40, 3, 0, 0, 0);
+    sceVif1PkRef(packet, FlushEnv_2_00369D40.words, 3, 0, 0, 0);
 }
 
 static void DrawBack(int alpha)
@@ -206,12 +206,12 @@ static void DrawBack(int alpha)
 
     nonnegative_alpha = alpha < 0 ? 0 : alpha;
     gs_frame_address_bits = 0xc800;
-    TestEnv_3_00369D70[6] =
+    TestEnv_3_00369D70.words[6] =
         (0x24120000 | (sRender.framebuffer_page << 5)) |
         (gs_frame_address_bits << 0x13);
-    TestEnv_3_00369D70[8] = (nonnegative_alpha << 32) | 100;
+    TestEnv_3_00369D70.words[8] = (nonnegative_alpha << 32) | 100;
     FlushCache(0);
-    sceVif1PkRef(xglPacketGetCurrent(), TestEnv_3_00369D70, 10, 0, 0, 0);
+    sceVif1PkRef(xglPacketGetCurrent(), TestEnv_3_00369D70.words, 10, 0, 0, 0);
 }
 
 static int copyframe(void)
@@ -336,7 +336,7 @@ static void GameEnd(void)
          * re-checks the outcome every frame (bne s0,s3 after xglSleep). */
         alpha = 4;
         for (;;) {
-            DRAW_FADE_FRAME(TestEnv4, alpha);
+            DRAW_FADE_FRAME(TestEnv4.words, alpha);
             if (count != END_CHOICE_QUIT) {
                 break;
             }
@@ -408,9 +408,9 @@ void GameOver(void)
     alpha = 4;
     for (;;) {
         DrawImage((void *)framebuffer);
-        TestEnv5[4] = GS_ALPHA(2, 0, 2, 1, alpha);
+        TestEnv5.words[4] = GS_ALPHA(2, 0, 2, 1, alpha);
         FlushCache(0);
-        sceVif1PkRef(xglPacketGetCurrent(), TestEnv5, 6, 0, 0, 0);
+        sceVif1PkRef(xglPacketGetCurrent(), TestEnv5.words, 6, 0, 0, 0);
         SsdSetVagStreamVolume(-1, (255 - alpha) >> 1, 0);
         xglSoundStreamMain();
         xglSleep();

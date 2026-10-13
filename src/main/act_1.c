@@ -4,7 +4,7 @@
 
 static MatrixHeap matrixHeap;
 
-static unsigned char actMatrix[0xC0000];
+static ActMatrixArena actMatrix;
 
 static unsigned char matrixHeapBlock[0x400];
 
@@ -115,7 +115,7 @@ typedef struct ActInfoPad {
 
 extern ActInfoPad PadData;
 
-extern ActInfoState actInfo;
+static ActInfoState actInfo;
 
 extern void DB_params(const char *params);
 
@@ -215,9 +215,9 @@ void ACT_matrixInit(void)
     matrixHeap.heap_max = 64;
     matrixHeap.heap_count = 0;
     actMatrixHeap = &matrixHeap;
-    matrixHeap.heap_origin = actMatrix;
+    matrixHeap.heap_origin = actMatrix.bytes;
     matrixHeap.heap_store = matrixHeapBlock;
-    matrixHeap.heap_cursor = actMatrix;
+    matrixHeap.heap_cursor = actMatrix.bytes;
     memset(matrixHeapBlock, 0, 0x400);
 }
 
@@ -548,3 +548,7 @@ static void ACT_info(void)
         break;
     }
 }
+
+
+
+static ActInfoState actInfo;

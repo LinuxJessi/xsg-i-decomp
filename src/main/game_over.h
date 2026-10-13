@@ -5,6 +5,29 @@
 #ifndef SRC_MAIN_GAME_OVER_H
 #define SRC_MAIN_GAME_OVER_H
 
+#include "main/xgl_2.h"
+
+typedef union GameOverDmaPacket4 {
+    u64 words[4];
+    XglQuadword quadwords[2];
+} GameOverDmaPacket4;
+
+typedef union GameOverDmaPacket6 {
+    u64 words[6];
+    XglQuadword quadwords[3];
+} GameOverDmaPacket6;
+
+typedef union GameOverDmaPacket12 {
+    u64 words[12];
+    XglQuadword quadwords[6];
+} GameOverDmaPacket12;
+
+typedef union GameOverDmaPacket20 {
+    u64 words[20];
+    XglQuadword quadwords[10];
+} GameOverDmaPacket20;
+
+
 static int copyframe(void);
 
 #include "shared.h"
@@ -66,9 +89,9 @@ extern const char GameOverStreamPath[];
  * fade command written at +0x20) is touched by either function, so the
  * remaining template bytes are supplied by the reference image, not
  * generated here. */
-extern u64 TestEnv4[12];
+extern GameOverDmaPacket12 TestEnv4;
 
-extern u64 TestEnv5[12];
+extern GameOverDmaPacket12 TestEnv5;
 
 extern int xglJpegDecode(JpegDecodeRequest *request);
 

@@ -31,11 +31,11 @@ extern const char D_004CBDB8[];
 
 extern const char D_004CBD90[];
 
-extern char *cfScript;
+static char * cfScript;
 
-extern char basepath[0x17];
+static char basepath[23];
 
-extern int cur_6;
+static int cur_6;
 
 extern const char D_004CBD28[];
 
@@ -61,19 +61,21 @@ typedef struct SetPathEffectPeer {
     signed char debugFlag;
 } SetPathEffectPeer;
 
-extern SetPathEffectParams prm_8;
-
-extern SetPathDummyActor dmyActor_12;
-
-extern SetPathEffectPeer *handle_9;
-
-extern SetPathEffectVector point_10;
-
-extern SetPathEffectVector angle_11;
-
 static unsigned char path_0[0x80];
 
 static unsigned char name_1[0x40];
+
+static SetPathEffectPeer * handle_9;
+
+static Vector4 point_10 __attribute__((section(".data")));
+
+static Vector4 angle_11 __attribute__((section(".data")));
+
+static SetPathEffectParams prm_8;
+
+static SetPathDummyActor dmyActor_12 __attribute__((aligned(16)));
+
+static SetPathEffectParams prm_13;
 
 extern unsigned int strlen(const char *string);
 
@@ -221,11 +223,11 @@ extern unsigned char _defMatLn[];
 
 /* PadData's storage export belongs in the defining TU's generated header. */
 
-extern int cur_2;
+static int cur_2;
 
-extern int menumax_4;
+static int menumax_4;
 
-extern char *menu_3[5];
+static char * menu_3[5] __attribute__((section(".data")));
 
 extern const char D_004CBCD8[16];
 
@@ -266,7 +268,7 @@ extern void sefDestroyEffectCf(void);
 extern void sefInitEffectBattle(void);
 static void dummyMapDraw(void);
 
-extern int sftMode;
+static int sftMode;
 
 /* Initialized objects recovered for this TU. */
 
@@ -458,7 +460,7 @@ static int debugEffectConfig(void)
     return cur_2;
 }
 
-extern int cur_5;
+static int cur_5;
 
 extern const char D_004CBD08[];
 
@@ -786,7 +788,7 @@ static void seffectDebugCf(void)
 /* The effect request block sefCreateEffect reads: the debug viewers fill the
  * actor links with zero and select the effect and its variant. */
 
-extern SetPathEffectParams prm_13;
+static SetPathEffectParams prm_13;
 
 
 extern const char D_004CBDC8[];
@@ -1025,27 +1027,180 @@ void SimajiriTest(void)
     }
 }
 
-static char *filelist = 0;
-static char *gridlexTop = 0;
-static char *gridxtxTop = 0;
-static char *hamalexTop = 0;
-static char *hamaxtxTop = 0;
-static s16 loaded = 0;
-static s16 mapdisp = 1;
-static s16 casdisp = 0;
-static s16 tgtdisp = 0;
-s16 _debugPause = 0;
-char D_004DBA08[8] = "PAUSE";
-char D_004DBA28[8] = "%s : %d";
-static int cur_7 = 0x259;
-char D_004DBA38[8] = "sen.lex";
-char D_004DBA40[8] = "sen.xtx";
+static char *filelist;
+static char *gridlexTop;
+static char *gridxtxTop;
+static char *hamalexTop;
+static char *hamaxtxTop;
+static s16 loaded;
+static s16 mapdisp;
+static s16 casdisp;
+static s16 tgtdisp;
+extern s16 _debugPause;
+extern char D_004DBA08[8];
+extern char D_004DBA28[8];
+static int cur_7;
+extern char D_004DBA38[8];
+extern char D_004DBA40[8];
+static Vector4 pos_14;
+static Vector4 caspos_15;
+static Vector4 tgtpos_16;
+static Vector4 scale_17;
+extern const char D_004CBD68[40];
+extern const char D_004CBDD8[16];
+extern const char D_004CBDE8[24];
+
+
+
+extern const char D_004CBCD8[16];
+
+extern const char D_004CBCE8[16];
+
+extern const char D_004CBCF8[16];
+
+extern const char D_004CBD08[16];
+
+extern const char D_004CBD18[16];
+
+extern const char D_004CBD28[16];
+
+extern const char D_004CBD38[48];
+
+extern const char D_004CBD90[40];
+
+extern const char D_004CBDB8[16];
+
+extern const char D_004CBDC8[16];
+
+static char * cfScript;
+
+static int sftMode;
+
+extern s16 _sdrawFloor;
+
+static int cur_2;
+
+static int menumax_4;
+
+extern const char D_004DBA18[4];
+
+static int cur_5;
+
+static int cur_6;
+
+static SetPathEffectPeer * handle_9;
+
+
+
+static char basepath[23];
+
+
+
+
+
+static SetPathEffectParams prm_13;
+
+extern char D_004CBC80[16];
+extern char D_004CBCC8[16];
+extern char D_004CBCA0[16];
+extern char D_004CBCB0[24];
+extern char D_004CBC90[16];
+
+static char * menu_3[5] __attribute__((section(".data")));
+
+static Vector4 point_10 __attribute__((section(".data")));
+
+static Vector4 angle_11 __attribute__((section(".data")));
+
+
+static char basepath[23] = "host0:/home/xeno/work/";
+
+static char * menu_3[5] __attribute__((section(".data"))) = { D_004CBCC8, D_004CBCB0, D_004CBCA0, D_004CBC90, D_004CBC80 };
+
+static Vector4 point_10 __attribute__((section(".data"))) = { .x = 0.0f, .y = 0.0f, .z = 0.0f, .w = 0.0f };
+
+static Vector4 angle_11 __attribute__((section(".data"))) = { .x = 0.0f, .y = 0.0f, .z = 0.0f, .w = 0.0f };
+
 static Vector4 pos_14 = {0.0f, 0.0f, 0.0f, 1.0f};
+
 static Vector4 caspos_15 = {0.0f, 0.0f, 0.0f, 1.0f};
+
 static Vector4 tgtpos_16 = {0.0f, 0.0f, -4.0f, 1.0f};
+
 static Vector4 scale_17 = {0.1f, 0.1f, 0.1f, 1.0f};
+
+const char D_004CBCD8[16] = "ver: %s %s";
+
+const char D_004CBCE8[16] = "Sep  5 2002";
+
+const char D_004CBCF8[16] = "12:51:35";
+
+const char D_004CBD08[16] = "db%d%d : %d";
+
+const char D_004CBD18[16] = "\245\250\245\325\245\247\245\257\245\310\301\252\302\362\n";
+
+const char D_004CBD28[16] = "%sz : %d";
+
+const char D_004CBD38[48] = "\245\263\245\363\245\334\241\365\273\250\265\373\305\250\316\316\260\350\245\306\245\271\245\310\315\321\244\316\245\250\245\325\245\247\245\257\245\310\301\252\302\362";
+
 const char D_004CBD68[40] =
     "\xA3\xC3\xA3\xC6\xCE\xCE\xB0\xE8\xA5\xC6\xA5\xB9\xA5\xC8\xCD\xD1"
     "\xA4\xCE\xA5\xA8\xA5\xD5\xA5\xA7\xA5\xAF\xA5\xC8\xC1\xAA\xC2\xF2";
+
+const char D_004CBD90[40] = "\267\350\304\352\245\334\245\277\245\363\244\362\262\241\244\271\244\310\245\250\245\325\245\247\245\257\245\310\265\257\306\260\n";
+
+const char D_004CBDB8[16] = "Now Loading\241\304\n";
+
+const char D_004CBDC8[16] = "\245\355\241\274\245\311\303\346\n";
+
 const char D_004CBDD8[16] = "hama.lex";
+
 const char D_004CBDE8[24] = "hama.xtx";
+
+static char *filelist = 0;
+
+static char *gridlexTop = 0;
+
+static char *gridxtxTop = 0;
+
+static char *hamalexTop = 0;
+
+static char *hamaxtxTop = 0;
+
+static char * cfScript = 0;
+
+static s16 loaded = 0;
+
+static s16 mapdisp = 1;
+
+static s16 casdisp = 0;
+
+static s16 tgtdisp = 0;
+
+static int sftMode = 0;
+
+s16 _sdrawFloor = 0;
+
+s16 _debugPause = 0;
+
+char D_004DBA08[8] = "PAUSE";
+
+static int cur_2 = 0;
+
+static int menumax_4 = 5;
+
+const char D_004DBA18[4] = ">";
+
+static int cur_5 = 1;
+
+static int cur_6 = 1;
+
+char D_004DBA28[8] = "%s : %d";
+
+static int cur_7 = 0x259;
+
+static SetPathEffectPeer * handle_9 = 0;
+
+char D_004DBA38[8] = "sen.lex";
+
+char D_004DBA40[8] = "sen.xtx";

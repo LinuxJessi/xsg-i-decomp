@@ -10,12 +10,12 @@
 
 /* Event-item IDs index a 0x80-byte formatted name slot. */
 
-unsigned char EvtItemTbl[255 * 0x80] = { 0 };
+extern unsigned char EvtItemTbl[255 * 0x80];
+
+const char D_004CA4D0[16] = "Obtained %d G.";
 
 const char evt_item_format_special[24] =
     "Obtained \x0c\x32\x9b\xbe%s\x0c\x80\x80\x80.";
-
-const char evt_item_format_normal[16] = "Obtained %s.";
 
 extern int dataBoxInc(int category, int id);
 
@@ -107,9 +107,9 @@ extern int printf(const char *format, ...);
 
 extern void sefDeleteEffectCf(int effectId);
 
-static const char D_004CA5B0[32] = "ItemBox serial error!! %d\n";
+const char evt_item_format_normal[16] = "Obtained %s.";
 
-static const char D_004CA5D0[32] = "ItemSymbol serial error!! %d\n";
+const char D_004CA508[24] = "Obtained %s \x0c\x32\x9b\xbe%s\x0c\x80\x80\x80.";
 
 typedef struct ItemOwnerUnit {
     unsigned int flags;
@@ -131,11 +131,11 @@ extern void nmlModelSetPartsVisible(void *model, short partsNo, int visible);
 extern void DrawActiveCursol(ItemMapUnit *unit);
 
 
-float D_004D7F7C = 0.05f;
+#define D_004D7F7C (0.05f)
 
 extern signed char printflg;
 
-static const char D_004CA650[48] = "unit koware delete id=0x%x serial=%d\n";
+const char D_004CA530[32] = "Obtained %s%s \x0c\x32\x9b\xbe%s\x0c\x80\x80\x80";
 
 extern void nmlModelEntry(int entry);
 
@@ -245,7 +245,11 @@ extern const char D_004DB770[];
 
 extern const char D_004DB778[];
 
-static char deb_0[5] = "NULL";
+
+
+static const char *strno[10];
+
+extern ItemBoxRecord ItemBoxTbl[601];
 
 static const char *strno[10] = {
     D_004DB778, D_004DB770, D_004DB768, D_004DB760, D_004DB758,
@@ -254,21 +258,24 @@ static const char *strno[10] = {
 
 ItemBoxRecord ItemBoxTbl[601] = {{0}};
 
-const char D_004CA4D0[16] = "Obtained %d G.";
+unsigned char EvtItemTbl[255 * 0x80] = { 0 };
 
-const char D_004CA508[24] = "Obtained %s \x0c\x32\x9b\xbe%s\x0c\x80\x80\x80.";
-
-const char D_004CA520[16] = "Obtained %s %s.";
-
-const char D_004CA530[32] = "Obtained %s%s \x0c\x32\x9b\xbe%s\x0c\x80\x80\x80";
 
 const char D_004CA550[24] = "Obtained %s%s %s";
 
+static const char D_004CA5B0[32] = "ItemBox serial error!! %d\n";
+
+const char D_004CA520[16] = "Obtained %s %s.";
+
+static const char D_004CA5D0[32] = "ItemSymbol serial error!! %d\n";
+
+static const char D_004CA650[48] = "unit koware delete id=0x%x serial=%d\n";
+
 const char D_004CA568[16] = "Illegal grp %d\n";
 
-float D_004D7F60 = 0.05f;
+#define D_004D7F60 (0.05f)
 
-float D_004D7F64 = 0.8f;
+#define D_004D7F64 (0.8f)
 
 /* Definitions follow their callers so references remain address-based. */
 
@@ -389,35 +396,37 @@ int CreateEvtItemGetTask(int item, int count)
 
 char *GetItemName(int category, int item)
 {
+    static char deb[5] = "NULL";
+
     ItemNameRecord *record;
     char *name;
     if (item == 0) {
-        return deb_0;
+        return deb;
     }
     switch (category) {
     case 0:
         record = func_A2C5F8(item);
-        name = deb_0;
+        name = deb;
         if (record != 0) return record->name;
         return name;
     case 1:
         record = func_A2C6E8(item);
-        name = deb_0;
+        name = deb;
         if (record != 0) return record->name;
         return name;
     case 2:
         record = func_A2C738(item);
-        name = deb_0;
+        name = deb;
         if (record != 0) return record->name;
         return name;
     case 3:
         record = func_A2C698(item);
-        name = deb_0;
+        name = deb;
         if (record != 0) return record->name;
         return name;
     case 10:
         name = dataEvtItmNameGet(item);
-        return name != 0 ? name : deb_0;
+        return name != 0 ? name : deb;
     default:
         printf(D_004CA568, category);
         return 0;
@@ -892,3 +901,7 @@ void MAP_updateUnitItem(ItemMapUnit *unit)
         break;
     }
 }
+
+
+
+const char D_004CA680[24] = "\276\345\312\252\315\321\245\307\245\320\245\303\245\260\245\341\245\313\245\345\241\274";

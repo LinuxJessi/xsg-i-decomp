@@ -13,6 +13,10 @@ static int xglCreateSignal(void);
 /*
  * TU-local thread descriptor view (config/header-canon.json: ee_thread_t is
  * tu_local; xglThreadInitial reproduces only with the `entry` member).
+ * The original allocation is 48 bytes, but this TU uses only its known prefix.
+ * The suffix follows the documented EE kernel thread-status layout as a partial
+ * storage hypothesis. Its original declaration and application semantics remain
+ * unresolved; these field names do not establish that original semantic type.
  */
 typedef struct {
     int status;
@@ -21,10 +25,14 @@ typedef struct {
     int stack_size;
     void *gp_reg;
     int initial_priority;
+    int current_priority;
+    u32 attr;
+    u32 option;
+    u32 waitType;
+    u32 waitId;
+    u32 wakeupCount;
 } ee_thread_t;
 
-static ee_thread_t sThreadParam;
-static ee_sema_t sSemaParam;
 static int iRotateSignal;
 static unsigned int iCurrentThread;
 static active_thread_t asActiveThreadList[4];
@@ -43,6 +51,8 @@ static system_thread_entry_t asSystemThreadList[4] = {
 
 static int xglCreateSignal(void)
 {
+    static ee_sema_t sSemaParam;
+
     sSemaParam.max_count = 1;
     sSemaParam.init_count = 0;
     return CreateSema(&sSemaParam);
@@ -70,6 +80,8 @@ void xglSleep(void)
 
 void xglThreadInitial(void)
 {
+    static ee_thread_t sThreadParam;
+
     active_thread_t *active = asActiveThreadList;
     system_thread_entry_t *system_record = asSystemThreadList;
     /* The evidenced stack-size/priority tail begins at byte 8 of each record. */

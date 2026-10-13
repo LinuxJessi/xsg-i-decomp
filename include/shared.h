@@ -249,6 +249,8 @@ typedef struct DataBuffer DataBuffer;
 
 typedef DataBufferWord (*DataBufferReader)(DataBuffer *, int);
 
+typedef struct __sFILE FILE;
+
 typedef struct RgFileSys RgFileSys;
 
 typedef struct RgFileSysData RgFileSysData;

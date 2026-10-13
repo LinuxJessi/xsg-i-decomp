@@ -999,3 +999,9 @@ static int sizeofDescripterType(u8 **cursor)
     *cursor = descriptorByte + 1;
     return size;
 }
+
+const char D_004DC050[8] = "[%c";
+
+const char D_004DC058[8] = "[%s";
+
+const char D_004DC060[8] = "[L%s;";

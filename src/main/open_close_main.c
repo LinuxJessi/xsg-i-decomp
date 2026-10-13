@@ -585,3 +585,11 @@ void eCursolSet(ECursol *cursol, signed char width)
     cursol->active = 0;
     cursol->width = width;
 }
+
+
+
+const char D_004C31B0[24] = "data\\endou\\menu02.xtx";
+
+const char D_004C31C8[24] = "data\\endou\\menu01.xtx";
+
+const char D_004C31E0[32] = "data\\endou\\cfwin.xtx";

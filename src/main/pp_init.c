@@ -14,14 +14,14 @@ typedef struct PpParticle {
     float damping;
 } PpParticle;
 
-extern const float D_004D8290;
-extern const float D_004D8294;
+#define D_004D8290 (-0.05f)
+#define D_004D8294 (0.8f)
 
 void ppInit(PpParticle *particle)
 {
     float zero = 0.0f;
-    const float gravity = D_004D8290;
-    const float damping = D_004D8294;
+    register float gravity = D_004D8290;
+    register float damping = D_004D8294;
 
     particle->damping = damping;
     particle->gravity = gravity;
@@ -78,6 +78,3 @@ void ppSetPos(PpParticle *particle, float x, float y, float z)
     particle->position.vector.y = y;
     particle->position.vector.z = z;
 }
-
-const float D_004D8290 = -0.05f;
-const float D_004D8294 = 0.8f;

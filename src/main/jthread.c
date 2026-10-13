@@ -5,7 +5,7 @@
 #include "main/jni.h"
 
 const char D_004DC080[] = "peer";
-const char D_004DC088[] = "%s.%s";
+const char D_004DC088[8] = "%s.%s";
 
 /*
  * The Java runtime installs this as the thread's `entry` hook for a
@@ -391,3 +391,17 @@ JThreadNode *JTHREAD_get(SceneObject object)
     }
     return 0;
 }
+
+
+
+const char D_004D15D0[24] = "JTHREAD_ALG_UNIT";
+
+const char D_004D15E8[24] = "JTHREAD_ALG_DEFAULT";
+
+const char D_004D1600[24] = "JTHREAD_ALG_SCENE";
+
+const char D_004D1618[24] = "JTHREAD_ALG_STAGE";
+
+const char D_004D1630[16] = "JTHREAD_ALG_CHR";
+
+const char D_004D1640[24] = "JTHREAD_ALG_SYSTEM";

@@ -1,4 +1,5 @@
 #include "common.h"
+#include "main/xgl_2.h"
 
 #include "shared.h"
 
@@ -34,6 +35,12 @@ typedef struct GsClearEnv {
     u64 restore_target;
     u64 restore_target_address;
 } GsClearEnv;
+
+typedef union GsClearPacket {
+    GsClearEnv value;
+    XglQuadword quadwords[6];
+} GsClearPacket;
+
 
 /* GS PMODE register: display circuit enables and the alpha blend value. */
 typedef struct GsPmode {
@@ -267,9 +274,15 @@ typedef struct GsDrawEnv {
     u64 dimx_address;
 } GsDrawEnv;
 
-extern GsDrawEnv DrawEnv;
+typedef union GsDrawPacket {
+    GsDrawEnv value;
+    XglQuadword quadwords[16];
+} GsDrawPacket;
 
-extern GsClearEnv ClearEnv;
+
+extern GsDrawPacket DrawEnv;
+
+extern GsClearPacket ClearEnv;
 extern GsDispEnv DispEnv;
 
 typedef void (*XglRenderFadeCallback)(XglPacket *packet);
@@ -379,7 +392,7 @@ volatile int VSyncCount = 0;
 
 int ScanLineInterpolate = 0;
 
-GsDrawEnv DrawEnv = { 0 };
+extern GsDrawPacket DrawEnv;
 
 extern void xglRenderInit(void);
 
@@ -453,24 +466,17 @@ typedef struct TestEnvironmentPacket {
     GifXyz2 bottom_right;
 } TestEnvironmentPacket;
 
-/* VIF DIRECT sends one GIFtag, one A+D PRIM, one RGBAQ and two XYZ2 values. */
+typedef union RenderTestPacket {
+    TestEnvironmentPacket value;
+    XglQuadword quadwords[6];
+} RenderTestPacket;
+static RenderTestPacket TestEnv_0_004A8E80;
 
-static TestEnvironmentPacket TestEnv_0_004A8E80 = {
-    .dma_tag = 0,
-    .vif_nop = 0,
-    .vif_direct = 0x51000005,
-    .gif_tag = { 1 | (1 << 15), 0x40034000, 0x551E, 0 },
-    .primitive = { { .value = 0x0000000000071001ULL }, 0x47, 0 },
-    .color = { { .value = 0 }, 0, 0 },
-    .top_left = { 0x6FF8, 0, 0x71F7, 0, 0x40000000, 0 },
-    .bottom_right = { 0x8FF8, 0, 0x8DF7, 0, 0x40000000, 0 },
-};
+extern GsDispEnv DispEnv;
 
-GsDispEnv DispEnv = { 0 };
+extern GsClearPacket ClearEnv;
 
-GsClearEnv ClearEnv = { 0 };
-
-XglRenderState sRender = { 0 };
+extern XglRenderState sRender;
 
 extern int sceGsSyncPath(int mode, int timeout);
 
@@ -512,23 +518,9 @@ extern void sceGsPutDispEnv(GsDispEnv *env);
 
 #define GS_CSR ((volatile u64 *)0x12001000)
 
-static XglRenderReso asDispReso[6] = {
-    { 0x31, 0, 640, 448 },
-    { 0x31, 0, 512, 448 },
-    { 0x31, 0, 448, 448 },
-    { 0x31, 0, 384, 448 },
-    { 0x31, 0, 320, 448 },
-    { 0x31, 0, 256, 448 },
-};
+static XglRenderReso asDispReso[6];
 
-static XglRenderVram asVramBase[6] = {
-    { 0x0000, { 0x008C, 0x0118, 0x01A4 }, 0x008C, 0x0118, 0x01A4, { 0x0230, 0x02BC, 0x01A4, 0x01C4, 0x01E4 } },
-    { 0x0000, { 0x0070, 0x00E0, 0x0150 }, 0x0070, 0x00E0, 0x0150, { 0x01C0, 0x0230, 0x01C0, 0x01E0, 0x0200 } },
-    { 0x0000, { 0x0062, 0x00C4, 0x0126 }, 0x0062, 0x00C4, 0x0126, { 0x0188, 0x01EA, 0x0188, 0x01A8, 0x01C8 } },
-    { 0x0000, { 0x0054, 0x00A8, 0x00FC }, 0x0054, 0x00A8, 0x00FC, { 0x0150, 0x01A4, 0x01A4, 0x01C4, 0x01E4 } },
-    { 0x0000, { 0x0046, 0x008C, 0x00D2 }, 0x0046, 0x008C, 0x00D2, { 0x0118, 0x015E, 0x01A4, 0x01C4, 0x01E4 } },
-    { 0x0000, { 0x0038, 0x0070, 0x00A8 }, 0x0038, 0x0070, 0x00A8, { 0x00E0, 0x0118, 0x0150, 0x0170, 0x0190 } },
-};
+static XglRenderVram asVramBase[6];
 
 /*
  * The packed global fade color that xglRenderGlobalFade (still asm, this TU)
@@ -678,102 +670,102 @@ static void xglRenderSyncMove(void)
 
 static void xglRenderDrawEnvInit(void)
 {
-    DrawEnv.gif_tag.nloop = 15;
-    DrawEnv.gif_tag.eop = 1;
-    DrawEnv.gif_tag.pre = 0;
-    DrawEnv.gif_tag.prim = 0;
-    DrawEnv.gif_tag.flg = 0;
-    DrawEnv.gif_tag.nreg = 1;
-    DrawEnv.gif_registers.regs0 = 14;
-    DrawEnv.frame1.fbp = sRender.vram.row.height;
-    DrawEnv.frame1.fbw = sRender.reso.row.frame_width / 64;
-    DrawEnv.frame1.psm = sRender.reso.row.frame_psm;
-    DrawEnv.frame1.fbmsk = 0;
-    DrawEnv.frame1_address = 76;
-    DrawEnv.zbuf1.zbp = sRender.vram.row.depth_base;
-    DrawEnv.zbuf1.psm = sRender.reso.row.depth_psm;
-    DrawEnv.zbuf1.zmsk = 0;
-    DrawEnv.zbuf1_address = 78;
-    DrawEnv.xyoffset1.ofx = (2048 - (sRender.reso.row.frame_width >> 1)) << 4;
-    DrawEnv.xyoffset1.ofy = (2048 - (sRender.reso.row.frame_height >> 1)) << 4;
-    DrawEnv.xyoffset1_address = 24;
-    DrawEnv.scissor1.scax0 = 0;
-    DrawEnv.scissor1.scax1 = sRender.reso.row.frame_width - 1;
-    DrawEnv.scissor1.scay0 = 0;
-    DrawEnv.scissor1.scay1 = sRender.reso.row.frame_height - 1;
-    DrawEnv.scissor1_address = 64;
-    DrawEnv.test1.ate = 0;
-    DrawEnv.test1.atst = 0;
-    DrawEnv.test1.aref = 0;
-    DrawEnv.test1.afail = 0;
-    DrawEnv.test1.date = 0;
-    DrawEnv.test1.datm = 0;
-    DrawEnv.test1.zte = 1;
-    DrawEnv.test1.ztst = 2;
-    DrawEnv.test1_address = 71;
-    DrawEnv.frame2.fbp = sRender.vram.row.height;
-    DrawEnv.frame2.fbw = sRender.reso.row.frame_width / 64;
-    DrawEnv.frame2.psm = sRender.reso.row.frame_psm;
-    DrawEnv.frame2.fbmsk = 0;
-    DrawEnv.frame2_address = 77;
-    DrawEnv.zbuf2.zbp = sRender.vram.row.depth_base;
-    DrawEnv.zbuf2.psm = sRender.reso.row.depth_psm;
-    DrawEnv.zbuf2.zmsk = 0;
-    DrawEnv.zbuf2_address = 79;
-    DrawEnv.xyoffset2.ofx = (2048 - (sRender.reso.row.frame_width >> 1)) << 4;
-    DrawEnv.xyoffset2.ofy = (2048 - (sRender.reso.row.frame_height >> 1)) << 4;
-    DrawEnv.xyoffset2_address = 25;
-    DrawEnv.scissor2.scax0 = 0;
-    DrawEnv.scissor2.scax1 = sRender.reso.row.frame_width - 1;
-    DrawEnv.scissor2.scay0 = 0;
-    DrawEnv.scissor2.scay1 = sRender.reso.row.frame_height - 1;
-    DrawEnv.scissor2_address = 65;
-    DrawEnv.test2.ate = 0;
-    DrawEnv.test2.atst = 0;
-    DrawEnv.test2.aref = 0;
-    DrawEnv.test2.afail = 0;
-    DrawEnv.test2.date = 0;
-    DrawEnv.test2.datm = 0;
-    DrawEnv.test2.zte = 1;
-    DrawEnv.test2.ztst = 2;
-    DrawEnv.test2_address = 72;
-    DrawEnv.prmodecont.ac = 1;
-    DrawEnv.prmodecont_address = 26;
-    DrawEnv.texa.ta0 = 0x80;
-    DrawEnv.texa.aem = 0;
-    DrawEnv.texa.ta1 = 0x80;
-    DrawEnv.texa_address = 59;
-    DrawEnv.colclamp.clamp = 1;
-    DrawEnv.colclamp_address = 70;
-    DrawEnv.dthe.dthe = 0;
-    DrawEnv.dthe_address = 69;
-    DrawEnv.dimx.dm00 = 4;
-    DrawEnv.dimx.dm01 = 2;
-    DrawEnv.dimx.dm02 = 5;
-    DrawEnv.dimx.dm03 = 3;
-    DrawEnv.dimx.dm10 = 0;
-    DrawEnv.dimx.dm11 = 6;
-    DrawEnv.dimx.dm12 = 1;
-    DrawEnv.dimx.dm13 = 7;
-    DrawEnv.dimx.dm20 = 5;
-    DrawEnv.dimx.dm21 = 3;
-    DrawEnv.dimx.dm22 = 4;
-    DrawEnv.dimx.dm23 = 2;
-    DrawEnv.dimx.dm30 = 1;
-    DrawEnv.dimx.dm31 = 7;
-    DrawEnv.dimx.dm32 = 0;
-    DrawEnv.dimx.dm33 = 6;
-    DrawEnv.dimx_address = 68;
+    DrawEnv.value.gif_tag.nloop = 15;
+    DrawEnv.value.gif_tag.eop = 1;
+    DrawEnv.value.gif_tag.pre = 0;
+    DrawEnv.value.gif_tag.prim = 0;
+    DrawEnv.value.gif_tag.flg = 0;
+    DrawEnv.value.gif_tag.nreg = 1;
+    DrawEnv.value.gif_registers.regs0 = 14;
+    DrawEnv.value.frame1.fbp = sRender.vram.row.height;
+    DrawEnv.value.frame1.fbw = sRender.reso.row.frame_width / 64;
+    DrawEnv.value.frame1.psm = sRender.reso.row.frame_psm;
+    DrawEnv.value.frame1.fbmsk = 0;
+    DrawEnv.value.frame1_address = 76;
+    DrawEnv.value.zbuf1.zbp = sRender.vram.row.depth_base;
+    DrawEnv.value.zbuf1.psm = sRender.reso.row.depth_psm;
+    DrawEnv.value.zbuf1.zmsk = 0;
+    DrawEnv.value.zbuf1_address = 78;
+    DrawEnv.value.xyoffset1.ofx = (2048 - (sRender.reso.row.frame_width >> 1)) << 4;
+    DrawEnv.value.xyoffset1.ofy = (2048 - (sRender.reso.row.frame_height >> 1)) << 4;
+    DrawEnv.value.xyoffset1_address = 24;
+    DrawEnv.value.scissor1.scax0 = 0;
+    DrawEnv.value.scissor1.scax1 = sRender.reso.row.frame_width - 1;
+    DrawEnv.value.scissor1.scay0 = 0;
+    DrawEnv.value.scissor1.scay1 = sRender.reso.row.frame_height - 1;
+    DrawEnv.value.scissor1_address = 64;
+    DrawEnv.value.test1.ate = 0;
+    DrawEnv.value.test1.atst = 0;
+    DrawEnv.value.test1.aref = 0;
+    DrawEnv.value.test1.afail = 0;
+    DrawEnv.value.test1.date = 0;
+    DrawEnv.value.test1.datm = 0;
+    DrawEnv.value.test1.zte = 1;
+    DrawEnv.value.test1.ztst = 2;
+    DrawEnv.value.test1_address = 71;
+    DrawEnv.value.frame2.fbp = sRender.vram.row.height;
+    DrawEnv.value.frame2.fbw = sRender.reso.row.frame_width / 64;
+    DrawEnv.value.frame2.psm = sRender.reso.row.frame_psm;
+    DrawEnv.value.frame2.fbmsk = 0;
+    DrawEnv.value.frame2_address = 77;
+    DrawEnv.value.zbuf2.zbp = sRender.vram.row.depth_base;
+    DrawEnv.value.zbuf2.psm = sRender.reso.row.depth_psm;
+    DrawEnv.value.zbuf2.zmsk = 0;
+    DrawEnv.value.zbuf2_address = 79;
+    DrawEnv.value.xyoffset2.ofx = (2048 - (sRender.reso.row.frame_width >> 1)) << 4;
+    DrawEnv.value.xyoffset2.ofy = (2048 - (sRender.reso.row.frame_height >> 1)) << 4;
+    DrawEnv.value.xyoffset2_address = 25;
+    DrawEnv.value.scissor2.scax0 = 0;
+    DrawEnv.value.scissor2.scax1 = sRender.reso.row.frame_width - 1;
+    DrawEnv.value.scissor2.scay0 = 0;
+    DrawEnv.value.scissor2.scay1 = sRender.reso.row.frame_height - 1;
+    DrawEnv.value.scissor2_address = 65;
+    DrawEnv.value.test2.ate = 0;
+    DrawEnv.value.test2.atst = 0;
+    DrawEnv.value.test2.aref = 0;
+    DrawEnv.value.test2.afail = 0;
+    DrawEnv.value.test2.date = 0;
+    DrawEnv.value.test2.datm = 0;
+    DrawEnv.value.test2.zte = 1;
+    DrawEnv.value.test2.ztst = 2;
+    DrawEnv.value.test2_address = 72;
+    DrawEnv.value.prmodecont.ac = 1;
+    DrawEnv.value.prmodecont_address = 26;
+    DrawEnv.value.texa.ta0 = 0x80;
+    DrawEnv.value.texa.aem = 0;
+    DrawEnv.value.texa.ta1 = 0x80;
+    DrawEnv.value.texa_address = 59;
+    DrawEnv.value.colclamp.clamp = 1;
+    DrawEnv.value.colclamp_address = 70;
+    DrawEnv.value.dthe.dthe = 0;
+    DrawEnv.value.dthe_address = 69;
+    DrawEnv.value.dimx.dm00 = 4;
+    DrawEnv.value.dimx.dm01 = 2;
+    DrawEnv.value.dimx.dm02 = 5;
+    DrawEnv.value.dimx.dm03 = 3;
+    DrawEnv.value.dimx.dm10 = 0;
+    DrawEnv.value.dimx.dm11 = 6;
+    DrawEnv.value.dimx.dm12 = 1;
+    DrawEnv.value.dimx.dm13 = 7;
+    DrawEnv.value.dimx.dm20 = 5;
+    DrawEnv.value.dimx.dm21 = 3;
+    DrawEnv.value.dimx.dm22 = 4;
+    DrawEnv.value.dimx.dm23 = 2;
+    DrawEnv.value.dimx.dm30 = 1;
+    DrawEnv.value.dimx.dm31 = 7;
+    DrawEnv.value.dimx.dm32 = 0;
+    DrawEnv.value.dimx.dm33 = 6;
+    DrawEnv.value.dimx_address = 68;
 }
 
 void xglRenderDrawEnvMove(void)
 {
-    DrawEnv.frame1.fbp = sRender.vram.row.height;
-    DrawEnv.frame2.fbp = sRender.vram.row.height;
-    DrawEnv.zbuf1.zbp = sRender.vram.row.depth_base;
-    DrawEnv.zbuf2.zbp = sRender.vram.row.depth_base;
-    SyncDCache(&DrawEnv, &DrawEnv + 1);
-    sceGsPutDrawEnv(&DrawEnv);
+    DrawEnv.value.frame1.fbp = sRender.vram.row.height;
+    DrawEnv.value.frame2.fbp = sRender.vram.row.height;
+    DrawEnv.value.zbuf1.zbp = sRender.vram.row.depth_base;
+    DrawEnv.value.zbuf2.zbp = sRender.vram.row.depth_base;
+    SyncDCache(&DrawEnv.value, &DrawEnv.value + 1);
+    sceGsPutDrawEnv(&DrawEnv.value);
 }
 
 static void xglRenderDispEnvInit(void)
@@ -818,20 +810,20 @@ void xglRenderDispEnvMove(void)
 
 void xglRenderClearDepth(void)
 {
-    ClearEnv.target = 0x00032001;
+    ClearEnv.value.target = 0x00032001;
 }
 
 void xglRenderClearFrame(void)
 {
-    ClearEnv.target = 0x00030003;
+    ClearEnv.value.target = 0x00030003;
 }
 
 void xglRenderClearColor(u32 color)
 {
-    ClearEnv.color_r = color & 0xff;
-    ClearEnv.color_g = (color >> 8) & 0xff;
-    ClearEnv.color_b = (color >> 16) & 0xff;
-    ClearEnv.color_a = (color >> 24) & 0xff;
+    ClearEnv.value.color_r = color & 0xff;
+    ClearEnv.value.color_g = (color >> 8) & 0xff;
+    ClearEnv.value.color_b = (color >> 16) & 0xff;
+    ClearEnv.value.color_a = (color >> 24) & 0xff;
 }
 
 static void xglRenderClearEnvInit(void)
@@ -839,27 +831,27 @@ static void xglRenderClearEnvInit(void)
     int half_width;
     int half_height;
 
-    ClearEnv.gif_tag_high = 0x50034000;
-    ClearEnv.gif_registers_low = 0xE551E;
-    ClearEnv.gif_tag_low = 0x8001;
-    ClearEnv.gif_registers_high = 0;
+    ClearEnv.value.gif_tag_high = 0x50034000;
+    ClearEnv.value.gif_registers_low = 0xE551E;
+    ClearEnv.value.gif_tag_low = 0x8001;
+    ClearEnv.value.gif_registers_high = 0;
     xglRenderClearFrame();
-    ClearEnv.target_address = 71;
+    ClearEnv.value.target_address = 71;
     xglRenderClearColor(0x80000000);
     half_width = sRender.reso.row.frame_width >> 1;
     half_height = sRender.reso.row.frame_height >> 1;
-    ClearEnv.left = (2048 - half_width) << 4;
-    ClearEnv.top = (2048 - half_height) << 4;
-    ClearEnv.right = (2048 + half_width) << 4;
-    ClearEnv.bottom = (2048 + half_height) << 4;
-    ClearEnv.restore_target = 0x50000;
-    ClearEnv.restore_target_address = 71;
+    ClearEnv.value.left = (2048 - half_width) << 4;
+    ClearEnv.value.top = (2048 - half_height) << 4;
+    ClearEnv.value.right = (2048 + half_width) << 4;
+    ClearEnv.value.bottom = (2048 + half_height) << 4;
+    ClearEnv.value.restore_target = 0x50000;
+    ClearEnv.value.restore_target_address = 71;
 }
 
 void xglRenderClearEnvMove(void)
 {
-    SyncDCache(&ClearEnv, (u8 *) &ClearEnv + sizeof(ClearEnv));
-    xglDmaDirectNormal(2, (u32) &ClearEnv, 6);
+    SyncDCache(&ClearEnv.value, (u8 *) &ClearEnv.value + sizeof(ClearEnv.value));
+    xglDmaDirectNormal(2, (u32) &ClearEnv.value, 6);
 }
 
 void xglRenderSetReso(int resolution)
@@ -1064,11 +1056,11 @@ void xglRenderClearOff(void)
 
 static void xglRenderClear(void)
 {
-    TestEnv_0_004A8E80.color.red_green.words.low = ClearEnv.color_r;
-    TestEnv_0_004A8E80.color.red_green.words.high = ClearEnv.color_g;
-    TestEnv_0_004A8E80.color.blue = ClearEnv.color_b;
-    TestEnv_0_004A8E80.color.alpha = 0x80;
-    sceVif1PkRef(xglPacketGetCurrent(), &TestEnv_0_004A8E80, 6, 0, 0, 0);
+    TestEnv_0_004A8E80.value.color.red_green.words.low = ClearEnv.value.color_r;
+    TestEnv_0_004A8E80.value.color.red_green.words.high = ClearEnv.value.color_g;
+    TestEnv_0_004A8E80.value.color.blue = ClearEnv.value.color_b;
+    TestEnv_0_004A8E80.value.color.alpha = 0x80;
+    sceVif1PkRef(xglPacketGetCurrent(), &TestEnv_0_004A8E80.value, 6, 0, 0, 0);
 }
 
 static void xglRenderMove(void)
@@ -1121,3 +1113,43 @@ void xglRenderEntry(void)
         xglSleep();
     }
 }
+
+
+static XglRenderReso asDispReso[6] = {
+    { 0x31, 0, 640, 448 },
+    { 0x31, 0, 512, 448 },
+    { 0x31, 0, 448, 448 },
+    { 0x31, 0, 384, 448 },
+    { 0x31, 0, 320, 448 },
+    { 0x31, 0, 256, 448 },
+};
+
+static XglRenderVram asVramBase[6] = {
+    { 0x0000, { 0x008C, 0x0118, 0x01A4 }, 0x008C, 0x0118, 0x01A4, { 0x0230, 0x02BC, 0x01A4, 0x01C4, 0x01E4 } },
+    { 0x0000, { 0x0070, 0x00E0, 0x0150 }, 0x0070, 0x00E0, 0x0150, { 0x01C0, 0x0230, 0x01C0, 0x01E0, 0x0200 } },
+    { 0x0000, { 0x0062, 0x00C4, 0x0126 }, 0x0062, 0x00C4, 0x0126, { 0x0188, 0x01EA, 0x0188, 0x01A8, 0x01C8 } },
+    { 0x0000, { 0x0054, 0x00A8, 0x00FC }, 0x0054, 0x00A8, 0x00FC, { 0x0150, 0x01A4, 0x01A4, 0x01C4, 0x01E4 } },
+    { 0x0000, { 0x0046, 0x008C, 0x00D2 }, 0x0046, 0x008C, 0x00D2, { 0x0118, 0x015E, 0x01A4, 0x01C4, 0x01E4 } },
+    { 0x0000, { 0x0038, 0x0070, 0x00A8 }, 0x0038, 0x0070, 0x00A8, { 0x00E0, 0x0118, 0x0150, 0x0170, 0x0190 } },
+};
+
+/* VIF DIRECT sends one GIFtag, one A+D PRIM, one RGBAQ and two XYZ2 values. */
+
+static RenderTestPacket TestEnv_0_004A8E80 = { .value = {
+    .dma_tag = 0,
+    .vif_nop = 0,
+    .vif_direct = 0x51000005,
+    .gif_tag = { 1 | (1 << 15), 0x40034000, 0x551E, 0 },
+    .primitive = { { .value = 0x0000000000071001ULL }, 0x47, 0 },
+    .color = { { .value = 0 }, 0, 0 },
+    .top_left = { 0x6FF8, 0, 0x71F7, 0, 0x40000000, 0 },
+    .bottom_right = { 0x8FF8, 0, 0x8DF7, 0, 0x40000000, 0 },
+} };
+
+GsDrawPacket DrawEnv = { .value = { 0 } };
+
+GsDispEnv DispEnv = { 0 };
+
+GsClearPacket ClearEnv = { .value = { 0 } };
+
+XglRenderState sRender = { 0 };

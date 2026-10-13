@@ -326,7 +326,7 @@ extern void xglDmaDirectSrcChain(unsigned int channel, unsigned int address);
 
 extern void nmlModelDirectSend(int mode, u8 *data, int count);
 
-extern unsigned long TestEnv_0_004A7B60[24];
+
 
 extern int xglCdStreamRewind(struct CdStreamParam *stream);
 
@@ -1034,6 +1034,8 @@ static void setLoadImageTags(unsigned int destination, unsigned int image, int w
 
 int xglMpeg2Play(XglMpeg2Work *info)
 {
+    static unsigned long TestEnv[24] = { 0x0000000000000000ULL, 0x5100000b00000000ULL, 0xa08b400000008001ULL, 0x00000053531eeeeeULL, 0x0000000000000000ULL, 0x000000000000003fULL, 0x0000000000000060ULL, 0x0000000000000014ULL, 0x0000000000000000ULL, 0x0000000000000006ULL, 0x0000000000000000ULL, 0x0000000000000008ULL, 0x000000000007000dULL, 0x0000000000000047ULL, 0x0000008000000080ULL, 0x0000008000000080ULL, 0x0000000000000000ULL, 0x0000000000000000ULL, 0x000071f700006ff8ULL, 0x0000000000f00000ULL, 0x00001c0000002000ULL, 0x0000000000000000ULL, 0x00008df700008ff8ULL, 0x0000000000f00000ULL };
+
     int result;
     int status;
     int free;
@@ -1093,7 +1095,7 @@ int xglMpeg2Play(XglMpeg2Work *info)
     packet[4] = ((unsigned long) sRender.bufferBase0 << 37) | 0x8000000000000;
     xglDmaDirectSrcChain(2, (unsigned int) info->mpegBuffer);
     sceGsSyncPath(0, 0);
-    env = TestEnv_0_004A7B60;
+    env = TestEnv;
     env[8] = (0x24020000 | sRender.bufferBase0 << 5) | 0x2000000640000000;
     nmlModelDirectSend(5, (u8 *) env, 12);
     return 0;
@@ -1160,6 +1162,10 @@ int xglMovieInit(void)
 }
 
 const char D_004DC328[] = "%s\n";
+extern const char D_004D2590[];
+
+extern const char D_004D2580[16];
+
+const char D_004D2580[16] = "frame drop\n";
+
 const char D_004D2590[] = {'s', 'c', 'e', 'M', 'p', 'e', 'g', 'G', 'e', 't', 'P', 'i', 'c', 't', 'u', 'r', 'e', ' ', 'f', 'a', 'i', 'l', 'e', 'd', 10, 0};
-
-

@@ -89,7 +89,7 @@ def original_zero_fill(orig, sec, lo, hi):
     return False
 
 
-def byte_array_member(source, owner, member):
+def byte_array_member(source, owner, member=None, *, expected_offset=None, expected_size=None):
     """Layout of a member in a C record containing only character arrays.
 
     These arrays have alignment one on the EE ABI. Reject any other field,
@@ -114,12 +114,45 @@ def byte_array_member(source, owner, member):
         if not parsed:
             return None
         size = int(parsed[3])
-        if parsed[2] == member:
+        if (parsed[2] == member if member is not None else
+                offset == expected_offset and size == expected_size):
             if match is not None:
                 return None
             match = dict(member=member, offset=offset, size=size, type=parsed[1])
         offset += size
     return dict(match, owner_size=offset) if match else None
+
+
+def compiler_data_definitions(text):
+    """Typed initialized OBJECT definitions emitted by cc1 outside #APP."""
+    app, section = False, '.text'
+    types, sizes, labels = {}, {}, {}
+    for line in text.splitlines():
+        token = line.strip()
+        if token == '#APP':
+            app = True
+            continue
+        if token == '#NO_APP':
+            app = False
+            continue
+        if app:
+            continue
+        change = re.match(r'\s*\.section\s+([^,\s]+)', line)
+        simple = re.match(r'\s*(\.(?:data|sdata|rodata|lit4|lit8|text|bss|sbss))\s*$', line)
+        if change or simple:
+            section = (change or simple)[1]
+        typed = re.match(r'\s*\.type\s+([^,\s]+)\s*,\s*@object\s*$', line)
+        sized = re.match(r'\s*\.size\s+([^,\s]+)\s*,\s*(0x[0-9a-fA-F]+|\d+)\s*$', line)
+        label = re.match(r'^\s*([A-Za-z_.$][\w.$]*):\s*$', line)
+        if typed:
+            types[typed[1]] = True
+        if sized:
+            sizes[sized[1]] = int(sized[2], 0)
+        if label:
+            labels[label[1]] = section
+    return {name: dict(section=sec, size=sizes[name], extent_kind='typed-object')
+            for name, sec in labels.items() if name in types and name in sizes
+            and sec in ('.data', '.sdata', '.rodata', '.lit4', '.lit8')}
 
 
 def main():
@@ -489,17 +522,26 @@ def main():
                 base = placed.get((c_obj, secname))
                 if base:
                     cdefs.setdefault(s.name, []).append(dict(addr=base[0] + s.value, size=s.size, bind=s.bind,
-                                                             type=s.type, section=secname))
+                                                             type=s.type, other=s.other, section=secname))
         tu_audit = dict(symbols_checked=0, commons=[], pieces={}, nobits_storage_proofs=[],
                         commons_resolved_by_scaffold=[])
         proven_aliases = set()
         assembly_path = a.manifest.resolve().parent / f'build/c/{n}.o.s'
         native_storage = {}
+        native_data = {}
+        source_path = a.manifest.resolve().parent.parent.parent / t.get('path', '')
+        source_text = source_path.read_text() if source_path.is_file() else ''
+        source_sha256 = hashlib.sha256(source_text.encode()).hexdigest() if source_text else None
+        assembly_sha256 = None
         if assembly_path.is_file():
             from storage_directives import emitted_storage
-            native_storage = emitted_storage(assembly_path.read_text())
+            assembly_text = assembly_path.read_text()
+            assembly_sha256 = hashlib.sha256(assembly_text.encode()).hexdigest()
+            native_storage = emitted_storage(assembly_text)
+            native_data = compiler_data_definitions(assembly_text)
         owned = {}        # input section of the C object -> (original section, lo, hi)
         storage_symbols = {}  # cc1-proven local/global NOBITS identities -> exact input span
+        transport_claims = {}  # verified named C inputs only; excludes support/scaffold runs
         storage_aliases = {}  # packet-backed original labels -> explicit C storage owner
         c_owned = {".bss": set(), ".sbss": set()}
         for sec, pc in c_pieces(t):
@@ -511,11 +553,101 @@ def main():
                     owned[csec] = (sec, lo, hi)
                     for name in part.get("symbols", []):
                         storage_symbols[name] = (csec, lo, hi)
+                        if not part.get('support_only') and part.get('credit', 'verified') == 'verified':
+                            transport_claims[name] = (csec, lo, hi)
             else:
                 csec = pc.get("c_section") or (".scommon" if sec == ".sbss" else sec)
                 owned[csec] = (sec, int(pc["start"], 16), int(pc["end"], 16))
             for alias in pc.get("c_storage_aliases", []):
                 storage_aliases[alias["original_name"]] = alias
+
+        def transported_data_identity(symbol, original_section):
+            """Transport a registered C spelling, never a same-address guess.
+
+            Splat spells original private `name.N` identifiers with underscores
+            and sometimes a VA suffix. A source macro may further rename that
+            spelling, but only its existing exact storage-alias record admits
+            the rename. All routes retain binding/type/size and require a named
+            current compiler span plus a cc1 definition outside #APP.
+            """
+            if original_section == '.text' or not source_text:
+                return None
+            normalized = symbol.name.replace('.', '_')
+            spellings = {normalized, normalized + f'_{symbol.value:08X}'}
+            # A file-scope static keeps the original local's lexical name even
+            # when its old function-local cc1 counter no longer applies.
+            local = re.fullmatch(r'([A-Za-z_]\w*)\.\d+', symbol.name)
+            if symbol.bind == 0 and local:
+                spellings.add(local[1])
+            names = {name: dict(kind='original-C-identifier', spelling=name)
+                     for name in spellings if re.fullmatch(r'[A-Za-z_]\w*', name)}
+            for old, alias in storage_aliases.items():
+                owner = alias.get('storage_owner') or {}
+                if old not in spellings or int(alias['address'], 16) != symbol.value:
+                    continue
+                macro = re.search(r'^\s*#define\s+' + re.escape(old) + r'\s+'
+                                  + re.escape(owner.get('name', '')) + r'\s*$', source_text, re.M)
+                if macro:
+                    names[owner['name']] = dict(kind='registered-source-macro', macro=macro[0].strip(),
+                                                alias_record=alias)
+            candidates = []
+            for name, spelling in names.items():
+                claim = transport_claims.get(name)
+                definitions = [d for d in cdefs.get(name, [])
+                               if d['addr'] == symbol.value and
+                               (d['bind'], d['type'], d['size'], d['other']) ==
+                               (symbol.bind, symbol.type, symbol.size, symbol.other)]
+                if len(definitions) != 1 or not claim:
+                    continue
+                definition = definitions[0]
+                compiler_section, lo, hi = claim
+                span = owned.get(compiler_section)
+                contribution = placed.get((c_obj, compiler_section))
+                emitted = (native_storage if original_section in ('.bss', '.sbss') else native_data).get(name)
+                if not emitted or not span or span[0] != original_section or not contribution:
+                    continue
+                extent = emitted.get('size', 0)
+                raw_section = compiler_section.split('.carve.', 1)[0]
+                if (definition['section'] != compiler_section or emitted.get('section') != raw_section
+                        or extent <= 0 or not lo <= symbol.value < symbol.value + extent <= hi
+                        or contribution[0] != lo or symbol.value + extent > contribution[0] + contribution[1]
+                        or not linked_up_to_padding(contribution, span)):
+                    continue
+                if original_section in ('.bss', '.sbss'):
+                    if (symbol.type, symbol.size) != (0, 0) or emitted.get('extent_kind') != 'label-space':
+                        continue
+                    if csections[compiler_section].type != 8:
+                        continue
+                elif symbol.type != 1 or symbol.size != extent or csections[compiler_section].type != 1:
+                    continue
+                else:
+                    original_bytes = orig.data[S[original_section].offset + symbol.value - S[original_section].addr:
+                                               S[original_section].offset + symbol.value - S[original_section].addr + extent]
+                    final_sections = [x for x in linked.sections if x.type == 1 and x.addr <= symbol.value
+                                      and symbol.value + extent <= x.addr + x.size] if linked else []
+                    if len(final_sections) != 1:
+                        continue
+                    final = final_sections[0]
+                    final_bytes = linked.data[final.offset + symbol.value - final.addr:
+                                              final.offset + symbol.value - final.addr + extent]
+                    if final_bytes != original_bytes:
+                        continue
+                # A source declaration/definition must actually use this name;
+                # a mapping row alone cannot synthesize a C definition.
+                if not re.search(r'\b' + re.escape(name) + r'\b', source_text):
+                    continue
+                candidates.append(dict(original_symbol=symbol.name, original_address=f'0x{symbol.value:08X}',
+                    original_binding=symbol.bind, original_type=symbol.type, original_size=symbol.size,
+                    original_visibility=symbol.other,
+                    c_symbol=name, c_address=f"0x{definition['addr']:08X}",
+                    c_binding=definition['bind'], c_type=definition['type'], c_size=definition['size'],
+                    compiler_storage=emitted, compiler_section=compiler_section,
+                    span_start=f'0x{lo:08X}', span_end=f'0x{hi:08X}', source_mapping=spelling,
+                    source_path=str(source_path), source_sha256=source_sha256,
+                    c_object_path=str(c_obj_path), c_object_sha256=c_obj_sha256,
+                    assembly_path=str(assembly_path), assembly_sha256=assembly_sha256))
+            return candidates[0] if len(candidates) == 1 else None
+
         if t["text"]["splat"]:
             owned[".text"] = (".text",) + tuple(int(x, 16) for x in t["text"]["splat_range"])
         for (o, sec), (addr, size) in placed.items():
@@ -580,6 +712,11 @@ def main():
                         tu_audit["symbols_checked"] += 1
                         continue
                 if not got:
+                    transported = transported_data_identity(s, sec)
+                    if transported:
+                        proven_aliases.add(s.name)
+                        tu_audit.setdefault('compiler_data_name_transport_proofs', []).append(transported)
+                        continue
                     alias = storage_aliases.get(s.name)
                     storage_owner = alias.get("storage_owner") if alias else None
                     owner_name = storage_owner.get("name") if storage_owner else None
@@ -637,14 +774,19 @@ def main():
                         owner_span = owned.get(owner_section) if owner_section else None
                         owner_link = placed.get((c_obj, owner_section)) if owner_section else None
                         source_path = a.manifest.resolve().parent.parent.parent / t.get('path', '')
-                        member = (byte_array_member(source_path.read_text(), owner_name, alias['storage_member'])
-                                  if alias and alias.get('storage_member') and source_path.is_file() else None)
+                        member = (byte_array_member(source_path.read_text(), owner_name, alias.get('storage_member'),
+                                  expected_offset=s.value-owner_va, expected_size=s.size)
+                                  if alias and source_path.is_file() else None)
                         exact_object = owner_va == s.value and owner_size == s.size
                         exact_member = bool(member and member['owner_size'] == owner_size
                                             and owner_va + member['offset'] == s.value
                                             and member['size'] == s.size)
+                        member_emission = native_data.get(owner_name, {}) if owner_name else {}
                         if (alias and alias_va == s.value and owner_size
                                 and (exact_object or exact_member)
+                                and (not exact_member or
+                                     owner_section and member_emission.get('size') == owner_size and
+                                     member_emission.get('section') == owner_section.split('.carve.', 1)[0])
                                 and owner_name in c_owned.get(sec, set())
                                 and s.type == 1 and owner_def and owner_span
                                 and owner_span[0] == sec and owner_span[1] <= owner_va

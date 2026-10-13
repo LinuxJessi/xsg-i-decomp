@@ -386,3 +386,8 @@ void xglMenuInitial(void)
         menutbl[i].active = 0;
     }
 }
+
+
+
+/* Original four-byte object; its element type is unresolved. */
+unsigned char ActiveMenuNo[4] = { 0 };

@@ -37,9 +37,10 @@ SECTIONS = {'.data', '.rodata', '.sdata', '.lit4', '.bss', '.sbss'}
 UNITS = ('main', 'ov01', 'ov02', 'ov10', 'ov11', 'ov12')
 IDENT = re.compile(r'^[A-Za-z_]\w*$')
 DECL = re.compile(r'\bextern\s+([^;{}=()]+);')
-DECLARATOR = re.compile(r'\s*(\**\s*)([A-Za-z_]\w*)\s*((?:\[[^\]]*\]\s*)*)\s*$')
+POINTER_PREFIX = r'(?:\*\s*(?:(?:const|volatile)\s+)*)*'
+DECLARATOR = re.compile(r'\s*(' + POINTER_PREFIX + r')([A-Za-z_]\w*)\s*((?:\[[^\]]*\]\s*)*)\s*$')
 LOCAL_INCLUDE = re.compile(r'^\s*#\s*include\s+"([^"]+)"', re.M)
-# Only ABI-independent project scalar widths; plain long and enum are excluded.
+# Project scalar widths and the evidenced native EE long ABI; never host widths.
 SCALARS = {
     'char': ('b', 1), 'signed char': ('b', 1), 'unsigned char': ('B', 1),
     's8': ('b', 1), 'u8': ('B', 1), 'short': ('h', 2), 'short int': ('h', 2),
@@ -48,6 +49,10 @@ SCALARS = {
     'unsigned': ('I', 4), 'unsigned int': ('I', 4), 's32': ('i', 4), 'u32': ('I', 4),
     'long long': ('q', 8), 'unsigned long long': ('Q', 8), 's64': ('q', 8), 'u64': ('Q', 8),
     'float': ('f', 4), 'double': ('d', 8),
+    # Native EE contract: long[24] emits 192 bytes; compiled consumers use
+    # eight-byte sd/ld and strides. These are not the execution host's widths.
+    'long': ('q', 8), 'long int': ('q', 8), 'signed long': ('q', 8),
+    'unsigned long': ('Q', 8), 'unsigned long int': ('Q', 8),
 }
 
 
@@ -176,7 +181,7 @@ class Lease:
         self.check(paths)
 
 
-def declaration_index(root, tus):
+def declaration_index(root, tus, include_closures=None):
     """Follow bounded local/header includes; do not scan generated work trees."""
     read = {}
     parsed = {}
@@ -194,9 +199,27 @@ def declaration_index(root, tus):
         typedefs = collections.defaultdict(set)
         for ctype, name in re.findall(r'\btypedef\s+([^;{}*()\[\]]+?)\s+([A-Za-z_]\w*)\s*;', code):
             typedefs[name].add(clean_type(ctype))
+        # Pointer probes need actual source typedefs too. A genuine named tag
+        # permits an incomplete declaration; an anonymous record must retain
+        # its existing definition, since introducing a tag changes its type.
+        for kind, tag, body, name in re.findall(
+                r'\btypedef\s+(struct|union)\s+([A-Za-z_]\w*)?\s*'
+                r'\{([^{}]*)\}\s*([A-Za-z_]\w*)\s*;', code, re.S):
+            typedefs[name].add(f'{kind} {tag}' if tag else f'{kind} {{ {body} }}')
+        for result, name, parameters in re.findall(
+                r'\btypedef\s+([^;{}]+?)\(\s*\*\s*(\w+)\s*\)\s*\(([^;{}]*)\)\s*;', code):
+            typedefs[name].add(clean_type(result) + ' (*_DATA_TYPE_NAME_)(' + parameters + ')')
+        for body in re.findall(r'\btypedef\s+([^;{}()]+);', code):
+            match = re.fullmatch(r'\s*(.+?)\s+(' + POINTER_PREFIX +
+                                 r'[A-Za-z_]\w*\s*(?:\[[^\]]*\]\s*)+)\s*', body)
+            if match:
+                declarator = DECLARATOR.fullmatch(match[2])
+                if declarator:
+                    typedefs[declarator[2]].add(clean_type(match[1] + ' ' + declarator[1]) +
+                                              '_DATA_TYPE_NAME_' + declarator[3])
         for body in DECL.findall(code):
             parts = body.split(',')
-            first = re.fullmatch(r'\s*(.+?)\s+(\**\s*[A-Za-z_]\w*\s*(?:\[[^\]]*\]\s*)*)\s*', parts[0])
+            first = re.fullmatch(r'\s*(.+?)\s+(' + POINTER_PREFIX + r'[A-Za-z_]\w*\s*(?:\[[^\]]*\]\s*)*)\s*', parts[0])
             if not first:
                 continue
             ctype = first[1].strip()
@@ -209,17 +232,118 @@ def declaration_index(root, tus):
                 m = DECLARATOR.fullmatch(part)
                 if m:
                     declarations[m[2]].append(dict(type=clean_type(ctype + ' ' + m[1]), dimensions=m[3].strip(), path=str(path.relative_to(root))))
+        for result, name, dims, parameters in re.findall(
+                r'\bextern\s+([^;{}]+?)\(\s*\*\s*(\w+)\s*((?:\[[^\]]*\]\s*)*)\)'
+                r'\s*\(([^;{}]*)\)\s*;', code):
+            declarations[name].append(dict(type=clean_type(result) + ' (*_DATA_TYPE_NAME_)(' + parameters + ')',
+                                           dimensions=dims.strip(), path=str(path.relative_to(root))))
         for definition in re.finditer(
                 r'^\s*(?:static\s+)?((?:const\s+)?(?:char|unsigned\s+char|signed\s+char|u8|s8))'
                 r'\s+(\w+)\s*((?:\[[^\]]*\]\s*)+)\s*=\s*("?)', code, re.M):
             ctype, name, bounds, string = definition.groups()
             declarations[name].append(dict(type=clean_type(ctype),dimensions=bounds.strip(),
                  path=str(path.relative_to(root)),source_definition=True,string_definition=bool(string)))
+        for ctype, name, bounds in re.findall(
+                r'^\s*(?:static\s+)?((?:const\s+)?float)\s+(\w+)\s*((?:\[[^\]]*\]\s*)+)\s*=', code, re.M):
+            declarations[name].append(dict(type=clean_type(ctype), dimensions=bounds.strip(),
+                                           path=str(path.relative_to(root)), source_definition=True))
+        for alias, local, count in re.findall(r'\b(\w+)\s*\*\s*(\w+)\s*\[(\d+)\]\s*;', code):
+            templates = typedefs.get(alias, set())
+            if len(templates) != 1 or not re.fullmatch(r'const char\s*\*_DATA_TYPE_NAME_\[2\]', next(iter(templates))):
+                continue
+            copies = re.findall(r'\b__builtin_memcpy\s*\(\s*' + re.escape(local) +
+                                r'\s*,\s*(\w+)\s*,\s*sizeof\s*\(\s*' + re.escape(local) + r'\s*\)\s*\)', code)
+            if not re.search(r'\(\s*\*\s*' + re.escape(local) + r'\s*\[[^\]]+\]\s*\)\s*\[', code):
+                continue
+            for name in copies:
+                for declaration in declarations.get(name, []):
+                    if clean_type(declaration['type']) == alias + ' *const':
+                        declaration.update(data_role='character_array_views', array_alias=alias,
+                                           consumer_count=int(count), pointee_count=2,
+                                           basis='existing array typedef, copied pointer-array extent, and C dereference/index of each two-string array')
         for name in microprogram_address_tables(code):
             for declaration in declarations.get(name, []):
                 if declaration['type'] == 'u32' and declaration['dimensions']:
                     declaration.update(data_role='vu_microprogram_byte_addresses',
                                        basis='C indexes this address table and shifts the scalar into the VIF MSCAL immediate')
+        sends = re.finditer(r'\b(sceVif1PkAddDataN|xglDmaDirectNormal|nmlModelDirectSend)'
+                            r'\s*\([^,;]+,\s*(?:\(\s*(?:u8|unsigned\s+char)\s*\*\s*\)\s*)?'
+                            r'(\w+)\s*,\s*(\d+)\s*\)', code)
+        for send in sends:
+            function, name, amount = send.groups()
+            owners = [name]
+            # A short, uninterrupted source assignment chain also evidences
+            # the array passed through a local packet pointer.
+            for match in re.finditer(r'\b' + re.escape(name) + r'\s*=\s*(\w+)\s*;', code[:send.start()]):
+                between = code[match.end():send.start()]
+                if not re.search(r'[{}]', between) and between.count(';') <= 3:
+                    owners.append(match[1])
+            for owner in owners:
+                for declaration in declarations.get(owner, []):
+                    if declaration['dimensions'] and '*' not in declaration['type']:
+                        declaration.update(data_role='vif_gif_numeric_packet',
+                            consumer_bytes=int(amount) * (4 if function == 'sceVif1PkAddDataN' else 16),
+                            consumer_call=clean_type(send[0]),
+                            basis='C sends the explicitly typed array with this exact word/quadword extent')
+        # Closed menu idiom: copied unsigned-byte table entries are tested
+        # numerically and assigned to the state machine's nextState field.
+        # Printable byte values do not turn an evidenced state table into text.
+        for local, count in re.findall(r'\bunsigned\s+char\s+(\w+)\s*\[(\d+)\]\s*;', code):
+            copies = re.findall(r'\b__builtin_memcpy\s*\(\s*' + re.escape(local) +
+                                r'\s*,\s*(\w+)\s*,\s*sizeof\s*\(\s*' +
+                                re.escape(local) + r'\s*\)\s*\)', code)
+            selections = re.findall(re.escape(local) + r'\s*\[([^\]]+)\]\s*!=\s*0', code)
+            for index in selections:
+                assignment = (r'\b\w+\s*\.\s*nextState\s*=\s*' + re.escape(local) +
+                              r'\s*\[\s*' + re.escape(index.strip()) + r'\s*\]\s*;')
+                if not re.search(assignment, code):
+                    continue
+                for name in copies:
+                    for declaration in declarations.get(name, []):
+                        if declaration['type'] == 'unsigned char' and declaration['dimensions']:
+                            declaration.update(data_role='menu_option_states', consumer_count=int(count),
+                                               basis='C copies unsigned bytes, tests the selected byte against zero, and assigns it to nextState')
+        for call in re.finditer(r'\b(?:xglFontPrint|xglFontDebugPrintf|xglFontPrintDirect|xglFontPrintDirectOT|eTagFontSet|strcat|strcpy)'
+                                r'\s*\(([^;]+)\)\s*;', code):
+            for name in set(re.findall(r'\b[A-Za-z_]\w*\b', call[1])):
+                for declaration in declarations.get(name, []):
+                    if (declaration['dimensions'] and declaration['type'].count('*') == 1 and
+                            base_type(declaration['type'].replace('*', '')) in {'char', 'unsigned char', 'u8', 's8'}):
+                        declaration.update(data_role='character_stream_pointer_table',
+                                           basis='C passes a character-pointer table element to its character/font API')
+                    if (declaration['dimensions'] and '*' not in declaration['type'] and
+                            base_type(declaration['type']) in {'char', 'unsigned char', 'u8', 's8'}):
+                        declaration.update(data_role='font_character_stream',
+                                           basis='existing character array is consumed by the C font string API')
+        for name, records in declarations.items():
+            for declaration in records:
+                if not declaration['dimensions'] or '*' in declaration['type']:
+                    if (not declaration['dimensions'] and base_type(declaration['type']) in {'char', 'unsigned char', 'u8', 's8'} and
+                            re.search(r'\b' + re.escape(name) + r'\s*(?:[+^|&]=|==|=)', code)):
+                        declaration.update(data_role='numeric_byte_scalar',
+                                           basis='C reads or updates the explicitly typed scalar byte')
+                    continue
+                if base_type(declaration['type']) not in {'char', 'unsigned char', 'u8', 's8'}:
+                    continue
+                indexed = re.escape(name) + r'\s*\[[^\]]+\]'
+                if re.search(indexed + r'\s*&\s*(?:0[xX][0-9a-fA-F]+|\d+)', code):
+                    declaration.update(data_role='numeric_byte_flags',
+                                       basis='C indexes the explicitly typed byte array and tests numeric flag bits')
+                elif (re.search(r'\bstate\s*=\s*' + indexed, code) or
+                      re.search(r'-\s*\(\s*int\s*\)\s*' + indexed, code)):
+                    declaration.update(data_role='numeric_byte_states',
+                                       basis='C assigns indexed byte values to a numeric state or signed error result')
+                elif re.search(r'\[\s*' + indexed + r'(?:\s*\[[^\]]+\])*\s*\]', code):
+                    declaration.update(data_role='numeric_byte_indices',
+                                       basis='C uses the explicitly typed byte array elements as array indices')
+                for pointer in re.findall(r'\b(\w+)\s*=\s*' + re.escape(name) + r'\s*;', code):
+                    if (re.search(r'<\s*' + re.escape(pointer) + r'\s*\[\s*0\s*\]', code) and
+                            re.search(r'\b(\w+)\s*\+=\s*2\b', code)):
+                        offsets = re.findall(re.escape(pointer) + r'\s*\[\s*(\w+)\s*\+\s*1\s*\]', code)
+                        if any(re.search(re.escape(pointer) + r'\s*\[\s*' + re.escape(offset) + r'\s*\]', code)
+                               and re.search(r'\b' + re.escape(offset) + r'\s*\+=\s*2\b', code) for offset in offsets):
+                            declaration.update(data_role='counted_xy_bytes',
+                                               basis='C reads the byte count and advances through indexed x/y byte pairs')
         uv_table = re.search(r'\bUvClutEntry\s+uv_clut\s*\[\d+\]\s*=\s*\{(.*?)\}\s*;', code, re.S)
         uv_reader = re.search(r'INCLUDE_ASM\("([^"]+)",\s*subPrintSprite\)', code)
         if uv_table and uv_reader and re.search(
@@ -271,11 +395,13 @@ def declaration_index(root, tus):
                 typedefs[name].update(choices)
         indexes[tu_id] = declarations
         aliases[tu_id] = typedefs
+        if include_closures is not None:
+            include_closures[tu_id] = sorted(visited)
     return indexes, read, aliases
 
 
 def probe_typedefs(ctype, aliases):
-    """Carry evidenced simple typedefs into the separate compiler probe."""
+    """Carry evidenced typedefs or genuine tag forwards into the probe."""
     result, active = [], set()
 
     def visit(name):
@@ -285,9 +411,13 @@ def probe_typedefs(ctype, aliases):
         require(len(choices) == 1 and name not in active, 'divergent or recursive scalar typedef')
         active.add(name)
         base = next(iter(choices))
-        for token in re.findall(r'\b[A-Za-z_]\w*\b', base):
-            visit(token)
-        declaration = f'typedef {base} {name};'
+        # In "typedef struct T T", the tag T is a separate C namespace,
+        # not an alias dependency or a recursive scalar typedef.
+        if not re.fullmatch(r'(?:struct|union)\s+[A-Za-z_]\w*', base):
+            for token in re.findall(r'\b[A-Za-z_]\w*\b', base):
+                visit(token)
+        declaration = ('typedef ' + base.replace('_DATA_TYPE_NAME_', name) + ';'
+                       if '_DATA_TYPE_NAME_' in base else f'typedef {base} {name};')
         if declaration not in result:
             result.append(declaration)
         active.remove(name)
@@ -295,6 +425,40 @@ def probe_typedefs(ctype, aliases):
     for token in re.findall(r'\b[A-Za-z_]\w*\b', ctype):
         visit(token)
     return result
+
+
+def scalar_type(ctype, aliases):
+    """Resolve only explicit scalar typedef chains to established widths."""
+    value = clean_type(re.sub(r'\b(?:const|volatile)\b', '', ctype))
+    chain = set()
+    while value not in SCALARS:
+        if not IDENT.fullmatch(value) or value not in aliases:
+            return None
+        require(value not in chain and len(aliases[value]) == 1,
+                'divergent or recursive scalar typedef')
+        chain.add(value)
+        value = clean_type(next(iter(aliases[value])))
+    return SCALARS[value]
+
+
+def pointer_type(ctype, aliases):
+    """An explicit pointer or a source function-pointer typedef has EE width four."""
+    value = clean_type(re.sub(r'\b(?:const|volatile)\b', '', ctype))
+    if '*' in value:
+        return True
+    seen = set()
+    while IDENT.fullmatch(value) and value in aliases:
+        require(value not in seen and len(aliases[value]) == 1, 'divergent or recursive pointer typedef')
+        seen.add(value)
+        value = clean_type(next(iter(aliases[value])))
+        if '*' in value and '[' not in value:
+            return True
+    return False
+
+
+def function_pointer_type(ctype, aliases):
+    templates = [ctype] + list(aliases.get(ctype, set()))
+    return any(re.search(r'\(\s*\*_DATA_TYPE_NAME_\s*\)\s*\(', t) for t in templates)
 
 
 def literal(payload):
@@ -337,31 +501,120 @@ def numeric_literal(value, ctype, fmt):
 
 def dimensions(decl, extent, width):
     dims = re.findall(r'\[([^\]]*)\]', decl['dimensions'])
-    require(len(dims) <= 1, 'multidimensional/record data needs its layout')
+    require(len(dims) <= 4, 'array rank exceeds bounded automatic dimensions')
     require(extent % width == 0, 'object extent is not a whole element count')
     count = extent // width
     if not dims:
         require(count == 1, 'scalar declaration does not cover the original object')
         return '', count
-    if dims[0].strip():
+    shape = []
+    for index, value in enumerate(dims):
         try:
-            declared = int(dims[0], 0)
+            bound = int(value, 0) if value.strip() else None
         except ValueError:
             raise ValueError('array bound is not an explicit integer') from None
-        require(declared == count, 'declared array bound differs from original extent')
-    return f'[{count}]', count
+        require(bound is None and index == 0 or bound is not None and bound > 0,
+                'only the leading array dimension may be unspecified')
+        shape.append(bound)
+    tail = math.prod(shape[1:])
+    if shape[0] is None:
+        require(count % tail == 0, 'array extent does not contain complete rows')
+        shape[0] = count // tail
+    require(math.prod(shape) == count, 'declared array bound differs from original extent')
+    return ''.join(f'[{n}]' for n in shape), count
+
+
+def array_initializer(entries, suffix):
+    """Keep actual multidimensional row boundaries in readable C."""
+    if not suffix:
+        require(len(entries) == 1, 'scalar initializer has multiple elements')
+        return entries[0]
+    shape = [int(n) for n in re.findall(r'\[(\d+)\]', suffix)]
+    def grouped(values, dims):
+        if len(dims) == 1:
+            return '{ ' + ', '.join(values) + ' }'
+        width = math.prod(dims[1:])
+        return '{ ' + ', '.join(grouped(values[i:i+width], dims[1:])
+                               for i in range(0, len(values), width)) + ' }'
+    return grouped(entries, shape)
+
+
+def validate_vif_gif_packet(payload, evidence):
+    """Closed VIF DIRECTHL / one-loop GIF PACKED numeric descriptor grammar."""
+    require(payload is not None and len(payload) == evidence['consumer_bytes'] and
+            len(payload) >= 48 and len(payload) % 16 == 0, 'GS packet differs from actual C send extent')
+    words = struct.unpack_from('<4I', payload)
+    tag, descriptors = struct.unpack_from('<QQ', payload, 16)
+    nreg = (tag >> 60) & 15
+    require(nreg in (1, 2, 3, 5, 10) and len(payload) == 16 * (2 + nreg),
+            'GS packet extent is not the complete supported one-loop PACKED descriptor')
+    require(words[:3] == (0, 0, 0) and words[3] == 0x51000000 | (1 + nreg),
+            'GS packet VIF DIRECTHL command/count differs')
+    require(tag & ((1 << 46) - 1) == 0x8001 and ((tag >> 58) & 3) == 0,
+            'GS packet GIF tag is not one-loop, EOP, PACKED with zero reserved bits')
+    require(descriptors >> (4 * nreg) == 0, 'GS packet has unused nonzero register descriptors')
+    ad_registers = {0x06, 0x08, 0x14, 0x3f, 0x42, 0x47, 0x4c, 0x4e}
+    decoded = []
+    for index in range(nreg):
+        descriptor = (descriptors >> (index * 4)) & 15
+        require(descriptor in (1, 3, 5, 14), 'GS packet contains an unsupported packed register descriptor')
+        if descriptor == 14:
+            value, register = struct.unpack_from('<QQ', payload, 32 + index * 16)
+            require(register in ad_registers, 'GS A+D packet register/address word is not supported')
+            decoded.append(dict(index=index, descriptor='A+D', register=f'0x{register:02x}',
+                                value=f'0x{value:016x}'))
+        else:
+            decoded.append(dict(index=index, descriptor={1:'RGBA', 3:'UV', 5:'XYZ2'}[descriptor]))
+    return dict(vif_command='DIRECTHL', direct_quadwords=1+nreg, gif_mode='PACKED',
+                loops=1, registers=nreg, descriptor=f'0x{descriptors:x}', entries=decoded)
+
+
+def callback_signature(prototype, direct=False):
+    if direct:
+        match = re.fullmatch(r'\s*(.+?)\(\s*\*_DATA_TYPE_NAME_\s*\)\s*\((.*)\)\s*', prototype, re.S)
+    else:
+        match = re.fullmatch(r'\s*extern\s+(.+?)\s+\w+\s*\((.*)\)\s*;', prototype, re.S)
+    require(match is not None, 'callback signature lacks an explicit supported source prototype')
+    parameters = []
+    for value in match[2].split(','):
+        value = clean_type(value)
+        if value in ('', 'void'):
+            continue
+        require('(' not in value and '[' not in value and '...' not in value,
+                'callback parameter declarator needs a source interface review')
+        value = re.sub(r'\s+([A-Za-z_]\w*)$', lambda m: '' if m[1] not in
+                       {'int','long','short','char','float','double','void'} else m[0], value)
+        value = re.sub(r'(\*)\s*[A-Za-z_]\w*$', r'\1', value)
+        parameters.append(re.sub(r'\s+', '', value))
+    return re.sub(r'\s+', '', match[1]), tuple(parameters)
+
+
+def original_data_identities(original, name, address):
+    """Resolve original DATA names, including evidenced Splat local aliases."""
+    def matching_name(symbol):
+        normalized = re.sub(r'[^A-Za-z_0-9]', '_', symbol.name)
+        # Splat may append the original VA to distinguish a local alias. The
+        # suffix is evidence only when it equals this exact original address.
+        suffix = name[len(normalized) + 1:] if name.startswith(normalized + '_') else ''
+        return (symbol.name == name or normalized == name or
+                bool(re.fullmatch(r'[0-9A-Fa-f]{8}', suffix) and int(suffix, 16) == address))
+    identities=[s for s in original.symbols if s.value==address and s.type in (0, 1) and
+                0 < s.shndx < len(original.sections) and
+                original.sections[s.shndx].name in SECTIONS and matching_name(s)]
+    require(not identities or len({s.bind for s in identities})==1,
+            'original symbol aliases have conflicting bindings')
+    require(not identities or identities[0].bind in (0, 1),
+            'original DATA binding requires a supported source declaration')
+    return identities
 
 
 def original_local(original, name, address):
     """Preserve compiler-local labels renamed by splat (e.g. i1.52)."""
-    identities=[s for s in original.symbols if s.value==address and s.shndx!=0 and
-                (s.name==name or (s.type==1 and re.sub(r'[^A-Za-z_0-9]', '_', s.name)==name))]
-    require(not identities or len({s.bind for s in identities})==1,
-            'original symbol aliases have conflicting bindings')
+    identities = original_data_identities(original, name, address)
     return bool(identities and identities[0].bind==0)
 
 
-def definition(row, block, original, declarations):
+def definition(row, block, original, declarations, aliases=None, records=None):
     names = row['names']
     require(len(names) == 1 and IDENT.fullmatch(names[0]), 'aliases or non-C symbol names need an ownership mapping')
     name = names[0]
@@ -378,7 +631,30 @@ def definition(row, block, original, declarations):
     decl = dict(type=ctype, dimensions=dims)
     address, end = dc.hx(row['address']), dc.hx(row['end'])
     extent = end - address
-    require(0 < extent <= 65536, 'extent exceeds bounded automatic object size')
+    original_objects = [s for s in original_data_identities(original, name, address) if s.type == 1 and s.size > 0]
+    if len(original_objects) == 1 and original_objects[0].size < extent:
+        size = original_objects[0].size
+        scalar = scalar_type(ctype, aliases or {})
+        tail = dc.va_bytes(original, address + size, extent - size)
+        if scalar and 0 < extent - size <= 15 and tail is not None and not any(tail):
+            # A positive-size original OBJECT proves the meaningful extent;
+            # alignment remains original scaffolding rather than enlarged C.
+            dimensions(decl, size, scalar[1])
+            row.update(mapped_end=row['end'], end=dc.h8(address + size),
+                       object_size=size, zero_padding_tail=extent-size)
+            end, extent = address + size, size
+    byte_scalar = [d for d in declarations.get(name, []) if d.get('data_role') == 'numeric_byte_scalar']
+    identities = original_data_identities(original, name, address)
+    if (byte_scalar and not dims and 1 < extent <= 16 and len(identities) == 1 and
+            (identities[0].type, identities[0].bind, identities[0].size) == (0, 0, 0) and
+            row['section'] in {'.bss', '.sbss'}):
+        row.update(mapped_end=row['end'], end=dc.h8(address + 1), object_size=1,
+                   zero_padding_tail=extent-1)
+        end, extent = address + 1, 1
+    large_storage = (row['section'] in {'.bss', '.sbss'} and row.get('grouped_items') and
+                     row.get('storage_owner', {}).get('size') == extent)
+    require(0 < extent <= (16 * 1024 * 1024 if large_storage else 65536),
+            'extent exceeds bounded automatic object size')
     text = re.sub(r'/\*.*?\*/', '', '\n'.join(block['lines']), flags=re.S)
     directives = re.findall(r'^\s*\.(\w+)\s+([^\n]*)', text, re.M)
     values = [(kind, value.split('#', 1)[0].strip()) for kind, value in directives
@@ -390,6 +666,19 @@ def definition(row, block, original, declarations):
     prefix = f'{storage}{ctype} {name}'
     character = base_type(ctype) in {'char', 'unsigned char', 'u8', 's8'} and '*' not in ctype and dims
     payload = dc.va_bytes(original, address, extent)
+    if records is not None:
+        record = dt.record_definition(row, block, original, declarations, records,
+                                      aliases or {}, numeric_literal, storage=storage)
+        if record is not None:
+            return record
+    if provenance.get('data_role') == 'menu_option_states':
+        require(character and payload is not None and
+                provenance['consumer_count'] <= extent <= provenance['consumer_count'] + 3 and
+                not any(payload[provenance['consumer_count']:]),
+                'state table consumer extent or zero alignment differs from original')
+        suffix, count = dimensions(decl, extent, 1)
+        return (prefix + suffix + ' = { ' + ', '.join(f'0x{x:02x}' for x in payload) + ' };',
+                'numeric', provenance)
     if provenance.get('data_role') in {'menu_leaf_rows', 'menu_node'}:
         suffix, count = dimensions(decl, extent, provenance['record_size'])
         return prefix + suffix + ' = ' + provenance['initializer'] + ';', 'record_array', provenance
@@ -418,6 +707,12 @@ def definition(row, block, original, declarations):
         source, macro = dt.sprite_uv_definition(prefix, payload)
         evidence = dict(provenance, probe_typedefs=[macro], source_prelude=[macro])
         return source, 'byte_records', evidence
+    if provenance.get('data_role') == 'font_character_stream':
+        require(character and payload is not None and payload.endswith(b'\0'),
+                'font character stream lacks an original terminal zero')
+        suffix, count = dimensions(decl, extent, 1)
+        require(len(re.findall(r'\[', suffix)) == 1, 'multidimensional font streams need row boundaries')
+        return prefix + suffix + ' = ' + literal(payload.rstrip(b'\0')) + ';', 'string', provenance
     if character and payload is not None and payload.endswith(b'\0') and dt.encoded_text(payload):
         payload = dc.va_bytes(original, address, extent)
         require(payload is not None, 'string is not inside original initialized data')
@@ -426,13 +721,46 @@ def definition(row, block, original, declarations):
         # preserve every byte rather than treating the first zero as its end.
         suffix, count = dimensions(decl, extent, 1)
         return prefix + suffix + ' = ' + literal(payload.rstrip(b'\0')) + ';', 'string', provenance
-    scalar = SCALARS.get(clean_type(re.sub(r'\b(?:const|volatile)\b', '', ctype)))
+    scalar = scalar_type(ctype, aliases or {})
+    packet = None
+    if provenance.get('data_role') == 'vif_gif_numeric_packet':
+        require(scalar and scalar[1] in (4, 8), 'GS packet requires its actual 32/64-bit scalar array type')
+        packet = validate_vif_gif_packet(payload, provenance)
+        provenance = dict(provenance, numeric_packet_proof=packet)
     if kinds <= {'space', 'zero'} and row['section'] in {'.bss', '.sbss'}:
-        require(scalar and '*' not in ctype, 'uninitialized storage needs a scalar/array type and NOBITS section')
-        suffix, count = dimensions(decl, extent, scalar[1])
+        pointer = pointer_type(ctype, aliases or {})
+        require(scalar or pointer, 'uninitialized storage needs a scalar/array type and NOBITS section')
+        suffix, count = dimensions(decl, extent, 4 if pointer else scalar[1])
         return prefix + suffix + ';', 'storage', provenance
-    if '*' in ctype:
-        require(ctype.count('*') == 1 and kinds <= {'word', 'long', '4byte'}, 'pointer table needs a single-pointer type and word directives')
+    if provenance.get('data_role') == 'character_array_views':
+        count = provenance['consumer_count']
+        size = count * 4
+        require(kinds <= {'word', 'long', '4byte'} and payload is not None and
+                size <= extent <= size + 15 and (address + extent) % 16 == 0 and
+                not any(payload[size:]), 'pointer-array consumer extent or original zero alignment differs')
+        require(len(values) == extent // 4 and all(value in {'0', '0x0', '0x00000000'}
+                for kind, value in values[count:]), 'pointer-array alignment has symbolic or mixed payload')
+        initializers, needed = [], []
+        for kind, value in values[:count]:
+            require(IDENT.fullmatch(value), 'array view needs a named original target without an addend')
+            targets = declarations.get(value, [])
+            require(targets and all(d['type'] == 'const char *' and d['dimensions'] for d in targets),
+                    'array view target is not an existing compatible const-character pointer array')
+            symbols = [s for s in original_data_identities(original, value, struct.unpack_from('<I', payload, len(initializers)*4)[0])
+                       if s.type == 1 and s.size == 4 * provenance['pointee_count']]
+            require(len(symbols) == 1, 'array view target lacks its exact original two-pointer OBJECT extent')
+            for declaration in targets:
+                dimensions(declaration, symbols[0].size, 4)
+            initializers.append('&' + value)
+            needed.append('extern const char *' + value + '[2];')
+        if extent != size:
+            row.update(mapped_end=row['end'], end=dc.h8(address + size),
+                       object_size=size, zero_padding_tail=extent-size)
+        evidence = dict(provenance, pointer_declarations=list(dict.fromkeys(needed)))
+        return prefix + f'[{count}] = {{ ' + ', '.join(initializers) + ' };', 'pointer_array', evidence
+    callback = function_pointer_type(ctype, aliases or {})
+    if '*' in ctype or callback:
+        require((callback or ctype.count('*') == 1) and kinds <= {'word', 'long', '4byte'}, 'pointer table needs a single-pointer type and word directives')
         suffix, count = dimensions(decl, extent, 4)
         require(len(values) == count, 'pointer table has unexplained alignment or mixed payload')
         initializers = []
@@ -441,11 +769,26 @@ def definition(row, block, original, declarations):
                 initializers.append('0')
                 continue
             require(IDENT.fullmatch(value), 'pointer addends/numeric addresses need a pointee-layout hypothesis')
+            if callback:
+                targets = [s for s in original.symbols if s.name == value and s.type == 2 and s.shndx != 0]
+                require(len(targets) == 1 and declarations.get(value),
+                        'callback target lacks original function identity and actual source prototype')
+                template = ctype if '_DATA_TYPE_NAME_' in ctype else next(iter((aliases or {})[ctype]))
+                require(callback_signature(template, direct=True) ==
+                        callback_signature(declarations[value][0]['function_prototype']),
+                        'callback target source prototype is incompatible with its dispatcher type')
+                initializers.append(value)
+                continue
             target = declarations.get(value, [])
             require(target and all(d['dimensions'] and base_type(d['type']) == base_type(ctype.replace('*', '')) for d in target), 'pointer target lacks a compatible declared array type')
             initializers.append(value)
-        provenance = dict(provenance, pointer_declarations=[f"extern {declarations[v][0]['type']} {v}{declarations[v][0]['dimensions']};" for v in set(initializers) if v != '0'])
-        value = '{ ' + ', '.join(initializers) + ' }' if suffix else initializers[0]
+        provenance = dict(provenance, pointer_declarations=[
+            declarations[v][0]['function_prototype'] if callback else
+            f"extern {declarations[v][0]['type']} {v}{declarations[v][0]['dimensions']};"
+            for v in set(initializers) if v != '0'])
+        value = array_initializer(initializers, suffix)
+        if '_DATA_TYPE_NAME_' in ctype:
+            return storage + ctype.replace('_DATA_TYPE_NAME_', name + suffix) + ' = ' + value + ';', 'pointer_array', provenance
         return prefix + suffix + ' = ' + value + ';', 'pointer_array', provenance
     require(scalar and '*' not in ctype, 'numeric block needs an explicit supported scalar/array type')
     # Disassembler spelling does not change an evidenced C scalar type.
@@ -457,7 +800,7 @@ def definition(row, block, original, declarations):
             'mixed payload needs a source layout')
     symbolic = any(re.search(r'\b[A-Za-z_]\w*\b', re.sub(r'0[xX][0-9A-Fa-f]+|[eE][+-]?\d+', '0', value))
                    for kind, value in values if kind in numeric_directives)
-    if symbolic:
+    if symbolic and packet is None:
         require(scalar[1] == 4 and payload is not None and len(payload) % 4 == 0,
                 'symbolic words need a proven numeric layout')
         words = struct.unpack('<' + 'I'*(len(payload)//4), payload)
@@ -467,12 +810,21 @@ def definition(row, block, original, declarations):
         provenance = dict(provenance, disassembler_association='words are typed numbers outside every original allocated section')
     fmt, width = scalar
     suffix, count = dimensions(decl, extent, width)
-    require(not suffix or width >= 2, 'numeric byte arrays are not automatically substituted for binary payloads')
+    byte_role = provenance.get('data_role') in {'numeric_byte_flags', 'numeric_byte_states', 'numeric_byte_indices', 'counted_xy_bytes'}
+    require(not suffix or width >= 2 or byte_role,
+            'numeric byte arrays are not automatically substituted for binary payloads')
     payload = dc.va_bytes(original, address, extent)
     require(payload is not None, 'numeric object is not in original initialized data')
+    if provenance.get('data_role') == 'counted_xy_bytes':
+        used = 2 + payload[0] * 2
+        require(used <= len(payload) and len(payload) - used <= 3 and not any(payload[used:]),
+                'counted x/y pairs differ from the original extent or zero alignment')
     numbers = struct.unpack('<' + fmt * count, payload)
     entries = [numeric_literal(v, ctype, fmt) for v in numbers]
-    value = '{ ' + ', '.join(entries) + ' }' if suffix else entries[0]
+    if packet is not None:
+        entries = [f'0x{v & ((1 << (width * 8)) - 1):0{width * 2}x}' +
+                   ('ULL' if width == 8 else 'U') for v in numbers]
+    value = array_initializer(entries, suffix)
     return prefix + suffix + ' = ' + value + ';', 'numeric', provenance
 
 
@@ -505,6 +857,8 @@ def scaffold_map(root, tus, inputs):
             if run.get('kind') == 'c':
                 covered[('main', section)].append((dc.hx(run['start']), dc.hx(run['end'])))
     for unit in UNITS[1:]:
+        if not any(t['unit'] == unit for t in tus.values()):
+            continue
         layout = load(root / 'build' / unit / 'layout.json')
         owners = {t['name']: t for t in tus.values() if t['unit'] == unit}
         for section, family in layout['families'].items():
@@ -738,20 +1092,134 @@ def function_inventory(root, tus, inputs, metadata, declarations=None):
                 statistics={u: dict(s) for u, s in statistics.items()}, remaining=remaining)
 
 
-def build_plan(root, inventory=None):
+def objdiff_scope(root, tus, report, unit, code_complete):
+    """Select original game owners from a pinned native objdiff report."""
+    require(not code_complete or report, '--code-complete requires --objdiff-report')
+    selected = {k for k, t in tus.items() if unit is None or t['unit'] == unit}
+    evidence = dict(unit=unit, code_complete=code_complete)
+    if not code_complete:
+        return selected, evidence
+    document = read_json(report)
+    require(isinstance(document.get('units'), list), 'objdiff report has no unit list')
+    matches, seen = {}, set()
+    for row in document['units']:
+        measures = row.get('measures', {})
+        if int(measures.get('total_code', 0)) <= 0 or measures.get('matched_code_percent') != 100:
+            continue
+        name, source = row.get('name'), row.get('metadata', {}).get('source_path')
+        candidates = [k for k in selected if
+                      name == tus[k]['unit'] + '/' + tus[k]['name'] or source == tus[k]['path']]
+        if not candidates:
+            # SDK/runtime and other requested-image owners are outside recovery scope.
+            continue
+        require(len(candidates) == 1, f'ambiguous objdiff owner: {name}/{source}')
+        key = candidates[0]
+        require(name in (None, tus[key]['unit'] + '/' + tus[key]['name']) and
+                source in (None, tus[key]['path']), f'objdiff name/source owner mismatch: {name}/{source}')
+        require(key not in seen, f'duplicate objdiff owner: {key}')
+        seen.add(key)
+        matches[key] = dict(name=name, source_path=source, total_code=measures['total_code'],
+                            matched_code_percent=measures['matched_code_percent'],
+                            total_data=measures.get('total_data', 0),
+                            matched_data_percent=measures.get('matched_data_percent', 0))
+    evidence.update(objdiff_report=str(Path(report).resolve()), objdiff_report_sha256=sha(report),
+                    owners=matches)
+    return set(matches), evidence
+
+
+def scaffold_inventory(root, metadata, inputs):
+    """Inventory every mapped original item, including unreferenced/manual DATA."""
+    pieces, covered = metadata[:2]
+    rows, seen = [], set()
+    for path, piece in sorted(pieces.items()):
+        inputs[path] = sha(path)
+        _, items = dc.piece_items(path, piece['start'], piece['end'])
+        for item in items:
+            if any(lo < item['end'] and item['start'] < hi for lo, hi in
+                   covered[(piece['unit'], piece['section'])]):
+                continue
+            key = piece['unit'], item['start']
+            require(key not in seen, 'overlapping original DATA piece identities')
+            seen.add(key)
+            rows.append(dict(unit=piece['unit'], tu=piece['tu'], section=piece['section'],
+                             address=dc.h8(item['start']), end=dc.h8(item['end']), scope='game',
+                             names=sorted(item['labels']), source=str(path.relative_to(root)),
+                             category='all_scaffold',
+                             unreferenced_padding='unreferenced pad' in '\n'.join(item['block']['lines'])))
+    return dict(schema='remaining-scaffold-function-users/1', remaining=rows,
+                counts=dict(all_scaffold=len(rows)))
+
+
+def grouped_storage(selected, indexes, aliases, pieces, root, inputs, binary):
+    """Rejoin synthetic NOBITS labels within an explicitly declared C array."""
+    by_key = {(r['unit'], dc.hx(r['address'])): r for r in selected}
+    consumed, result = set(), []
+    for row in sorted(selected, key=lambda r: (r['unit'], dc.hx(r['address']))):
+        key = row['unit'], dc.hx(row['address'])
+        if key in consumed:
+            continue
+        grouped = None
+        if row['section'] in {'.bss', '.sbss'} and len(row['names']) == 1:
+            choices = indexes[row['tu']].get(row['names'][0], [])
+            shapes = {(d['type'], d['dimensions']) for d in choices}
+            if len(shapes) == 1:
+                ctype, dims = next(iter(shapes))
+                bound = re.fullmatch(r'\[\s*(0[xX][0-9A-Fa-f]+|[0-9]+)\s*\]', dims)
+                scalar = scalar_type(ctype, aliases[row['tu']])
+                if bound and scalar:
+                    start = key[1]
+                    end = start + int(bound[1], 0) * scalar[1]
+                    path = (root / row['source']).resolve()
+                    piece = pieces[path]
+                    if dc.hx(row['end']) < end <= piece['end'] and end - start <= 16 * 1024 * 1024:
+                        members, cursor = [], start
+                        while cursor < end:
+                            item = by_key.get((row['unit'], cursor))
+                            if (not item or any(item[k] != row[k] for k in ('tu', 'section', 'source'))):
+                                break
+                            if dc.hx(item['end']) > end and not (dc.hx(item['end']) - end <= 63 and
+                                                               dc.hx(item['end']) % 64 == 0):
+                                break
+                            members.append(item)
+                            cursor = dc.hx(item['end'])
+                        meaningful = [s for s in binary(row['unit']).symbols if s.type == 1 and s.size > 0 and
+                                      start < s.value < end and 0 < s.shndx < len(binary(row['unit']).sections) and
+                                      binary(row['unit']).sections[s.shndx].name == row['section']]
+                        if cursor >= end and len(members) > 1 and not meaningful:
+                            grouped = dict(row, end=dc.h8(end), grouped_items=members,
+                                           storage_owner=dict(name=row['names'][0], address=row['address'], size=end-start))
+                            if cursor > end:
+                                grouped.update(mapped_end=dc.h8(cursor), object_size=end-start,
+                                               zero_padding_tail=cursor-end)
+                            consumed.update((r['unit'], dc.hx(r['address'])) for r in members)
+        result.append(grouped or row)
+    return result
+
+
+def build_plan(root, inventory=None, unit=None, objdiff_report=None, code_complete=False,
+               all_scaffold=False):
     manifest = read_json(root / 'config/tu-build.json')
-    tus = {t['id']: t for t in manifest['tus'] if t.get('in_scope') and t['unit'] in UNITS}
-    indexes, inputs, aliases = declaration_index(root, tus)
+    tus = {t['id']: t for t in manifest['tus'] if t.get('in_scope') and t['unit'] in UNITS
+           and (unit is None or t['unit'] == unit)}
+    selected_owners, scope = objdiff_scope(root, tus, objdiff_report, unit, code_complete)
+    scope.update(all_scaffold=all_scaffold, selected_tus=sorted(selected_owners))
+    require(not (all_scaffold and inventory), '--all-scaffold cannot use a reachable-only inventory')
+    include_closures = {}
+    indexes, inputs, aliases = declaration_index(root, tus, include_closures)
     inputs[root / 'config/tu-build.json'] = sha(root / 'config/tu-build.json')
     inputs[root / 'config/originals.json'] = sha(root / 'config/originals.json')
     for path in (Path(__file__).resolve(), HERE / 'data_carve.py', HERE / 'elfinfo.py',
                  HERE / 'toolchain.py', HERE / 'data_types.py', HERE / 'cc_tu.sh', root / 'config/toolchain-identity.json'):
         inputs[path] = sha(path)
     metadata = scaffold_map(root, tus, inputs)
-    document = read_json(inventory) if inventory else function_inventory(root, tus, inputs, metadata,indexes)
+    document = (scaffold_inventory(root, metadata, inputs) if all_scaffold else
+                read_json(inventory) if inventory else function_inventory(root, tus, inputs, metadata,indexes))
     require(document.get('schema') == 'remaining-scaffold-function-users/1', 'expected a frozen function-user scaffold inventory')
     require(not document.get('errors') and not document.get('mapping_gaps') and not document.get('function_mismatches'), 'function-user inventory has unresolved classification errors')
-    selected = [r for r in document['remaining'] if r['category'] in {'shared', 'recovered_c_only'}]
+    selected = [r for r in document['remaining'] if r['tu'] in selected_owners and
+                (all_scaffold or r['category'] in {'shared', 'recovered_c_only'})]
+    if objdiff_report:
+        inputs[Path(objdiff_report).resolve()] = sha(objdiff_report)
     if inventory:
         inputs[Path(inventory).resolve()] = sha(inventory)
     originals = read_json(root / 'config/originals.json')['units']
@@ -770,7 +1238,57 @@ def build_plan(root, inventory=None):
             binaries[unit] = Elf(path.read_bytes())
         return binaries[unit]
 
+    selected = grouped_storage(selected, indexes, aliases, pieces, root, inputs, binary)
+    # A disassembler's padding comment is not authority over a real C use.
+    # Keep that comment in provenance, but honor explicit source references.
+    c_references = collections.defaultdict(set)
+    character_addresses = collections.defaultdict(set)
+    for tu in tus.values():
+        source = root / tu['path']
+        if not source.is_file():
+            continue
+        code = re.sub(r'/\*.*?\*/|//[^\n]*', '', source.read_text(), flags=re.S)
+        code = re.sub(r'\bextern\s+[^;]+;', '', code)
+        code = re.sub(r'"(?:\\.|[^"\\])*"', '""', code)
+        c_references[tu['unit']].update(re.findall(r'\b[A-Za-z_]\w*\b', code))
+        character_addresses[tu['unit']].update(int(v, 16) for v in
+            re.findall(r'\(\s*(?:const\s+)?char\s*\*\s*\)\s*(0[xX][0-9A-Fa-f]+)', code))
+    pointer_references = collections.defaultdict(set)
+    stream_pointer_references = collections.defaultdict(set)
+    for path, piece in pieces.items():
+        declarations = indexes[piece['tu']]
+        if not any(d['type'].count('*') == 1 and
+                   base_type(d['type'].replace('*', '')) in {'char', 'unsigned char', 'u8', 's8'}
+                   for values in declarations.values() for d in values):
+            continue
+        inputs[path] = sha(path)
+        _, items = dc.piece_items(path, piece['start'], piece['end'])
+        for block in items:
+            declared = [d for name in block['labels'] for d in declarations.get(name, [])]
+            if not any(d['type'].count('*') == 1 and
+                       base_type(d['type'].replace('*', '')) in {'char', 'unsigned char', 'u8', 's8'}
+                       for d in declared):
+                continue
+            assembly = re.sub(r'/\*.*?\*/', '', '\n'.join(block['block']['lines']), flags=re.S)
+            for operands in re.findall(r'^\s*\.(?:word|long|4byte)\s+([^\n#]+)',
+                                       assembly, re.M):
+                names = set(re.findall(r'\b[A-Za-z_]\w*\b', operands))
+                pointer_references[piece['unit']].update(names)
+                if any(d.get('data_role') == 'character_stream_pointer_table' for d in declared):
+                    stream_pointer_references[piece['unit']].update(names)
+    for item in selected:
+        if item.get('unreferenced_padding') and (
+                set(item['names']) & (c_references[item['unit']] | pointer_references[item['unit']]) or
+                dc.hx(item['address']) in character_addresses[item['unit']]):
+            item['disassembler_padding_comment'] = True
+            item['unreferenced_padding'] = False
+    # Keep unnamed/padding items visible as deferred rows. Type propagation may
+    # consult another owner's pointee, but it never expands this publication scope.
+    deferred = [r for r in selected if not r['names'] or r.get('unreferenced_padding')]
+    selected = [r for r in selected if r not in deferred]
     dt.expand(root, tus, selected, pieces, indexes, inputs, binary, sha)
+    outside_scope = [r for r in selected if r['tu'] not in selected_owners]
+    selected = [r for r in selected if r['tu'] in selected_owners] + deferred
 
     def original_item(item):
         unit, tu_id = item['unit'], item['tu']
@@ -783,9 +1301,203 @@ def build_plan(root, inventory=None):
             blocks[path] = {b['start']: b for b in parsed}
             inputs[path] = sha(path)
         match = blocks[path][dc.hx(item['address'])]
+        if item.get('grouped_items'):
+            cursor, lines = dc.hx(item['address']), []
+            for member in item['grouped_items']:
+                block = blocks[path][dc.hx(member['address'])]
+                require(block['start'] == cursor and block['end'] == dc.hx(member['end']) and
+                        set(block['labels']) == set(member['names']), 'grouped storage item identity or tiling differs')
+                require(not any(lo < block['end'] and cursor < hi for lo, hi in covered[(unit, item['section'])]),
+                        'grouped original storage overlaps C-linked DATA')
+                lines.extend(block['block']['lines'])
+                cursor = block['end']
+            require(cursor == dc.hx(item.get('mapped_end', item['end'])),
+                    'grouped storage extent differs from explicit array bound and original alignment')
+            return path, dict(lines=lines)
         require(match['end'] == dc.hx(item['end']) and set(match['labels']) == set(item['names']), 'inventory bounds/labels differ from original scaffold')
         require(not any(lo < match['end'] and match['start'] < hi for lo, hi in covered[(unit, item['section'])]), 'original item already overlaps C-linked DATA')
         return path, match['block']
+
+    # Borrow only consistent explicit consumer declarations for a uniquely
+    # owned GLOBAL original datum, or a registered anonymous literal label.
+    foreign = collections.defaultdict(list)
+    for provider, declarations in indexes.items():
+        for name, declarations_ in declarations.items():
+            foreign[(tus[provider]['unit'], name)].extend((provider, d) for d in declarations_)
+    for item in selected:
+        for name in item['names']:
+            own = indexes[item['tu']]
+            if own.get(name):
+                continue
+            candidates = foreign.get((item['unit'], name), [])
+            identities = original_data_identities(binary(item['unit']), name, dc.hx(item['address']))
+            permitted = bool(identities and all(s.bind == 1 for s in identities))
+            anonymous = bool(re.fullmatch(r'D_[0-9A-Fa-f]{8}', name) and len(item['names']) == 1)
+            types = {d['type'] for provider, d in candidates}
+            if not candidates or len(types) != 1 or not (permitted or anonymous):
+                continue
+            own[name] = [dict(d, foreign_declaration=True,
+                              identity_basis='original GLOBAL DATA' if permitted else 'registered anonymous scaffold label')
+                         for provider, d in candidates]
+            for provider, declaration in candidates:
+                pending, copied = re.findall(r'\b[A-Za-z_]\w*\b', declaration['type']), set()
+                while pending:
+                    alias = pending.pop()
+                    if alias in copied or alias not in aliases[provider]:
+                        continue
+                    copied.add(alias)
+                    choices = aliases[provider][alias]
+                    aliases[item['tu']][alias].update(choices)
+                    pending.extend(token for base in choices for token in re.findall(r'\b[A-Za-z_]\w*\b', base))
+                include_closures[item['tu']] = sorted(set(include_closures[item['tu']]) | set(include_closures[provider]))
+    record_catalogs = {tu: dt.record_catalog(root, include_closures[tu], inputs, sha)
+                       for tu in {r['tu'] for r in selected}}
+    for item in selected:
+        if len(item['names']) != 1:
+            continue
+        name, tu = item['names'][0], item['tu']
+        if indexes[tu].get(name):
+            continue
+        identities = original_data_identities(binary(item['unit']), name, dc.hx(item['address']))
+        if len(identities) != 1 or identities[0].type != 1 or identities[0].size <= 0:
+            continue
+        symbol = identities[0]
+        raw = dc.va_bytes(binary(item['unit']), symbol.value, symbol.size)
+        if raw is None:
+            continue
+        culling = re.fullmatch(r'(s_aMapCullingVok)\d+', name)
+        siblings = [n for n, values in indexes[tu].items() if culling and
+                    re.fullmatch(re.escape(culling[1]) + r'\d+', n) and
+                    any(d.get('source_definition') and d['type'] == 'const float' and
+                        d['dimensions'] == '[27]' for d in values)]
+        if culling and symbol.bind == 0 and symbol.size == 108 and len(siblings) >= 2:
+            values = struct.unpack('<27f', raw)
+            if (all(math.isfinite(v) for v in values) and values[18:] ==
+                    (0., 0., 0., 0., 0., 0., -1., -1., -1.) and values[8] == values[17] == 1.0):
+                indexes[tu][name] = [dict(type='const float', dimensions='[27]', path=tus[tu]['path'],
+                    data_role='existing_float_table_family', sibling_tables=sorted(siblings),
+                    basis='original LOCAL OBJECT108 and existing const-float[27] nine-field record family with identical terminal record')]
+        if re.fullmatch(r'Tab\w+_Ang', name) and symbol.bind == 1 and symbol.size == 32:
+            expected = [struct.unpack('<I', struct.pack('<f', i * math.pi / 4))[0] for i in range(8)]
+            angle_steps = all(abs(actual - ideal) <= 1 for actual, ideal in zip(struct.unpack('<8I', raw), expected))
+            neighbors = [s for s in binary(item['unit']).symbols if s.type == 1 and s.value == symbol.value + 32 and
+                         any(d.get('source_definition') and d['type'] == 'float' for d in indexes[tu].get(s.name, []))]
+            if angle_steps and len(neighbors) == 1:
+                indexes[tu][name] = [dict(type='float', dimensions='[8]', path=tus[tu]['path'],
+                    data_role='existing_float_angle_family', adjacent_table=neighbors[0].name,
+                    basis='original GLOBAL OBJECT32 contains IEEE-float pi/4 angle steps within one ULP beside an existing typed float angle table; initializer preserves original values')]
+    # Cross-owner character declarations include already-published C strings;
+    # consulting them never adds an allocation outside selected DATA owners.
+    scaffold_names = collections.defaultdict(list)
+    for datum in document['remaining']:
+        for name in datum['names']:
+            scaffold_names[(datum['unit'], name)].append(datum)
+    for item in selected:
+        path, block = original_item(item)
+        typed = [d for name in item['names'] for d in indexes[item['tu']].get(name, [])]
+        if not any(d['type'].count('*') == 1 or pointer_type(d['type'], aliases[item['tu']]) for d in typed):
+            continue
+        assembly = re.sub(r'/\*.*?\*/', '', '\n'.join(block['lines']), flags=re.S)
+        targets = set(re.findall(r'^\s*\.(?:word|long|4byte)\s+([A-Za-z_]\w*)\s*$', assembly, re.M))
+        for name in targets:
+            own = indexes[item['tu']]
+            if own.get(name):
+                continue
+            candidates = foreign.get((item['unit'], name), [])
+            if candidates and len({d['type'] for provider, d in candidates}) == 1:
+                own[name] = [dict(d, foreign_declaration=True) for provider, d in candidates]
+                continue
+            locations = scaffold_names.get((item['unit'], name), [])
+            if len(locations) != 1 or len(locations[0]['names']) != 1:
+                continue
+            datum = locations[0]
+            character_types = [d['type'].replace('*', '').strip() for d in typed if d['type'].count('*') == 1 and
+                               base_type(d['type'].replace('*', '')) in {'char', 'unsigned char', 'u8', 's8'}]
+            if not character_types or datum['section'] not in {'.rodata', '.sdata', '.data'}:
+                continue
+            payload = dc.va_bytes(binary(datum['unit']), dc.hx(datum['address']),
+                                  dc.hx(datum['end']) - dc.hx(datum['address']))
+            if payload is None or len(payload) > 4096 or not payload.endswith(b'\0') or not dt.encoded_text(payload):
+                continue
+            own[name] = [dict(type=character_types[0], dimensions=f'[{len(payload)}]', path=datum['source'],
+                             data_role='original_scaffold_character_pointee', declaration_only=True,
+                             basis='typed character-pointer table targets this unique bounded original character item')]
+    source_functions = collections.defaultdict(list)
+    for tu in tus.values():
+        source = root / tu['path']
+        if not source.is_file():
+            continue
+        code = re.sub(r'/\*.*?\*/|//[^\n]*', '', source.read_text(), flags=re.S)
+        inputs[source] = sha(source)
+        for returns, name, parameters in re.findall(
+                r'^\s*(?:static\s+|extern\s+)?([A-Za-z_][\w\s*]+?)\s+(\w+)'
+                r'\s*\(([^;{}]*)\)\s*(?:;|\{)', code, re.M):
+            source_functions[(tu['unit'], name)].append('extern ' + clean_type(returns) +
+                                                       ' ' + name + '(' + parameters + ');')
+    for item in selected:
+        for name in item['names']:
+            for declaration in indexes[item['tu']].get(name, []):
+                ctype = declaration['type']
+                if not function_pointer_type(ctype, aliases[item['tu']]):
+                    continue
+                path, block = original_item(item)
+                assembly = re.sub(r'/\*.*?\*/', '', '\n'.join(block['lines']), flags=re.S)
+                for target in re.findall(r'^\s*\.(?:word|long|4byte)\s+([A-Za-z_]\w*)\s*$', assembly, re.M):
+                    prototypes = source_functions.get((item['unit'], target), [])
+                    if prototypes:
+                        indexes[item['tu']][target] = [dict(type='function', dimensions='',
+                            path=tus[item['tu']]['path'], function_prototype=prototypes[0])]
+    if 'main' in {t['unit'] for t in tus.values()}:
+        original = binary('main')
+        readers = [s for s in original.symbols if s.name == 'RES_GetLeaderSeName' and s.type == 2 and s.size == 108]
+        prototypes = source_functions.get(('main', 'RES_GetLeaderSeName'), [])
+        if len(readers) == 1 and any(re.search(r'\(\s*char\s*\*\s*\w*\s*\)', p) for p in prototypes):
+            raw = dc.va_bytes(original, readers[0].value, readers[0].size)
+            words = struct.unpack('<27I', raw)
+            def instruction(index, opcode, base, target, immediate):
+                word = words[index]
+                return (word >> 26, (word >> 21) & 31, (word >> 16) & 31, word & 0xffff) == (opcode, base, target, immediate)
+            # Actual original reader copies table-selected bytes 0/1 into
+            # its char* output and appends ASCII '_' at byte two.
+            copied_prefix = (instruction(3, 9, 0, 5, ord('_')) and
+                             instruction(9, 36, 6, 3, 0) and instruction(10, 40, 7, 3, 0) and
+                             instruction(11, 36, 6, 2, 1) and instruction(13, 40, 7, 5, 2) and
+                             instruction(14, 40, 7, 2, 1) and
+                             words[6] >> 26 == 15 and ((words[6] >> 16) & 31) == 6 and
+                             words[8] >> 26 == 35 and ((words[8] >> 21) & 31) == 6 and
+                             ((words[8] >> 16) & 31) == 6)
+            if copied_prefix:
+                low = words[8] & 0xffff
+                address = ((words[6] & 0xffff) << 16) + (low if low < 0x8000 else low - 0x10000)
+                tables = [s for s in original.symbols if s.value == address and s.type == 1 and s.size == 28]
+                if len(tables) == 1:
+                    targets = struct.unpack('<7I', dc.va_bytes(original, address, 28))
+                    for item in selected:
+                        if item['unit'] != 'main' or dc.hx(item['address']) not in targets or len(item['names']) != 1:
+                            continue
+                        name = item['names'][0]
+                        payload = dc.va_bytes(original, dc.hx(item['address']), dc.hx(item['end'])-dc.hx(item['address']))
+                        if (not indexes[item['tu']].get(name) and payload is not None and 3 <= len(payload) <= 16 and
+                                all(chr(v).isascii() and chr(v).isalnum() for v in payload[:2]) and not any(payload[2:])):
+                            indexes[item['tu']][name] = [dict(type='const char', dimensions=f'[{len(payload)}]',
+                                path=tus[item['tu']]['path'], data_role='original_name_prefix',
+                                reader='RES_GetLeaderSeName', reader_sha256=hashlib.sha256(raw).hexdigest(),
+                                pointer_table=dc.h8(address),
+                                basis='original char-name API reads two table-selected character bytes and appends an underscore')]
+    for item in selected:
+        if len(item['names']) != 1 or item['section'] not in {'.rodata', '.sdata', '.data'}:
+            continue
+        name = item['names'][0]
+        if name not in pointer_references[item['unit']] or indexes[item['tu']].get(name):
+            continue
+        payload = dc.va_bytes(binary(item['unit']), dc.hx(item['address']),
+                              dc.hx(item['end']) - dc.hx(item['address']))
+        font_color = bool(payload and payload[0] == 12 and len(payload) >= 5 and not any(payload[4:]))
+        proved_stream = name in stream_pointer_references[item['unit']]
+        if payload is not None and len(payload) <= 4096 and payload.endswith(b'\0') and (dt.encoded_text(payload) or font_color or proved_stream):
+            indexes[item['tu']][name] = [dict(type='const char', dimensions='[]',
+                path=item['source'], data_role='font_character_stream' if font_color or proved_stream else 'character_pointer_pointee',
+                basis='an explicitly typed character-pointer table references this bounded original terminated character item')]
     # The C tables may encode original string addresses numerically and thus
     # have no named extern for their pointees. Infer only anonymous original
     # literal labels, actual .asciz/.string blocks, and a single printable text
@@ -825,23 +1537,34 @@ def build_plan(root, inventory=None):
         try:
             require(tu_id in tus and tus[tu_id]['unit'] == unit, 'data owner is outside the game TU map')
             path, block = original_item(row)
+            require(row['names'], 'unnamed original item requires a source identity/layout hypothesis')
+            require(not row.get('unreferenced_padding'), 'unreferenced padding is not an evidenced C datum')
             if unit not in binaries:
                 original = tc.game_dir() / originals[unit]['file']
                 require(sha(original) == originals[unit]['sha256'], 'original binary SHA-256 differs from the build identity')
                 inputs[original] = originals[unit]['sha256']
                 binaries[unit] = Elf(original.read_bytes())
             original = binaries[unit]
-            source, kind, evidence = definition(row, block, original, indexes[tu_id])
+            source, kind, evidence = definition(row, block, original, indexes[tu_id], aliases[tu_id], record_catalogs[tu_id])
             types = [evidence['type']] + evidence.get('pointer_declarations', []) + evidence.get('probe_typedefs', [])
-            typedefs = [t for ctype in types for t in probe_typedefs(ctype, aliases[tu_id])] + evidence.get('probe_typedefs', [])
+            typedefs = (evidence.get('probe_typedefs', []) if evidence.get('data_role') == 'existing_typed_record' else
+                        [t for ctype in types for t in probe_typedefs(ctype, aliases[tu_id])] + evidence.get('probe_typedefs', []))
             evidence = dict(evidence, probe_typedefs=list(dict.fromkeys(typedefs)))
+            if evidence.get('object_extent'):
+                row['mapped_end'] = row['end']
+                row['end'] = dc.h8(address + evidence['object_extent'])
+                row['object_size'] = evidence['object_extent']
+                row['zero_padding_tail'] = evidence.get('uncredited_alignment_extent', 0)
             row.update(status='generated_candidate', kind=kind, definition=source, type_evidence=evidence,
+                       expected_binding=0 if original_local(original, row['names'][0], address) else 1,
                        byte_sha256=None if kind == 'storage' else hashlib.sha256(dc.va_bytes(original, address, dc.hx(row['end']) - address)).hexdigest())
         except (ValueError, KeyError, dc.CarveError) as error:
             row.update(status='manual', reason=str(error))
         rows.append(row)
     return dict(schema='automatic-data-plan/1', accepted=False, root=str(root),
-                inventory=str(Path(inventory).resolve()) if inventory else 'native-function-relocations',
+                inventory=str(Path(inventory).resolve()) if inventory else
+                'all-mapped-scaffold' if all_scaffold else 'native-function-relocations',
+                scope=scope, out_of_scope_dependencies=outside_scope,
                 inventory_counts=document.get('counts'), inputs={str(p): h for p, h in sorted(inputs.items())},
                 tus={k: dict(path=tus[k]['path'], name=tus[k]['name'], unit=tus[k]['unit'], contract=tus[k]['contract']) for k in {r['tu'] for r in rows}},
                 counts=dict(collections.Counter(r.get('kind', 'manual') for r in rows)), locations=rows)
@@ -939,7 +1662,7 @@ def check_compiler(plan, output, lease):
         facts = plan['tus'][tu_id]
         flags = facts['contract']['flags']
         require(flags in (['-O2', '-G0'], ['-O2', '-G8']), 'automatic probe refuses an unsupported compile contract')
-        require(facts['contract']['compiler_profile'] == 'ee-gcc2_96-realconv' and
+        require(facts['contract']['compiler_profile'] in ('ee-gcc2_96-realconv', 'ee-gcc2_96-realconv-lp7') and
                 sha(compiler / 'cc1') == facts['contract']['cc1_sha256'] and
                 sha(assembler) == facts['contract']['assembler_sha256'], 'probe tools differ from the original TU contract')
         folder = output / tu_id.replace('/', '_')
@@ -954,6 +1677,9 @@ def check_compiler(plan, output, lease):
                 name = row['names'][0]
                 try:
                     symbol = symbols[name]
+                    require(symbol.bind == row.get('expected_binding',
+                            0 if row['definition'].startswith('static ') else 1),
+                            'compiler DATA binding differs from the original source identity')
                     extent = dc.hx(row['end']) - dc.hx(row['address'])
                     if row['kind'] == 'storage':
                         require(symbol.shndx in (0xfff2, 0xff03) or (symbol.shndx < len(elf.sections) and elf.sections[symbol.shndx].type == 8), 'storage is not COMMON/NOBITS')
@@ -961,7 +1687,7 @@ def check_compiler(plan, output, lease):
                             emission=emitted_storage((folder/'probe.s').read_text()).get(name,{})
                             originals=read_json(root/'config/originals.json')['units']
                             original=Elf((tc.game_dir()/originals[facts['unit']]['file']).read_bytes())
-                            identities=[s for s in original.symbols if s.name==name and s.shndx!=0]
+                            identities=original_data_identities(original,name,dc.hx(row['address']))
                             require(len(identities)==1 and identities[0].value==dc.hx(row['address']) and
                                     (identities[0].type,identities[0].bind,identities[0].size)==(0,0,0),
                                     'local compiler storage differs from its original NOTYPE identity')
@@ -1027,6 +1753,10 @@ def main(argv=None):
     commands = parser.add_subparsers(dest='command', required=True)
     p = commands.add_parser('plan')
     p.add_argument('--inventory', type=Path, help='optional frozen inventory; otherwise derive it from native inputs')
+    p.add_argument('--unit', choices=UNITS, help='restrict DATA owners to this image')
+    p.add_argument('--objdiff-report', type=Path, help='pin a native objdiff JSON report')
+    p.add_argument('--code-complete', action='store_true', help='select report owners with nonempty code at exactly 100 percent')
+    p.add_argument('--all-scaffold', action='store_true', help='include unreferenced mapped DATA and visible deferred items')
     p.add_argument('--output', type=Path)
     for name in ('resources', 'prepare', 'check'):
         p = commands.add_parser(name)
@@ -1047,10 +1777,13 @@ def main(argv=None):
         from data_integrate import integrate
         print(json.dumps(integrate(args.plan.resolve(), args.candidates.resolve(), args.output.resolve(), lease)))
     elif args.command == 'plan':
-        result = build_plan(root, args.inventory)
+        result = build_plan(root, args.inventory, args.unit, args.objdiff_report,
+                            args.code_complete, args.all_scaffold)
         if args.output:
             lease.json(args.output, result)
-        print(json.dumps(dict(counts=result['counts'], total=len(result['locations']), generated_tus=len(grouped(result))), indent=2))
+        print(json.dumps(dict(counts=result['counts'], total=len(result['locations']),
+                              selected_tus=len(result['scope']['selected_tus']),
+                              generated_tus=len(grouped(result))), indent=2))
     elif args.command == 'resources':
         result = read_json(args.plan)
         for path in output_paths(result, args.output.resolve()):

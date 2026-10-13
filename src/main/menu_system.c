@@ -103,9 +103,9 @@ typedef union MenuSystemMessageStorage {
     unsigned int words[8];
 } MenuSystemMessageStorage;
 
-MenuSystemInfoBlock *MenuSystemInfo = 0;
+extern MenuSystemInfoBlock *MenuSystemInfo;
 
-XglClock _CountTime = {0};
+extern XglClock _CountTime;
 
 const MenuSystemMessageStorage D_004C9480 = {
     .words = {0x004C9338, 0x004C9380, 0x004C93A8, 0x004C93D0,
@@ -176,7 +176,7 @@ typedef struct MenuSystemPasBlock {
     MenuSystemPanelBox box;
 } MenuSystemPasBlock;
 
-MenuSystemPasBlock *MenuSystemPas = 0;
+extern MenuSystemPasBlock *MenuSystemPas;
 
 extern const char D_004C9328[];
 
@@ -249,7 +249,7 @@ typedef struct MenuSystemMenuBlock {
     MenuSystemChoice confirm;
 } MenuSystemMenuBlock;
 
-MenuSystemMenuBlock *MenuSystemMenu = 0;
+extern MenuSystemMenuBlock *MenuSystemMenu;
 
 /*
  * Drives the system-options screen for one frame and reports whether it is
@@ -375,10 +375,10 @@ extern void eCursolSet(void *cursor, signed char width);
 extern void eCursolMain(void *cursor);
 extern const char D_004C9510[];
 extern const char D_004C9520[];
-extern const char *msg00_1_0036DD00[];
-extern const char *msg01_2_0036DD20[];
-extern const char *msg02_3_0036DD28[];
-extern const char *msg03_4_0036DD30[];
+static const char * msg00_1_0036DD00[7] __attribute__((section(".data")));
+static const char * msg01_2_0036DD20[2] __attribute__((section(".data")));
+static const char * msg02_3_0036DD28[2] __attribute__((section(".data")));
+static const char * msg03_4_0036DD30[2] __attribute__((section(".data")));
 typedef const char *MenuSystemOptionNames[2];
 extern MenuSystemOptionNames *const D_004C9530[];
 
@@ -867,3 +867,96 @@ int MenuSystem2(void)
     endPrintExtFunc(0, 100, 0);
     return MenuWork.state != 0xFF;
 }
+
+
+
+const char D_004C94A0[24] = "Monitor Settings";
+
+const char D_004C94B8[16] = "Radar Display";
+
+const char D_004C94C8[16] = "Vibration";
+
+const char D_004C94D8[24] = "Cursor Location Memory";
+
+const char D_004C94F0[16] = "Sound Output";
+
+const char D_004C9500[16] = " Proceed\?";
+
+const char D_004C9510[16] = "Configuration";
+
+const char D_004C9520[16] = "Selection";
+
+extern unsigned char D_004DB578[8];
+
+extern int D_004DB580[2];
+
+extern int D_004DB588[2];
+
+extern int D_004DB590[2];
+
+extern int D_004DB598[2];
+
+extern int D_004DB5A0[2];
+
+extern char D_004DB5A8[8];
+
+extern char D_004DB5B0[8];
+
+extern const char D_004DB5D8[8];
+
+extern const char D_004C94D8[24];
+extern const char D_004C94F0[16];
+extern const char D_004C94C8[16];
+extern const char D_004DB540[8];
+extern const char D_004DB548[8];
+extern const char D_004C94A0[24];
+extern const char D_004C94B8[16];
+extern const char D_004DB558[8];
+extern const char D_004DB550[8];
+extern const char D_004DB560[8];
+extern const char D_004DB568[8];
+extern const char D_004C9500[16];
+extern const char D_004DB570[8];
+static const char *msg01_2_0036DD20[2];
+static const char *msg02_3_0036DD28[2];
+
+static const char * msg00_1_0036DD00[7] __attribute__((section(".data"))) = { D_004C94F0, D_004C94D8, D_004C94C8, D_004C94B8, D_004C94A0, D_004DB548, D_004DB540 };
+
+static const char * msg01_2_0036DD20[2] __attribute__((section(".data"))) = { D_004DB558, D_004DB550 };
+
+static const char * msg02_3_0036DD28[2] __attribute__((section(".data"))) = { D_004DB568, D_004DB560 };
+
+static const char * msg03_4_0036DD30[2] __attribute__((section(".data"))) = { D_004C9500, D_004DB570 };
+
+MenuSystemOptionNames *const D_004C9530[7] __attribute__((section(".rodata"))) = { &msg01_2_0036DD20, &msg02_3_0036DD28, &msg02_3_0036DD28, &msg02_3_0036DD28, &msg02_3_0036DD28, &msg02_3_0036DD28, &msg02_3_0036DD28 };
+
+extern const char D_004DB5D0[8];
+
+
+unsigned char D_004DB578[8] = { 0x20, 0x50, 0x40, 0x30, 0x00, 0x70, 0x60, 0x00 };
+
+int D_004DB580[2] = { 1, 0 };
+
+int D_004DB588[2] = { 1, 0 };
+
+int D_004DB590[2] = { 0, 1 };
+
+int D_004DB598[2] = { 0, 1 };
+
+int D_004DB5A0[2] = { 1, 0 };
+
+char D_004DB5A8[8] = "\013system";
+
+char D_004DB5B0[8] = "\013ms %2d";
+
+MenuSystemPasBlock *MenuSystemPas = 0;
+
+MenuSystemInfoBlock *MenuSystemInfo = 0;
+
+MenuSystemMenuBlock *MenuSystemMenu = 0;
+
+XglClock _CountTime = {0};
+
+const char D_004DB5D0[8] = "/Set";
+
+const char D_004DB5D8[8] = "Skills";

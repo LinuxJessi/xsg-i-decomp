@@ -383,7 +383,7 @@ extern const char D_004DC1F0[];
 
 extern const char D_004DC200[];
 
-extern float defaultOffset_0043C1D0[4];
+static float defaultOffset_0043C1D0[4];
 
 extern unsigned int GameLoopState[];
 
@@ -2199,3 +2199,17 @@ void Java_xeno_Unit_setMonitorPrio__I(JThread *thread, UnitIntCall *arguments)
  * original eight-byte definitions after the function bodies. */
 const char D_004DC1D0[8] = "peer";
 const char D_004DC1F8[8] = "py";
+
+
+
+static float defaultOffset_0043C1D0[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+
+const char D_004DC1D8[8] = "rx";
+
+const char D_004DC1E0[8] = "ry";
+
+const char D_004DC1E8[8] = "rz";
+
+const char D_004DC1F0[8] = "px";
+
+const char D_004DC200[8] = "pz";

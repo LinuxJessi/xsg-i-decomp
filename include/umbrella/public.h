@@ -94,6 +94,8 @@ void nmlModelSetClip(int clip);
 int nmlModelSetGlobalFogReset(void);
 void nmlModelSetFogCancel(void);
 
+extern const char D_004DC4D0[4];
+
 int CheckPointLine(const Vector4 *first, const Vector4 *second,
                    const Vector4 *point);
 

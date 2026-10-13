@@ -4,13 +4,13 @@
 
 /* These cursors begin at the sentinel used before a resource table is found. */
 
-static int infoIndex = -1;
+static int infoIndex;
 
-static int infoLength = -1;
+static int infoLength;
 
 extern char D_004C23C0[];
 
-static char *rsrcDefaultPath = D_004C23C0;
+static char *rsrcDefaultPath;
 
 typedef struct RsrcManager {
     u8 *heap_origin;
@@ -46,13 +46,13 @@ extern void *RSRC_loadFileSub(RsrcManager *manager, char *path, char *file_name)
 
 /* These cursors begin at the sentinel used before a resource table is found. */
 
-extern char *markedSTR[2][2];
+static char * markedSTR[2][2];
 
-extern char *selectedSTR[2][2];
+static char * selectedSTR[2][2] __attribute__((section(".data")));
 
-extern char *unselectedSTR[2][2];
+static char * unselectedSTR[2][2];
 
-extern char *normalSTR[2][2];
+static char * normalSTR[2][2];
 
 extern u32 strlen(const char *s);
 
@@ -456,3 +456,55 @@ RsrcItem *RSRC_getDirtyItem(RsrcManager *manager, u32 size)
     }
     return 0;
 }
+
+extern const char D_004DA5D0[];
+extern const char D_004DA5D8[];
+extern const char D_004DA5E0[];
+extern const char D_004DA5F0[];
+
+static char * markedSTR[2][2];
+
+static char * unselectedSTR[2][2];
+
+static char * normalSTR[2][2];
+
+extern const char D_004DA5D0[8];
+
+extern const char D_004DA5D8[8];
+
+extern const char D_004DA5E0[8];
+
+extern const char D_004DA5F0[4];
+
+extern const char D_004DA5D0[];
+extern const char D_004DA5E8[];
+extern const char D_004DA5E0[];
+
+static char * selectedSTR[2][2] __attribute__((section(".data")));
+
+extern const char D_004DA5E8[8];
+
+
+static char * markedSTR[2][2] = { { (char *)D_004DA5D8, (char *)D_004DA5D0 }, { (char *)D_004DA5D8, (char *)D_004DA5D0 } };
+
+static char * selectedSTR[2][2] __attribute__((section(".data"))) = { { (char *)D_004DA5D0, (char *)D_004DA5D0 }, { (char *)D_004DA5E8, (char *)D_004DA5E0 } };
+
+static char * unselectedSTR[2][2] = { { (char *)D_004DA5D0, (char *)D_004DA5D0 }, { (char *)D_004DA5E0, (char *)D_004DA5E0 } };
+
+static char * normalSTR[2][2] = { { (char *)D_004DA5F0, (char *)D_004DA5D0 }, { (char *)D_004DA5F0, (char *)D_004DA5D0 } };
+
+static int infoIndex = -1;
+
+static int infoLength = -1;
+
+const char D_004DA5D0[8] = "";
+
+const char D_004DA5D8[8] = "*";
+
+const char D_004DA5E0[8] = "\014@@@";
+
+const char D_004DA5E8[8] = "\014\200\200\200";
+
+const char D_004DA5F0[4] = " ";
+
+static char *rsrcDefaultPath = D_004C23C0;

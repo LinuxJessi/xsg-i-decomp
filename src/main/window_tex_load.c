@@ -6,7 +6,12 @@
 
 /* MenuWorkEndGet clears and returns this entire 64 KiB work region. */
 
-static unsigned char MenuWorkEndTop[0x10000];
+
+
+/* The external data witness covers these 0x9c bytes; the spans around the
+ * two evidenced bit sets remain unmodelled (see UmnDataBase). */
+
+static unsigned char Menu02Tex[0x40800];
 
 typedef unsigned int Quadword __attribute__((mode(TI)));
 
@@ -18,11 +23,7 @@ typedef struct {
     Quadword reset_work[7];
 } MenuWorkState;
 
-MenuWorkState MenuWork = { 0 };
-
-/* Twelve consecutive five-byte saved menu-selection records. */
-
-unsigned char MenuKeepSelect[0x64] = { 0 };
+extern MenuWorkState MenuWork;extern unsigned char MenuKeepSelect[0x64];
 
 typedef struct {
     unsigned char r;
@@ -31,9 +32,9 @@ typedef struct {
     unsigned char unmodeled_03;
 } MenuBgColor;
 
-MenuBgColor MenuBgRgba = { 0 };
+extern MenuBgColor MenuBgRgba;
 
-XglTaskScheduler *MenuBgTask = 0;
+extern XglTaskScheduler *MenuBgTask;
 
 extern void MenuModelDirectSendZClear(void);
 
@@ -67,31 +68,31 @@ extern void UmnkosmosSpecialSet(void);
 
 extern void endPrintDirectFrameCopy(XglPacket *packet, int width, int height);
 
-int MenuModelOut[4] = { 0 };
+extern int MenuModelOut[4];
 
-int UmnSimulationNo = 0;
+extern int UmnSimulationNo;
 
-int MenuScenarioNo = 0;
+extern int MenuScenarioNo;
 
-int MenuModelWorkTop = 0;
+extern int MenuModelWorkTop;
 
-void *UmnGunoDataBaseTop = 0;
+extern void *UmnGunoDataBaseTop;
 
-short UmnKosmosSpecialBox[4] = { 0 };
+extern short UmnKosmosSpecialBox[4];
 
-XglTaskScheduler *MenuTask_XMX = 0;
+extern XglTaskScheduler *MenuTask_XMX;
 
-unsigned char *MainMenuWorkEnd = 0;
+extern unsigned char *MainMenuWorkEnd;
 
-int MenuLoadCount = 0;
+extern int MenuLoadCount;
 
-unsigned char MenuBibrationCount = 0;
+extern unsigned char MenuBibrationCount;
 
-unsigned char MenuBibrationAct = 0;
+extern unsigned char MenuBibrationAct;
 
-unsigned char MenuBibrationSpeed = 0;
+extern unsigned char MenuBibrationSpeed;
 
-unsigned char MenuBibrationPad = 0;
+extern unsigned char MenuBibrationPad;
 
 extern void xglCdLoadOverlay(int overlayId);
 
@@ -109,12 +110,7 @@ typedef union {
     unsigned long long words[14];
 } MenuLightConfig;
 extern const MenuLightConfig D_004C3240;
-extern const char D_004C32B0[];
-
-/* The external data witness covers these 0x9c bytes; the spans around the
- * two evidenced bit sets remain unmodelled (see UmnDataBase). */
-
-static unsigned char Menu02Tex[0x40800];
+extern const char D_004C32B0[];static unsigned char MenuWorkEndTop[0x10000];
 
 int WindowTexLoad(unsigned char *buffer, unsigned int request)
 {
@@ -924,3 +920,137 @@ int hen(void)
 }
 
 
+
+extern const char D_004C32B0[16];
+
+extern unsigned char D_004DA810[4];
+
+extern int MenuDrillCall;
+
+extern int mini_game_no;
+
+extern unsigned char * MenuTairetuModelXtxAddr;
+
+extern unsigned char * MenuTairetuModelLexAddr;
+
+extern unsigned char * MenuTairetuModelPointerXtxAddr;
+
+extern unsigned char * MenuTairetuModelPointerLexAddr;
+
+extern XglTaskScheduler * MenuTask;
+
+extern unsigned char * MenuWinAddr;
+
+extern MenuBgTaskParameters * MenuBgParam;
+
+extern int MenuBgCameraId;
+
+extern u64 * MenuBgKeepCamera;
+
+static int original_font_no_1;
+
+
+
+extern const MenuModelPath D_004C3220;
+
+extern const MenuLightConfig D_004C3240;
+
+extern UmnTextPageMap D_004C32F8;
+
+extern int MenuHddCheck;
+
+extern int debug_flag;
+
+extern const char D_004C31E0[32];
+extern const char D_004C31C8[24];
+extern const char D_004C31B0[24];
+
+static const char * file_name_0[3] __attribute__((section(".data")));
+
+extern XglRenderFadeCallback MenuCfTaiki[8];extern unsigned char MenuTask_BG[4];extern unsigned char model_work[4];extern unsigned char MenuBackRgba[4];
+
+
+static const char * file_name_0[3] __attribute__((section(".data"))) = { D_004C31E0, D_004C31C8, D_004C31B0 };
+
+MenuWorkState MenuWork = { 0 };
+
+/* Twelve consecutive five-byte saved menu-selection records. */
+
+unsigned char MenuKeepSelect[0x64] = { 0 };
+
+int MenuModelOut[4] = { 0 };
+
+XglRenderFadeCallback MenuCfTaiki[8] __attribute__((section(".data"))) = { 0, 0, 0, 0, 0, 0, 0, 0 };
+
+const MenuModelPath D_004C3220 = { .path = "data\\endou\\poly\\tai00.xtx" };
+
+const MenuLightConfig D_004C3240 = { .light = { .ambient = { 0.30000001192092896f, 0.30000001192092896f, 0.30000001192092896f, 1.0f }, .parallel = { { 0.5f, 0.5f, 0.5f, 1.0f }, { 0.5f, 0.5f, 0.5f, 1.0f }, { 0.5f, 0.5f, 0.5f, 1.0f } }, .direction = { { 1.0f, 1.0f, 0.5f, 1.0f }, { -1.0f, 1.0f, 0.5f, 1.0f }, { 0.0f, 1.0f, 0.5f, 1.0f } } } };
+
+const char D_004C32B0[16] = "mainmenu";
+
+UmnTextPageMap D_004C32F8 __attribute__((section(".rodata"))) = { .menu_page = { 1, 3, 4, 5, 0, 0, 0, 0, 0, 0, 2 } };
+
+unsigned char D_004DA810[4] = "";
+
+int UmnSimulationNo = 0;
+
+int MenuDrillCall = 0;
+
+/* Original four-byte object; its element type is unresolved. */
+unsigned char MenuTask_BG[4] = { 0 };
+
+int MenuScenarioNo = 0;
+
+int MenuModelWorkTop = 0;
+
+int mini_game_no = 0;
+
+int MenuHddCheck = 0;
+
+void *UmnGunoDataBaseTop = 0;
+
+short UmnKosmosSpecialBox[4] = { 0 };
+
+unsigned char * MenuTairetuModelXtxAddr = 0;
+
+unsigned char * MenuTairetuModelLexAddr = 0;
+
+unsigned char * MenuTairetuModelPointerXtxAddr = 0;
+
+unsigned char * MenuTairetuModelPointerLexAddr = 0;
+
+int debug_flag = 0;
+
+XglTaskScheduler * MenuTask = 0;
+
+XglTaskScheduler *MenuTask_XMX = 0;
+
+unsigned char *MainMenuWorkEnd = 0;
+
+/* Original four-byte object; its element type is unresolved. */
+unsigned char model_work[4] = { 0 };
+
+/* Original four-byte object; its element type is unresolved. */
+unsigned char MenuBackRgba[4] = { 0 };
+
+unsigned char * MenuWinAddr = 0;
+
+int MenuLoadCount = 0;
+
+unsigned char MenuBibrationCount = 0;
+
+unsigned char MenuBibrationAct = 0;
+
+unsigned char MenuBibrationSpeed = 0;
+
+unsigned char MenuBibrationPad = 0;
+
+XglTaskScheduler *MenuBgTask = 0;
+
+MenuBgTaskParameters * MenuBgParam = 0;
+
+int MenuBgCameraId = 0;
+
+u64 * MenuBgKeepCamera = 0;
+
+MenuBgColor MenuBgRgba = { 0 };

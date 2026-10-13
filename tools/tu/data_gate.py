@@ -396,11 +396,11 @@ def source_storage_array_extent(text, owner_name, owner_size):
         return None
     clean = re.sub(r'/\*.*?\*/|//[^\n]*', '', text, flags=re.S)
     c_type = r'((?:unsigned|signed)\s+(?:char|short(?:\s+int)?|int)|[A-Za-z_]\w*)'
-    declarations = re.findall(r'\bstatic\s+' + c_type + r'\s+' +
-                              re.escape(owner_name) + r'\s*\[([^\]]+)\]\s*;', clean)
+    declarations = set(re.findall(r'\bstatic\s+' + c_type + r'\s+' +
+                              re.escape(owner_name) + r'\s*\[([^\]]+)\]\s*;', clean))
     if len(declarations) != 1:
         return None
-    typename, expression = declarations[0]
+    typename, expression = next(iter(declarations))
     try:
         node = ast.parse(expression.strip(), mode='eval').body
     except (SyntaxError, ValueError):
@@ -487,13 +487,13 @@ def source_storage_layout_text(root, source_path):
 
 
 def source_storage_member_extent(text, owner_name, owner_size, offset):
-    """Closed 32-bit C layout proof for an exact member of a plain struct.
+    """Closed EE C layout proof for an exact existing aggregate member.
 
     Unsupported declarations return no proof. This never infers an extent
     from the next alias or from the remainder of an enclosing storage object.
     Primitive member arrays are supported at their start and aligned element
-    starts. Nested plain structs are laid out recursively, but aliases inside
-    nested aggregates are not inferred. Fixed multidimensional owner arrays
+    starts. Actual structs/unions are laid out recursively; union witnesses
+    name one existing source view and never add storage or credit. Fixed owner arrays
     use their bounded dimension product and the same exact element stride.
     The caller independently binds the
     complete owner object to cc1 and the link.
@@ -527,14 +527,14 @@ def source_storage_member_extent(text, owner_name, owner_size, offset):
 
     definitions = {}
     structure_re = re.compile(
-        r'\btypedef\s+struct(?:\s+([A-Za-z_]\w*))?\s*\{([^{}]*)\}\s*([A-Za-z_]\w*)\s*;', re.S)
+        r'\btypedef\s+(struct|union)(?:\s+([A-Za-z_]\w*))?\s*\{([^{}]*)\}\s*([A-Za-z_]\w*)\s*;', re.S)
     for match in structure_re.finditer(clean):
         if not is_unconditional(match.start()):
             continue
-        tag, body, alias = match.groups()
+        kind, tag, body, alias = match.groups()
         aliases = [alias] + ([tag] if tag else [])
         for name in aliases:
-            definitions.setdefault(name, set()).add(body)
+            definitions.setdefault(name, set()).add((kind, body))
     if any(len(bodies) != 1 for bodies in definitions.values()):
         return None
     definitions = {name: next(iter(bodies)) for name, bodies in definitions.items()}
@@ -560,10 +560,13 @@ def source_storage_member_extent(text, owner_name, owner_size, offset):
         def value(node):
             if isinstance(node, ast.Constant) and type(node.value) is int:
                 return node.value
-            if isinstance(node, ast.BinOp) and isinstance(node.op, (ast.Add, ast.Sub)):
+            if isinstance(node, ast.BinOp) and isinstance(node.op, (ast.Add, ast.Sub, ast.Mult, ast.Div)):
                 a, b = value(node.left), value(node.right)
                 if a is not None and b is not None:
-                    return a + b if isinstance(node.op, ast.Add) else a - b
+                    if isinstance(node.op, ast.Add): return a + b
+                    if isinstance(node.op, ast.Sub): return a - b
+                    if isinstance(node.op, ast.Mult): return a * b
+                    if b > 0 and a % b == 0: return a // b
             return None
         result = value(node)
         return result if result is not None and 0 < result <= 1024 * 1024 else None
@@ -575,16 +578,37 @@ def source_storage_member_extent(text, owner_name, owner_size, offset):
                     'int': 4, 'signed': 4, 'unsigned': 4,
                     'unsigned int': 4, 'signed int': 4, 'float': 4,
                     'u32': 4, 's32': 4}
+    # Only the exact existing native-TI unsigned-int declaration establishes
+    # the 16-byte scalar ABI. Names or opaque attributes are not width proof.
+    ti_aliases = {}
+    for match in re.finditer(r'\btypedef\s+unsigned\s+int\s+(\w+)\s+'
+                            r'__attribute__\s*\(\(\s*mode\s*\(\s*TI\s*\)\s*\)\)\s*;', clean):
+        if is_unconditional(match.start()):
+            ti_aliases.setdefault(match[1], set()).add(match[0])
+    if any(len(rows) != 1 for rows in ti_aliases.values()):
+        return None
+    for alias in ti_aliases:
+        if alias in definitions or alias in array_typedefs:
+            return None
+        scalar_sizes[alias] = 16
     active = set()
+
+    def object_pointer(type_name):
+        match = re.fullmatch(r'(.+?)\s*\*', type_name)
+        if not match or '*' in match[1]:
+            return False
+        base = re.sub(r'^(?:(?:const|volatile)\s+)+', '', match[1].strip())
+        return (base in scalar_sizes or base == 'void' or
+                bool(re.fullmatch(r'(?:(?:struct|union)\s+)?[A-Za-z_]\w*', base)))
 
     def structure_layout(type_name):
         type_name = ' '.join(type_name.split())
         type_name = re.sub(r'^(?:(?:const|volatile)\s+)+', '', type_name)
         if type_name in scalar_sizes:
             return scalar_sizes[type_name], scalar_sizes[type_name], None
-        if re.fullmatch(r'(?:const\s+|volatile\s+)*(?:struct\s+)?[A-Za-z_]\w*\s*\*', type_name):
+        if object_pointer(type_name):
             return 4, 4, None
-        alias_name = type_name[7:].strip() if type_name.startswith('struct ') else type_name
+        alias_name = re.sub(r'^(?:struct|union)\s+', '', type_name)
         if alias_name in definitions and alias_name in array_typedefs:
             return None
         array_alias = array_typedefs.get(alias_name)
@@ -606,10 +630,11 @@ def source_storage_member_extent(text, owner_name, owner_size, offset):
                 return None
             item_size, item_alignment, _ = layout
             return item_size * count, item_alignment, None
-        name = type_name[7:].strip() if type_name.startswith('struct ') else type_name
-        body = definitions.get(name)
-        if body is None or name in active:
+        name = re.sub(r'^(?:struct|union)\s+', '', type_name)
+        record = definitions.get(name)
+        if record is None or name in active:
             return None
+        kind, body = record
         active.add(name)
         fields = []
         cursor = 0
@@ -636,26 +661,32 @@ def source_storage_member_extent(text, owner_name, owner_size, offset):
                 active.remove(name)
                 return None
             plain_type = re.sub(r'^(?:(?:const|volatile)\s+)+', '', field_type)
-            cursor = (cursor + item_alignment - 1) // item_alignment * item_alignment
-            fields.append(dict(member=member_name, offset=cursor,
+            member_start = ((cursor + item_alignment - 1) // item_alignment * item_alignment
+                            if kind == 'struct' else 0)
+            field = dict(member=member_name, offset=member_start,
                                size=item_size * count, type=field_type,
                                scalar=count_expr is None, array=count_expr is not None,
                                element_size=item_size, element_count=count,
                                primitive=plain_type in scalar_sizes,
-                               pointer=bool(re.fullmatch(
-                                   r'(?:const\s+|volatile\s+)*(?:struct\s+)?[A-Za-z_]\w*\s*\*',
-                                   field_type)),
-                               nested=nested_fields is not None))
-            cursor += item_size * count
+                               pointer=object_pointer(field_type),
+                               nested=nested_fields is not None)
+            if nested_fields is not None:
+                field['_nested_fields'] = nested_fields
+            fields.append(field)
+            cursor = member_start + item_size * count if kind == 'struct' else max(cursor, item_size * count)
             alignment = max(alignment, item_alignment)
         active.remove(name)
         stride = (cursor + alignment - 1) // alignment * alignment
-        return (stride, alignment, fields)
+        return (stride, alignment, dict(kind=kind, fields=fields))
 
     layout = structure_layout(typename)
     if layout is None:
         return None
-    stride, _, fields = layout
+    stride, _, aggregate = layout
+    if not aggregate:
+        # Scalar and pointer arrays have no structure member witness. Their
+        # separate fixed-array proof remains authoritative at the caller.
+        return None
     count = 1
     for expression in re.findall(r'\[([^\]]+)\]', array_dimensions):
         dimension = constant(expression)
@@ -664,23 +695,51 @@ def source_storage_member_extent(text, owner_name, owner_size, offset):
         count *= dimension
     if not stride or stride * count != owner_size or not 0 <= offset < owner_size:
         return None
+    fields = aggregate['fields']
     member_offset = offset % stride
     nested_layout_proof = ({'layout_text_sha256': hashlib.sha256(
         text.encode('utf-8', 'surrogateescape')).hexdigest()}
         if any(field['nested'] for field in fields) else {})
-    matches = []
-    for field in fields:
-        relative = member_offset - field['offset']
-        if relative < 0 or relative >= field['size']:
-            continue
-        if relative == 0 and (not field['array'] or field['primitive']):
-            matches.append(dict(field, member_element_index=None))
-        elif field['array'] and field['primitive'] and relative % field['element_size'] == 0:
-            matches.append(dict(field, size=field['element_size'],
-                                member_element_index=relative // field['element_size']))
-    if len(matches) != 1:
+    def find_member(record, relative_offset, path=()):
+        matches = []
+        for original_field in record['fields']:
+            field = {k: v for k, v in original_field.items() if k != '_nested_fields'}
+            relative = relative_offset - field['offset']
+            if relative < 0 or relative >= field['size']:
+                continue
+            if relative == 0 and (not field['array'] or field['primitive']):
+                matches.append(dict(field, member_element_index=None))
+            elif field['array'] and field['primitive'] and relative % field['element_size'] == 0:
+                matches.append(dict(field, size=field['element_size'],
+                                    member_element_index=relative // field['element_size']))
+            elif original_field.get('_nested_fields'):
+                nested = find_member(original_field['_nested_fields'], relative % field['element_size'],
+                                     path + (dict(member=field['member'], offset=field['offset'],
+                                                  element_index=relative // field['element_size'],
+                                                  aggregate_kind=record['kind']),))
+                if nested:
+                    nested['offset'] += field['offset'] + (relative // field['element_size']) * field['element_size']
+                    matches.append(nested)
+            if record['kind'] == 'union' and matches:
+                # The witness is one actual named union view, not inferred
+                # simultaneous fields or a new byte-layout declaration.
+                break
+        if len(matches) != 1:
+            return None
+        result = matches[0]
+        if (path or record['kind'] == 'union') and 'member_path' not in result:
+            result['member_path'] = list(path) + [dict(member=result['member'],
+                offset=result['offset'], aggregate_kind=record['kind'])]
+        return result
+
+    field = find_member(aggregate, member_offset)
+    if field is None:
         return None
-    field = matches[0]
+    # Preserve old flat-struct proof shape so passing frozen witnesses stay
+    # byte-for-byte comparable; only recursive/union proofs add path metadata.
+    if field.get('member_path'):
+        nested_layout_proof.update(member_path=field['member_path'],
+                                  layout_text_sha256=hashlib.sha256(text.encode('utf-8', 'surrogateescape')).hexdigest())
     if field['scalar'] and (field['primitive'] or field['pointer']):
         return dict(kind='plain_32bit_struct_scalar_field', owner_name=owner_name,
                     owner_type=typename, owner_size=owner_size, element_stride=stride,
@@ -835,11 +894,15 @@ def linked_storage_proof(root, entry, record, packet, packet_tu, object_elf, ass
                 # The private allocation link uses ld -r -d: compiler COMMON
                 # symbols become allocated .bss/.sbss/.scommon objects here.
                 if (record.get('unit') == 'main' and object_path.name.endswith('.carved.o') and
-                        (section_obj.name == section or section_obj.name.startswith(section + '.carve.'))):
+                        (section_obj.name == section or section_obj.name.startswith(section + '.carve.') or
+                         section == '.sbss' and (section_obj.name == '.scommon' or
+                         section_obj.name.startswith('.scommon.carve.')))):
                     proof_size = owner.get('size', symbol.size or asm.get('size', 0))
                     proof_size = int(proof_size, 0) if isinstance(proof_size, str) else int(proof_size)
+                    raw_section = '.scommon' if (section_obj.name == '.scommon' or
+                            section_obj.name.startswith('.scommon.carve.')) else section
                     carve_allocation = allocated_carve_mapping(
-                        entry, record, owner_name, owner_va, proof_size, section, object_path, section_obj, symbol,
+                        entry, record, owner_name, owner_va, proof_size, raw_section, object_path, section_obj, symbol,
                         source_path, Path(record['object']['path']), assembly_path)
                 require((section_obj.name in ('.bss', '.sbss', '.scommon') or carve_allocation is not None) and
                         section_obj.type == 8 and section_obj.flags & 3 == 3,
@@ -1152,6 +1215,25 @@ def current_allocation_scope(control_path, task, entry, record, ctx, original_el
         map_items = [item for item in data_carve.section_items(ctx, section)
                      if item['start'] == address and
                      set(names).intersection(item.get('labels', [item.get('name')]))]
+        if not map_items and root is not None and candidate.get('original_text_subobject'):
+            # These names belong to actual ordinary C char OBJECTs. They are
+            # SOURCE coordinates, never invented symbols in the retail ELF.
+            # An original pointer-table/%s reader proves the interior string
+            # type; the existing split, identity, byte and full-link checks
+            # below still establish actual recovered C ownership.
+            from tu.original_text_subobjects import verified_item
+            item=verified_item(root,entry,record,ctx,original_elf,candidate,data_carve)
+            registered=[run for run in (data_carve.load_registry(root)['tus'].get(entry['tu']) or {}).get(section,[])
+                        if data_carve.hx(run['range'][0])<=item['start']<item['end']<=data_carve.hx(run['range'][1]) and
+                        set(names)<=set(run.get('c_owned_symbols') or []) and
+                        any(part.get('symbols')==names and part.get('credit','verified')=='verified' and
+                            tuple(map(data_carve.hx,part['range']))==(item['start'],item['end']) and
+                            part.get('object_range')==[item['original_character_subobject_proof']['compiler_offset'],
+                                item['original_character_subobject_proof']['compiler_offset']+item['end']-item['start']]
+                            for part in run.get('c_input_spans',[]))]
+            require(len(registered)==1,entry['tu']+': original char subobject lacks its exact registered C input span')
+            ctx.setdefault('verified_original_character_subobjects',{}).setdefault(section,[]).append(item)
+            map_items=[item]
         if (not map_items and root is not None and len(matching_symbols) == 1 and
                 matching_symbols[0].bind == 0 and matching_symbols[0].type == 1 and matching_symbols[0].size > 0):
             registered = data_carve.registered_object_items(
@@ -1192,6 +1274,8 @@ def current_allocation_scope(control_path, task, entry, record, ctx, original_el
                          section=section, names=names,
                          owner_tu=entry['tu'], original_symbol_size=original_size,
                          **({'mapped_extent':map_items[0]['end']-map_items[0]['start']} if map_items else {}),
+                         **({'original_character_subobject_proof':map_items[0]['original_character_subobject_proof']}
+                            if map_items and map_items[0].get('source_coordinate_owner') else {}),
                          allocation_classification=identity.get('classification')))
     return dict(id=entry['tu'], unit=unit, data=data), control_path, control
 
@@ -2995,6 +3079,115 @@ def exact_carved_section_plan(entry, section, spans, unit_dir, raw_path,
     return dict(pieces=result)
 
 
+def natural_function_static_owner_alias(root, entry, section, alias, owner,
+                                        record, spans, storage, raw, original,
+                                        linked, source, assembly, ctx):
+    """Bind a self-carrier to an already verified natural C static object.
+
+    A retail function-local name is an actual compiler storage owner, not a
+    map-only dependency. Keep all ordinary byte/carve/storage proofs required;
+    this helper only transports that identity into the linker-alias ledger.
+    """
+    name = alias['original_name']
+    va = int(alias['address'], 16)
+    size = int(owner['size'])
+    if (name != owner['name'] or va != int(owner['address'], 16) or
+            not re.fullmatch(r'[A-Za-z_][A-Za-z_0-9]*\.\d+', name)):
+        return None
+    emission = emitted_storage(assembly.read_text(errors='surrogateescape')).get(name, {})
+    symbols = [s for s in raw.symbols if s.name == name and s.bind == 0 and
+               ((s.type == 1 and s.size == size) or
+                (section in ('.bss', '.sbss') and s.type == 0 and s.size == 0 and
+                 emission.get('extent_kind') == 'label-space' and
+                 emission.get('section') == section and emission.get('size') == size)) and
+               0 < s.shndx < len(raw.sections)]
+    require(len(symbols) == 1, entry['tu']+'/'+name+': natural static lacks one exact raw LOCAL storage definition')
+    symbol = symbols[0]
+    require(raw.sections[symbol.shndx].name == data_carve.raw_section_name(
+                entry['tu'].split('/')[0], section),
+            entry['tu']+'/'+name+': natural static raw section differs')
+    # Ordinary function-pointer arrays have parentheses before their C name;
+    # a declaration is bounded by its initializer or semicolon, not by `(`.
+    # Legacy uninitialized statics can retain LOCAL NOTYPE/size-zero while
+    # cc1's independently decoded label/.space directive proves their extent.
+    import tu_edit
+    tu = tu_edit.TU(source.read_text(errors='surrogateescape'))
+    emitted_functions = cc1_functions(assembly.read_text(errors='surrogateescape'))
+    source_functions = set()
+    stem = name.rsplit('.', 1)[0]
+    for block in tu.blocks:
+        if block.state != 'c' or block.name not in emitted_functions:
+            continue
+        tokens = tu_edit.c_tokens(tu.text[block.core_start:block.core_end])
+        for index, token in enumerate(tokens):
+            if token == 'static':
+                end = next((i for i in range(index+1, len(tokens)) if tokens[i] in ('=', ';', '{')), len(tokens))
+                if stem in tokens[index+1:end]:
+                    source_functions.add(block.name)
+    functions = set()
+    for ref in data_carve.section_references(raw, raw.sections[symbol.shndx]):
+        if ref['target'] != symbol.value:
+            continue
+        origin = raw.sections[raw.sections[ref['rel']].info]
+        consumers = [s for s in raw.symbols if s.type == 2 and s.size and
+                     s.name in source_functions and s.shndx == origin.index and
+                     s.value <= ref['offset'] < s.value+s.size]
+        if len(consumers) == 1:
+            functions.add(consumers[0].name)
+    functions = sorted(functions)
+    require(functions, entry['tu']+'/'+name+': natural static lacks source declaration and cc1 reference')
+    identities = [s for s in original.symbols if s.name == name and s.value == va and
+                  s.bind == 0 and 0 < s.shndx < len(original.sections) and
+                  original.sections[s.shndx].name == section and
+                  ((s.type == 1 and s.size == size) or (s.type == 0 and s.size == 0))]
+    require(len(identities) == 1,
+            entry['tu']+'/'+name+': natural static has no exact original LOCAL identity')
+    final = [s for s in linked.symbols if s.name == name and s.value == va and
+             s.bind == 0 and s.type == symbol.type and s.size == symbol.size and
+             0 < s.shndx < len(linked.sections) and linked.sections[s.shndx].name == section]
+    require(len(final) == 1, entry['tu']+'/'+name+': natural static linked identity differs')
+    locations = [loc for loc in record.get('recovered_location_candidates', []) if
+                 loc.get('section') == section and int(loc.get('address', '0'), 16) == va and
+                 name in (loc.get('names') or [])]
+    require(len(locations) == 1, entry['tu']+'/'+name+': natural static lacks one frozen location')
+    if section in ('.bss', '.sbss'):
+        verified = [row for row in storage if row['name'] == name and row['section'] == section and
+                    int(row['address'], 16) == va and row['size'] == size and
+                    row['bind'] == 0 and row['type'] == ('OBJECT' if symbol.type == 1 else 'NOTYPE') and
+                    row.get('linked') is True]
+    else:
+        verified = [span for span in spans if span['section'] == section and
+                    span['range'] == [va, va+size] and name in span['object_symbols'] and
+                    span['compiler_input_span']['section'] == raw.sections[symbol.shndx].name and
+                    span['compiler_input_span']['offset'] == symbol.value]
+    require(len(verified) == 1,
+            entry['tu']+'/'+name+': natural static lacks its complete ordinary owner proof')
+    items = data_carve.section_items(ctx, section)
+    if identities[0].type == 1:
+        mapped = data_carve.registered_object_items(
+            root, entry['tu'].split('/')[0], original, symbol, {section: items})
+        require(len(mapped) == 1 and mapped[0][1]['start'] == va,
+                entry['tu']+'/'+name+': natural static lacks one registered original item')
+        mapped_names = mapped[0][2]
+    else:
+        map_name = (locations[0].get('storage_owner') or {}).get('map_name')
+        symbol_path = root/'config/symbols'/(''+entry['tu'].split('/')[0]+'.txt')
+        assignments = re.findall(r'^\s*'+re.escape(map_name or '')+r'\s*=\s*(0x[0-9A-Fa-f]+)\s*;',
+                                 symbol_path.read_text(), re.MULTILINE)
+        mapped = [item for item in items if item['start'] == va and item['end'] >= va+size and
+                  map_name in item.get('labels', [])]
+        require(map_name and len(assignments) == 1 and int(assignments[0],16) == va and len(mapped) == 1,
+                entry['tu']+'/'+name+': natural static zero-size identity lacks registered scaffold extent')
+        mapped_names = [map_name]
+    return dict(kind='natural_function_static_owner', name=name, section=section,
+                address=f'0x{va:08X}', size=size, binding='LOCAL',
+                type=('OBJECT' if symbol.type == 1 else 'NOTYPE'), compiler_symbol_size=symbol.size,
+                original_type=identities[0].type, original_size=identities[0].size,
+                source_functions=functions, original_mapped_names=mapped_names,
+                source_sha256=sha(source), assembly_sha256=sha(assembly),
+                identity_transport_only=True, grants_additional_credit=False)
+
+
 def uncredited_linker_map_alias(root, entry, alias_section, alias, owner,
                                 packet_tu, storage_rows, original_elf,
                                 linked_elf, original_section_ranges, ctx,
@@ -4225,6 +4418,7 @@ def main():
             # they are consumed by the linker/map checker.  Bind every one to
             # an independently verified alias row here; ignoring this
             # metadata during run equality must not turn it into a waiver.
+            natural_static_aliases = []
             if not input_only:
                 for alias_section, alias_runs in declared.items():
                     for alias_run in alias_runs:
@@ -4286,11 +4480,22 @@ def main():
                                         for identity in span['original_identities'])
                                     for span in verified_location_spans
                                     for proof in [span.get('storage_owner')]))
+                            natural_direct = None
                             if not (direct or interior or initialized_direct):
+                                natural_direct = natural_function_static_owner_alias(
+                                    root,entry,alias_section,alias,owner,record,
+                                    verified_location_spans,storage,raw_object_elf,
+                                    original_elf,linked,source,asm_path,ctx)
+                                if natural_direct:
+                                    natural_static_aliases.append(natural_direct)
+                            if not (direct or interior or initialized_direct or natural_direct):
                                 linker_dependencies.append(uncredited_linker_map_alias(
                                     root,entry,alias_section,alias,owner,packet_tu,storage,
                                     original_elf,linked,original_section_ranges,ctx,
-                                    data_carve,source,asm_path,linked_path,allocation_path,obj))
+                                    # Consumer relocations belong to the
+                                    # independently pinned raw cc1 object.
+                                    # The carve/partial link may resolve them.
+                                    data_carve,source,asm_path,linked_path,allocation_path,raw_object_elf))
                 for alias in symbol_aliases:
                     require(any(loc.get('section') == alias['section'] and
                                 int(loc.get('address', '0'), 16) == int(alias['address'], 16) and
@@ -4333,6 +4538,7 @@ def main():
                                           anonymous_constants=anonymous,unclaimed_scaffold_runs=unclaimed_scaffold_runs,
                                           derived_nobits=derived_nobits,
                                           verified_storage=storage,symbol_aliases=symbol_aliases,
+                                          natural_function_static_owner_aliases=natural_static_aliases,
                                           supplementary_allocations=auxiliary_allocations,
                                           uncovered_storage_locations=uncovered_storage,
                                           uncredited_linker_dependencies=linker_dependencies,

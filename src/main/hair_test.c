@@ -153,7 +153,7 @@ const char D_004CBC00[] = "\x0bmodel:%3d/%s";
 
 const char D_004CBC10[] = "\x0bmotion:%3d/%3d";
 
-const char D_004CBC20[] = "\x0b* PUASE *";
+const char D_004CBC20[16] = "\x0b* PUASE *";
 
 static HairResourceEntry list[] = {
     { 1, "shion" }, { 9, "shion1" }, { 10, "shion2" },
@@ -306,7 +306,7 @@ typedef struct HairTestPad {
 
 extern HairTestPad PadData[2];
 
-extern const float D_004D824C;
+#define D_004D824C (9.9999997473787516e-05f)
 
 static void InitTest(void)
 {
@@ -940,3 +940,5 @@ static int getNumFCV(FpkFcvHeader *header)
     }
     return result;
 }
+
+

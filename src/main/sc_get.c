@@ -234,27 +234,7 @@ static int scMISSILEScript(ScriptTask *task);
 
 static int scMISSILE3Script(ScriptTask *task);
 
-static int (*_scFuncHandler[73])(ScriptTask *task) = {
-    scERRORScript, scGOScript, scGOSUBScript, scBRAScript,
-    scEXITScript, scRETURNScript, scONGOScript, scONGOSUBScript,
-    scERRORScript, scERRORScript, scPRINTScript, scRPUTScript,
-    scRDUMPScript, scCMDPUTONScript, scCMDPUTOFFScript, scFADEONScript,
-    scERRORScript, scERRORScript, scERRORScript, scERRORScript,
-    scRSETScript, scRINCScript, scRDECScript, scRADDScript,
-    scRSUBScript, scRMULScript, scRDIVScript, scRMODScript,
-    scR_ANDScript, scR_ORScript, scR_XORScript, scR_NOTScript,
-    scR_NEGScript, scRRNDScript, scREVEScript, scERRORScript,
-    scERRORScript, scERRORScript, scERRORScript, scERRORScript,
-    scOBJEVEScript, scABORTScript, scPAUSEScript, scERRORScript,
-    scERRORScript, scERRORScript, scERRORScript, scERRORScript,
-    scERRORScript, scERRORScript, scWAITCNTScript, scWAITEVEScript,
-    scWAITEFTScript, scWAITMOVIEScript, scWAITMISSILEScript, scERRORScript,
-    scERRORScript, scERRORScript, scERRORScript, scERRORScript,
-    scEFFECTScript, scEFFECT2Script, scEFFECT3Script, scERRORScript,
-    scERRORScript, scERRORScript, scERRORScript, scERRORScript,
-    scERRORScript, scERRORScript, scMOVIEScript, scMISSILEScript,
-    scMISSILE3Script
-};
+static int (*_scFuncHandler[73])(ScriptTask *task);
 
 /* Sixteen zero-filled script records, each one 0x450 bytes from the observed index stride. */
 
@@ -287,6 +267,12 @@ extern int rand(void);
 extern void func_A31500(int *position, int mode);
 
 extern void func_A31920(int mode, int *position);
+
+static short _cmdPut = 0;
+
+int _scMslCate = 0;
+
+const char D_004DBB38[8] = " %04x";
 
 void scInitScript(void)
 {
@@ -1450,19 +1436,78 @@ int scGetCmdAdrScript(ScriptTask *task)
 }
 
 ScriptRecord _scriptWork[16] = {{0}};
+static const char D_004CC7B8[48];
+static const char D_004CC818[24];
+static const char D_004CC850[32];
+static short _cmdPut;
+extern int _scMslCate;
+extern int _nowScript;
+extern int _nowEvent;
+extern const char D_004DBB38[8];
+static const char D_004CC790[40];
+static const char D_004CC7E8[24];
+static const char D_004CC800[24];
+static const char D_004CC830[32];
+static const char D_004CC870[16];
+static const char D_004CC898[24];
+static ScriptZeroPosition _zeroPos_0041E290;
+
+
+
+extern int _nowDataIdx;
+
+
+static ScriptZeroPosition _zeroPos_0041E290 = {{0, 0x3f80000000000000ULL}};
+
+static int (*_scFuncHandler[73])(ScriptTask *task) = {
+    scERRORScript, scGOScript, scGOSUBScript, scBRAScript,
+    scEXITScript, scRETURNScript, scONGOScript, scONGOSUBScript,
+    scERRORScript, scERRORScript, scPRINTScript, scRPUTScript,
+    scRDUMPScript, scCMDPUTONScript, scCMDPUTOFFScript, scFADEONScript,
+    scERRORScript, scERRORScript, scERRORScript, scERRORScript,
+    scRSETScript, scRINCScript, scRDECScript, scRADDScript,
+    scRSUBScript, scRMULScript, scRDIVScript, scRMODScript,
+    scR_ANDScript, scR_ORScript, scR_XORScript, scR_NOTScript,
+    scR_NEGScript, scRRNDScript, scREVEScript, scERRORScript,
+    scERRORScript, scERRORScript, scERRORScript, scERRORScript,
+    scOBJEVEScript, scABORTScript, scPAUSEScript, scERRORScript,
+    scERRORScript, scERRORScript, scERRORScript, scERRORScript,
+    scERRORScript, scERRORScript, scWAITCNTScript, scWAITEVEScript,
+    scWAITEFTScript, scWAITMOVIEScript, scWAITMISSILEScript, scERRORScript,
+    scERRORScript, scERRORScript, scERRORScript, scERRORScript,
+    scEFFECTScript, scEFFECT2Script, scEFFECT3Script, scERRORScript,
+    scERRORScript, scERRORScript, scERRORScript, scERRORScript,
+    scERRORScript, scERRORScript, scMOVIEScript, scMISSILEScript,
+    scMISSILE3Script
+};
+
+static const char D_004CC790[40] = "--- error no load effect data %d";
+
 static const char D_004CC7B8[48] =
     "\xC8\xCF\xB0\xCF\xB3\xB0\xA4\xCE\xA5\xA8\xA5\xD5\xA5\xA7\xA5\xAF\xA5\xC8\xA4\xF2\xBE\xC3\xB5\xEE\xA4\xB7\xA4\xE8\xA4\xA6\xA4\xC8\xA4\xB7\xA4\xC6\xA4\xDE\xA4\xB9\x20\x25\x64\x20\x25\x64";
-static const char D_004CC818[24] = "register overflow : %d";
-static const char D_004CC850[32] = "--- effect stack under flow";
-static short _cmdPut = 0;
-int _scMslCate = 0;
-int _nowScript = 0;
-int _nowEvent = 0;
-const char D_004DBB38[8] = " %04x";
-static const char D_004CC790[40] = "--- error no load effect data %d";
+
 static const char D_004CC7E8[24] = "\xC8\xCF\xB0\xCF\xB3\xB0\xA4\xCE" "Task(%d)" "\xA4\xC7\xA4\xB9";
+
 static const char D_004CC800[24] = "task work is empty : %d";
+
+static const char D_004CC818[24] = "register overflow : %d";
+
 static const char D_004CC830[32] = "--- effect stack over flow";
+
+static const char D_004CC850[32] = "--- effect stack under flow";
+
 static const char D_004CC870[16] = "--- bad exp(%d)";
+
 static const char D_004CC898[24] = "data\\simajiri\\movie\\";
-static ScriptZeroPosition _zeroPos_0041E290 = {{0, 0x3f80000000000000ULL}};
+
+static short _cmdPut;
+
+int _scMslCate;
+
+const char D_004DBB38[8];
+
+int _nowScript = 0;
+
+int _nowEvent = 0;
+
+int _nowDataIdx = 0;

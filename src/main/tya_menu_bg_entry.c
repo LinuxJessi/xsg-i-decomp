@@ -142,40 +142,7 @@ extern void xglRotTransPersN(MenuBgProjectedPoint *destination,
 /* 11-qword palette transfer: DMA/VIF header, GIFtag, four A+D writes,
  * then five original zero qwords retained by the original transfer count. */
 
-static u8 TestEnv_2_0036AAA0[176] = {
-    NML_DIRECT_HEADER(0x51000005),
-    GIF_TAG_WORDS(0x8004, 0x10000000, 0x0000000e, 0),
-    GIF_AD_ENTRY(0x0008380000000000ULL, 0x50),
-    GIF_AD_ENTRY(0, 0x51),
-    GIF_AD_ENTRY(0x0000000800000040ULL, 0x52),
-    GIF_AD_ENTRY(0, 0x53),
-    NML_ZERO_QWORD, NML_ZERO_QWORD, NML_ZERO_QWORD,
-    NML_ZERO_QWORD, NML_ZERO_QWORD,
-};
-
-/* 7-qword entry transfer: DMA/VIF header, GIFtag, and five A+D writes. */
-
-static u8 TestEnv_3_0036AB50[112] = {
-    NML_DIRECT_HEADER(0x51000006),
-    GIF_TAG_WORDS(0x8001, 0x50000000, 0x000eeeee, 0),
-    GIF_AD_ENTRY(0x0000000000070000ULL, 0x47),
-    GIF_AD_ENTRY(0x0000000000000060ULL, 0x14),
-    GIF_AD_ENTRY(0x20000004d8023800ULL, 0x06),
-    GIF_AD_ENTRY(0x0000000000000044ULL, 0x42),
-    GIF_AD_ENTRY(0, 0x08),
-};
-
-#undef NML_ZERO_QWORD
-
-#undef GIF_AD_ENTRY
-
-#undef GIF_TAG_WORDS
-
-#undef NML_DIRECT_HEADER
-
-#undef EE_U64_BYTES
-
-#undef EE_U32_BYTES
+static u8 TestEnv_2_0036AAA0[176];static u8 TestEnv_3_0036AB50[112];
 
 static int task_menubg(XglTaskPrefix *task);
 
@@ -422,3 +389,35 @@ void tyaMenuBgEntry(XglTaskScheduler *scheduler, MenuBgWork *work)
         }
     }
 }
+
+
+static u8 TestEnv_2_0036AAA0[176] = {
+    NML_DIRECT_HEADER(0x51000005),
+    GIF_TAG_WORDS(0x8004, 0x10000000, 0x0000000e, 0),
+    GIF_AD_ENTRY(0x0008380000000000ULL, 0x50),
+    GIF_AD_ENTRY(0, 0x51),
+    GIF_AD_ENTRY(0x0000000800000040ULL, 0x52),
+    GIF_AD_ENTRY(0, 0x53),
+    NML_ZERO_QWORD, NML_ZERO_QWORD, NML_ZERO_QWORD,
+    NML_ZERO_QWORD, NML_ZERO_QWORD,
+};
+
+
+/* 7-qword entry transfer: DMA/VIF header, GIFtag, and five A+D writes. */
+
+static u8 TestEnv_3_0036AB50[112] = {
+    NML_DIRECT_HEADER(0x51000006),
+    GIF_TAG_WORDS(0x8001, 0x50000000, 0x000eeeee, 0),
+    GIF_AD_ENTRY(0x0000000000070000ULL, 0x47),
+    GIF_AD_ENTRY(0x0000000000000060ULL, 0x14),
+    GIF_AD_ENTRY(0x20000004d8023800ULL, 0x06),
+    GIF_AD_ENTRY(0x0000000000000044ULL, 0x42),
+    GIF_AD_ENTRY(0, 0x08),
+};
+
+#undef NML_ZERO_QWORD
+#undef GIF_AD_ENTRY
+#undef GIF_TAG_WORDS
+#undef NML_DIRECT_HEADER
+#undef EE_U64_BYTES
+#undef EE_U32_BYTES

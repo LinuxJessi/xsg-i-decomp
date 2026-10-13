@@ -4,6 +4,7 @@ These helpers interpret source declarations and original DATA identities. They
 do not build objects, change compile contracts, or provide recovery credit.
 """
 import collections
+import ast
 import re
 import struct
 
@@ -247,7 +248,96 @@ def expand(root, tus, selected, pieces, indexes, inputs, binary, sha):
                data_role='class_descriptor_storage',record_size=extent,
                probe_typedefs=[expanded],support_edits=edits,
                basis='original 0x40-byte mapped storage and recovered ClassEntry xmalloc allocation')]
+    _correct_record_views(root, tus, selected, indexes, inputs, binary, sha)
     return roots
+
+
+def _correct_record_views(root, tus, selected, indexes, inputs, binary, sha):
+    """Correct two closed reader-proven record views, never enlarge padding.
+
+    The current consumers already pass the vector objects through Vector4
+    pointers, and their original callees copy all sixteen bytes. The defocus
+    packet has the same fixed GIF/VIF layout as its existing 64-byte header.
+    Corrections are candidate declaration replacements, not published edits.
+    """
+    def source(path):
+        path = root / path
+        inputs[path] = sha(path)
+        return path.read_text()
+
+    def function_words(original, name):
+        functions = [s for s in original.symbols if s.name == name and s.type == 2 and s.size]
+        if len(functions) != 1 or functions[0].size % 4:
+            return []
+        symbol = functions[0]
+        raw = dc.va_bytes(original, symbol.value, symbol.size)
+        return list(struct.unpack('<' + 'I' * (len(raw) // 4), raw)) if raw else []
+
+    def has_quad_copy(words):
+        # Original lq/sq through one register, zero offsets. This is only
+        # reader evidence; no assembly or opcodes are emitted as DATA.
+        for load, store in zip(words, words[1:]):
+            if (load >> 26 == 0x1e and store >> 26 == 0x1f and
+                    load & 0xffff == 0 and store & 0xffff == 0 and
+                    (load >> 16) & 31 == (store >> 16) & 31):
+                return True
+        return False
+
+    for row in selected:
+        tu = row['tu']
+        declarations = indexes[tu].get(row['names'][0], []) if len(row['names']) == 1 else []
+        if not declarations:
+            continue
+        name = row['names'][0]
+        owner_path = tus[tu]['path']
+        original = binary(row['unit'])
+        address, extent = dc.hx(row['address']), dc.hx(row['end']) - dc.hx(row['address'])
+        identities = [s for s in original.symbols if s.value == address and s.type == 1 and s.size == extent]
+        if len(identities) != 1:
+            continue
+        if (owner_path == 'src/main/set_path.c' and extent == 16 and
+                all(d['type'] == 'SetPathEffectVector' and not d['dimensions'] for d in declarations)):
+            code = source(owner_path)
+            call = (r'\bsefCreateEffectCf\s*\(\s*\w+\s*,\s*'
+                    r'\(\s*const\s+Vector4\s*\*\s*\)\s*&\s*(\w+)\s*,\s*'
+                    r'\(\s*const\s+Vector4\s*\*\s*\)\s*&\s*(\w+)\s*\)')
+            if not any(name in pair for pair in re.findall(call, code)):
+                continue
+            vector = source('include/shared.h')
+            header = source('include/main/sef.h')
+            if not (re.search(r'typedef\s+struct\s+Vector4\s*\{\s*float\s+x\s*;\s*float\s+y\s*;\s*float\s+z\s*;\s*float\s+w\s*;\s*\}\s*Vector4\s*;', vector) and
+                    re.search(r'sefCreateEffectCf\s*\(\s*int\s+\w+\s*,\s*const\s+Vector4\s*\*\s*\w+\s*,\s*const\s+Vector4\s*\*\s*\w+\s*\)', header) and
+                    has_quad_copy(function_words(original, 'sefCreateEffectCf2')) and
+                    has_quad_copy(function_words(original, 'sefCreateScheduler2'))):
+                continue
+            old = 'extern SetPathEffectVector ' + name + ';'
+            if code.count(old) != 1:
+                continue
+            indexes[tu][name] = [dict(declarations[0], type='Vector4',
+                source_replacements=[dict(old=old, new='extern Vector4 ' + name + ';')],
+                basis='original 16-byte OBJECT, existing Vector4 casts and prototype, original position/orientation lq/sq consumers',
+                reader_evidence=['sefCreateEffectCf2', 'sefCreateScheduler2'])]
+        elif (owner_path == 'src/main/game_defocus.c' and extent == 64 and
+                all(d['type'] == 'DefocusTexturedHeader' and not d['dimensions'] for d in declarations)):
+            code = source(owner_path)
+            old = 'extern DefocusTexturedHeader ' + name + ';'
+            raw = dc.va_bytes(original, address, extent)
+            if raw is None or code.count(old) != 1:
+                continue
+            words = struct.unpack('<16I', raw)
+            # Closed fixed register-write header: original VIF/GIF prefix,
+            # three register/value pairs and zero high halves. Keep the
+            # selector 0x44 numeric rather than inventing its source name.
+            expected = (0, 0, 0, 0x51000003, 0x8001, 0x20000000, 0xee, 0,
+                        0x71001, 0, 0x47, 0, 0x44, 0, 0x42, 0)
+            read = r'\bsceVif1PkAddDataN\s*\(\s*\w+\s*,\s*&\s*' + re.escape(name) + r'\s*,\s*16\s*\)'
+            if (words != expected or not re.search(read, code) or
+                    not re.search(r'typedef\s+struct\s+DefocusSolidPacketHeader\s*\{', code) or
+                    not re.search(r'static\s+DefocusSolidPacketHeader\s+defocus_solid_packet_header\s*=\s*\{', code)):
+                continue
+            indexes[tu][name] = [dict(declarations[0], type='DefocusSolidPacketHeader',
+                source_replacements=[dict(old=old, new='extern DefocusSolidPacketHeader ' + name + ';')],
+                basis='original 64-byte OBJECT and 16-word packet reader match the existing fixed GIF/VIF header layout; selector 0x44 differs from the solid template')]
 
 
 def sprite_uv_definition(prefix, payload):
@@ -261,3 +351,335 @@ def sprite_uv_definition(prefix, payload):
              struct.iter_unpack('<HHHH',payload)]
     source=prefix+f'[{len(payload)}] = {{\n'+',\n'.join(entries)+'\n};'
     return source,macro
+
+
+class RecordCatalog(dict):
+    """Existing definitions plus pinned source text for bounded use evidence."""
+
+
+def record_catalog(root, include_closure_paths, inputs, sha):
+    """Read complete, existing record definitions from one TU's include closure.
+
+    The catalog does not invent fields or infer a layout from the payload.
+    Unsupported C declarators remain unsupported; compiler probes and the
+    linked DATA gate still decide whether a generated initializer is exact.
+    """
+    catalog = collections.defaultdict(list)
+    source_texts = []
+    for path in sorted(set(include_closure_paths), key=str):
+        if not path.is_file():
+            continue
+        inputs[path] = sha(path)
+        code = re.sub(r'/\*.*?\*/|//[^\n]*', '', path.read_text(), flags=re.S)
+        source_texts.append(code)
+        pattern = r'\b(typedef\s+)?(struct|union)\s*([A-Za-z_]\w*)?\s*\{'
+        for match in re.finditer(pattern, code):
+            depth, end = 1, match.end()
+            while end < len(code) and depth:
+                depth += (code[end] == '{') - (code[end] == '}')
+                end += 1
+            if depth:
+                continue
+            tail = re.match(r'\s*([A-Za-z_]\w*)?\s*;', code[end:])
+            if not tail:
+                continue
+            typedef, kind, tag = match.groups()
+            alias = tail[1] if typedef else None
+            # A non-typedef with a declarator is an object declaration, not
+            # a reusable named record definition.
+            if not alias and (not tag or tail[1]):
+                continue
+            declaration = code[match.start():end + tail.end()]
+            item = dict(kind=kind, body=code[match.end():end-1],
+                        declaration=declaration, path=str(path.relative_to(root)),
+                        tag=tag, alias=alias)
+            for name in ([alias] if alias else []) + ([kind + ' ' + tag] if tag else []):
+                if not any(x['declaration'] == declaration for x in catalog[name]):
+                    catalog[name].append(item)
+    result = RecordCatalog(catalog)
+    result.source_texts = source_texts
+    return result
+
+
+class RecordLayoutError(ValueError):
+    """A source record needs a more complete source/layout hypothesis."""
+
+
+def _record_split(text, delimiter):
+    depth, start, parts = 0, 0, []
+    for index, char in enumerate(text):
+        depth += char in '{[('
+        depth -= char in '}])'
+        if char == delimiter and depth == 0:
+            parts.append(text[start:index].strip())
+            start = index + 1
+    tail = text[start:].strip()
+    if tail:
+        parts.append(tail)
+    return parts
+
+
+def _record_bound(text):
+    """Evaluate only bounded integer arithmetic appearing literally in C."""
+    text = re.sub(r'(?<=\d)[uUlL]+\b', '', text.strip())
+    def value(node):
+        if isinstance(node, ast.Constant) and type(node.value) is int:
+            return node.value
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
+            return value(node.operand) * (-1 if isinstance(node.op, ast.USub) else 1)
+        if isinstance(node, ast.BinOp) and isinstance(node.op, (ast.Add, ast.Sub, ast.Mult)):
+            a, b = value(node.left), value(node.right)
+            return a+b if isinstance(node.op, ast.Add) else a-b if isinstance(node.op, ast.Sub) else a*b
+        raise RecordLayoutError('record bound is not explicit integer arithmetic')
+    try:
+        result = value(ast.parse(text, mode='eval').body)
+    except (SyntaxError, ValueError, TypeError, RecursionError):
+        raise RecordLayoutError('record bound is not explicit integer arithmetic') from None
+    if not 0 < result <= 65536:
+        raise RecordLayoutError('record bound is outside the bounded layout')
+    return result
+
+
+def record_definition(row, block, original, declarations, records, aliases,
+                      numeric_literal, storage=''):
+    """Decode already modeled numeric records, preserving their named fields.
+
+    Accepts complete structs, their arrays, and a union's existing first
+    member when that member covers the union extent. No pointer or bitfield
+    initializer inference, padding fields, opaque payload types, or assembler
+    is generated. Explicit pointer fields are admitted only for uninitialized
+    storage, where the established EE ABI supplies their four-byte extent.
+    Returns None for a scalar/non-record declaration and raises
+    RecordLayoutError for an evidenced record whose layout is unsupported.
+    """
+    if len(row['names']) != 1:
+        return None
+    name = row['names'][0]
+    evidence = declarations.get(name, [])
+    choices = {(d['type'], d['dimensions']) for d in evidence}
+    if not choices or len({t for t, _ in choices}) != 1:
+        return None
+    ctype = next(iter(choices))[0]
+    base = re.sub(r'\b(?:const|volatile)\b', '', ctype).strip()
+    if base not in records:
+        return None
+    dims = {d for _, d in choices if d not in ('[]', '')}
+    if len(dims) > 1 or len({bool(d) for _, d in choices}) != 1:
+        raise RecordLayoutError('record has incompatible source array bounds')
+    bounds = next(iter(dims)) if dims else next(iter(choices))[1]
+    required, active = [], set()
+    scalar_formats = {
+        'char': ('b', 1), 'signed char': ('b', 1), 'unsigned char': ('B', 1),
+        'short': ('h', 2), 'signed short': ('h', 2), 'unsigned short': ('H', 2),
+        'short int': ('h', 2), 'unsigned short int': ('H', 2),
+        'int': ('i', 4), 'signed int': ('i', 4), 'unsigned': ('I', 4),
+        'unsigned int': ('I', 4), 'long long': ('q', 8),
+        'signed long long': ('q', 8), 'unsigned long long': ('Q', 8),
+        'float': ('f', 4), 'double': ('d', 8),
+    }
+    def append(declaration):
+        if declaration not in required:
+            required.append(declaration)
+    def align(offset, alignment):
+        return (offset + alignment - 1) // alignment * alignment
+    def layout(type_name):
+        type_name = re.sub(r'\b(?:const|volatile)\b', '', type_name).strip()
+        type_name = ' '.join(type_name.split())
+        if '*' in type_name:
+            if row['section'] not in ('.bss', '.sbss') or type_name.count('*') != 1:
+                raise RecordLayoutError('initialized pointer field requires a pointee hypothesis')
+            target = type_name.replace('*', '').strip()
+            if target != 'void':
+                # Retain a genuine source forward alias or the existing full
+                # definition. Never introduce a tag for an anonymous type.
+                if target in records:
+                    layout(target)
+                elif target in aliases and len(aliases[target]) == 1:
+                    base_type = next(iter(aliases[target]))
+                    if not re.fullmatch(r'(?:struct|union)\s+[A-Za-z_]\w*', base_type):
+                        layout(base_type)
+                    append(f'typedef {base_type} {target};')
+                else:
+                    layout(target)
+            return dict(kind='pointer', size=4, alignment=4)
+        if type_name in scalar_formats:
+            fmt, width = scalar_formats[type_name]
+            return dict(kind='scalar', fmt=fmt, size=width, alignment=width,
+                        ctype=type_name)
+        if type_name in active:
+            raise RecordLayoutError('record has a recursive or divergent value type')
+        active.add(type_name)
+        try:
+            if type_name in records:
+                definitions = records[type_name]
+                if len(definitions) != 1:
+                    raise RecordLayoutError('record has divergent source definitions')
+                definition = definitions[0]
+                result = body_layout(definition['kind'], definition['body'])
+                append(definition['declaration'])
+                return result
+            alternatives = aliases.get(type_name, set())
+            if len(alternatives) != 1:
+                raise RecordLayoutError('record field type has no unique explicit definition')
+            target = next(iter(alternatives))
+            if '*' in target or '__attribute__' in target:
+                raise RecordLayoutError('record field uses an unsupported pointer or ABI attribute')
+            result = layout(target)
+            # A genuine tagged definition is already carried in full by the
+            # catalog; retain the source alias needed to refer to that tag.
+            append(f'typedef {target} {type_name};')
+            return result
+        finally:
+            active.remove(type_name)
+    def field_layout(text):
+        if ':' in text or '__attribute__' in text or '(' in text:
+            raise RecordLayoutError('record field needs a bitfield, function pointer, or attribute model')
+        nested = re.match(r'(struct|union)\s*\{', text)
+        if nested:
+            depth, end = 1, nested.end()
+            while end < len(text) and depth:
+                depth += (text[end] == '{') - (text[end] == '}')
+                end += 1
+            if depth:
+                raise RecordLayoutError('record field has an incomplete nested definition')
+            value = body_layout(nested[1], text[nested.end():end-1])
+            declarators = text[end:].strip()
+        else:
+            declarator_parts = _record_split(text, ',')
+            match = re.fullmatch(r'(.+?)\s+(\**\s*[A-Za-z_]\w*\s*(?:\[[^\]]+\]\s*)*)', declarator_parts[0])
+            if not match:
+                raise RecordLayoutError('record field has an unsupported declarator')
+            field_type = match[1]
+            value = None
+            declarators = ', '.join([match[2]] + declarator_parts[1:])
+        fields = []
+        for declarator in _record_split(declarators, ','):
+            match = re.fullmatch(r'(\**\s*)([A-Za-z_]\w*)\s*((?:\[[^\]]+\]\s*)*)', declarator)
+            if not match:
+                raise RecordLayoutError('record field has an unsupported declarator')
+            item = value if nested else layout(field_type + ' ' + match[1])
+            if nested and match[1].strip():
+                raise RecordLayoutError('nested record pointer declarator needs a tag model')
+            for bound in reversed(re.findall(r'\[([^\]]+)\]', match[3])):
+                count = _record_bound(bound)
+                item = dict(kind='array', element=item, count=count,
+                            size=item['size'] * count, alignment=item['alignment'])
+            if item['size'] > 65536:
+                raise RecordLayoutError('record field exceeds the bounded layout')
+            fields.append(dict(name=match[2], layout=item))
+        return fields
+    def body_layout(kind, body):
+        fields = [field for text in _record_split(body, ';') for field in field_layout(text)]
+        if not fields:
+            raise RecordLayoutError('empty record has no modeled layout')
+        alignment = max(field['layout']['alignment'] for field in fields)
+        offset = 0
+        for field in fields:
+            offset = align(offset, field['layout']['alignment']) if kind == 'struct' else 0
+            field['offset'] = offset
+            offset += field['layout']['size']
+        size = align(offset if kind == 'struct' else max(f['layout']['size'] for f in fields), alignment)
+        if size > 65536:
+            raise RecordLayoutError('record exceeds the bounded layout')
+        if kind == 'union' and fields[0]['layout']['size'] != size:
+            raise RecordLayoutError('union first member does not cover its original storage')
+        return dict(kind=kind, fields=fields, size=size, alignment=alignment)
+    def decode(item, payload):
+        if len(payload) != item['size']:
+            raise RecordLayoutError('record decoder extent mismatch')
+        kind = item['kind']
+        if kind == 'scalar':
+            value = struct.unpack('<' + item['fmt'], payload)[0]
+            return numeric_literal(value, item['ctype'], item['fmt'])
+        if kind == 'array':
+            stride = item['element']['size']
+            if (item['element']['kind'] == 'scalar' and item['element']['ctype'] == 'char' and
+                    payload.endswith(b'\0') and encoded_text(payload)):
+                escapes = {9: '\\t', 10: '\\n', 13: '\\r', 34: '\\"', 63: '\\?', 92: '\\\\'}
+                return '"' + ''.join(escapes.get(v, chr(v) if 32 <= v < 127 else f'\\{v:03o}')
+                                     for v in payload.rstrip(b'\0')) + '"'
+            return '{ ' + ', '.join(decode(item['element'], payload[i:i+stride])
+                                    for i in range(0, len(payload), stride)) + ' }'
+        fields = item['fields'][:1] if kind == 'union' else item['fields']
+        entries, cursor = [], 0
+        for field in fields:
+            offset, width = field['offset'], field['layout']['size']
+            if any(payload[cursor:offset]):
+                raise RecordLayoutError('original record contains nonzero implicit ABI padding')
+            entries.append('.' + field['name'] + ' = ' + decode(field['layout'], payload[offset:offset+width]))
+            cursor = offset + width
+        if any(payload[cursor:]):
+            raise RecordLayoutError('original record has unexplained trailing ABI padding')
+        return '{ ' + ', '.join(entries) + ' }'
+    item = layout(base)
+    extent = dc.hx(row['end']) - dc.hx(row['address'])
+    if not 0 < extent <= 65536:
+        raise RecordLayoutError('original record exceeds the bounded layout')
+    if bounds:
+        if extent % item['size']:
+            raise RecordLayoutError('original extent does not contain complete source records')
+        dimensions = re.findall(r'\[([^\]]*)\]', bounds)
+        if not dimensions:
+            raise RecordLayoutError('record array lacks explicit source dimensions')
+        if dimensions == ['']:
+            dimensions = [str(extent // item['size'])]
+        for bound in reversed(dimensions):
+            count = _record_bound(bound)
+            item = dict(kind='array', element=item, count=count,
+                        size=item['size'] * count, alignment=item['alignment'])
+        suffix = ''.join('[' + str(_record_bound(b)) + ']' for b in dimensions)
+    else:
+        suffix = ''
+    mapped_end = row['end']
+    alignment_tail = 0
+    if item['size'] != extent:
+        # A zero-size NOTYPE label is not a sizeof declaration. Its scaffold
+        # item may extend through alignment before the next object. Preserve
+        # only an independently evidenced complete C record; the remaining
+        # original bytes stay uncredited scaffolding, not invented fields.
+        address = dc.hx(row['address'])
+        size = item['size']
+        original_objects = [s for s in original.symbols if s.value == address and s.type == 1 and s.size]
+        positive_size_proof = original_objects and all(s.size == size for s in original_objects)
+        if original_objects and not positive_size_proof:
+            raise RecordLayoutError('record source size differs from a sized original OBJECT')
+        named_fields = [f['name'] for f in item.get('fields', [])]
+        use_proof = False
+        for code in getattr(records, 'source_texts', []):
+            if any(re.search(r'\b' + re.escape(name) + r'\s*\.\s*' + re.escape(field) + r'\b', code)
+                   for field in named_fields):
+                use_proof = True
+            for local in re.findall(r'\b' + re.escape(base) + r'\s*\*\s*(\w+)\s*=\s*&\s*' + re.escape(name) + r'\b', code):
+                use_proof |= any(re.search(r'\b' + re.escape(local) + r'\s*->\s*' + re.escape(field) + r'\b', code)
+                                 for field in named_fields)
+            for local in re.findall(r'\b' + re.escape(base) + r'\s+(\w+)\s*;', code):
+                use_proof |= bool(re.search(r'\b' + re.escape(local) + r'\s*=\s*' + re.escape(name) + r'\s*;', code) and
+                                  any(re.search(r'\b' + re.escape(local) + r'\s*\.\s*' + re.escape(field) + r'\b', code)
+                                      for field in named_fields))
+        aligned_end = any((address + size + boundary - 1) // boundary * boundary == address + extent
+                          for boundary in (2, 4, 8, 16))
+        if not (0 < extent - size <= 15 and aligned_end and (positive_size_proof or use_proof)):
+            raise RecordLayoutError('record source type does not cover the exact original extent')
+        if row['section'] not in ('.bss', '.sbss'):
+            tail = dc.va_bytes(original, address + size, extent - size)
+            if tail is None or any(tail):
+                raise RecordLayoutError('record alignment tail contains nonzero original bytes')
+        alignment_tail, extent = extent - size, size
+    provenance = dict(evidence[0], data_role='existing_typed_record',
+                      record_size=extent, probe_typedefs=required,
+                      record_sources=sorted({d['path'] for definitions in records.values() for d in definitions
+                                             if d['declaration'] in required}),
+                      basis='existing named C fields and exact original DATA extent; numeric fields decoded from original bytes')
+    if evidence[0].get('source_replacements'):
+        provenance['declaration_correction_basis'] = evidence[0].get('basis')
+    if alignment_tail:
+        provenance.update(object_extent=extent, mapped_end=mapped_end,
+                          uncredited_alignment_extent=alignment_tail,
+                          basis='existing typed record field consumers establish sizeof; original trailing zero alignment remains scaffolding')
+    prefix = storage + ctype + ' ' + name + suffix
+    if row['section'] in ('.bss', '.sbss'):
+        return prefix + ';', 'storage', provenance
+    payload = dc.va_bytes(original, dc.hx(row['address']), extent)
+    if payload is None:
+        raise RecordLayoutError('record is outside original initialized DATA')
+    return prefix + ' = ' + decode(item, payload) + ';', 'record_array', provenance

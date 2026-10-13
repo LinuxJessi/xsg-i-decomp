@@ -173,9 +173,9 @@ extern u64 *MenuBgKeepCamera;
 extern void *xglTaskInitial(void *pool, int capacity, int flags);
 extern StudioCamera *xglStudioGetActiveCamera(void);
 extern void xglCameraInit(StudioCamera *camera);
-extern const float D_004D7D58;
-extern const float D_004D7D5C;
-extern const float D_004D7D60;
+#define D_004D7D58 (-0.42479878664016724f)
+#define D_004D7D5C (2.784193754196167f)
+#define D_004D7D60 (7.0559511184692383f)
 extern void tyaMenuBgEntry(XglTaskScheduler *scheduler,
                            MenuBgTaskParameters *work);
 

@@ -87,7 +87,7 @@ short GameMovieFrame = 0;
 
 const char D_004C01C8[] = "*** SnapShot:%s,%08x ***\n";
 
-const char D_004C01E8[] = "%d,%d,%d\n";
+const char D_004C01E8[24] = "%d,%d,%d\n";
 
 extern GameSnapShotDrawEnv DrawEnv;
 
@@ -116,7 +116,7 @@ typedef struct {
     unsigned short draw_buffer_base;
 } GameSnapShotRenderState;
 
-extern unsigned long long TestPrim_0_00366EA0[24];
+static SnapshotDmaPacket TestPrim_0_00366EA0;
 
 extern GameSnapShotRenderState sRender;
 
@@ -218,11 +218,11 @@ unsigned int GameSnapShotSaveThumbnail(int quality, unsigned int output_buffer) 
     unsigned long long bitbltbuf;
 
     bitbltbuf = 0x24020000 | (sRender.draw_buffer_base << 5);
-    TestPrim_0_00366EA0[10] = bitbltbuf | (0xC800ULL << 19);
-    TestPrim_0_00366EA0[8] = 0x801C0;
-    SyncDCache(TestPrim_0_00366EA0, TestPrim_0_00366EA0 + 24);
+    TestPrim_0_00366EA0.words[10] = bitbltbuf | (0xC800ULL << 19);
+    TestPrim_0_00366EA0.words[8] = 0x801C0;
+    SyncDCache(TestPrim_0_00366EA0.words, TestPrim_0_00366EA0.words + 24);
     sceGsSyncPath(0, 0);
-    xglDmaDirectNormal(2, TestPrim_0_00366EA0, 12);
+    xglDmaDirectNormal(2, TestPrim_0_00366EA0.words, 12);
     sceGsSyncPath(0, 0);
 
     memset(&params, 0, 0x20);
@@ -333,3 +333,5 @@ int GameSnapShotSaveFile(int number, const void *data, int size) {
 }
 
 
+
+static SnapshotDmaPacket TestPrim_0_00366EA0 = { .words = { 0x0000000000000000ULL, 0x5100000b00000000ULL, 0xa08b400000008001ULL, 0x000000e53531eeeeULL, 0x0000000000071001ULL, 0x0000000000000047ULL, 0x0000000000000060ULL, 0x0000000000000014ULL, 0x0000000000000000ULL, 0x000000000000004cULL, 0x0000000000000000ULL, 0x0000000000000006ULL, 0x0000008000000080ULL, 0x0000000000000080ULL, 0x0000000000000000ULL, 0x0000000000000000ULL, 0x000071f700006ff8ULL, 0x00000000ffffffffULL, 0x00001c0000002000ULL, 0x0000000000000000ULL, 0x000078f7000077f8ULL, 0x00000000ffffffffULL, 0x0000000000000000ULL, 0x000000000000003fULL } };

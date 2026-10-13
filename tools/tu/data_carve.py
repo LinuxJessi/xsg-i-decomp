@@ -1969,6 +1969,23 @@ def section_items(ctx, sec):
     for p in ctx['pieces'].get(sec) or []:
         _, its = piece_items(ctx['path_of'](p, sec), p['start'], p['end'])
         items += its
+    # A DATA gate may attach SOURCE-owned character subspan views only after
+    # proving actual ordinary C storage and an original %s/pointer consumer.
+    # These are SOURCE coordinate names, not invented original ELF symbols.
+    views=ctx.get('verified_original_character_subobjects',{}).get(sec,[])
+    if views:
+        limits={view['original_character_subobject_proof']['original_parent_range'][0]:
+                view['original_character_subobject_proof']['original_parent_range'][0]+
+                view['original_character_subobject_proof']['existing_C_prefix_extent']
+                for view in views}
+        for index,item in enumerate(items):
+            if item['start'] in limits:
+                item=copy.deepcopy(item)
+                item['original_mapped_range']=[item['start'],item['end']]
+                item['end']=limits[item['start']]
+                items[index]=item
+        items += views
+        items.sort(key=lambda item:item['start'])
     return items
 
 
@@ -2686,6 +2703,61 @@ def original_character_fields(root, unit, ctx, orig, sym, address, record):
     return offset == sym.size
 
 
+def compiler_zero_alignment_gap(unit_dir, ctx, obj_elf, csec, piece, run, original):
+    """Prove an uncredited inter-object gap emitted by ordinary cc1 alignment.
+
+    This supports mixed initialized allocations without crediting their zeros.
+    It cannot introduce a source owner, section tail, relocation or new byte.
+    """
+    if piece['symbols'] or piece['credit'] != 'uncredited_dependency':
+        return False
+    names=set(run.get('c_owned_symbols') or [])
+    left=[s for s in obj_elf.symbols if s.shndx==csec.index and s.type==1 and
+          s.name in names and s.size>0 and s.value+s.size==piece['offset']]
+    right=[s for s in obj_elf.symbols if s.shndx==csec.index and s.type==1 and
+           s.name in names and s.size>0 and s.value==piece['end']]
+    if len(left)!=1 or len(right)!=1:
+        return False
+    parts=run.get('c_input_spans') or []
+    preceding=[p for p in parts if p.get('symbols')==[left[0].name] and
+               hx(p['range'][1])==piece['lo'] and p.get('object_range',[None,None])[1]==piece['offset']]
+    following=[p for p in parts if p.get('symbols')==[right[0].name] and
+               hx(p['range'][0])==piece['hi'] and p.get('object_range',[None,None])[0]==piece['end']]
+    if len(preceding)!=1 or len(following)!=1:
+        return False
+    if any(obj_elf.section_bytes(csec)[piece['offset']:piece['end']]) or \
+            any(va_bytes(original,piece['lo'],piece['hi']-piece['lo'])):
+        return False
+    if any(s.name and s.type==1 and s.shndx not in (0,0xfff1) and
+           s.value<piece['hi'] and piece['lo']<s.value+max(s.size,1)
+           for s in original.symbols):
+        return False
+    assembly=getattr(obj_elf,'compiler_assembly',None)
+    if assembly is None:
+        assembly=Path(unit_dir)/'build/c'/f'{ctx["name"]}.o.s'
+    if not Path(assembly).is_file():
+        return False
+    app=False;outside=[]
+    for line in Path(assembly).read_text().splitlines():
+        if line.strip()=='#APP':app=True
+        elif line.strip()=='#NO_APP':app=False
+        elif not app:outside.append(line)
+    text='\n'.join(outside)
+    labels=list(re.finditer(r'^'+re.escape(right[0].name)+r':\s*$',text,re.M))
+    if len(labels)!=1:
+        return False
+    prefix=text[:labels[0].start()]
+    align=list(re.finditer(r'^\s*\.align\s+(\d+)\s*$',prefix,re.M))
+    if not align:
+        return False
+    last=align[-1];exponent=int(last.group(1))
+    if not 0<=exponent<=4 or re.search(r'^\s*\.(?:ascii|asciz|byte|word|half|short|long|quad|space|zero)\b',prefix[last.end():],re.M):
+        return False
+    alignment=1<<exponent
+    return (piece['offset']+alignment-1)&-alignment==piece['end'] and \
+        piece['end']-piece['offset']<alignment
+
+
 def split_plans(root, unit, unit_dir, tu_id, obj_elf, registry=None):
     """{section: plan} for the sections a TU declares with several runs."""
     registry = load_registry(root) if registry is None else registry
@@ -2779,7 +2851,8 @@ def split_plans(root, unit, unit_dir, tu_id, obj_elf, registry=None):
                 if p['credit'] not in ('verified', 'uncredited_dependency'):
                     raise CarveError(f'{tu_id} {input_sec}: invalid span credit value {p["credit"]!r}')
                 if p.get('support_only'):
-                    if p['symbols'] or c_owned:
+                    if p['symbols'] or (c_owned and not compiler_zero_alignment_gap(
+                            unit_dir,ctx,obj_elf,csec,p,secs[p['target_section']][p['run_index']],orig)):
                         raise CarveError(f'{tu_id} {input_sec}: support_only spans cannot own credited identities')
                     named = [sym.name for sym in obj_elf.symbols
                              if sym.shndx == csec.index and sym.type == 1
@@ -2891,6 +2964,27 @@ def split_plans(root, unit, unit_dir, tu_id, obj_elf, registry=None):
                                     and p['hi'] - p['lo'] == sym.size
                                     and original_extent == raw_extent and not extent_relocs):
                                 exact_item = [dict(start=p['lo'], end=p['hi'], labels=[name])]
+                            if not exact_item and extent_relocs:
+                                # A typed pointer array can end before a scaffold
+                                # item's zero alignment tail. Prove every pointer
+                                # through the complete raw-to-original mapping;
+                                # leave the tail outside the credited C span.
+                                bounded = [it for it in items if it['start'] == p['lo']
+                                           and name in it['labels']
+                                           and 0 < it['end'] - p['hi'] <= 15
+                                           and va_bytes(orig, p['hi'], it['end'] - p['hi']) is not None
+                                           and not any(va_bytes(orig, p['hi'], it['end'] - p['hi']))
+                                           and not any(s.type in (1, 2) and s.shndx not in (0, 0xfff1)
+                                                       and s.value < it['end']
+                                                       and p['hi'] < s.value + max(s.size, 1)
+                                                       for s in orig.symbols)]
+                                if (bounded and p['symbols'] == [name] and sym.value == p['offset']
+                                        and sym.size == p['end'] - p['offset'] == p['hi'] - p['lo']):
+                                    proof = compare_bytes(obj_elf, csec, [p], ctx,
+                                                          target_pieces=explicit_inputs, original_elf=orig)
+                                    if (proof.get('checked') and proof.get('equal')
+                                            and proof.get('unresolved_relocations') == 0):
+                                        exact_item = [dict(start=p['lo'], end=p['hi'], labels=[name])]
                         if not exact_item:
                             raise CarveError(
                                 f'{tu_id} {input_sec}: no original OBJECT or exact scaffold item proves '
@@ -4833,6 +4927,12 @@ def derive(root, unit, unit_dir, tu_id, source, obj, *, _declared=None,
             initialized_registry['tus'][tu_id] = {sec:runs for sec,runs in declared.items()
                                                 if sec not in ('.bss', '.sbss')}
             initialized_registry.pop('common_tail', None)
+            # A private authored candidate has its own ordinary cc1 sidecar;
+            # never substitute stale baseline assembly for its gap proof.
+            assembly_path = Path(str(obj) + '.s')
+            if not assembly_path.is_file():
+                assembly_path = Path(obj).with_suffix('.s')
+            elf.compiler_assembly = assembly_path
             plans = split_plans(root, unit, unit_dir, tu_id, elf, registry=initialized_registry)
             asm_path = Path(obj).with_suffix('.s')
             if not asm_path.is_file() and Path(str(obj) + '.s').is_file():

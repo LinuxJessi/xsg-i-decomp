@@ -46,16 +46,16 @@ typedef struct RenderWindowLimits {
 
 extern RenderWindowLimits sRender;
 
-extern Vector4 sClipRange_0;
-extern Vector4 sPortEffect_1;
-extern Vector4 sShootAngleR_2;
-extern Vector4 sShootAngleV_3;
-extern Vector4 sShootAngleA_4;
-extern Vector4 sShootPlaceR_5;
-extern Vector4 sShootPlaceV_6;
-extern Vector4 sShootPlaceA_7;
-extern Vector4 sChaseRefPos_8;
-extern Vector4 sChaseIntPos_9;
+static Vector4 sClipRange_0;
+static Vector4 sPortEffect_1;
+static Vector4 sShootAngleR_2;
+static Vector4 sShootAngleV_3;
+static Vector4 sShootAngleA_4;
+static Vector4 sShootPlaceR_5;
+static Vector4 sShootPlaceV_6;
+static Vector4 sShootPlaceA_7;
+static Vector4 sChaseRefPos_8;
+static Vector4 sChaseIntPos_9;
 
 #include "xgl_camera.h"
 
@@ -112,7 +112,7 @@ typedef struct CameraDisplayEnv {
 
 extern CameraDisplayEnv DispEnv;
 
-extern signed char aaiVertexIndex[6][3];
+static signed char aaiVertexIndex[6][3];
 
 extern float xglSin(float angle);
 
@@ -685,3 +685,25 @@ void xglCameraClipRangeDefault(StudioCamera *camera)
 }
 
 
+
+static Vector4 sClipRange_0 = { .x = 0.0099999997764825821f, .y = 99000.0f, .z = 0.0f, .w = 0.0f };
+
+static Vector4 sPortEffect_1 = { .x = 1.0f, .y = 1.0f, .z = 1.0f, .w = 100.0f };
+
+static Vector4 sShootAngleR_2 = { .x = 0.0f, .y = 0.0f, .z = 0.0f, .w = 1.0f };
+
+static Vector4 sShootAngleV_3 = { .x = 0.0f, .y = 0.0f, .z = 0.0f, .w = 1.0f };
+
+static Vector4 sShootAngleA_4 = { .x = 0.0f, .y = 0.0f, .z = 0.0f, .w = 1.0f };
+
+static Vector4 sShootPlaceR_5 = { .x = 0.0f, .y = 1.0f, .z = 4.0f, .w = 1.0f };
+
+static Vector4 sShootPlaceV_6 = { .x = 0.0f, .y = 0.0f, .z = 0.0f, .w = 1.0f };
+
+static Vector4 sShootPlaceA_7 = { .x = 0.0f, .y = 0.0f, .z = 0.0f, .w = 1.0f };
+
+static Vector4 sChaseRefPos_8 = { .x = 0.0f, .y = 1.0f, .z = 0.0f, .w = 1.0f };
+
+static Vector4 sChaseIntPos_9 = { .x = 0.0f, .y = 1.0f, .z = 0.0f, .w = 1.0f };
+
+static signed char aaiVertexIndex[6][3] = { { 0, 2, 4 }, { 1, 0, 5 }, { 0, 1, 2 }, { 3, 1, 7 }, { 2, 3, 6 }, { 4, 6, 5 } };

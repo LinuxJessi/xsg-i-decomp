@@ -116,3 +116,5 @@ void Java_xeno_util_Format_toString__Z(JThread *thread,
     string_slot = &JAVA_tmpString;
     *result = (int)*string_slot;
 }
+
+const char D_004DC0A0[8] = "%f";

@@ -40,27 +40,21 @@ extern u8 *image_004DC554;
 
 extern u8 rate;
 
-extern u8 ping;
+static u8 ping;
 
-extern u32 cnt_2;
 
-static u32 sPoint_3[28] = {
-    0, 0, 0, 0x51000006,
-    0x00008001, 0x50624000, 0x0005551e, 0,
-    0x44, 0, 0x42, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0
-};
+
+
 
 extern float xglSin(float);
 
 extern float xglCos(float);
 
-extern const float D_004D7C7C;
+#define D_004D7C7C (6.2831854820251465f)
 
-extern const float D_004D7C80;
+#define D_004D7C80 (6.2831854820251465f)
 
-extern const float D_004D7C84;
+#define D_004D7C84 (-6.2831854820251465f)
 
 extern void nmlModelDirectSend(int, u8 *, int);
 
@@ -154,9 +148,12 @@ static inline void RadarSpritePacketInit(RadarSpritePacket **packet)
     *packet = (RadarSpritePacket *)0x70000000;
 }
 
+
+
 void GameRadarDraw(RadarOrigin *origin)
 {
-    extern u32 TestEnv_0_00369BA0[28];
+    static u32 TestEnv[28] = { 0x00000000U, 0x00000000U, 0x00000000U, 0x51000006U, 0x00008001U, 0x50000000U, 0x000eeeeeU, 0x00000000U, 0x00000000U, 0x00000000U, 0x0000003fU, 0x00000000U, 0x00070000U, 0x00000000U, 0x00000047U, 0x00000000U, 0x00000000U, 0x00000000U, 0x00000014U, 0x00000000U, 0x00000044U, 0x00000000U, 0x00000042U, 0x00000000U, 0x003fc000U, 0x000003fcU, 0x00000008U, 0x00000000U };
+
     RadarSpritePacket *packet;
     u64 secondSpritePrimitive;
     if (!SaveData[0x100a6] || !(GameLoopState[4] & 0x80000) || WIN_checkActiveWindow()) {
@@ -169,7 +166,7 @@ void GameRadarDraw(RadarOrigin *origin)
     }
     RadarSpritePacketInit(&packet);
     nmlModelDirectSendXtx(5, image_004DC554);
-    nmlModelDirectSend(6, (u8 *)TestEnv_0_00369BA0, 7);
+    nmlModelDirectSend(6, (u8 *)TestEnv, 7);
     packet->dma[0] = 0;
     packet->dma[1] = 0;
     packet->dma[2] = 0;
@@ -234,15 +231,18 @@ void GameRadarDraw(RadarOrigin *origin)
     DrawRadarInfo(&origin->x);
 }
 
+
+
 static void DrawRadarPing(int *origin)
 {
-    extern u32 TestEnv_1_00369C10[16];
+    static u32 TestEnv[16] = { 0U, 0U, 0U, 1358954499U, 32769U, 536870912U, 238U, 0U, 458752U, 0U, 71U, 0U, 68U, 0U, 66U, 0U };
+
     RadarVertex *vertex = (RadarVertex *)0x70000040;
     RadarPingEnd *end;
     int segment = 0;
     int xOrigin;
     int yOrigin;
-    nmlModelDirectSend(6, (u8 *)TestEnv_1_00369C10, 4);
+    nmlModelDirectSend(6, (u8 *)TestEnv, 4);
     {
     RadarPingHeader *header = (RadarPingHeader *)0x70000000;
     u64 scissor;
@@ -295,6 +295,8 @@ static void DrawRadarPing(int *origin)
 
 static void DrawRadarInfo(int *origin)
 {
+    static u32 cnt;
+
 
     RadarMarkerColor color;
     RadarPoint point;
@@ -328,7 +330,7 @@ static void DrawRadarInfo(int *origin)
                             actorType = enepc[actorIndex].type;
                             if (actorType == 6 || actorType == 10) {
                                 color.green = 0;
-                                color.red = cnt_2;
+                                color.red = cnt;
                                 color.blue = 0;
                             } else {
                                 color.red = 255;
@@ -361,11 +363,19 @@ static void DrawRadarInfo(int *origin)
     point.depth = origin[2] + 3;
     point.fog = 0;
     DrawActorPoint(player->rotation.y, &point.x, &color.red);
-    cnt_2 = (cnt_2 + 0x10) & 0xFF;
+    cnt = (cnt + 0x10) & 0xFF;
 }
 
 static void DrawActorPoint(float angle, int *position, u32 *color)
 {
+    static u32 sPoint[28] = {
+    0, 0, 0, 0x51000006,
+    0x00008001, 0x50624000, 0x0005551e, 0,
+    0x44, 0, 0x42, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0
+};
+
 
 
 
@@ -373,30 +383,30 @@ static void DrawActorPoint(float angle, int *position, u32 *color)
         return;
     }
 
-    sPoint_3[12] = color[0];
-    sPoint_3[13] = color[1];
-    sPoint_3[14] = color[2];
-    sPoint_3[15] = color[3] * rate >> 7;
+    sPoint[12] = color[0];
+    sPoint[13] = color[1];
+    sPoint[14] = color[2];
+    sPoint[15] = color[3] * rate >> 7;
 
     position[0] -= xglSin(angle) * 48.0f;
     position[1] -= xglCos(angle) * 48.0f;
 
-    sPoint_3[16] = position[0] + xglSin(angle) * 128.0f;
-    sPoint_3[17] = position[1] + xglCos(angle) * 128.0f;
-    sPoint_3[18] = position[2];
-    sPoint_3[19] = position[3];
+    sPoint[16] = position[0] + xglSin(angle) * 128.0f;
+    sPoint[17] = position[1] + xglCos(angle) * 128.0f;
+    sPoint[18] = position[2];
+    sPoint[19] = position[3];
 
-    sPoint_3[20] = position[0] + xglCos(angle) * 48.0f;
-    sPoint_3[21] = position[1] - xglSin(angle) * 48.0f;
-    sPoint_3[22] = position[2];
-    sPoint_3[23] = position[3];
+    sPoint[20] = position[0] + xglCos(angle) * 48.0f;
+    sPoint[21] = position[1] - xglSin(angle) * 48.0f;
+    sPoint[22] = position[2];
+    sPoint[23] = position[3];
 
-    sPoint_3[24] = position[0] - xglCos(angle) * 48.0f;
-    sPoint_3[25] = position[1] + xglSin(angle) * 48.0f;
-    sPoint_3[26] = position[2];
-    sPoint_3[27] = position[3];
+    sPoint[24] = position[0] - xglCos(angle) * 48.0f;
+    sPoint[25] = position[1] + xglSin(angle) * 48.0f;
+    sPoint[26] = position[2];
+    sPoint[27] = position[3];
 
-    nmlModelDirectSend(5, (u8 *)sPoint_3, 7);
+    nmlModelDirectSend(5, (u8 *)sPoint, 7);
 }
 
 int CheckActorExist(RadarActor *actor)
@@ -416,3 +426,5 @@ void GameRadarInit(void)
     WorkEnd = image_004DC554 + xglCdReadFile(D_004C0618, image_004DC554, 0, 0);
     rate = 0;
 }
+
+static u8 ping;

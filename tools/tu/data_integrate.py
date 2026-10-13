@@ -21,8 +21,8 @@ import time
 import data_carve as dc
 from elfinfo import Elf
 from toolchain import Toolchain
-from data_recover import grouped, read_json, require, sha, SCALARS, dimensions, numeric_literal, original_local
-from data_gate import emitted_storage
+from data_recover import grouped, read_json, require, sha, SCALARS, dimensions, numeric_literal, original_local, original_data_identities
+from data_gate import emitted_storage, registered_common_storage_locations
 import struct
 
 
@@ -202,6 +202,16 @@ def publish(plan, output, lease):
         original=Elf(Path(ctx['orig']).read_bytes())
         definitions={r['names'][0]:r['definition'] for r in rows}
         for row in rows:
+            if row['kind'] != 'storage' and row['section'] in ('.data', '.rodata'):
+                name = row['names'][0]
+                declaration, initializer = definitions[name].split('=', 1)
+                # Keep the original initialized storage family. In a -G8 TU,
+                # newly defined small arrays otherwise move to .sdata and make
+                # the assembler select GP loads for far-away original data.
+                definitions[name] = (declaration.rstrip() +
+                                     ' __attribute__((section("' + row['section'] + '"))) =' +
+                                     initializer)
+        for row in rows:
             name=row['names'][0]
             if original_local(original,name,dc.hx(row['address'])) and not definitions[name].startswith('static '):
                 definitions[name]='static '+definitions[name]
@@ -262,9 +272,29 @@ def publish(plan, output, lease):
         for row in rows:
             if definitions[row['names'][0]].startswith('static '):
                 name = row['names'][0]
-                declaration = definitions[name].split('=', 1)[0].strip() + ';'
+                declaration = definitions[name].split('=', 1)[0].strip().rstrip(';') + ';'
                 pattern = r'\b(?:static\s+)?extern\s+[^;{}\n]*\b' + re.escape(name) + r'\s*(?:\[[^\]]*\]\s*)*;'
-                text = re.sub(pattern, lambda m: declaration, text)
+                # Block-scope extern must keep referring to this file's
+                # object. Replacing it with static would create a different
+                # local BSS object and change the consumer's semantics.
+                import header_harvest
+                view, _, _ = header_harvest.mask_source(text)
+                functions = [f for f in header_harvest.split_top_level(view) if f.has_body]
+                matches = list(re.finditer(pattern,text))
+                edits = []
+                forwards = []
+                for match in matches:
+                    enclosing = [f for f in functions if f.start <= match.start() < f.stop]
+                    if enclosing:
+                        forwards.append(enclosing[0].start)
+                    else:
+                        edits.append((match.start(),match.end(),declaration))
+                if forwards:
+                    anchor=min(forwards)
+                    if not any(a < anchor for a,b,value in edits):
+                        edits.append((anchor,anchor,declaration+'\n\n'))
+                for start,stop,value in sorted(edits,reverse=True):
+                    text=text[:start]+value+text[stop:]
         declarations = list(dict.fromkeys(d for r in rows
                                          for d in r['type_evidence'].get('pointer_declarations', [])))
         local = {name for name,definition in definitions.items() if definition.startswith('static ')}
@@ -375,6 +405,30 @@ def allocations(plan, output, folder, lease):
         ctx = dc.tu_context(root, facts['unit'], root / 'build' / facts['unit'], tu)
         previous_input_proof(tu,rows,bindings[tu],elf,old,ctx)
         sections = copy.deepcopy(bindings[tu])
+        old_storage=emitted_storage((output/'baseline'/(tu.replace('/','_')+'.s')).read_text())
+        current_storage=emitted_storage(asm.read_text())
+        # New tentative definitions may move earlier storage within cc1's
+        # NOBITS section. Translate existing exact spans by their unchanged
+        # named compiler owners; original addresses and extents stay fixed.
+        for section,runs in sections.items():
+            if section not in ('.bss','.sbss'):
+                continue
+            for run in runs:
+                for part in run.get('c_input_spans',[]):
+                    offsets=[]
+                    for name in part.get('symbols',[]):
+                        before=[s for s in old.symbols if s.name==name and
+                                0<s.shndx<len(old.sections) and old.sections[s.shndx].name==part['section']]
+                        after=[s for s in elf.symbols if s.name==name and
+                               0<s.shndx<len(elf.sections) and elf.sections[s.shndx].name==part['section']]
+                        require(len(before)==len(after)==1,f'{tu}/{name}: prior storage owner is not unique')
+                        a,b=before[0],after[0]
+                        require((a.bind,a.type,a.size)==(b.bind,b.type,b.size) and
+                                old_storage.get(name)==current_storage.get(name),
+                                f'{tu}/{name}: previous compiler storage identity or extent changed')
+                        offsets.append(b.value-a.value)
+                    require(offsets and len(set(offsets))==1,f'{tu}: existing storage span needs an owner partition')
+                    part['object_range']=[v+offsets[0] for v in part['object_range']]
         # Explicit mappings keep prior definitions and compiler pools intact.
         # Convert heuristic runs at original item boundaries, leaving native
         # zero alignment gaps to the existing splitter and scaffold allocator.
@@ -435,6 +489,16 @@ def allocations(plan, output, folder, lease):
                         converted.append(carved_run(section, lo, lo+extent, csec.name, off,
                                                     off+extent, [sym.name], padding=tail))
                     else:
+                        # Heuristic old runs can include alignment after their
+                        # last C object. Keep that original padding scaffolded;
+                        # it has no source datum or recovery credit.
+                        if (lo >= dc.hx(run['range'][1]) and hi-lo <= 15 and
+                                not any(elf.section_bytes(csec)[off:off+hi-lo]) and
+                                not any(dc.va_bytes(Elf(Path(ctx['orig']).read_bytes()),lo,hi-lo)) and
+                                not any(s.shndx==csec.index and s.type==1 and
+                                        s.value < off+hi-lo and off < s.value+s.size
+                                        for s in elf.symbols)):
+                            continue
                         part = carved_run(section, lo, hi, csec.name, off, off+hi-lo, [], anonymous=True)
                         part['c_owned_symbols'] = [n for n in run['c_owned_symbols'] if n in item['labels']]
                         require(part['c_owned_symbols'], f'{tu}: anonymous old input has no original identity')
@@ -455,18 +519,25 @@ def allocations(plan, output, folder, lease):
             if row['kind']=='storage' and sym.type==0:
                 size=storage[name]['size']
                 original=Elf(Path(ctx['orig']).read_bytes())
-                identities=[s for s in original.symbols if s.name==name and s.shndx!=0]
+                identities=original_data_identities(original,name,lo)
                 require(len(identities)==1 and identities[0].value==lo and
                         (identities[0].bind,identities[0].type,identities[0].size)==(0,0,0) and
                         storage[name]['section']==section.name,
                         f'{tu}/{name}: LOCAL NOTYPE storage does not match original and compiler directives')
             require(size == row.get('object_size', hi-lo), f'{tu}/{name}: compiler extent differs')
-            pad = row.get('zero_padding_tail', 0)
+            # New plans shorten the claimed range to the actual typed object;
+            # their larger mapped_end describes uncredited scaffold alignment.
+            pad = row.get('zero_padding_tail', 0) if not row.get('mapped_end') else 0
             require(sym.value+size+pad <= section.size, f'{tu}/{name}: native alignment is unavailable')
             run = carved_run(row['section'], lo, hi, section.name, sym.value,
                              sym.value+size+pad, [name], padding=pad)
             run['basis'] = dict(kind='automatic-typed-data', source_sha256=sha(root/facts['path']),
                                 object_sha256=sha(obj), assembly_sha256=sha(asm))
+            if row.get('grouped_items'):
+                run['c_storage_aliases'] = [dict(original_name=n,address=item['address'],
+                        storage_owner=row['storage_owner'])
+                        for item in row['grouped_items'][1:] for n in item['names']
+                        if dc.hx(item['address']) < hi]
             sections.setdefault(row['section'], []).append(run)
         for section, runs in sections.items():
             runs.sort(key=lambda r: dc.hx(r['range'][0]))
@@ -596,20 +667,43 @@ def gates(plan, folder, lease):
     control = dict(schema='data-recovery-allocation/1', task_id=lease.task,
                    tus=list(grouped(plan)), identities=[{k:r[k] for k in
                    ('unit','tu','section','address','names')} for r in rows])
-    lease.json(folder/'control.json', control)
     manifest = dict(candidates=[], linked_targets=['main','ov01','ov02','ov10','ov11','ov12'])
     for tu, locations in grouped(plan).items():
         facts=plan['tus'][tu]
         source=root/facts['path']; obj,asm,_=native_paths(root,facts)
-        record=dict(unit=facts['unit'],allocation_task=lease.task,
+        claimed=[{k:r[k] for k in ('unit','tu','section','address','names','storage_owner') if k in r}
+                 for r in locations]
+        for row in locations:
+            for item in row.get('grouped_items',[])[1:]:
+                if dc.hx(item['address']) >= dc.hx(row['end']):
+                    continue
+                alias={k:item[k] for k in ('unit','tu','section','address','names')}
+                alias['storage_owner']=row['storage_owner']
+                claimed.append(alias)
+                control['identities'].append(alias)
+        record=dict(tu=tu,unit=facts['unit'],allocation_task=lease.task,
                     files={facts['path']:dict(path=str(source),sha256=sha(source))},
                     object=dict(path=str(obj),sha256=sha(obj)),
                     assembly=dict(path=str(asm),sha256=sha(asm)),
-                    recovered_location_candidates=[{k:r[k] for k in
-                    ('unit','tu','section','address','names')} for r in locations])
+                    recovered_location_candidates=claimed)
+        # The native COMMON allocator retains the genuine cc1 object beside
+        # its allocated input. Keep both in the provenance request, including
+        # previously recovered COMMON owners whose proof must remain present.
+        compiler=obj.with_name(obj.stem+'.raw.o')
+        if compiler.is_file():
+            ctx=dc.tu_context(root,facts['unit'],root/'build'/facts['unit'],tu)
+            original=Elf(Path(ctx['orig']).read_bytes())
+            prior=registered_common_storage_locations(root,tu,original,
+                    Elf(compiler.read_bytes()),asm.read_text())
+            if prior:
+                record['compiler_object']=dict(path=str(compiler),sha256=sha(compiler))
+                for owner in prior:
+                    record['recovered_location_candidates'].append(owner)
+                    control['identities'].append(dict(owner,tu=tu))
         path=folder/(tu.replace('/','_')+'.record.json')
         lease.json(path,record)
         manifest['candidates'].append(dict(tu=tu,record=str(path),sha256=sha(path)))
+    lease.json(folder/'control.json', control)
     lease.json(folder/'manifest.json',manifest)
     argv=[sys.executable,'-B',root/'tools/elf_gate.py','--root',root,'--report',folder/'elf.json']
     for unit in manifest['linked_targets']:
@@ -654,7 +748,13 @@ def integrate(plan_path, candidates, output, lease):
         rebuild(lease.root,folder,lease)
         advance('linked')
     if state['stage']=='linked':
-        gates(plan,folder,lease)
+        gate_folder=folder
+        index=2
+        while (gate_folder/'data.json').exists():
+            gate_folder=output/f'gate{index:03d}'
+            index+=1
+        gates(plan,gate_folder,lease)
+        state['gate_folder']=str(gate_folder)
         state['accepted']=True
         advance('complete')
     return state

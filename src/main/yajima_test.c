@@ -4,7 +4,7 @@
 
 #include "yajima_test.h"
 
-extern char h_50[7];
+static char h_50[7];
 
 extern int printf(const char *format, ...);
 
@@ -337,20 +337,13 @@ char D_004C0CE8[];
 
 char D_004DA320[];
 
-static void (*func_51[7])(void) = {
-    FontTest, UmlDispTest, HddTest, MemcardTest,
-    DatabaseTest, XenoMovieCheck, XtxDecode,
-};
+static void (*func_51[7])(void);
 
 static char D_004DA3A0[];
 
-static char D_004C1518[];
+static char D_004C1518[];extern const char D_004C0948[16];
 
-/* Exact storage objects from original initialized data; the partial types above reflect only caller-visible fields. */
-
-const char D_004C0948[16] = "DATABASE";
-
-const char D_004C1508[16] = "XTX DECODE";
+extern const char D_004C1508[16];
 
 const char D_004DA378[];
 
@@ -376,7 +369,7 @@ static void FontTestSub(void);
 
 extern int xglCdGetFileSize(const char *name);
 
-extern char D_004C07F0[];
+extern const char D_004C07F0[];
 
 extern char D_004C0808[];
 
@@ -384,21 +377,21 @@ extern char D_004C0828[];
 
 extern int xglFontLoad(int font, int mode);
 
-extern char test00_26[];
+static char test00_26[51];
 
-extern char test01_27[];
+static char test01_27[51];
 
-extern char test02_28[];
+static char test02_28[51];
 
-extern char test03_29[];
+static char test03_29[51];
 
-extern char test04_30[];
+static char test04_30[51];
 
-extern char test05_31[];
+static char test05_31[51];
 
-extern char test06_32[];
+static char test06_32[51];
 
-extern char test07_33[];
+static char test07_33[56];
 
 extern void xglFontPrint(int x, int y, int color, const char *text);
 
@@ -408,11 +401,11 @@ extern int xglFontGetStringWidth(const char *text);
 
 extern int xglFontGetProportionalSize(int character);
 
-extern int width_35;
+static int width_35;
 
 extern char D_004D9F78[];
 
-extern char test_36[6];
+static char test_36[6];
 
 extern char D_004D9F88[];
 
@@ -420,15 +413,15 @@ extern char D_004C08D0[];
 
 extern char D_004C08E0[];
 
-extern char test0_37[];
+static char test0_37[40];
 
-extern char test1_38[];
+static char test1_38[19];
 
-extern char test2_39[];
+static char test2_39[20];
 
-extern char test3_40[];
+static char test3_40[36];
 
-extern char test4_41[];
+static char test4_41[35];
 
 extern int GameSnapShotNumber(int number);
 
@@ -438,13 +431,13 @@ extern void xglFontDebugHex(int x, int y, int value, int digits);
 
 extern void FlushCache(int mode);
 
-extern int rate_2_004D9F60;
+static int rate_2_004D9F60;
 
-extern int dir_3;
+static int dir_3;
 
-extern int rate_8;
+static int rate_8;
 
-extern int dir_9;
+static int dir_9;
 
 extern char D_004C0838[];
 
@@ -454,47 +447,47 @@ extern char D_004C08A0[];
 
 extern char D_004C08B0[];
 
-extern unsigned char test_1[];
+static unsigned char test_1[22];
 
-extern char test_4[];
+static char test_4[16];
 
-extern char test_5[];
+static char test_5[16];
 
-extern char test1_6[];
+static char test1_6[33];
 
-extern char test2_7[];
+static char test2_7[15];
 
-extern char test_10[];
+static char test_10[13];
 
-extern unsigned char txt_11[];
+static unsigned char txt_11[15];
 
-extern unsigned char xy3_12[];
+static unsigned char xy3_12[12];
 
-extern unsigned char xy5_13[];
+static unsigned char xy5_13[28];
 
-extern unsigned char xy7_14[];
+static unsigned char xy7_14[52];
 
-extern unsigned char xy9_15[];
+static unsigned char xy9_15[84];
 
-extern char test_16[];
+static char test_16[25];
 
-extern char test_17[];
+static char test_17[43];
 
-extern char test_18[];
+static char test_18[40];
 
-extern char test_19[];
+static char test_19[31];
 
-extern char init_20[];
+static char init_20[13];
 
-extern char test_21[];
+static char test_21[33];
 
-extern char test_22[];
+static char test_22[21];
 
-extern char test_23[];
+static char test_23[33];
 
-extern char test_24[];
+static char test_24[31];
 
-extern char test_25[];
+static char test_25[26];
 
 static void FontTestP0(void);
 
@@ -537,7 +530,7 @@ typedef struct UmlDispVertex {
     int w;
 } UmlDispVertex;
 
-extern UmlDispVertex TestEnv_42[6];
+static UmlDispVertex TestEnv_42[6];
 
 typedef struct SaveDataDebug {
     unsigned char unmodeled_00[0x74];
@@ -609,7 +602,7 @@ extern char D_004C0978[];
 
 extern char D_004C0A68[];
 
-extern char *name_43[103];
+static char * name_43[103];
 
 extern void GameResourceInit(int, int);
 
@@ -776,9 +769,638 @@ extern int xglHddMcSave(HddMcRequestParam *request);
 
 #define MC_TEXT_SAVE "\xA5\xBB\xA1\xBC\xA5\xD6"
 
-extern unsigned char tbl_48[4];
+static unsigned char tbl_48[4];
 
-extern unsigned char tbl_49[4];
+static unsigned char tbl_49[4];
+
+
+
+extern const char D_004C07F0[24];
+extern char D_004C0808[32];
+extern char D_004C0828[16];
+extern char D_004C0838[80];
+extern char D_004C0888[24];
+extern char D_004C08A0[16];
+extern char D_004C08B0[32];
+extern char D_004C08D0[16];
+extern char D_004C08E0[16];
+extern char D_004C08F0[16];
+extern char D_004C0900[24];
+extern char D_004C0918[16];
+extern char D_004C0928[16];
+extern char D_004C0938[16];
+extern const char D_004C0948[16];
+extern const char D_004C0958[16];
+extern const char D_004C0968[16];
+extern char D_004C0978[240];
+extern char D_004C0A68[24];
+extern char D_004C0C18[16];
+extern char D_004C0C28[16];
+extern char D_004C0C38[16];
+extern char D_004C0C48[16];
+extern char D_004C0C58[16];
+extern char D_004C0C68[16];
+extern char D_004C0CE8[16];
+extern char D_004C0CF8[16];
+extern char D_004D9F78[8];
+extern char D_004D9F88[8];
+extern char D_004D9F90[8];
+extern char D_004D9F98[8];
+extern char D_004D9FA0[8];
+extern const char D_004D9FA8[8];
+extern const char D_004D9FB0[8];
+extern const char D_004D9FB8[8];
+extern const char D_004D9FC0[8];
+extern const char D_004D9FC8[8];
+extern const char D_004D9FD0[8];
+extern const char D_004D9FD8[8];
+extern const char D_004D9FE0[8];
+extern const char D_004D9FE8[8];
+extern const char D_004D9FF0[8];
+extern const char D_004D9FF8[8];
+extern const char D_004DA000[8];
+extern const char D_004DA008[8];
+extern const char D_004DA010[8];
+extern const char D_004DA018[8];
+extern const char D_004DA020[8];
+extern const char D_004DA028[8];
+extern const char D_004DA030[8];
+extern const char D_004DA038[8];
+extern const char D_004DA040[8];
+extern const char D_004DA048[8];
+extern const char D_004DA050[8];
+extern const char D_004DA058[8];
+extern const char D_004DA060[8];
+extern const char D_004DA068[8];
+extern const char D_004DA070[8];
+extern const char D_004DA078[8];
+extern const char D_004DA080[8];
+extern const char D_004DA088[8];
+extern const char D_004DA090[8];
+extern const char D_004DA098[8];
+extern const char D_004DA0A0[8];
+extern const char D_004DA0A8[8];
+extern const char D_004DA0B0[8];
+extern const char D_004DA0B8[8];
+extern const char D_004DA0C0[8];
+extern const char D_004DA0C8[8];
+extern const char D_004DA0D0[8];
+extern const char D_004DA0D8[8];
+extern const char D_004DA0E0[8];
+extern const char D_004DA0E8[8];
+extern const char D_004DA0F0[8];
+extern const char D_004DA0F8[8];
+extern const char D_004DA100[8];
+extern const char D_004DA108[8];
+extern const char D_004DA110[8];
+extern const char D_004DA118[8];
+extern const char D_004DA120[8];
+extern const char D_004DA128[8];
+extern const char D_004DA130[8];
+extern const char D_004DA138[8];
+extern const char D_004DA140[8];
+extern const char D_004DA148[8];
+extern const char D_004DA150[8];
+extern const char D_004DA158[8];
+extern const char D_004DA160[8];
+extern const char D_004DA168[8];
+extern const char D_004DA170[8];
+extern const char D_004DA178[8];
+extern const char D_004DA180[8];
+extern const char D_004DA188[8];
+extern const char D_004DA190[8];
+extern const char D_004DA198[8];
+extern const char D_004DA1A0[8];
+extern const char D_004DA1A8[8];
+extern const char D_004DA1B0[8];
+extern const char D_004DA1B8[8];
+extern const char D_004DA1C0[8];
+extern const char D_004DA1C8[8];
+extern const char D_004DA1D0[8];
+extern const char D_004DA1D8[8];
+extern const char D_004DA1E0[8];
+extern const char D_004DA1E8[8];
+extern const char D_004DA1F0[8];
+extern const char D_004DA1F8[8];
+extern const char D_004DA200[8];
+extern const char D_004DA208[8];
+extern const char D_004DA210[8];
+extern const char D_004DA218[8];
+extern const char D_004DA220[8];
+extern const char D_004DA228[8];
+extern const char D_004DA230[8];
+extern const char D_004DA238[8];
+extern const char D_004DA240[8];
+extern const char D_004DA248[8];
+extern const char D_004DA250[8];
+extern const char D_004DA258[8];
+extern const char D_004DA260[8];
+extern const char D_004DA268[8];
+extern const char D_004DA270[8];
+extern const char D_004DA278[8];
+extern const char D_004DA280[8];
+extern const char D_004DA288[8];
+extern const char D_004DA290[8];
+extern const char D_004DA298[8];
+extern const char D_004DA2A0[8];
+extern const char D_004DA2A8[8];
+extern const char D_004DA2B0[8];
+extern const char D_004DA2B8[8];
+extern const char D_004DA2C0[8];
+extern const char D_004DA2C8[8];
+extern char D_004DA308[8];
+extern char D_004DA320[8];
+extern char D_004C13D8[16];
+extern char D_004C13E8[16];
+extern char D_004C13F8[16];
+extern char D_004C1408[16];
+extern char D_004C1418[40];
+extern const char D_004DA378[8];
+extern const char D_004DA380[8];
+extern const char D_004DA388[8];
+extern const char D_004DA390[8];
+extern const char D_004DA398[8];
+extern const char D_004C1508[16];
+
+static unsigned char TestEnv_0_0036A030[0x90] = {
+    0x01, 0x80, 0x00, 0x00, 0x00, 0x40, 0x8B, 0x80, 0xEE, 0x1E, 0x53, 0x53, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x47, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x44, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x42, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0xB8, 0x42, 0xA9, 0x06, 0x00, 0x07, 0x20, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7A, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x8A, 0x00, 0x00, 0x00, 0x88, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00
+};
+
+static unsigned char test_1[22] = "\017\000\000\000\r\002\016\004\004\000\000\000\245\242\245\353\245\325\245\241\013";
+
+static char test_4[16] = "\r\003\016\002\002\000\000\000\261\357\244\311\244\352\013";
+
+static char test_5[16] = "\r\003\016\001\001\000\000\000\261\357\244\311\244\352\013";
+
+static char test1_6[33] = "\r\003\030\001\245\353\245\323\244\316\245\306\245\271\245\310\245\364\243\301\243\302\243\303\243\260\243\261\243\262\030";
+
+static char test2_7[15] = "\r\003\264\301\273\372\244\310\244\316\302\320\310\346";
+
+static char test_10[13] = "\r\000\016\000\000\000\000\000\017D\000\200";
+
+static unsigned char txt_11[15] = "\001\200\005\000\312\270\273\372\245\306\245\271\245\310";
+
+static unsigned char xy3_12[12] = { 5, 0, 1, 0, 0, 1, 1, 1, 2, 1, 1, 2 };
+
+static unsigned char xy5_13[28] = { 13, 0, 2, 0, 1, 1, 2, 1, 3, 1, 0, 2, 1, 2, 2, 2, 3, 2, 4, 2, 1, 3, 2, 3, 3, 3, 2, 4 };
+
+static unsigned char xy7_14[52] = { 25, 0, 3, 0, 2, 1, 3, 1, 4, 1, 1, 2, 2, 2, 3, 2, 4, 2, 5, 2, 0, 3, 1, 3, 2, 3, 3, 3, 4, 3, 5, 3, 6, 3, 1, 4, 2, 4, 3, 4, 4, 4, 5, 4, 2, 5, 3, 5, 4, 5, 3, 6 };
+
+static unsigned char xy9_15[84] = { 41, 0, 4, 0, 3, 1, 4, 1, 5, 1, 2, 2, 3, 2, 4, 2, 5, 2, 6, 2, 1, 3, 2, 3, 3, 3, 4, 3, 5, 3, 6, 3, 7, 3, 0, 4, 1, 4, 2, 4, 3, 4, 4, 4, 5, 4, 6, 4, 7, 4, 8, 4, 1, 5, 2, 5, 3, 5, 4, 5, 5, 5, 6, 5, 7, 5, 2, 6, 3, 6, 4, 6, 5, 6, 6, 6, 3, 7, 4, 7, 5, 7, 4, 8 };
+
+static char test_16[25] = "\031\000\243\316\243\357\243\362\243\355\243\341\243\354\241\245\243\260\243\261\243\262\243\263";
+
+static char test_17[43] = "\031\001\243\320\243\362\243\357\243\360\243\357\243\362\243\364\243\351\243\357\243\356\243\341\243\354\241\245\243\260\243\261\243\262\243\263\247\241\247\243\247\246";
+
+static char test_18[40] = "\r\000\245\306\245\271\245\310\r\004\245\306\245\271\245\310\264\301\273\372\r\003\016\001\001\200\200\200\245\306\245\271\245\310\264\301\273\372\013";
+
+static char test_19[31] = "\246\330\247\241\247\242\247\243\247\301\247\321\247\322\247\323\247\361\250\241\250\242\250\243\250\300\255\241\255\242";
+
+static char init_20[13] = "\r\003\016\002\002\030\030\030\014\200\200\200";
+
+static char test_21[33] = "\025\002\004\000\031\003\025\002\002\010Half-width iiiiii test";
+
+static char test_22[21] = "\301\264\263\321\312\270\273\372\316\363\244\310\260\354\275\357\244\313\241\304";
+
+static char test_23[33] = "\025\002\004\001\031\003\025\002\002\010Half-width iiiiii test";
+
+static char test_24[31] = "\031\003\025\002\002\010\025\002\005\006Itaric Text TEST\025\002\005";
+
+static char test_25[26] = "\031\003\025\002\002\010\025\002\005\nMore Itaric\025\002\005";
+
+static char test00_26[51] = "\031\002#00#01#02#03#04#05#06#07#08#09#0a#0b#0c#0d#0e#0f";
+
+static char test01_27[51] = "\031\002#10#11#12#13#14#15#16#17#18#19#1a#1b#1c#1d#1e#1f";
+
+static char test02_28[51] = "\031\002#20#21#22#23#24#25#26#27#28#29#2a#2b#2c#2d#2e#2f";
+
+static char test03_29[51] = "\031\002#30#31#32#33#34#35#36#37#38#39#3a#3b#3c#3d#3e#3f";
+
+static char test04_30[51] = "\031\002#40#41#42#43#44#45#46#47#48#49#4a#4b#4c#4d#4e#4f";
+
+static char test05_31[51] = "\031\002#50#51#52#53#54#55#56#57#58#59#5a#5b#5c#5d#5e#5f";
+
+static char test06_32[51] = "\031\002#60#61#62#63#64#65#66#67#68#69#6a#6b#6c#6d#6e#6f";
+
+static char test07_33[56] = "\031\002#70#71#72#73#74#75#76#77#78#79#7a#7b#7c#7d#7e#7f###00";
+
+static TestLineVertex TestEnv_34[6] = {
+    { 0, 0, { 0x00, 0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x51 } },
+    { 32769, 1073823744, { 0x1E, 0x55, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 } },
+    { 458752, 0, { 0x47, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 } },
+    { 192, 128, { 0x80, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00 } },
+    { 0, 0, { 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00 } },
+    { 0, 0, { 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00 } }
+};
+
+static char test0_37[40] = "\031\003Proportional font auto linefeed test\n";
+
+static char test1_38[19] = "\031\003!\"#$%&'()*+,-./\n";
+
+static char test2_39[20] = "\031\0030123456789:;<=>\?\n";
+
+static char test3_40[36] = "\031\003@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_\n";
+
+static char test4_41[35] = "\031\003`abcdefghijklmnopqrstuvwxyz{|}~\n";
+
+static UmlDispVertex TestEnv_42[6] __attribute__((aligned(16))) = { { .x = 32769, .y = 1342390272, .z = 348654, .w = 0 }, { .x = 458752, .y = 0, .z = 71, .w = 0 }, { .x = 68, .y = 0, .z = 66, .w = 0 }, { .x = 0, .y = 0, .z = 0, .w = 0 }, { .x = 0, .y = 0, .z = 0, .w = 0 }, { .x = 0, .y = 0, .z = 0, .w = 0 } };
+
+static char * name_43[103] = { (char *)D_004C0968, (char *)D_004DA2C8, (char *)D_004DA2C0, (char *)D_004DA2B8, (char *)D_004DA2B0, (char *)D_004DA2A8, (char *)D_004DA2A0, (char *)D_004DA298, (char *)D_004DA290, (char *)D_004DA288, (char *)D_004DA280, (char *)D_004DA278, (char *)D_004DA270, (char *)D_004DA268, (char *)D_004DA260, (char *)D_004DA258, (char *)D_004DA250, (char *)D_004DA248, (char *)D_004DA240, (char *)D_004DA238, (char *)D_004DA230, (char *)D_004DA228, (char *)D_004DA220, (char *)D_004DA218, (char *)D_004DA210, (char *)D_004DA208, (char *)D_004DA200, (char *)D_004DA1F8, (char *)D_004DA1F0, (char *)D_004DA1E8, (char *)D_004DA1E0, (char *)D_004DA1D8, (char *)D_004DA1D0, (char *)D_004DA1C8, (char *)D_004DA1C0, (char *)D_004DA1B8, (char *)D_004DA1B0, (char *)D_004DA1A8, (char *)D_004DA1A0, (char *)D_004DA198, (char *)D_004DA190, (char *)D_004DA188, (char *)D_004DA180, (char *)D_004DA178, (char *)D_004DA170, (char *)D_004DA168, (char *)D_004DA160, (char *)D_004DA158, (char *)D_004DA150, (char *)D_004DA148, (char *)D_004DA140, (char *)D_004DA138, (char *)D_004DA130, (char *)D_004DA128, (char *)D_004DA120, (char *)D_004DA118, (char *)D_004DA110, (char *)D_004DA108, (char *)D_004DA100, (char *)D_004DA0F8, (char *)D_004DA0F0, (char *)D_004DA0E8, (char *)D_004DA0E0, (char *)D_004DA0D8, (char *)D_004DA0D0, (char *)D_004DA0C8, (char *)D_004DA0C0, (char *)D_004DA0B8, (char *)D_004DA0B0, (char *)D_004DA0A8, (char *)D_004DA0A0, (char *)D_004DA098, (char *)D_004DA090, (char *)D_004DA088, (char *)D_004DA080, (char *)D_004DA078, (char *)D_004DA070, (char *)D_004DA068, (char *)D_004DA060, (char *)D_004DA058, (char *)D_004DA050, (char *)D_004DA048, (char *)D_004DA040, (char *)D_004DA038, (char *)D_004DA030, (char *)D_004DA028, (char *)D_004DA020, (char *)D_004DA018, (char *)D_004DA010, (char *)D_004DA008, (char *)D_004DA000, (char *)D_004D9FF8, (char *)D_004C0958, (char *)D_004D9FF0, (char *)D_004D9FE8, (char *)D_004D9FE0, (char *)D_004D9FD8, (char *)D_004D9FD0, (char *)D_004D9FC8, (char *)D_004D9FC0, (char *)D_004D9FB8, (char *)D_004D9FB0, (char *)D_004D9FA8 };
+
+static char hdd_1024_directory_name[22] = "pfs1:/Your Saves/0000";
+
+static char hdd_dummy_folder_name[10] = "pfs1:/000";
+
+static HddTestMenuEntry hdd_test_menu[8] = {
+    { D_004DA308, HddTestFormat },
+    { D_004C0C68, HddTestShutdown },
+    { D_004C0C58, HddTestHddFull },
+    { D_004C0C48, HddTest1024Save },
+    { D_004C0C38, HddTestDummyFolder },
+    { D_004C0C28, HddTestDummySave },
+    { D_004C0C18, HddTestMakeYS },
+    { 0, 0 },
+};
+
+static char *name_47[3] = { D_004C0CF8, D_004C0CE8, D_004DA320 };
+
+static void (*func_51[7])(void) = {
+    FontTest, UmlDispTest, HddTest, MemcardTest,
+    DatabaseTest, XenoMovieCheck, XtxDecode,
+};
+
+static XglMenuRow i1_52[7] = {
+    { D_004DA398, XGL_MENU_ACTION(1) },
+    { D_004DA390, XGL_MENU_ACTION(2) },
+    { D_004DA388, XGL_MENU_ACTION(3) },
+    { D_004DA380, XGL_MENU_ACTION(4) },
+    { D_004C0948, XGL_MENU_ACTION(5) },
+    { D_004DA378, XGL_MENU_ACTION(6) },
+    { D_004C1508, XGL_MENU_ACTION(7) }
+};
+
+static XglMenuNode l1_53 = { 7, { 255, 1, 8 }, 0, { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, i1_52 };
+
+static YajimaMenuState m_54 = {
+    { 0x01, 0x00, 0x00, 0x00, 0x08, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF },
+    &l1_53,
+    0
+};
+
+const char D_004C07F0[24] __attribute__((section(".rodata"))) = "data\\yajima\\nisui.euc";
+
+char D_004C0808[32] __attribute__((section(".rodata"))) = "data\\yajima\\scenario.txt";
+
+char D_004C0828[16] __attribute__((section(".rodata"))) = "host0:nisui.txt";
+
+char D_004C0838[80] __attribute__((section(".rodata"))) = "\r\003\022\014\014\275\314\276\256\312\270\273\372\244\316\245\306\245\271\245\310\244\303\244\271\022  \263\310\302\347\022\014\014\312\356\273\247\313\342\313\241\315\362\306\256\022\n\n\312\356\273\247\313\342\313\241\315\362\306\256\n\262\376\271\324\245\306\245\271\245\310";
+
+char D_004C0888[24] __attribute__((section(".rodata"))) = "\r\002\016\004\004\000\000\000\245\306\245\271\245\310\241\312\243\260\241\313";
+
+char D_004C08A0[16] __attribute__((section(".rodata"))) = "\r\001\245\306\245\271\245\310\241\312\243\261\241\313";
+
+char D_004C08B0[32] __attribute__((section(".rodata"))) = "\244\250\244\250\244\310\250\241\250\241\241\241\244\242\244\242\241\241\245\336\241\274\245\257\255\266\255\302";
+
+char D_004C08D0[16] __attribute__((section(".rodata"))) = "\013\r\002\025\002\001\014\025\002\002\010";
+
+char D_004C08E0[16] __attribute__((section(".rodata"))) = "%3d:%04x\n";
+
+char D_004C08F0[16] __attribute__((section(".rodata"))) = "UMLDISP %4x";
+
+char D_004C0900[24] __attribute__((section(".rodata"))) = "data\\umn\\header.lst";
+
+char D_004C0918[16] __attribute__((section(".rodata"))) = "%04d[%s][%s]\n";
+
+char D_004C0928[16] __attribute__((section(".rodata"))) = "FILE SELECT\n%4d";
+
+char D_004C0938[16] __attribute__((section(".rodata"))) = "%4d,%4d,%3d,%6x";
+
+const char D_004C0948[16] = "DATABASE";
+
+const char D_004C0958[16] = "3050C1_9";
+
+const char D_004C0968[16] = "prologue";
+
+char D_004C0978[240] __attribute__((section(".rodata"))) = "\013\025\002\001\010\245\340\241\274\245\323\241\274\245\327\245\354\241\274\245\344\241\274\n\n\n%s\n\n\276\345\262\274\244\307\301\252\302\362\241\243\n\n\241\373\245\334\245\277\245\363\244\362\262\241\244\271\244\310\271\365\262\350\314\314\244\307\302\324\265\241\244\267\244\336\244\271\241\243\n\n\244\275\244\316\276\365\302\326\244\307\244\265\244\351\244\313\241\373\245\334\245\277\245\363\244\307\272\306\300\270\263\253\273\317\241\243\n\n\272\306\300\270\303\346\244\317\245\262\241\274\245\340\303\346\244\310\306\261\244\270\301\340\272\356\244\254\262\304\307\275\241\243\n\n\272\306\300\270\244\254\275\252\316\273\244\271\244\353\244\310\244\336\244\277\271\365\262\350\314\314\244\307\302\324\265\241\241\243\n\n\244\275\244\263\244\307\241\373\245\334\245\277\245\363\244\362\262\241\244\271\244\310\244\263\244\316\262\350\314\314\244\313\314\341\244\352\244\336\244\271\241\243";
+
+char D_004C0A68[24] __attribute__((section(".rodata"))) = "data\\movie\\mpeg2\\%s.pss";
+
+static char hdd_format_start_message[16] __attribute__((section(".rodata"))) = "format HDD\n";
+
+static char hdd_format_result_format[16] __attribute__((section(".rodata"))) = " result:%d\n";
+
+static char hdd_common_device[16] __attribute__((section(".rodata"))) = "hdd0:__common";
+
+static char hdd_pfs_format_result_format[24] __attribute__((section(".rodata"))) = " format __common:%d\n";
+
+static char hdd_shutdown_message[16] __attribute__((section(".rodata"))) = "shutdown hdd\n";
+
+static char hdd_full_path[40] __attribute__((section(".rodata"))) = "hdd0:PP.SLPS-99999.DUMMY.DUMMY,,,1G,PFS";
+
+static char hdd_create_partition_format[24] __attribute__((section(".rodata"))) = "create partition:%d\n";
+
+static char hdd_subcommand_format[16] __attribute__((section(".rodata"))) = "sub%d:%d\n";
+
+static char hdd_close_result_format[16] __attribute__((section(".rodata"))) = "close:%d\n";
+
+static char hdd_mount_result_format[16] __attribute__((section(".rodata"))) = "mount:%d\n";
+
+static char hdd_unmount_result_format[16] __attribute__((section(".rodata"))) = "umount:%d\n";
+
+static char hdd_your_saves_directory[24] __attribute__((section(".rodata"))) = "pfs1:/Your Saves";
+
+static char hdd_mkdir_result_format[24] __attribute__((section(".rodata"))) = "make YourSaves:%d\n";
+
+static char hdd_zone_size_format[16] __attribute__((section(".rodata"))) = "zonesz:%d\n";
+
+static char hdd_zone_free_format[16] __attribute__((section(".rodata"))) = "zonefree:%d\n";
+
+static char hdd_chstat_failure_format[16] __attribute__((section(".rodata"))) = "chstat:%d\n";
+
+static char D_004C0BB8[16] __attribute__((section(".rodata"))) = "zone:%d,%d\n";
+
+static char D_004C0BC8[16] __attribute__((section(".rodata"))) = "step:%d\n";
+
+static char D_004C0BD8[16] __attribute__((section(".rodata"))) = "pfs1:/999";
+
+static char D_004C0BE8[16] __attribute__((section(".rodata"))) = "mkdir:%d\n";
+
+static char D_004C0BF8[16] __attribute__((section(".rodata"))) = "pfs1:/999/dummy";
+
+static char D_004C0C08[16] __attribute__((section(".rodata"))) = "open:%d\n";
+
+char D_004C0C18[16] __attribute__((section(".rodata"))) = "MAKE YOURSAVES";
+
+char D_004C0C28[16] __attribute__((section(".rodata"))) = "COMMON FULL";
+
+char D_004C0C38[16] __attribute__((section(".rodata"))) = "DUMMY FOLDER";
+
+char D_004C0C48[16] __attribute__((section(".rodata"))) = "1024 SAVE";
+
+char D_004C0C58[16] __attribute__((section(".rodata"))) = "HDD FULL";
+
+char D_004C0C68[16] __attribute__((section(".rodata"))) = "SHUTDOWN";
+
+static char hdd_status_format[24] __attribute__((section(".rodata"))) = "HDIOC_STATUS:%d\n";
+
+static char hdd_status_error_format[32] __attribute__((section(".rodata"))) =
+    "HDD\xA5\xC7\xA5\xD0\xA5\xA4\xA5\xB9\xA4\xAC\xC2\xB8\xBA\xDF\xA4\xB7\xA4\xDE\xA4\xBB\xA4\xF3:%d\n";
+
+static char hdd_free_format[24] __attribute__((section(".rodata"))) = "xglHddMcGetFree:%d\n";
+
+static char hdd_test_title[16] __attribute__((section(".rodata"))) = "\x0B\xA3\xC8\xA3\xC4\xA3\xC4\xA5\xC6\xA5\xB9\xA5\xC8";
+
+static char hdd_no_use_title[16] __attribute__((section(".rodata"))) = "HDD NoUse";
+
+char D_004C0CE8[16] __attribute__((section(".rodata"))) = "\245\335\241\274\245\310\243\262";
+
+char D_004C0CF8[16] __attribute__((section(".rodata"))) = "\245\335\241\274\245\310\243\261";
+
+static int rate_2_004D9F60 = 128;
+
+static int dir_3 = -1;
+
+static int rate_8 = 128;
+
+static int dir_9 = -1;
+
+static int width_35 = 256;
+
+char D_004D9F78[8] = "%3d";
+
+static char test_36[6] = "\025\003\003\001";
+
+char D_004D9F88[8] = "\025\003\003";
+
+char D_004D9F90[8] = "%1x %1x";
+
+char D_004D9F98[8] = "Umnmode";
+
+char D_004D9FA0[8] = "%3d/%3d";
+
+const char D_004D9FA8[8] = "3058D";
+
+const char D_004D9FB0[8] = "3058B";
+
+const char D_004D9FB8[8] = "3058A";
+
+const char D_004D9FC0[8] = "3056C";
+
+const char D_004D9FC8[8] = "3056B";
+
+const char D_004D9FD0[8] = "3056A";
+
+const char D_004D9FD8[8] = "3055_1";
+
+const char D_004D9FE0[8] = "3054B2";
+
+const char D_004D9FE8[8] = "3052";
+
+const char D_004D9FF0[8] = "3050C2";
+
+const char D_004D9FF8[8] = "3048";
+
+const char D_004DA000[8] = "3047D";
+
+const char D_004DA008[8] = "3047C";
+
+const char D_004DA010[8] = "3047B";
+
+const char D_004DA018[8] = "3046B";
+
+const char D_004DA020[8] = "3046A";
+
+const char D_004DA028[8] = "3045";
+
+const char D_004DA030[8] = "3042";
+
+const char D_004DA038[8] = "3040";
+
+const char D_004DA040[8] = "3039C";
+
+const char D_004DA048[8] = "3039B_1";
+
+const char D_004DA050[8] = "3039A";
+
+const char D_004DA058[8] = "3037";
+
+const char D_004DA060[8] = "3036I";
+
+const char D_004DA068[8] = "3035";
+
+const char D_004DA070[8] = "3028B";
+
+const char D_004DA078[8] = "3027_1";
+
+const char D_004DA080[8] = "3026A";
+
+const char D_004DA088[8] = "3022";
+
+const char D_004DA090[8] = "3021_1";
+
+const char D_004DA098[8] = "3020";
+
+const char D_004DA0A0[8] = "3017_1";
+
+const char D_004DA0A8[8] = "3016_1";
+
+const char D_004DA0B0[8] = "3015";
+
+const char D_004DA0B8[8] = "3014_1";
+
+const char D_004DA0C0[8] = "3011";
+
+const char D_004DA0C8[8] = "3010";
+
+const char D_004DA0D0[8] = "3009D";
+
+const char D_004DA0D8[8] = "3008B";
+
+const char D_004DA0E0[8] = "3008A";
+
+const char D_004DA0E8[8] = "3007";
+
+const char D_004DA0F0[8] = "3003E";
+
+const char D_004DA0F8[8] = "3003A";
+
+const char D_004DA100[8] = "3000";
+
+const char D_004DA108[8] = "2064_2";
+
+const char D_004DA110[8] = "2064_1";
+
+const char D_004DA118[8] = "2058A";
+
+const char D_004DA120[8] = "2057";
+
+const char D_004DA128[8] = "2056A";
+
+const char D_004DA130[8] = "2055";
+
+const char D_004DA138[8] = "2053";
+
+const char D_004DA140[8] = "2051";
+
+const char D_004DA148[8] = "2048";
+
+const char D_004DA150[8] = "2046";
+
+const char D_004DA158[8] = "2044A";
+
+const char D_004DA160[8] = "2034";
+
+const char D_004DA168[8] = "2033B";
+
+const char D_004DA170[8] = "2033A";
+
+const char D_004DA178[8] = "2032";
+
+const char D_004DA180[8] = "2031_2";
+
+const char D_004DA188[8] = "2031_1";
+
+const char D_004DA190[8] = "2018";
+
+const char D_004DA198[8] = "2017";
+
+const char D_004DA1A0[8] = "2015";
+
+const char D_004DA1A8[8] = "2012B";
+
+const char D_004DA1B0[8] = "2010";
+
+const char D_004DA1B8[8] = "2007C_2";
+
+const char D_004DA1C0[8] = "2007C_1";
+
+const char D_004DA1C8[8] = "2007B";
+
+const char D_004DA1D0[8] = "2007";
+
+const char D_004DA1D8[8] = "2006_1";
+
+const char D_004DA1E0[8] = "2004D_2";
+
+const char D_004DA1E8[8] = "2004C_1";
+
+const char D_004DA1F0[8] = "2002B_1";
+
+const char D_004DA1F8[8] = "2001A_1";
+
+const char D_004DA200[8] = "2000_1";
+
+const char D_004DA208[8] = "1044B";
+
+const char D_004DA210[8] = "1043_1";
+
+const char D_004DA218[8] = "1041_1";
+
+const char D_004DA220[8] = "1040";
+
+const char D_004DA228[8] = "1039B";
+
+const char D_004DA230[8] = "1039";
+
+const char D_004DA238[8] = "1038B";
+
+const char D_004DA240[8] = "1035";
+
+const char D_004DA248[8] = "1033";
+
+const char D_004DA250[8] = "1032";
+
+const char D_004DA258[8] = "1028";
+
+const char D_004DA260[8] = "1022";
+
+const char D_004DA268[8] = "1020_1";
+
+const char D_004DA270[8] = "1019_1";
+
+const char D_004DA278[8] = "1017";
+
+const char D_004DA280[8] = "1011_2";
+
+const char D_004DA288[8] = "1010_1";
+
+const char D_004DA290[8] = "1008_2";
+
+const char D_004DA298[8] = "1006";
+
+const char D_004DA2A0[8] = "1005";
+
+const char D_004DA2A8[8] = "1004_1";
+
+const char D_004DA2B0[8] = "1003B2";
+
+const char D_004DA2B8[8] = "10B01_1";
+
+const char D_004DA2C0[8] = "1001_1";
+
+const char D_004DA2C8[8] = "10OP";
+
+static char hdd_device[8] = "hdd0:";
+
+static char pfs_device_name[8] = "pfs:";
+
+static char hdd_device_name[8] = "hdd:";
+
+static char hdd_partition_size[8] = "1G";
+
+static char hdd_mount_point[8] = "pfs1:";
+
+static char D_004DA2F8[8] = "%s:%d\n";
+
+static char D_004DA300[8] = "%d:%d\n";
+
+char D_004DA308[8] = "FORMAT";
+
+static char hdd_use_title[8] = "HDD Use";
+
+static char menu_cursor[8] = ">";
+
+char D_004DA320[8] = "\243\310\243\304\243\304";
 
 static void testfunc(XglPacket **packet) {
     sceVif1PkAddDirectDataN(*packet, TestEnv_0_0036A030, 9);
@@ -2017,6 +2639,36 @@ static void MemcardTest(void)
     }
 }
 
+char D_004C13D8[16] __attribute__((section(".rodata"))) = "host0:%s.lst";
+
+char D_004C13E8[16] __attribute__((section(".rodata"))) = "%d[%s]%d\n";
+
+char D_004C13F8[16] __attribute__((section(".rodata"))) = "host0:%s.xtx";
+
+char D_004C1408[16] __attribute__((section(".rodata"))) = "tbw:%d:%08x\n";
+
+char D_004C1418[40] __attribute__((section(".rodata"))) = "[%s],%d,(%d,%d)-(%d,%d),(%d,%d)\n";
+
+static unsigned char tbl_48[4] = { 32, 48, 64, 80 };
+
+static unsigned char tbl_49[4] = { 112, 128, 0, 0 };
+
+static char h_50[7] = "host0:";
+
+const char D_004DA378[8] = "MOVIE";
+
+const char D_004DA380[8] = "MEMCARD";
+
+const char D_004DA388[8] = "HDD";
+
+const char D_004DA390[8] = "UMLDISP";
+
+const char D_004DA398[8] = "FONT";
+
+static char D_004DA3A0[8] = "SELECT";
+
+
+
 static char *xtxdec_nextline(char *text)
 {
     while (*text != '\n') {
@@ -2335,98 +2987,531 @@ void YajimaTest(void)
     xglRenderClearDepth();
 }
 
-static char hdd_device[8] = "hdd0:";
-static char hdd_device_name[8] = "hdd:";
-static char pfs_device_name[8] = "pfs:";
-static char hdd_common_device[16] = "hdd0:__common";
-static char hdd_format_start_message[16] = "format HDD\n";
-static char hdd_format_result_format[16] = " result:%d\n";
-static char hdd_pfs_format_result_format[24] = " format __common:%d\n";
-static char hdd_shutdown_message[16] = "shutdown hdd\n";
-static char hdd_full_path[40] = "hdd0:PP.SLPS-99999.DUMMY.DUMMY,,,1G,PFS";
-static char hdd_create_partition_format[24] = "create partition:%d\n";
-static char hdd_partition_size[8] = "1G";
-static char hdd_subcommand_format[16] = "sub%d:%d\n";
-static char hdd_close_result_format[16] = "close:%d\n";
-static char hdd_mount_point[8] = "pfs1:";
-static char hdd_mount_result_format[16] = "mount:%d\n";
-static char hdd_unmount_result_format[16] = "umount:%d\n";
-static char hdd_your_saves_directory[24] = "pfs1:/Your Saves";
-static char hdd_mkdir_result_format[24] = "make YourSaves:%d\n";
-static char hdd_zone_size_format[16] = "zonesz:%d\n";
-static char hdd_zone_free_format[16] = "zonefree:%d\n";
-static char hdd_1024_directory_name[22] = "pfs1:/Your Saves/0000";
-static char hdd_chstat_failure_format[16] = "chstat:%d\n";
-static char hdd_dummy_folder_name[10] = "pfs1:/000";
-static HddTestMenuEntry hdd_test_menu[8] = {
-    { D_004DA308, HddTestFormat },
-    { D_004C0C68, HddTestShutdown },
-    { D_004C0C58, HddTestHddFull },
-    { D_004C0C48, HddTest1024Save },
-    { D_004C0C38, HddTestDummyFolder },
-    { D_004C0C28, HddTestDummySave },
-    { D_004C0C18, HddTestMakeYS },
-    { 0, 0 },
-};
-static char hdd_status_format[24] = "HDIOC_STATUS:%d\n";
-static char hdd_status_error_format[32] =
-    "HDD\xA5\xC7\xA5\xD0\xA5\xA4\xA5\xB9\xA4\xAC\xC2\xB8\xBA\xDF\xA4\xB7\xA4\xDE\xA4\xBB\xA4\xF3:%d\n";
-static char hdd_free_format[24] = "xglHddMcGetFree:%d\n";
-static char hdd_test_title[16] = "\x0B\xA3\xC8\xA3\xC4\xA3\xC4\xA5\xC6\xA5\xB9\xA5\xC8";
-static char hdd_use_title[8] = "HDD Use";
-static char hdd_no_use_title[16] = "HDD NoUse";
-static char menu_cursor[8] = ">";
-static char *name_47[3] = { D_004C0CF8, D_004C0CE8, D_004DA320 };
-static char D_004DA2F8[8] = "%s:%d\n";
-static unsigned char TestEnv_0_0036A030[0x90] = {
-    0x01, 0x80, 0x00, 0x00, 0x00, 0x40, 0x8B, 0x80, 0xEE, 0x1E, 0x53, 0x53, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x47, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x44, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x42, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0xB8, 0x42, 0xA9, 0x06, 0x00, 0x07, 0x20, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7A, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x8A, 0x00, 0x00, 0x00, 0x88, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00
-};
-static TestLineVertex TestEnv_34[6] = {
-    { 0, 0, { 0x00, 0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x51 } },
-    { 32769, 1073823744, { 0x1E, 0x55, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 } },
-    { 458752, 0, { 0x47, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 } },
-    { 192, 128, { 0x80, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00 } },
-    { 0, 0, { 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00 } },
-    { 0, 0, { 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00 } }
-};
-static char D_004C0BB8[16] = "zone:%d,%d\n";
-static char D_004C0BC8[16] = "step:%d\n";
-static char D_004C0BD8[16] = "pfs1:/999";
-static char D_004C0BE8[16] = "mkdir:%d\n";
-static char D_004C0BF8[16] = "pfs1:/999/dummy";
-static char D_004C0C08[16] = "open:%d\n";
-static char D_004DA300[8] = "%d:%d\n";
-static char D_004C14B8[16] = "\x0B\xA3\xD8\xA3\xD4\xA3\xD8\xA5\xC7\xA5\xB3\xA1\xBC\xA5\xC9";
-static char D_004C14C8[48] = "\x0B\xB5\xAF\xC6\xB0\xBB\xFE\xA5\xAA\xA5\xD7\xA5\xB7\xA5\xE7\xA5\xF3\xA4\xC7\xA5\xD5\xA5\xA1\xA5\xA4\xA5\xEB\xCC\xBE\xA4\xF2\xBB\xD8\xC4\xEA\xA4\xB7\xA4\xC6\xA4\xAF\xA4\xC0\xA4\xB5\xA4\xA4";
-static char D_004C14F8[16] = "\xBD\xAA\xCE\xBB\xA4\xB7\xA4\xDE\xA4\xB7\xA4\xBF";
-static YajimaMenuState m_54 = {
-    { 0x01, 0x00, 0x00, 0x00, 0x08, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0xA9, 0x36, 0x00 },
-    0
-};
-char D_004DA308[8] = "FORMAT";
-char D_004C0C68[16] = "SHUTDOWN";
-char D_004C0C58[16] = "HDD FULL";
-char D_004C0C48[16] = "1024 SAVE";
-char D_004C0C38[16] = "DUMMY FOLDER";
-char D_004C0C28[16] = "COMMON FULL";
-char D_004C0C18[16] = "MAKE YOURSAVES";
-char D_004C0CF8[16] = "\245\335\241\274\245\310\243\261";
-char D_004C0CE8[16] = "\245\335\241\274\245\310\243\262";
-char D_004DA320[8] = "\243\310\243\304\243\304";
-static char D_004DA3A0[8] = "SELECT";
-static char D_004C1518[24] = "%4d.%2d.%2d\n%2d.%2d.%2d";
-const char D_004DA378[8] = "MOVIE";
-const char D_004DA380[8] = "MEMCARD";
-const char D_004DA390[8] = "UMLDISP";
-const char D_004DA398[8] = "FONT";
-const char D_004DA388[8] = "HDD";
-static XglMenuRow i1_52[7] = {
-    { D_004DA398, XGL_MENU_ACTION(1) },
-    { D_004DA390, XGL_MENU_ACTION(2) },
-    { D_004DA388, XGL_MENU_ACTION(3) },
-    { D_004DA380, XGL_MENU_ACTION(4) },
-    { D_004C0948, XGL_MENU_ACTION(5) },
-    { D_004DA378, XGL_MENU_ACTION(6) },
-    { D_004C1508, XGL_MENU_ACTION(7) }
-};
-static XglMenuNode l1_53 = { 7, { 255, 1, 8 }, 0, { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, i1_52 };
+static char hdd_device[8];
+static char hdd_device_name[8];
+static char pfs_device_name[8];
+static char hdd_common_device[16] __attribute__((section(".rodata")));
+static char hdd_format_start_message[16] __attribute__((section(".rodata")));
+static char hdd_format_result_format[16] __attribute__((section(".rodata")));
+static char hdd_pfs_format_result_format[24] __attribute__((section(".rodata")));
+static char hdd_shutdown_message[16] __attribute__((section(".rodata")));
+static char hdd_full_path[40] __attribute__((section(".rodata")));
+static char hdd_create_partition_format[24] __attribute__((section(".rodata")));
+static char hdd_partition_size[8];
+static char hdd_subcommand_format[16] __attribute__((section(".rodata")));
+static char hdd_close_result_format[16] __attribute__((section(".rodata")));
+static char hdd_mount_point[8];
+static char hdd_mount_result_format[16] __attribute__((section(".rodata")));
+static char hdd_unmount_result_format[16] __attribute__((section(".rodata")));
+static char hdd_your_saves_directory[24] __attribute__((section(".rodata")));
+static char hdd_mkdir_result_format[24] __attribute__((section(".rodata")));
+static char hdd_zone_size_format[16] __attribute__((section(".rodata")));
+static char hdd_zone_free_format[16] __attribute__((section(".rodata")));
+
+static char hdd_chstat_failure_format[16] __attribute__((section(".rodata")));
+
+
+static char hdd_status_format[24] __attribute__((section(".rodata")));
+static char hdd_status_error_format[32] __attribute__((section(".rodata")));
+static char hdd_free_format[24] __attribute__((section(".rodata")));
+static char hdd_test_title[16] __attribute__((section(".rodata")));
+static char hdd_use_title[8];
+static char hdd_no_use_title[16] __attribute__((section(".rodata")));
+static char menu_cursor[8];
+static char *name_47[3];
+static char D_004DA2F8[8];
+static unsigned char TestEnv_0_0036A030[0x90];
+static TestLineVertex TestEnv_34[6];
+static char D_004C0BB8[16] __attribute__((section(".rodata")));
+static char D_004C0BC8[16] __attribute__((section(".rodata")));
+static char D_004C0BD8[16] __attribute__((section(".rodata")));
+static char D_004C0BE8[16] __attribute__((section(".rodata")));
+static char D_004C0BF8[16] __attribute__((section(".rodata")));
+static char D_004C0C08[16] __attribute__((section(".rodata")));
+static char D_004DA300[8];
+static char D_004C14B8[16] __attribute__((section(".rodata")));
+static char D_004C14C8[48] __attribute__((section(".rodata")));
+static char D_004C14F8[16] __attribute__((section(".rodata")));
+static YajimaMenuState m_54;
+extern char D_004DA308[8];
+extern char D_004C0C68[16];
+extern char D_004C0C58[16];
+extern char D_004C0C48[16];
+extern char D_004C0C38[16];
+extern char D_004C0C28[16];
+extern char D_004C0C18[16];
+extern char D_004C0CF8[16];
+extern char D_004C0CE8[16];
+extern char D_004DA320[8];
+static char D_004DA3A0[8];
+static char D_004C1518[24] __attribute__((section(".rodata")));
+extern const char D_004DA378[8];
+extern const char D_004DA380[8];
+extern const char D_004DA390[8];
+extern const char D_004DA398[8];
+extern const char D_004DA388[8];
+static XglMenuRow i1_52[7];
+static XglMenuNode l1_53;
+
+extern const char D_004DA088[];
+extern const char D_004DA110[];
+extern const char D_004DA258[];
+extern const char D_004DA1E0[];
+extern const char D_004DA1D0[];
+extern const char D_004DA020[];
+extern const char D_004DA250[];
+extern const char D_004DA2B0[];
+extern const char D_004DA220[];
+extern const char D_004DA210[];
+extern const char D_004DA168[];
+extern const char D_004D9FF0[];
+extern const char D_004DA208[];
+extern const char D_004DA0E8[];
+extern const char D_004D9FE8[];
+extern const char D_004DA268[];
+extern const char D_004DA038[];
+extern const char D_004DA148[];
+extern const char D_004DA160[];
+extern const char D_004DA008[];
+extern const char D_004D9FC0[];
+extern const char D_004DA018[];
+extern const char D_004D9FC8[];
+extern const char D_004DA1E8[];
+extern const char D_004DA190[];
+extern const char D_004DA0D8[];
+extern const char D_004DA080[];
+extern const char D_004DA1F8[];
+extern const char D_004DA150[];
+extern const char D_004DA098[];
+extern const char D_004DA2A8[];
+extern const char D_004DA1F0[];
+extern const char D_004D9FA8[];
+extern const char D_004DA128[];
+extern const char D_004DA280[];
+extern const char D_004DA058[];
+extern const char D_004DA260[];
+extern const char D_004DA108[];
+extern const char D_004DA230[];
+extern const char D_004DA170[];
+extern const char D_004DA0F8[];
+extern const char D_004DA158[];
+extern const char D_004DA1C8[];
+extern const char D_004DA070[];
+extern const char D_004DA048[];
+extern const char D_004DA090[];
+extern const char D_004DA1B0[];
+extern const char D_004DA2C0[];
+extern const char D_004DA188[];
+extern const char D_004DA000[];
+extern const char D_004D9FF8[];
+extern const char D_004DA0A8[];
+extern const char D_004DA120[];
+extern const char D_004DA218[];
+extern const char D_004DA228[];
+extern const char D_004DA2C8[];
+extern const char D_004DA238[];
+extern const char D_004DA1C0[];
+extern const char D_004DA2B8[];
+extern const char D_004DA200[];
+extern const char D_004DA140[];
+extern const char D_004DA1A0[];
+extern const char D_004D9FD0[];
+extern const char D_004DA028[];
+extern const char D_004DA288[];
+extern const char D_004DA298[];
+extern const char D_004DA180[];
+extern const char D_004DA1A8[];
+extern const char D_004DA290[];
+extern const char D_004DA178[];
+extern const char D_004DA270[];
+extern const char D_004DA078[];
+extern const char D_004DA030[];
+extern const char D_004DA0F0[];
+extern const char D_004D9FE0[];
+extern const char D_004DA240[];
+extern const char D_004DA2A0[];
+extern const char D_004DA1B8[];
+extern const char D_004DA050[];
+extern const char D_004C0958[];
+extern const char D_004DA130[];
+extern const char D_004DA060[];
+extern const char D_004D9FB0[];
+extern const char D_004DA138[];
+extern const char D_004DA0C0[];
+extern const char D_004DA198[];
+extern const char D_004DA0E0[];
+extern const char D_004C0968[];
+extern const char D_004DA040[];
+extern const char D_004DA0A0[];
+extern const char D_004DA278[];
+extern const char D_004DA0D0[];
+extern const char D_004DA0B0[];
+extern const char D_004D9FD8[];
+extern const char D_004DA0B8[];
+extern const char D_004DA0C8[];
+extern const char D_004DA118[];
+extern const char D_004DA068[];
+extern const char D_004DA100[];
+extern const char D_004DA248[];
+extern const char D_004DA010[];
+extern const char D_004DA1D8[];
+extern const char D_004D9FB8[];
+
+static char test_21[33];
+
+static char test_22[21];
+
+static char test_23[33];
+
+static char test_24[31];
+
+static char test00_26[51];
+
+static char test01_27[51];
+
+static char test02_28[51];
+
+static char test03_29[51];
+
+static char test04_30[51];
+
+static char test05_31[51];
+
+static char test06_32[51];
+
+static char test07_33[56];
+
+static char test0_37[40];
+
+static char test1_38[19];
+
+static char test2_39[20];
+
+static char test3_40[36];
+
+static char test4_41[35];
+
+static char * name_43[103];
+
+extern const char D_004C07F0[24];
+
+extern char D_004C0808[32];
+
+extern char D_004C0828[16];
+
+extern char D_004C08E0[16];
+
+extern char D_004C08F0[16];
+
+extern char D_004C0900[24];
+
+extern char D_004C0918[16];
+
+extern char D_004C0928[16];
+
+extern char D_004C0938[16];
+
+extern const char D_004C0958[16];
+
+extern const char D_004C0968[16];
+
+extern char D_004C0A68[24];
+
+extern char D_004C13D8[16];
+
+extern char D_004C13E8[16];
+
+extern char D_004C13F8[16];
+
+extern char D_004C1408[16];
+
+extern char D_004C1418[40];
+
+static int rate_2_004D9F60;
+
+static int dir_3;
+
+static int rate_8;
+
+static int dir_9;
+
+static int width_35;
+
+extern char D_004D9F78[8];
+
+extern char D_004D9F90[8];
+
+extern char D_004D9F98[8];
+
+extern char D_004D9FA0[8];
+
+extern const char D_004D9FA8[8];
+
+extern const char D_004D9FB0[8];
+
+extern const char D_004D9FB8[8];
+
+extern const char D_004D9FC0[8];
+
+extern const char D_004D9FC8[8];
+
+extern const char D_004D9FD0[8];
+
+extern const char D_004D9FD8[8];
+
+extern const char D_004D9FE0[8];
+
+extern const char D_004D9FE8[8];
+
+extern const char D_004D9FF0[8];
+
+extern const char D_004D9FF8[8];
+
+extern const char D_004DA000[8];
+
+extern const char D_004DA008[8];
+
+extern const char D_004DA010[8];
+
+extern const char D_004DA018[8];
+
+extern const char D_004DA020[8];
+
+extern const char D_004DA028[8];
+
+extern const char D_004DA030[8];
+
+extern const char D_004DA038[8];
+
+extern const char D_004DA040[8];
+
+extern const char D_004DA048[8];
+
+extern const char D_004DA050[8];
+
+extern const char D_004DA058[8];
+
+extern const char D_004DA060[8];
+
+extern const char D_004DA068[8];
+
+extern const char D_004DA070[8];
+
+extern const char D_004DA078[8];
+
+extern const char D_004DA080[8];
+
+extern const char D_004DA088[8];
+
+extern const char D_004DA090[8];
+
+extern const char D_004DA098[8];
+
+extern const char D_004DA0A0[8];
+
+extern const char D_004DA0A8[8];
+
+extern const char D_004DA0B0[8];
+
+extern const char D_004DA0B8[8];
+
+extern const char D_004DA0C0[8];
+
+extern const char D_004DA0C8[8];
+
+extern const char D_004DA0D0[8];
+
+extern const char D_004DA0D8[8];
+
+extern const char D_004DA0E0[8];
+
+extern const char D_004DA0E8[8];
+
+extern const char D_004DA0F0[8];
+
+extern const char D_004DA0F8[8];
+
+extern const char D_004DA100[8];
+
+extern const char D_004DA108[8];
+
+extern const char D_004DA110[8];
+
+extern const char D_004DA118[8];
+
+extern const char D_004DA120[8];
+
+extern const char D_004DA128[8];
+
+extern const char D_004DA130[8];
+
+extern const char D_004DA138[8];
+
+extern const char D_004DA140[8];
+
+extern const char D_004DA148[8];
+
+extern const char D_004DA150[8];
+
+extern const char D_004DA158[8];
+
+extern const char D_004DA160[8];
+
+extern const char D_004DA168[8];
+
+extern const char D_004DA170[8];
+
+extern const char D_004DA178[8];
+
+extern const char D_004DA180[8];
+
+extern const char D_004DA188[8];
+
+extern const char D_004DA190[8];
+
+extern const char D_004DA198[8];
+
+extern const char D_004DA1A0[8];
+
+extern const char D_004DA1A8[8];
+
+extern const char D_004DA1B0[8];
+
+extern const char D_004DA1B8[8];
+
+extern const char D_004DA1C0[8];
+
+extern const char D_004DA1C8[8];
+
+extern const char D_004DA1D0[8];
+
+extern const char D_004DA1D8[8];
+
+extern const char D_004DA1E0[8];
+
+extern const char D_004DA1E8[8];
+
+extern const char D_004DA1F0[8];
+
+extern const char D_004DA1F8[8];
+
+extern const char D_004DA200[8];
+
+extern const char D_004DA208[8];
+
+extern const char D_004DA210[8];
+
+extern const char D_004DA218[8];
+
+extern const char D_004DA220[8];
+
+extern const char D_004DA228[8];
+
+extern const char D_004DA230[8];
+
+extern const char D_004DA238[8];
+
+extern const char D_004DA240[8];
+
+extern const char D_004DA248[8];
+
+extern const char D_004DA250[8];
+
+extern const char D_004DA258[8];
+
+extern const char D_004DA260[8];
+
+extern const char D_004DA268[8];
+
+extern const char D_004DA270[8];
+
+extern const char D_004DA278[8];
+
+extern const char D_004DA280[8];
+
+extern const char D_004DA288[8];
+
+extern const char D_004DA290[8];
+
+extern const char D_004DA298[8];
+
+extern const char D_004DA2A0[8];
+
+extern const char D_004DA2A8[8];
+
+extern const char D_004DA2B0[8];
+
+extern const char D_004DA2B8[8];
+
+extern const char D_004DA2C0[8];
+
+extern const char D_004DA2C8[8];
+
+static unsigned char test_1[22];
+
+static char test_4[16];
+
+static char test_5[16];
+
+static char test1_6[33];
+
+static char test2_7[15];
+
+static char test_10[13];
+
+static unsigned char txt_11[15];
+
+static unsigned char xy3_12[12];
+
+static unsigned char xy5_13[28];
+
+static unsigned char xy7_14[52];
+
+static unsigned char xy9_15[84];
+
+static char test_16[25];
+
+static char test_17[43];
+
+static char test_18[40];
+
+static char test_19[31];
+
+static char init_20[13];
+
+static char test_25[26];
+
+static UmlDispVertex TestEnv_42[6];
+
+extern char D_004C0838[80];
+
+extern char D_004C0888[24];
+
+extern char D_004C08A0[16];
+
+extern char D_004C08B0[32];
+
+extern char D_004C08D0[16];
+
+extern char D_004C0978[240];
+
+extern char D_004D9F88[8];
+
+static char h_50[7];
+
+static char test_36[6];
+
+static unsigned char tbl_48[4];
+
+static unsigned char tbl_49[4];
+
+static char D_004C14B8[16] __attribute__((section(".rodata"))) = "\x0B\xA3\xD8\xA3\xD4\xA3\xD8\xA5\xC7\xA5\xB3\xA1\xBC\xA5\xC9";
+
+static char D_004C14C8[48] __attribute__((section(".rodata"))) = "\x0B\xB5\xAF\xC6\xB0\xBB\xFE\xA5\xAA\xA5\xD7\xA5\xB7\xA5\xE7\xA5\xF3\xA4\xC7\xA5\xD5\xA5\xA1\xA5\xA4\xA5\xEB\xCC\xBE\xA4\xF2\xBB\xD8\xC4\xEA\xA4\xB7\xA4\xC6\xA4\xAF\xA4\xC0\xA4\xB5\xA4\xA4";
+
+static char D_004C14F8[16] __attribute__((section(".rodata"))) = "\xBD\xAA\xCE\xBB\xA4\xB7\xA4\xDE\xA4\xB7\xA4\xBF";
+
+const char D_004C1508[16] = "XTX DECODE";
+
+static char D_004C1518[24] __attribute__((section(".rodata"))) = "%4d.%2d.%2d\n%2d.%2d.%2d";
+

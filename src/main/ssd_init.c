@@ -71,7 +71,7 @@ extern void SsdCopyMemory(void *dst, void *src, int size);
 
 extern int printf(const char *format, ...);
 
-const char D_004D4AA0[] = "Rssd get result error !\n";
+extern const char D_004D4AA0[32];
 
 /*
  * libkernel syscall stub (main:0x00200550).
@@ -84,10 +84,10 @@ extern int CreateThread(SsdThreadCreateInfo *thread);
 extern int StartThread(int thread_id, void *args);
 extern int WaitSema(int sema_id);
 extern void *_gp;
-extern unsigned char MYclientPtr[0x10040];
-extern unsigned char MYserverPtr[0x10020];
-extern unsigned char MYthreadStack[0x4000];
-extern unsigned char MYwaveTransThStack[0x4000];
+static unsigned char MYclientPtr[65600];
+static unsigned char MYserverPtr[65568];
+static unsigned char MYthreadStack[16384];
+static unsigned char MYwaveTransThStack[16384];
 extern void RSsdSifRpcThread(void);
 extern void RssdBackNextWaveThread(void);
 
@@ -458,3 +458,22 @@ void SsdSuspend(void)
     RssdWork.flags &= ~RSSD_FLAG_SUCCESS;
     RssdCallFunc(RSSD_CMD_SUSPEND, &request, 0, 0);
 }
+
+
+
+extern const char D_004D4A60[32];
+
+const char D_004D4A80[32] = "Rssd sif transfer size over !!\n";
+
+static unsigned char MYthreadStack[16384];
+
+
+static unsigned char MYclientPtr[65600];
+
+static unsigned char MYserverPtr[65568];
+
+static unsigned char MYwaveTransThStack[16384];
+
+const char D_004D4A60[32] = "Rssd(%04x) bind error !\n";
+
+const char D_004D4AA0[32] = "Rssd get result error !\n";

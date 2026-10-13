@@ -331,7 +331,7 @@ typedef struct DrillEnemyWork {
 
 extern DrillContainerDef container[31];
 extern DrillItemBox ItemBoxTbl[];
-extern u32 *pDrillFlag;
+static u32 * pDrillFlag;
 extern DrillHitActor actor[64];
 extern DrillEnemyWork enepc[16];
 
@@ -379,7 +379,7 @@ void Enemy_Command_Freeze(DrillHitActor *target, int frozen);
 void CallMethod_I(const char *method, int argument);
 void ACT_setMotion2(DrillMotionActor *actor, int motion, int mode);
 
-const char D_004CA960[] = "SetContainer\n";
+extern const char D_004CA960[];
 
 int CreateContainer(int, int);
 
@@ -911,21 +911,21 @@ void DrillStandbyFunc(Drill *drill)
     }
 }
 
-const char D_004CAA40[] = "DRILL ZMOVE";
+extern const char D_004CAA40[];
 
-const char D_004CAA50[] = "DRILL ZSTANDBY";
+extern const char D_004CAA50[];
 
-const char D_004CAA60[] = "DRILL XMOVE";
+extern const char D_004CAA60[];
 
-const char D_004CAA70[] = "DRILL CRASH %2d";
+extern const char D_004CAA70[];
 
-const char D_004CAA80[] = "DRILL RETURN";
+extern const char D_004CAA80[];
 
-const char D_004CAA90[] = "drill_stanby";
+extern const char D_004CAA90[];
 
-const char D_004CAAA0[] = "drill_end";
+extern const char D_004CAAA0[];
 
-const char D_004CAAB0[] = "CAMERA CONTROL";
+extern const char D_004CAAB0[16];
 
 void DrillZMoveFunc(Drill *drill)
 {
@@ -1428,3 +1428,84 @@ int HitCheckEnemy(Vector4 *position, float radius)
     }
     return -1;
 }
+
+
+
+extern const char D_004CA940[32];
+
+extern const char D_004CA970[48];
+
+extern const char D_004CA9A0[24];
+
+extern const char D_004CA9B8[16];
+
+extern const char D_004CA9C8[24];
+
+extern const char D_004CAA00[16];
+
+extern const char D_004CAA10[16];
+
+extern const char D_004CAA20[16];
+
+extern const char D_004CAA30[16];
+
+extern char D_004DB7E8[8];
+
+
+
+DrillContainerDef container[31] = { { .type = 1, .unmodeled_01 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, .size = { .vector = { .x = 0.15000000596046448f, .y = 1.0f, .z = 0.15000000596046448f, .w = 0.0f } }, .model = { .hitMode = 0, .unmodeled_01 = { 0, 0, 0 }, .modelId = 628, .itemBase = 501, .unmodeled_0c = 0 } }, { .type = 1, .unmodeled_01 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, .size = { .vector = { .x = 0.15000000596046448f, .y = 1.0f, .z = 0.15000000596046448f, .w = 0.0f } }, .model = { .hitMode = 0, .unmodeled_01 = { 0, 0, 0 }, .modelId = 628, .itemBase = 503, .unmodeled_0c = 0 } }, { .type = 1, .unmodeled_01 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, .size = { .vector = { .x = 0.15000000596046448f, .y = 1.0f, .z = 0.15000000596046448f, .w = 0.0f } }, .model = { .hitMode = 0, .unmodeled_01 = { 0, 0, 0 }, .modelId = 628, .itemBase = 505, .unmodeled_0c = 0 } }, { .type = 1, .unmodeled_01 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, .size = { .vector = { .x = 0.15000000596046448f, .y = 1.0f, .z = 0.15000000596046448f, .w = 0.0f } }, .model = { .hitMode = 0, .unmodeled_01 = { 0, 0, 0 }, .modelId = 628, .itemBase = 507, .unmodeled_0c = 0 } }, { .type = 2, .unmodeled_01 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, .size = { .vector = { .x = 0.25f, .y = 1.5f, .z = 0.25f, .w = 0.0f } }, .model = { .hitMode = 0, .unmodeled_01 = { 0, 0, 0 }, .modelId = 602, .itemBase = 509, .unmodeled_0c = 0 } }, { .type = 2, .unmodeled_01 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, .size = { .vector = { .x = 0.25f, .y = 1.5f, .z = 0.25f, .w = 0.0f } }, .model = { .hitMode = 0, .unmodeled_01 = { 0, 0, 0 }, .modelId = 602, .itemBase = 511, .unmodeled_0c = 0 } }, { .type = 2, .unmodeled_01 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, .size = { .vector = { .x = 0.25f, .y = 1.5f, .z = 0.25f, .w = 0.0f } }, .model = { .hitMode = 0, .unmodeled_01 = { 0, 0, 0 }, .modelId = 602, .itemBase = 513, .unmodeled_0c = 0 } }, { .type = 2, .unmodeled_01 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, .size = { .vector = { .x = 0.25f, .y = 1.5f, .z = 0.25f, .w = 0.0f } }, .model = { .hitMode = 0, .unmodeled_01 = { 0, 0, 0 }, .modelId = 602, .itemBase = 515, .unmodeled_0c = 0 } }, { .type = 1, .unmodeled_01 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, .size = { .vector = { .x = 0.5f, .y = 1.0f, .z = 0.5f, .w = 0.0f } }, .model = { .hitMode = 2, .unmodeled_01 = { 0, 0, 0 }, .modelId = 648, .itemBase = 517, .unmodeled_0c = 0 } }, { .type = 1, .unmodeled_01 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, .size = { .vector = { .x = 0.5f, .y = 1.0f, .z = 0.5f, .w = 0.0f } }, .model = { .hitMode = 2, .unmodeled_01 = { 0, 0, 0 }, .modelId = 648, .itemBase = 519, .unmodeled_0c = 0 } }, { .type = 1, .unmodeled_01 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, .size = { .vector = { .x = 0.5f, .y = 1.0f, .z = 0.5f, .w = 0.0f } }, .model = { .hitMode = 2, .unmodeled_01 = { 0, 0, 0 }, .modelId = 648, .itemBase = 521, .unmodeled_0c = 0 } }, { .type = 1, .unmodeled_01 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, .size = { .vector = { .x = 0.5f, .y = 1.0f, .z = 0.5f, .w = 0.0f } }, .model = { .hitMode = 2, .unmodeled_01 = { 0, 0, 0 }, .modelId = 648, .itemBase = 523, .unmodeled_0c = 0 } }, { .type = 2, .unmodeled_01 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, .size = { .vector = { .x = 0.5f, .y = 1.5f, .z = 0.5f, .w = 0.0f } }, .model = { .hitMode = 0, .unmodeled_01 = { 0, 0, 0 }, .modelId = 602, .itemBase = 525, .unmodeled_0c = 0 } }, { .type = 2, .unmodeled_01 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, .size = { .vector = { .x = 0.5f, .y = 1.5f, .z = 0.5f, .w = 0.0f } }, .model = { .hitMode = 0, .unmodeled_01 = { 0, 0, 0 }, .modelId = 602, .itemBase = 527, .unmodeled_0c = 0 } }, { .type = 2, .unmodeled_01 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, .size = { .vector = { .x = 0.5f, .y = 1.5f, .z = 0.5f, .w = 0.0f } }, .model = { .hitMode = 0, .unmodeled_01 = { 0, 0, 0 }, .modelId = 602, .itemBase = 529, .unmodeled_0c = 0 } }, { .type = 2, .unmodeled_01 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, .size = { .vector = { .x = 0.5f, .y = 1.5f, .z = 0.5f, .w = 0.0f } }, .model = { .hitMode = 0, .unmodeled_01 = { 0, 0, 0 }, .modelId = 602, .itemBase = 531, .unmodeled_0c = 0 } }, { .type = 2, .unmodeled_01 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, .size = { .vector = { .x = 1.0f, .y = 1.5f, .z = 1.0f, .w = 0.0f } }, .model = { .hitMode = 1, .unmodeled_01 = { 0, 0, 0 }, .modelId = 614, .itemBase = 533, .unmodeled_0c = 0 } }, { .type = 2, .unmodeled_01 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, .size = { .vector = { .x = 1.0f, .y = 1.5f, .z = 1.0f, .w = 0.0f } }, .model = { .hitMode = 1, .unmodeled_01 = { 0, 0, 0 }, .modelId = 614, .itemBase = 535, .unmodeled_0c = 0 } }, { .type = 1, .unmodeled_01 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, .size = { .vector = { .x = 1.0f, .y = 1.5f, .z = 1.0f, .w = 0.0f } }, .model = { .hitMode = 1, .unmodeled_01 = { 0, 0, 0 }, .modelId = 642, .itemBase = 537, .unmodeled_0c = 0 } }, { .type = 1, .unmodeled_01 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, .size = { .vector = { .x = 1.0f, .y = 1.5f, .z = 1.0f, .w = 0.0f } }, .model = { .hitMode = 1, .unmodeled_01 = { 0, 0, 0 }, .modelId = 642, .itemBase = 539, .unmodeled_0c = 0 } }, { .type = 1, .unmodeled_01 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, .size = { .vector = { .x = 0.5f, .y = 1.0f, .z = 0.5f, .w = 0.0f } }, .model = { .hitMode = 0, .unmodeled_01 = { 0, 0, 0 }, .modelId = 629, .itemBase = 1, .unmodeled_0c = 0 } }, { .type = 1, .unmodeled_01 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, .size = { .vector = { .x = 1.0f, .y = 1.0f, .z = 1.0f, .w = 0.0f } }, .model = { .hitMode = 0, .unmodeled_01 = { 0, 0, 0 }, .modelId = 632, .itemBase = 3, .unmodeled_0c = 0 } }, { .type = 1, .unmodeled_01 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, .size = { .vector = { .x = 1.5f, .y = 1.0f, .z = 1.5f, .w = 0.0f } }, .model = { .hitMode = 0, .unmodeled_01 = { 0, 0, 0 }, .modelId = 635, .itemBase = 5, .unmodeled_0c = 0 } }, { .type = 2, .unmodeled_01 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, .size = { .vector = { .x = 0.5f, .y = 1.0f, .z = 0.5f, .w = 0.0f } }, .model = { .hitMode = 0, .unmodeled_01 = { 0, 0, 0 }, .modelId = 601, .itemBase = 7, .unmodeled_0c = 0 } }, { .type = 2, .unmodeled_01 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, .size = { .vector = { .x = 1.0f, .y = 1.0f, .z = 1.0f, .w = 0.0f } }, .model = { .hitMode = 0, .unmodeled_01 = { 0, 0, 0 }, .modelId = 604, .itemBase = 9, .unmodeled_0c = 0 } }, { .type = 2, .unmodeled_01 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, .size = { .vector = { .x = 0.15000000596046448f, .y = 1.5f, .z = 0.15000000596046448f, .w = 0.0f } }, .model = { .hitMode = 0, .unmodeled_01 = { 0, 0, 0 }, .modelId = 601, .itemBase = 1, .unmodeled_0c = 0 } }, { .type = 2, .unmodeled_01 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, .size = { .vector = { .x = 0.25f, .y = 1.5f, .z = 0.25f, .w = 0.0f } }, .model = { .hitMode = 0, .unmodeled_01 = { 0, 0, 0 }, .modelId = 601, .itemBase = 3, .unmodeled_0c = 0 } }, { .type = 2, .unmodeled_01 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, .size = { .vector = { .x = 0.40000000596046448f, .y = 1.5f, .z = 0.40000000596046448f, .w = 0.0f } }, .model = { .hitMode = 0, .unmodeled_01 = { 0, 0, 0 }, .modelId = 601, .itemBase = 7, .unmodeled_0c = 0 } }, { .type = 2, .unmodeled_01 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, .size = { .vector = { .x = 0.5f, .y = 1.5f, .z = 0.5f, .w = 0.0f } }, .model = { .hitMode = 0, .unmodeled_01 = { 0, 0, 0 }, .modelId = 601, .itemBase = 8, .unmodeled_0c = 0 } }, { .type = 2, .unmodeled_01 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, .size = { .vector = { .x = 1.0f, .y = 1.5f, .z = 1.0f, .w = 0.0f } }, .model = { .hitMode = 0, .unmodeled_01 = { 0, 0, 0 }, .modelId = 604, .itemBase = 9, .unmodeled_0c = 0 } }, { .type = 1, .unmodeled_01 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, .size = { .vector = { .x = 0.15000000596046448f, .y = 1.0f, .z = 0.15000000596046448f, .w = 0.0f } }, .model = { .hitMode = 0, .unmodeled_01 = { 0, 0, 0 }, .modelId = 628, .itemBase = 10, .unmodeled_0c = 0 } } };
+
+extern short Times;
+
+extern short NowTester;
+
+static u32 * pDrillFlag;
+
+
+
+extern char D_004DB7E0[8];
+
+
+const char D_004CA940[32] = "InitDrill D1=%d D2=%d D3=%d\n";
+
+const char D_004CA960[] = "SetContainer\n";
+
+const char D_004CA970[48] = "\244\246\241\274\244\257\244\363\245\334\241\274\245\353\244\313%d\244\316\245\354\245\242\245\242\245\244\245\306\245\340\244\254\306\376\244\303\244\277\n";
+
+const char D_004CA9A0[24] = "\r\000\031\003Elapsed Time\025\002\004\001";
+
+const char D_004CA9B8[16] = "drill_timeover";
+
+const char D_004CA9C8[24] = "\r\000\031\003Time Remaining\025\002\004\001";
+
+const char D_004CAA00[16] = "DRILL POWEROFF";
+
+const char D_004CAA10[16] = "DRILL STOP";
+
+const char D_004CAA20[16] = "DRILL STANDBY";
+
+const char D_004CAA30[16] = "drill_stop";
+
+const char D_004CAA40[] = "DRILL ZMOVE";
+
+const char D_004CAA50[] = "DRILL ZSTANDBY";
+
+const char D_004CAA60[] = "DRILL XMOVE";
+
+const char D_004CAA70[] = "DRILL CRASH %2d";
+
+const char D_004CAA80[] = "DRILL RETURN";
+
+const char D_004CAA90[] = "drill_stanby";
+
+const char D_004CAAA0[] = "drill_end";
+
+const char D_004CAAB0[16] = "CAMERA CONTROL";
+
+char D_004DB7E0[8] = "\025\002\004";
+
+char D_004DB7E8[8] = "broken";
+
+short Times = 0;
+
+short NowTester = 0;

@@ -14,45 +14,7 @@ static int scWaitParseMovieScript(ScriptObject *script);
 static int scWaitParseMovScript(ScriptObject *script);
 static int scWaitMissileScript(ScriptObject *script);
 
-static int (*moveHandlerTbl_1[])(ScriptObject *) = {
-    scWaitParseNopScript, scWaitMissileScript
-};
 
-/* WAITNOP: no condition to wait on; the command finishes on its first visit. */
-
-/*
- * WAITCNT: the wait is over once `wait_frames`, decremented once per visit,
- * has run out.
- */
-
-/*
- * WAITEVE: the wait is over once the event task the command names has gone
- * away or stopped running.  `wait_operand` is the task index scWAITEVEScript
- * stored when it parsed the command, and scGetTaskAdr returns 0 for a negative
- * one (bltz at 0x002ebc58), which counts as finished.
- */
-
-/*
- * WAITEFT: the wait is over once the effect scheduler scWAITEFTScript named
- * (`wait_operand`) has died.  Once it has, this also restores the ambient
- * state the effect's own SETAMB command replaced: bit 8 of `flags` picks
- * sdvSetAmbState2 over sdvSetAmbState, both given `amb_effect_no` as the
- * effect index.
- */
-
-/* WAITMOVIE: the wait is over once the movie player reports it stopped. */
-
-/* WAITMOV: the wait is over while `flags` bit 5 is clear. */
-
-
-static int (*waitHandlerTbl_0[6])(ScriptObject *) = {
-    scWaitParseNopScript,
-    scWaitParseCntScript,
-    scWaitParseEveScript,
-    scWaitParseEftScript,
-    scWaitParseMovieScript,
-    scWaitParseMovScript
-};
 
 extern int sefSearchMapperIndex(int effect_no);
 
@@ -113,6 +75,43 @@ static int scWaitParseMovScript(ScriptObject *script)
 
 int scWaitParseScript(ScriptObject *script)
 {
+
+/* WAITNOP: no condition to wait on; the command finishes on its first visit. */
+
+/*
+ * WAITCNT: the wait is over once `wait_frames`, decremented once per visit,
+ * has run out.
+ */
+
+/*
+ * WAITEVE: the wait is over once the event task the command names has gone
+ * away or stopped running.  `wait_operand` is the task index scWAITEVEScript
+ * stored when it parsed the command, and scGetTaskAdr returns 0 for a negative
+ * one (bltz at 0x002ebc58), which counts as finished.
+ */
+
+/*
+ * WAITEFT: the wait is over once the effect scheduler scWAITEFTScript named
+ * (`wait_operand`) has died.  Once it has, this also restores the ambient
+ * state the effect's own SETAMB command replaced: bit 8 of `flags` picks
+ * sdvSetAmbState2 over sdvSetAmbState, both given `amb_effect_no` as the
+ * effect index.
+ */
+
+/* WAITMOVIE: the wait is over once the movie player reports it stopped. */
+
+/* WAITMOV: the wait is over while `flags` bit 5 is clear. */
+
+
+static int (*waitHandlerTbl[6])(ScriptObject *) = {
+    scWaitParseNopScript,
+    scWaitParseCntScript,
+    scWaitParseEveScript,
+    scWaitParseEftScript,
+    scWaitParseMovieScript,
+    scWaitParseMovScript
+};
+
     unsigned short wait_kind = script->wait_kind;
     int result;
 
@@ -121,7 +120,7 @@ int scWaitParseScript(ScriptObject *script)
         return 1;
     }
 
-    result = waitHandlerTbl_0[(short)wait_kind](script);
+    result = waitHandlerTbl[(short)wait_kind](script);
     if (result != 0)
         script->flags &= ~0x10;
 
@@ -254,6 +253,10 @@ static int scWaitMissileScript(ScriptObject *script)
 
 int scMoveParseScript(ScriptObject *script)
 {
+    static int (*moveHandlerTbl[])(ScriptObject *) = {
+    scWaitParseNopScript, scWaitMissileScript
+};
+
     unsigned short move_kind = script->move_kind;
     int result;
 
@@ -262,7 +265,7 @@ int scMoveParseScript(ScriptObject *script)
         return 1;
     }
 
-    result = moveHandlerTbl_1[(short)move_kind](script);
+    result = moveHandlerTbl[(short)move_kind](script);
     if (result != 0)
         script->flags &= ~0x20;
 

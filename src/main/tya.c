@@ -57,14 +57,7 @@ typedef struct {
     ActorModelParam model;
 } ActorHead;
 
-extern ActorHead actor[ACTOR_COUNT];
-
-/* The scene's active capture layer: compared against a per-array base
- * (0x200 for the actor array here, 0x300 for MapUnit below) plus the slot
- * index, so only the one actor or map unit the current capture pass wants
- * is drawn. */
-
-static u16 layer;
+extern ActorHead actor[ACTOR_COUNT];static char * pnum;
 
 /* Defined in src/main/act_3.c (main/tu265). */
 
@@ -171,21 +164,28 @@ typedef struct {
 
 #define CAPTURE_HEIGHT 448
 
-extern char *pnum;
+static char * pext;
 
-extern char *pext;
+static TyaCaptureCallback cascade;
 
-extern TyaCaptureCallback cascade;
+static void * TmpBuffer;
 
-extern void *TmpBuffer;
 
-extern u16 zpicf;
 
-extern int alpha;
+/* The scene's active capture layer: compared against a per-array base
+ * (0x200 for the actor array here, 0x300 for MapUnit below) plus the slot
+ * index, so only the one actor or map unit the current capture pass wants
+ * is drawn. */
+
+static u16 layer;
+
+static u16 zpicf;
+
+static int alpha;
 
 typedef struct { int v; } TyaAlpha;
 
-extern int transparency;
+static int transparency;
 
 static char outpath[256];
 
@@ -767,3 +767,19 @@ void tyaCaptureEnd(void)
     xglFontSetFlags((unsigned short)(xglFontGetFlags() | 3));
     GameLoopState.flags &= 0xFAFFFFFF;
 }
+
+
+
+static u16 zpicf;
+
+static int alpha;
+
+static int transparency;
+
+static char * pnum;
+
+static char * pext;
+
+static TyaCaptureCallback cascade;
+
+static void * TmpBuffer;

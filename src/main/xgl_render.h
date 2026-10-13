@@ -1,6 +1,10 @@
 #ifndef SRC_MAIN_XGL_RENDER_H
 #define SRC_MAIN_XGL_RENDER_H
 
+#include "main/xgl_2.h"
+
+
+
 #include "shared.h"
 
 /*
@@ -12,15 +16,31 @@
  * touches stay unmodeled.
  */
 typedef struct GsClearEnv {
-    unsigned char unmodeled_00[0x10];
+    u32 gif_tag_low;
+    u32 gif_tag_high;
+    u32 gif_registers_low;
+    u32 gif_registers_high;
     u64 target;
-    unsigned char unmodeled_18[0x08];
+    u64 target_address;
     u32 color_r;
     u32 color_g;
     u32 color_b;
     u32 color_a;
-    unsigned char unmodeled_30[0x30];
+    u32 left;
+    u32 top;
+    unsigned char unmodeled_38[0x08];
+    u32 right;
+    u32 bottom;
+    unsigned char unmodeled_48[0x08];
+    u64 restore_target;
+    u64 restore_target_address;
 } GsClearEnv;
+
+typedef union GsClearPacket {
+    GsClearEnv value;
+    XglQuadword quadwords[6];
+} GsClearPacket;
+
 
 /*
  * GS display-environment block (0x004A9000, size 0x50). xglRenderDispOff/On
@@ -31,7 +51,7 @@ typedef struct GsDispEnv {
     unsigned char unmodeled_08[0x48];
 } GsDispEnv;
 
-extern GsClearEnv ClearEnv;
+extern GsClearPacket ClearEnv;
 extern GsDispEnv DispEnv;
 
 typedef void (*XglRenderFadeCallback)(XglPacket *packet);

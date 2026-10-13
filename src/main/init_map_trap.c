@@ -63,15 +63,15 @@ extern signed char collflg;
 
 extern signed char printflg;
 
-const char D_004CA470[24] = "act[%d] Electric\n";
+extern const char D_004CA470[24];
 
-const char D_004CA488[24] = "act[%d] Explosion\n";
+extern const char D_004CA488[24];
 
-const char D_004CA4A0[16] = "act[%d] Fall\n";
+extern const char D_004CA4A0[16];
 
-const char D_004CA4B0[16] = "act[%d] Slot\n";
+extern const char D_004CA4B0[16];
 
-const char D_004CA4C0[16] = "act[%d] Seal\n";
+extern const char D_004CA4C0[16];
 
 extern float CheckDist3D(const TrapPosition *, const TrapPosition *);
 
@@ -163,7 +163,7 @@ typedef struct {
     unsigned char unmodeled_21[0x0f];
 } KowareKindEntry;
 
-extern TrapKindEntry TrapKind_t_0[5];
+
 extern KowareKindEntry KowareKind_t[127];
 extern int uwares_tbl[14];
 extern int xtxres_tbl[14];
@@ -203,6 +203,8 @@ typedef struct {
 
 void InitMapTrap(TrapMapUnit *unit)
 {
+    static TrapKindEntry TrapKind_t[5] = { { .windState = 2, .unmodeled_01 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, .dimensions = { .xy = 4575657222456999936ULL, .z = 0.25f, .w = 0.0f }, .flags = 4194304U, .effectId = 730, .unmodeled_28 = { 0, 0, 0, 0, 0, 0, 0, 0 } }, { .windState = 1, .unmodeled_01 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, .dimensions = { .xy = 4575657222456999936ULL, .z = 0.25f, .w = 0.0f }, .flags = 8388608U, .effectId = 731, .unmodeled_28 = { 0, 0, 0, 0, 0, 0, 0, 0 } }, { .windState = 2, .unmodeled_01 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, .dimensions = { .xy = 4575657222456999936ULL, .z = 0.25f, .w = 0.0f }, .flags = 67108864U, .effectId = 732, .unmodeled_28 = { 0, 0, 0, 0, 0, 0, 0, 0 } }, { .windState = 2, .unmodeled_01 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, .dimensions = { .xy = 4561245704516796416ULL, .z = 0.5f, .w = 0.0f }, .flags = 33554432U, .effectId = 733, .unmodeled_28 = { 0, 0, 0, 0, 0, 0, 0, 0 } }, { .windState = 2, .unmodeled_01 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, .dimensions = { .xy = 4575657222465388544ULL, .z = 0.5f, .w = 0.0f }, .flags = 2097152U, .effectId = 601, .unmodeled_28 = { 0, 0, 0, 0, 0, 0, 0, 0 } } };
+
     TrapMapUnitVectors *view = (TrapMapUnitVectors *)unit;
     TrapDamageProperties *trap = &unit->trap;
     int index;
@@ -217,41 +219,41 @@ void InitMapTrap(TrapMapUnit *unit)
         unit->uwaresId = uwares;
         unit->xtxresId = xtxres;
         if (trap->windState == -1) {
-            trap->windState = TrapKind_t_0[index].windState;
+            trap->windState = TrapKind_t[index].windState;
         }
-        unit->flags |= TrapKind_t_0[index].flags;
-        unit->dimensions = TrapKind_t_0[index].dimensions;
+        unit->flags |= TrapKind_t[index].flags;
+        unit->dimensions = TrapKind_t[index].dimensions;
         trap->damageRadius = 3.0f;
         if (trap->target == -1) {
             trap->target = 0;
         }
         if (trap->effectId == -1) {
-            trap->effectId = TrapKind_t_0[index].effectId;
+            trap->effectId = TrapKind_t[index].effectId;
         }
     } else if ((u16)(unit->trapId - 0x7014) < 31) {
         SetContainerParam(unit);
     } else {
-        unit->flags |= TrapKind_t_0[4].flags;
-        unit->dimensions = TrapKind_t_0[4].dimensions;
+        unit->flags |= TrapKind_t[4].flags;
+        unit->dimensions = TrapKind_t[4].dimensions;
         trap->damageRadius = 3.0f;
         if (trap->kindIndex != -1) {
             if (trap->windState == -1) {
                 trap->windState = KowareKind_t[trap->kindIndex].shape;
             } else {
-                trap->windState = TrapKind_t_0[4].windState;
+                trap->windState = TrapKind_t[4].windState;
             }
             unit->dimensions = KowareKind_t[trap->kindIndex].dimensions;
             if (trap->effectId == -1) {
-                trap->effectId = TrapKind_t_0[trap->kindIndex].effectId;
+                trap->effectId = TrapKind_t[trap->kindIndex].effectId;
             }
         } else if (trap->windState == -1) {
-            trap->windState = TrapKind_t_0[4].windState;
+            trap->windState = TrapKind_t[4].windState;
         }
         if (trap->target == -1) {
             trap->target = KowareKind_t[trap->kindIndex].target;
         }
         if (trap->effectId == -1) {
-            trap->effectId = TrapKind_t_0[4].effectId;
+            trap->effectId = TrapKind_t[4].effectId;
         }
     }
     if (trap->sizeX > 0.0f) {
@@ -477,3 +479,54 @@ int GivesEnemyDamage(TrapMapUnit *unit)
     }
     return 0;
 }
+
+
+
+extern const char D_004CA3F8[16];
+
+extern const char D_004CA408[16];
+
+extern const char D_004CA418[48];
+
+extern const char D_004CA448[40];
+
+char D_004DB728[8] = "broken";
+
+const char D_004DB730[8] = "9";
+
+const char D_004DB738[8] = "8";
+
+const char D_004DB740[8] = "7";
+
+const char D_004DB748[8] = "6";
+
+const char D_004DB750[8] = "5";
+
+const char D_004DB758[8] = "4";
+
+const char D_004DB760[8] = "3";
+
+const char D_004DB768[8] = "2";
+
+const char D_004DB770[8] = "1";
+
+const char D_004DB778[8] = "0";
+
+
+const char D_004CA3F8[16] = "SetTrapSize\n";
+
+const char D_004CA408[16] = "x=%f y=%f z=%f\n";
+
+const char D_004CA418[48] = "Create Trap pos=x=%f, y=%f, z=%f, rotY=%f\n";
+
+const char D_004CA448[40] = "unit trap delete id=0x%x serial=%d\n";
+
+const char D_004CA470[24] = "act[%d] Electric\n";
+
+const char D_004CA488[24] = "act[%d] Explosion\n";
+
+const char D_004CA4A0[16] = "act[%d] Fall\n";
+
+const char D_004CA4B0[16] = "act[%d] Slot\n";
+
+const char D_004CA4C0[16] = "act[%d] Seal\n";

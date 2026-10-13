@@ -19,7 +19,7 @@ const struct ArrivalAttributeTable D_004CAC60 = {{
     0x00200000, 0x00210000, 0x00220000, 0x00230000
 }};
 
-short PhCunt = 0;
+extern short PhCunt;
 
 extern int Get_Attr_NU(const float *position, int mapIndex, int attrMask);
 
@@ -145,11 +145,11 @@ extern float *MotTransXYZ(float *xyz);
 
 extern void ACT_updateMotion(LadderActor *actor);
 
-extern const float D_004D8068;
+#define D_004D8068 (0.033333335071802139f)
 
-extern const float D_004D806C;
+#define D_004D806C (0.69999998807907104f)
 
-extern const float D_004D8070;
+#define D_004D8070 (0.033333335071802139f)
 
 extern LadderPad PadData[2];
 
@@ -845,3 +845,15 @@ int Ladder_Main(LadderActor *actor)
     ACT_updateMotion(actor);
     return 1;
 }
+
+const char D_004CAD30[16] = "HashigoBottom";
+
+extern short NowLadderStep;
+
+extern short SelNum;
+
+short NowLadderStep = 0;
+
+short SelNum = -1;
+
+short PhCunt = 0;

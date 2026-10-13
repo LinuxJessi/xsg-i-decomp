@@ -2,6 +2,9 @@
 
 #include "shared.h"
 
+typedef void CdCompletionCallback(int event, int value);
+static CdCompletionCallback *callback;
+
 #include "main/xgl_cd.h"
 
 #include "main/xgl_thread.h"
@@ -201,7 +204,6 @@ static void StreamReadRingCoreNormal(CdStreamParam *stream);
 
 static void StreamReadRingCoreXss(CdStreamParam *stream);
 
-typedef void CdCompletionCallback(int event, int value);
 
 /*
  * The queue entries occupy 0x80 bytes; only their used prefix is named.
@@ -265,6 +267,8 @@ typedef union CdArchiveStorage {
 
 static CdArchiveStorage ArcHeader[4];
 
+static CdCompletionCallback *callback;
+
 static signed char ReadClockInterval;
 
 static unsigned char PresentTime[8];
@@ -289,8 +293,6 @@ extern u32 sceCdGetReadPos(void);
  * each month; the leap day of the current year counts from March onwards,
  * and ((year - 1997) >> 2) counts the leap days of the whole years before it.
  */
-
-static CdCompletionCallback *callback;
 
 /* A CD sector is fixed at 2048 bytes on this drive/read path (see also
  * xglCdStreamReadRing's own `& -2048` sector rounding earlier in this TU). */
@@ -401,11 +403,11 @@ typedef struct CdFileSelect {
 
 /* Four 0x18-byte archive slots; the initialization helper models each prefix. */
 
-extern unsigned char loaded_overlay;
+static unsigned char loaded_overlay;
 
-static char tail_9[] = ".IRX;1";
+static char root_0[] = "data\\";
 
-static char tail_11[] = ".OVL;1";
+static char hdd_head_6[] = "pfs0:/";
 
 extern int sceCdGetError(void);
 
@@ -427,9 +429,9 @@ static char arcname_4[] = "xenosaga.30";
 
 static char vcd_head_5[] = "host0:/home/xeno/vcd-u/";
 
-static char hdd_head_6[] = "pfs0:/";
+static char tail_9[] = ".IRX;1";
 
-static char root_0[] = "data\\";
+static char tail_11[] = ".OVL;1";
 
 #define CD_PACKED_MAGIC 0x585241
 
@@ -2023,3 +2025,19 @@ void xglCdInitial(void)
 }
 
 
+
+const char D_004D2498[16] = "PATH:/%s";
+
+const char D_004D24A8[24] = "pfs0:/xenosaga.00";
+
+const char D_004D24C0[16] = "xenosaga.00";
+
+const char D_004DC2F8[8] = "^";
+
+const char D_004DC300[8] = ">";
+
+const char D_004DC308[8] = "..";
+
+const char D_004DC310[8] = "v";
+
+static unsigned char loaded_overlay;

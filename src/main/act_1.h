@@ -20,7 +20,15 @@ void ACT_matrixInit(void);
 
 extern MatrixHeap matrixHeap;
 
-extern unsigned char actMatrix[];
+typedef unsigned int Quadword __attribute__((mode(TI)));
+
+/* The matrix heap stores complete hardware quadwords and byte-addressed blocks. */
+typedef union ActMatrixArena {
+    unsigned char bytes[0xC0000];
+    Quadword quadwords[0xC0000 / 16];
+} ActMatrixArena;
+
+extern ActMatrixArena actMatrix;
 
 extern unsigned char matrixHeapBlock[];
 

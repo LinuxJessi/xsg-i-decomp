@@ -583,3 +583,9 @@ static char *STR_trim2(char *text, int delimiter) {
     }
     return text;
 }
+
+
+
+char D_004DA598[8] = ",()";
+
+char D_004DA5A0[8] = ".[]";

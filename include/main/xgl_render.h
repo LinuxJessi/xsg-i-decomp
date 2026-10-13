@@ -3,6 +3,8 @@
 
 #include "shared.h"
 
+#include "main/xgl_2.h"
+
 typedef void (*XglRenderFadeCallback)(XglPacket *packet);
 
 /* The selected render flip body reads these resolution fields. */
