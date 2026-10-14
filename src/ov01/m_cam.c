@@ -35,6 +35,22 @@ typedef struct MCamMoveState {
 } MCamMoveState;
 
 /*
+ * Shake state advanced by MCamShakeProc: a hold phase oscillating the offset
+ * (sine of a wrapped phase, or a sign flip when there is no phase step),
+ * then a decay phase that shrinks the amplitude by decayStep per frame.
+ */
+typedef struct MCamShakeState {
+    unsigned char unmodeled_00[0x4];
+    float amplitude;
+    float decayStep;
+    float offset;
+    float phase;
+    float phaseStep;
+    unsigned int holdFrames;
+    unsigned int decayFrames;
+} MCamShakeState;
+
+/*
  * Per-point camera parameters. Only the coordinate-offset block that
  * MCamCalcCoord applies after MCamCalcBaseCoord is recovered.
  */
@@ -73,7 +89,7 @@ typedef struct MCamParameterStorage {
     float perspectiveStart;
     unsigned char unmodeled_1F8[0x380];
     MCamMoveState perspectiveMove;
-    unsigned char unmodeled_590[0x20];
+    MCamShakeState shake;
 } MCamParameterStorage;
 
 extern Vector4 *MMathCalcOffset(Vector4 *destination, const Vector4 *first, const Vector4 *second);
@@ -133,7 +149,21 @@ Vector4 *MCamGetCurrentBaseCoord(Vector4 *baseCoord, int point)
     return baseCoord;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/m_cam", MCamGetCurrentCoord);
+/* The clear is VU0's constant $vf0 (0, 0, 0, 1); w is then reset to 1.0f. */
+Vector4 *MCamGetCurrentCoord(Vector4 *coord, int point)
+{
+    __asm__ __volatile__("sqc2 $vf0,0(%0)" : : "r"(coord) : "memory");
+    switch (point) {
+    case 0:
+        MCamCopyVector(coord, &camParams.coord[0]);
+        break;
+    case 1:
+        MCamCopyVector(coord, &camParams.coord[1]);
+        break;
+    }
+    coord->w = 1.0f;
+    return coord;
+}
 
 Vector4 *MCamGetCurrentAngle(Vector4 *angle, int point)
 {
@@ -224,7 +254,49 @@ int MCamIsActive(void)
 
 INCLUDE_ASM("asm/nonmatchings/ov01/m_cam", MCamSet);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/m_cam", MCamMove);
+/*
+ * The caller's move request handed to MCamMove: only the fields MCamMove and
+ * MCamMove_Pers read are evidenced (MCamMove clamps a zero duration to 1).
+ */
+typedef struct MCamMoveRequest {
+    unsigned char unmodeled_00[0xA4];
+    float angle;
+    unsigned char unmodeled_a8[0xB4 - 0xA8];
+    int mode;
+    int duration;
+} MCamMoveRequest;
+
+extern const char D_00A50F38[]; /* "MCamMove: frame < 1, adjusted to 1" */
+extern const char D_00A50F60[]; /* "MCamMove: Invalid point" */
+
+static void MCamMove_Coord(unsigned int point, MCamMoveRequest *request);
+static void MCamMove_Bank(MCamMoveRequest *request);
+static void MCamMove_Pers(MCamMoveRequest *request);
+
+void MCamMove(unsigned int point, MCamMoveRequest *request)
+{
+    if (request->duration == 0) {
+        MOutputDebugStringWarn(D_00A50F38);
+        request->duration = 1;
+    }
+    switch (point) {
+    case 0:
+        MCamMove_Coord(0, request);
+        break;
+    case 1:
+        MCamMove_Coord(1, request);
+        break;
+    case 2:
+        MCamMove_Bank(request);
+        break;
+    case 3:
+        MCamMove_Pers(request);
+        break;
+    default:
+        MOutputDebugStringWarn(D_00A50F60);
+        break;
+    }
+}
 
 void MCamStopMove(unsigned int point)
 {
@@ -374,19 +446,6 @@ INCLUDE_ASM("asm/nonmatchings/ov01/m_cam", MCamMove_Coord);
 
 INCLUDE_ASM("asm/nonmatchings/ov01/m_cam", MCamMove_Bank);
 
-/*
- * The caller's own move-request object (its definer is outside this
- * allocation, called through MCamMove, also outside this allocation): only
- * the three fields MCamMove_Pers reads are evidenced.
- */
-typedef struct MCamMoveRequest {
-    unsigned char unmodeled_00[0xA4];
-    float angle;
-    unsigned char unmodeled_a8[0xB4 - 0xA8];
-    int mode;
-    int duration;
-} MCamMoveRequest;
-
 static void MCamMove_Pers(MCamMoveRequest *request)
 {
     MCamMoveState *state = &D_00A5B5F8;
@@ -510,4 +569,31 @@ static int MCamMoveProc_Pers(MCamMoveState *state)
     return state->elapsed < state->duration;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/m_cam", MCamShakeProc);
+static void MCamShakeProc(void)
+{
+    MCamShakeState *shake = &camParams.shake;
+
+    if (shake->holdFrames != 0) {
+        shake->holdFrames--;
+        if (shake->phaseStep != 0.0f) {
+            shake->phase = fmodf(shake->phase + shake->phaseStep, 6.283185f);
+            shake->offset = shake->amplitude * sinf(shake->phase);
+        } else {
+            /* No phase step: flip the offset to the other side. */
+            shake->offset = (shake->offset < 0.0f) ? shake->amplitude : -shake->amplitude;
+        }
+    } else if (shake->decayFrames != 0) {
+        shake->decayFrames--;
+        shake->amplitude -= shake->decayStep;
+        if (shake->phaseStep != 0.0f) {
+            shake->phase = fmodf(shake->phase + shake->phaseStep, 6.283185f);
+            shake->offset = shake->amplitude * sinf(shake->phase);
+        } else {
+            /* No phase step: flip the offset to the other side. */
+            shake->offset = (shake->offset < 0.0f) ? shake->amplitude : -shake->amplitude;
+        }
+    } else {
+        shake->offset = 0.0f;
+        camFlags &= ~(1 << CAM_SHAKE_BIT);
+    }
+}
