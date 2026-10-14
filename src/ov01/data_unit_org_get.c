@@ -55,15 +55,18 @@ typedef struct BattleDataHeader {
     int specialInitOffset; /* +0x14 */
     int etherInitOffset; /* +0x18 */
     int weaponOffset; /* +0x1C */
-    unsigned char unmodeled_20[0x2C - 0x20];
+    int ethOffset; /* +0x20 */
+    int itmOffset; /* +0x24 */
+    int attOffset; /* +0x28 */
     int accessoryOffset; /* +0x2C */
     int skillOffset; /* +0x30 */
-    unsigned char unmodeled_34[0x38 - 0x34];
+    int gainOffset; /* +0x34 */
     int experienceOffset; /* +0x38 */
     int parameterOffset; /* +0x3C */
     int specialTableOffset; /* +0x40 */
     int defaultEquipmentOffset; /* +0x44 */
     int frameOffset; /* +0x48 */
+    int engOffset; /* +0x4C */
 } BattleDataHeader;
 
 typedef struct NormalInitRecord { unsigned char opaque[0x0C]; } NormalInitRecord;
@@ -546,11 +549,68 @@ WpnRecord *dataWpnGet(int entry)
     return &records[entry - 1];
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataAttGet);
+typedef struct AttRecord { unsigned char opaque[0x0E]; } AttRecord;
 
-INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataEthGet);
+extern int D_426F68;
+extern const char D_00A458F0[];
 
-INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataItmGet);
+AttRecord *dataAttGet(int entry)
+{
+    unsigned char *block;
+    int byteOffset;
+    AttRecord *records;
+
+    if (entry <= 0) {
+        printf(D_00A458F0, entry);
+        return 0;
+    }
+    block = (unsigned char *)&D_426F68 - BATTLE_DATA_FIELD_OFFSET(attOffset);
+    byteOffset = D_426F68;
+    records = (AttRecord *)(block + byteOffset);
+    return &records[entry - 1];
+}
+
+typedef struct EthRecord { unsigned char opaque[0x0C]; } EthRecord;
+
+extern int D_426F60;
+extern const char D_00A45908[];
+
+EthRecord *dataEthGet(int entry)
+{
+    unsigned char *block;
+    int byteOffset;
+    EthRecord *records;
+
+    if (entry <= 0) {
+        printf(D_00A45908, entry);
+        return 0;
+    }
+    block = (unsigned char *)&D_426F60 - BATTLE_DATA_FIELD_OFFSET(ethOffset);
+    byteOffset = D_426F60;
+    records = (EthRecord *)(block + byteOffset);
+    return &records[entry - 1];
+}
+
+typedef struct ItmRecord { unsigned char opaque[0x14]; } ItmRecord;
+
+extern int D_426F64;
+extern const char D_00A45920[];
+
+ItmRecord *dataItmGet(int entry)
+{
+    unsigned char *block;
+    int byteOffset;
+    ItmRecord *records;
+
+    if (entry <= 0) {
+        printf(D_00A45920, entry);
+        return 0;
+    }
+    block = (unsigned char *)&D_426F64 - BATTLE_DATA_FIELD_OFFSET(itmOffset);
+    byteOffset = D_426F64;
+    records = (ItmRecord *)(block + byteOffset);
+    return &records[entry - 1];
+}
 
 typedef struct AccRecord { unsigned char opaque[0x10]; } AccRecord;
 
@@ -594,7 +654,26 @@ FrmRecord *dataFrmGet(int entry)
     return &records[entry - 1];
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataEngGet);
+typedef struct EngRecord { unsigned char opaque[0x0C]; } EngRecord;
+
+extern int D_426F8C;
+extern const char D_00A45968[];
+
+EngRecord *dataEngGet(int entry)
+{
+    unsigned char *block;
+    int byteOffset;
+    EngRecord *records;
+
+    if (entry <= 0) {
+        printf(D_00A45968, entry);
+        return 0;
+    }
+    block = (unsigned char *)&D_426F8C - BATTLE_DATA_FIELD_OFFSET(engOffset);
+    byteOffset = D_426F8C;
+    records = (EngRecord *)(block + byteOffset);
+    return &records[entry - 1];
+}
 
 typedef struct SklRecord { unsigned char opaque[0x08]; } SklRecord;
 
@@ -617,7 +696,32 @@ SklRecord *dataSklGet(int entry)
     return &records[entry - 1];
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataGainGet);
+typedef struct GainRecord { unsigned char opaque[0x14]; } GainRecord;
+
+/*
+ * D_426F74 is a selector field 0x34 bytes into a loaded battle-data table;
+ * dataGainGet's table starts 0x294 bytes before this field's own byte
+ * offset, the same idiom dataExpTblGet uses for its own table. Splat has
+ * not named the table's own base, only this field.
+ */
+extern int D_426F74;
+extern const char D_00A45998[];
+
+GainRecord *dataGainGet(int entry)
+{
+    unsigned char *block;
+    int byteOffset;
+    GainRecord *records;
+
+    if (entry <= 0) {
+        printf(D_00A45998, entry);
+        return 0;
+    }
+    block = (unsigned char *)&D_426F74 - BATTLE_DATA_FIELD_OFFSET(gainOffset);
+    byteOffset = D_426F74;
+    records = (GainRecord *)(block + byteOffset);
+    return (GainRecord *)((unsigned char *)&records[entry] - 0x294);
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataFileLoad);
 
