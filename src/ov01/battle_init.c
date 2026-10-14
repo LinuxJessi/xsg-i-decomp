@@ -835,13 +835,97 @@ INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", flowSpecProcInit);
 
 INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", flowSpecProc);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", syoukanFadeOut);
+/*
+ * The queued-command record unitCmdSet writes (src/ov01/unit_cmd.c, still
+ * asm there); src/ov01/calc.c restates the same layout as CalcCmdEntry for
+ * its own call into unitCmdSet, defined in that TU.
+ */
+typedef struct SyoukanCmdEntry SyoukanCmdEntry;
 
-INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", syoukanFadeIn);
+struct SyoukanCmdEntry {
+    int selector;      /* +0x00 */
+    int argument;      /* +0x04 */
+    int extra;         /* +0x08 */
+    unsigned char unmodeled_0c[8]; /* +0x0C: unwritten by any call here */
+};
+
+extern void unitCmdClear(ObjectTask *unit);
+extern void unitCmdSet(ObjectTask *unit, SyoukanCmdEntry *cmd);
+
+/*
+ * syoukanFadeOut clears and re-queues (selector 0x30) every live side-0
+ * unit except the acting unit itself; syoukanFadeIn (next) is its
+ * counterpart with a different selector.
+ */
+void syoukanFadeOut(ObjectTask *unit)
+{
+    BattleUnit **table;
+    int count;
+    int i;
+
+    count = unitTblGet(0, &table);
+    for (i = 0; i < count; i++) {
+        if (table[i] != 0 && (ObjectTask *)table[i] != unit) {
+            SyoukanCmdEntry cmd;
+
+            cmd.selector = 0x30;
+            unitCmdClear((ObjectTask *)table[i]);
+            unitCmdSet((ObjectTask *)table[i], &cmd);
+        }
+    }
+}
+
+/*
+ * syoukanFadeIn is syoukanFadeOut's counterpart (selector 0x2F instead of
+ * 0x30, same loop shape).
+ */
+void syoukanFadeIn(ObjectTask *unit)
+{
+    BattleUnit **table;
+    int count;
+    int i;
+
+    count = unitTblGet(0, &table);
+    for (i = 0; i < count; i++) {
+        if (table[i] != 0 && (ObjectTask *)table[i] != unit) {
+            SyoukanCmdEntry cmd;
+
+            cmd.selector = 0x2F;
+            unitCmdClear((ObjectTask *)table[i]);
+            unitCmdSet((ObjectTask *)table[i], &cmd);
+        }
+    }
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", syoukan1Sub);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", syoukan2Sub);
+/*
+ * calcUPGet(unit)->linkedUnit's own CalcUnitParam (ov01/tu004 calc.c, still
+ * asm there, not yet published to add these members) carries a short at
+ * +0x44 inside calc.h's own unmodeled_44 span; the short at +0x38 is
+ * already published as charaId.
+ */
+#define CALC_PARAM_LINKED_UNK44_OFF 0x44
+
+void syoukan2Sub(ObjectTask **unit)
+{
+    SyoukanCmdEntry cmd;
+
+    unitCmdClear(*unit);
+
+    cmd.selector = 0x2B;
+    cmd.argument = *(short *)((char *)calcUPGet(*unit)->linkedUnit + CALC_PARAM_LINKED_UNK44_OFF);
+    cmd.extra = calcUPGet(*unit)->linkedUnit->charaId;
+    unitCmdSet(*unit, &cmd);
+
+    cmd.selector = 0xD;
+    cmd.argument = 1;
+    cmd.extra = 1;
+    unitCmdSet(*unit, &cmd);
+
+    cmd.selector = 0x2F;
+    unitCmdSet(*unit, &cmd);
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", specSyoukanProc);
 
