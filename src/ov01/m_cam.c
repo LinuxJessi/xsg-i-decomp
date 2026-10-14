@@ -4,6 +4,7 @@
 #include "common.h"
 #include "shared.h"
 #include "ov01/data_unit_org_get.h"
+#include "main/act_1.h"
 
 extern void MOutputDebugStringWarn(const char *format, ...);
 /* The message body after the ASCII prefix is encoded in EUC-JP. */
@@ -16,6 +17,7 @@ const char invalid_interpolation_message[40] = "MCamMoveProc_CalcRatio: Invalid 
 
 extern const char D_00A50F98[]; /* "MCamStopMove: Invalid point" */
 extern const char D_00A50FB8[]; /* "MCamIsMoving: Invalid point" */
+extern const char D_00A50FD8[]; /* "MCamGetActorCoord: actor is NULL" */
 
 extern void bcopy(const void *source, void *destination, unsigned int count);
 /*
@@ -31,22 +33,6 @@ typedef struct MCamMoveState {
     float end;
     float current;
 } MCamMoveState;
-
-/*
- * MCamInit clears this complete 0x5B0-byte camera-parameter store. The
- * recovered float and perspective-move views are interior fields; the other
- * bytes remain part of the live store but their individual meanings are not
- * recovered yet.
- */
-typedef struct MCamParameterStorage {
-    unsigned char unmodeled_000[0x1A0];
-    float actorLength[2];
-    unsigned char unmodeled_1A8[0x4C];
-    float perspectiveStart;
-    unsigned char unmodeled_1F8[0x380];
-    MCamMoveState perspectiveMove;
-    unsigned char unmodeled_590[0x20];
-} MCamParameterStorage;
 
 /*
  * Per-point camera parameters. Only the coordinate-offset block that
@@ -67,7 +53,33 @@ typedef struct MCamPointParams {
     MCamCoordOffset coordOffset;
 } MCamPointParams;
 
+/*
+ * MCamInit clears this complete 0x5B0-byte camera-parameter store. The two
+ * point records, the derived base coordinates, coordinates, angles, eye and
+ * rotation are the views MCamExec_SetParams_Base and the getters address; the
+ * other bytes remain part of the live store but their individual meanings are
+ * not recovered yet.
+ */
+typedef struct MCamParameterStorage {
+    MCamPointParams point[2];
+    Vector4 angle[2];
+    Vector4 baseCoord[2];
+    float actorLength[2];
+    unsigned char unmodeled_1A8[0x8];
+    Vector4 coord[2];
+    Vector4 eye;
+    Vector4 rotation;
+    float bank;
+    float perspectiveStart;
+    unsigned char unmodeled_1F8[0x380];
+    MCamMoveState perspectiveMove;
+    unsigned char unmodeled_590[0x20];
+} MCamParameterStorage;
+
 extern Vector4 *MMathCalcOffset(Vector4 *destination, const Vector4 *first, const Vector4 *second);
+extern Vector4 *MMathCalcAngleCam(Vector4 *out, Vector4 *source, Vector4 *target);
+extern void sefGetNullPosition(Vector4 *position, void *actor, int part, int flag);
+extern float fmodf(float value, float modulus);
 extern Vector4 *MMathCalcOffsetXYZ(Vector4 *destination, const Vector4 *first, const Vector4 *second);
 
 static void *sysCam;
@@ -100,7 +112,14 @@ INCLUDE_ASM("asm/nonmatchings/ov01/m_cam", MCamGetCurrentCoord);
 
 INCLUDE_ASM("asm/nonmatchings/ov01/m_cam", MCamGetCurrentAngle);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/m_cam", MCamGetCurrentEye);
+/* Vector copies below are the R5900 native 128-bit lq/sq pair through $8. */
+Vector4 *MCamGetCurrentEye(Vector4 *eye)
+{
+    __asm__ __volatile__("lq $8,0(%1)\n\tsq $8,0(%0)"
+                         : : "r"(eye), "r"(&camParams.eye)
+                         : "$8", "memory");
+    return eye;
+}
 
 float MCamGetLengthActor(int selector)
 {
@@ -225,7 +244,24 @@ int MCamIsShaking(void)
     return (camFlags >> CAM_SHAKE_BIT) & 1;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/m_cam", MCamGetActorCoord);
+/* Local in the original: splat emits `glabel MCamGetActorCoord, local`; no reference outside m_cam.c. */
+static Vector4 *MCamGetActorCoord(Vector4 *coord, ActRecord *actor, int part)
+{
+    __asm__ __volatile__("sq $0,0(%0)" : : "r"(coord) : "memory");
+    if (actor == 0) {
+        MOutputDebugStringWarn(D_00A50FD8);
+        return coord;
+    }
+    if (part == 0) {
+        __asm__ __volatile__("lq $8,0(%1)\n\tsq $8,0(%0)"
+                             : : "r"(coord), "r"(&actor->position)
+                             : "$8", "memory");
+    } else {
+        sefGetNullPosition(coord, actor, part - 1, 0);
+    }
+    coord->w = fmodf(actor->rotation.y + 3.1415927f, 6.283185f);
+    return coord;
+}
 
 static float MCamCalcBaseCoord(Vector4 *coord, MCamPointParams *point);
 INCLUDE_ASM("asm/nonmatchings/ov01/m_cam", MCamCalcBaseCoord);
@@ -279,7 +315,19 @@ INCLUDE_ASM("asm/nonmatchings/ov01/m_cam", MCamExec_Control);
 
 INCLUDE_ASM("asm/nonmatchings/ov01/m_cam", MCamExec_SetParams);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/m_cam", MCamExec_SetParams_Base);
+static void MCamExec_SetParams_Base(void)
+{
+    camParams.actorLength[0] = MCamCalcBaseCoord(&camParams.baseCoord[0], &camParams.point[0]);
+    camParams.actorLength[1] = MCamCalcBaseCoord(&camParams.baseCoord[1], &camParams.point[1]);
+    MCamCalcCoord(&camParams.coord[0], &camParams.point[0]);
+    MCamCalcCoord(&camParams.coord[1], &camParams.point[1]);
+    MMathCalcAngleCam(&camParams.angle[0], &camParams.coord[0], &camParams.coord[1]);
+    __asm__ __volatile__("lq $8,0(%1)\n\tsq $8,0(%0)"
+                         : : "r"(&camParams.rotation), "r"(&camParams.angle[0])
+                         : "$8", "memory");
+    camParams.rotation.z = camParams.bank;
+    MMathCalcAngleCam(&camParams.angle[1], &camParams.coord[1], &camParams.coord[0]);
+}
 
 static void MCamExec_DispParams(void)
 {
