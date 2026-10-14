@@ -12,7 +12,10 @@ extern const char D_00A457B0[32];
  * pass a one-based index, so dataUnitOrgGet returns orgData[id - 1].
  */
 typedef struct UnitOrgRecord {
-    unsigned char unmodeled_0[0x180];
+    unsigned char unmodeled_0[0x5E];
+    /* dataMotNameGetMenu indexes this by weaponId to find the technique
+     * id table dataWpnGet/dataTecGet resolve from. */
+    short wpnTecTbl[(0x180 - 0x5E) / 2]; /* +0x5E */
 } UnitOrgRecord;
 
 static const char D_00A456A8[32];
@@ -507,7 +510,20 @@ short dataWidGet(unsigned int wid)
     return widChgTbl[wid];
 }
 
-typedef struct TecRecord { unsigned char opaque[0x18]; } TecRecord;
+/*
+ * dataMotNameGetMenu reads motionId as a short at +0x14. calcBp2Tid
+ * (src/ov01/calc.c, this TU's TecKindView) reads the same +0x11 byte this
+ * file's dataFileLoadWepSp/dataFileLoadWepSp2 compare against 6 and names
+ * it kind (a BP timeline/special-weapon selector); kept as the same name
+ * and signed-byte width here since this file owns the rest of the layout.
+ */
+typedef struct TecRecord {
+    unsigned char unmodeled_00[0x11];
+    signed char kind; /* +0x11 */
+    unsigned char unmodeled_12[0x14 - 0x12];
+    short motionId; /* +0x14 */
+    unsigned char unmodeled_16[0x18 - 0x16];
+} TecRecord;
 
 extern int D_426F4C;
 extern const char D_00A458C0[];
@@ -528,7 +544,12 @@ TecRecord *dataTecGet(int entry)
     return &records[entry - 1];
 }
 
-typedef struct WpnRecord { unsigned char opaque[0x20]; } WpnRecord;
+/* dataMotNameGetMenu reads tecId as a short at +0x14. */
+typedef struct WpnRecord {
+    unsigned char unmodeled_00[0x14];
+    short tecId; /* +0x14 */
+    unsigned char unmodeled_16[0x20 - 0x16];
+} WpnRecord;
 
 extern int D_426F5C;
 extern const char D_00A458D8[];
@@ -810,7 +831,38 @@ void dataLeaderReload(void)
     }
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataMotNameGetMenu);
+extern char *strcpy(char *destination, const char *source);
+extern char *strcat(char *destination, const char *source);
+extern int dataMotNameGetSub(char *name, CalcUnitParam *up, int motionId, int weaponId);
+static char *motNameBase;
+static char *motNameExt;
+
+int dataMotNameGetMenu(char *name, int orgId, int weaponId)
+{
+    UnitOrgRecord *org;
+    int tecId;
+    int motionId;
+    int found;
+
+    *name = 0;
+    org = (UnitOrgRecord *)dataUnitOrgGet(orgId);
+    tecId = org->wpnTecTbl[weaponId];
+    if (tecId == 0) {
+        return 0;
+    }
+    motionId = dataWpnGet(tecId)->tecId;
+    motionId = dataTecGet(motionId)->motionId;
+    if (motionId == 0) {
+        return 0;
+    }
+    strcpy(name, motNameBase);
+    found = dataMotNameGetSub(name, (CalcUnitParam *)org, motionId, weaponId);
+    strcat(name, motNameExt);
+    if (found == 0) {
+        *name = 0;
+    }
+    return found;
+}
 
 extern char *strcpy(char *destination, const char *source);
 extern char *strcat(char *destination, const char *source);
