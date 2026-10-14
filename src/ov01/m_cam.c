@@ -14,6 +14,9 @@ const char D_00A51028[40] = "MCamGetDefRange: Invalid ID (%d)";
 const char zero_duration_message[40] = "MCamMoveProc_CalcRatio: d == 0 (IP:%d)";
 const char invalid_interpolation_message[40] = "MCamMoveProc_CalcRatio: Invalid IPTYPE";
 
+extern const char D_00A50F98[]; /* "MCamStopMove: Invalid point" */
+extern const char D_00A50FB8[]; /* "MCamIsMoving: Invalid point" */
+
 extern void bcopy(const void *source, void *destination, unsigned int count);
 /*
  * Linear interpolation state shared by the per-parameter MoveProc callbacks
@@ -45,6 +48,28 @@ typedef struct MCamParameterStorage {
     unsigned char unmodeled_590[0x20];
 } MCamParameterStorage;
 
+/*
+ * Per-point camera parameters. Only the coordinate-offset block that
+ * MCamCalcCoord applies after MCamCalcBaseCoord is recovered.
+ */
+typedef struct MCamCoordOffset {
+    unsigned int mode;
+    unsigned char unmodeled_04[0xC];
+    Vector4 offset;
+    float distance;
+    float pitch;
+    float yaw;
+    unsigned char unmodeled_2C[0x14];
+} MCamCoordOffset;
+
+typedef struct MCamPointParams {
+    unsigned char unmodeled_00[0x70];
+    MCamCoordOffset coordOffset;
+} MCamPointParams;
+
+extern Vector4 *MMathCalcOffset(Vector4 *destination, const Vector4 *first, const Vector4 *second);
+extern Vector4 *MMathCalcOffsetXYZ(Vector4 *destination, const Vector4 *first, const Vector4 *second);
+
 static void *sysCam;
 /* MCamTakeControl saves the StudioCamera returned by xglStudioGetCamera2. */
 static StudioCamera sysCamBuff;
@@ -58,6 +83,10 @@ static MCamParameterStorage camParams;
 
 #define CAM_FLAG_ACTIVE 0x1
 #define CAM_FLAG_DUMP_DISABLED 0x10
+#define CAM_FLAG_MOVE_COORD 0x100
+#define CAM_FLAG_MOVE_TARGET 0x200
+#define CAM_FLAG_MOVE_BANK 0x400
+#define CAM_FLAG_MOVE_PERS 0x800
 #define CAM_SHAKE_BIT 12
 
 void *MCamGetSysCam(void)
@@ -141,9 +170,53 @@ INCLUDE_ASM("asm/nonmatchings/ov01/m_cam", MCamSet);
 
 INCLUDE_ASM("asm/nonmatchings/ov01/m_cam", MCamMove);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/m_cam", MCamStopMove);
+void MCamStopMove(unsigned int point)
+{
+    int moveFlag;
 
-INCLUDE_ASM("asm/nonmatchings/ov01/m_cam", MCamIsMoving);
+    switch (point) {
+    case 0:
+        moveFlag = CAM_FLAG_MOVE_COORD;
+        break;
+    case 1:
+        moveFlag = CAM_FLAG_MOVE_TARGET;
+        break;
+    case 2:
+        moveFlag = CAM_FLAG_MOVE_BANK;
+        break;
+    case 3:
+        moveFlag = CAM_FLAG_MOVE_PERS;
+        break;
+    default:
+        MOutputDebugStringWarn(D_00A50F98);
+        return;
+    }
+    camFlags &= ~moveFlag;
+}
+
+int MCamIsMoving(unsigned int point)
+{
+    int moveFlag;
+
+    switch (point) {
+    case 0:
+        moveFlag = CAM_FLAG_MOVE_COORD;
+        break;
+    case 1:
+        moveFlag = CAM_FLAG_MOVE_TARGET;
+        break;
+    case 2:
+        moveFlag = CAM_FLAG_MOVE_BANK;
+        break;
+    case 3:
+        moveFlag = CAM_FLAG_MOVE_PERS;
+        break;
+    default:
+        MOutputDebugStringWarn(D_00A50FB8);
+        return 0;
+    }
+    return (camFlags & moveFlag) != 0;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/m_cam", MCamShake);
 
@@ -154,9 +227,31 @@ int MCamIsShaking(void)
 
 INCLUDE_ASM("asm/nonmatchings/ov01/m_cam", MCamGetActorCoord);
 
+static float MCamCalcBaseCoord(Vector4 *coord, MCamPointParams *point);
 INCLUDE_ASM("asm/nonmatchings/ov01/m_cam", MCamCalcBaseCoord);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/m_cam", MCamCalcCoord);
+static float MCamCalcCoord(Vector4 *coord, MCamPointParams *point)
+{
+    MCamCoordOffset *coordOffset = &point->coordOffset;
+    Vector4 polar;
+    float length;
+
+    length = MCamCalcBaseCoord(coord, point);
+    switch (coordOffset->mode) {
+    case 0:
+        break;
+    case 1:
+        MMathCalcOffsetXYZ(coord, coord, &coordOffset->offset);
+        break;
+    case 2:
+        polar.x = coordOffset->pitch;
+        polar.y = coordOffset->yaw;
+        polar.w = coordOffset->distance;
+        MMathCalcOffset(coord, coord, &polar);
+        break;
+    }
+    return length;
+}
 
 static float MCamGetAtkRange(int id)
 {
