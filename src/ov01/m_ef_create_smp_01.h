@@ -18,9 +18,35 @@ typedef struct Smp01State {
     int frame;                         /* 0x070 */
 } Smp01State;
 
-/* Fields used by the SMP01 model-draw callback. */
+/* The GS direct-transfer packet MGsGPInit prepares and MGsGPTerm flushes
+ * (same layout as m_gs.c's TU-local MGsPacket). */
+typedef struct Smp01Packet {
+    void *data;    /* 0x00 */
+    int capacity;  /* 0x04 */
+    void *current; /* 0x08 */
+    int count;     /* 0x0C */
+    int auxCount;  /* 0x10 */
+} Smp01Packet;
+
+/* The output of svGetPrmFromName: the named texture's GS TEX0 value (the
+ * packet callback sends it as an A+D TEX0_1 record) and its UV scale. */
+typedef struct Smp01GsParameter {
+    u64 texture0;
+    float scaleU;
+    float scaleV;
+} Smp01GsParameter;
+
+enum { SMP01_SMOKE_TRAILS = 10, SMP01_SMOKE_POINTS = 3 };
+
+/* The SMP01 work area (object + 0x20). */
 typedef struct Smp01Work {
-    unsigned char unmodeled_000[0x40]; /* 0x000 */
+    unsigned char unmodeled_000[8];    /* 0x000 */
+    int sourceActor;                   /* 0x008 */
+    int sourcePart;                    /* 0x00C */
+    Vector4 sourceOffset;              /* 0x010 */
+    unsigned char unmodeled_020[4];    /* 0x020 */
+    int coordinateActor;               /* 0x024 */
+    unsigned char unmodeled_028[0x18]; /* 0x028 */
     int modelEntry;                    /* 0x040 */
     const char *textureName;           /* 0x044 */
     unsigned char unmodeled_048[0x28]; /* 0x048 */
@@ -35,11 +61,23 @@ typedef struct Smp01Work {
     Vector4 previousPosition;          /* 0x0C0 */
     Vector4 angles;                    /* 0x0D0 */
     float phaseAngle;                  /* 0x0E0 */
+    Smp01Packet packet;                /* 0x0E4 */
+    u64 smokeTexture0First;            /* 0x0F8 */
+    u64 smokeTexture0Second;           /* 0x100 */
+    short smokeActive[SMP01_SMOKE_TRAILS];                    /* 0x108 */
+    unsigned char unmodeled_11C[4];                           /* 0x11C */
+    Vector4 smokePoints[SMP01_SMOKE_TRAILS][SMP01_SMOKE_POINTS]; /* 0x120 */
+    float smokeAngles[SMP01_SMOKE_TRAILS][SMP01_SMOKE_POINTS];   /* 0x300 */
 } Smp01Work;
 
 typedef struct Smp01Object {
-    unsigned char unmodeled_000[4];
-    void (*updateCallback)(struct Smp01Object *object, Smp01Work *work); /* 0x004 */
+    unsigned char unmodeled_000[4];                                       /* 0x000 */
+    void (*updateCallback)(struct Smp01Object *object, Smp01Work *work);  /* 0x004 */
+    void (*drawCallback)(struct Smp01Object *object, Smp01Work *work);    /* 0x008 */
+    void (*packetCallback)(struct Smp01Object *object, Smp01Work *work);  /* 0x00C */
+    void (*postCallback)(void *object, void *work);                       /* 0x010 */
+    unsigned char unmodeled_014[0x0C];                                    /* 0x014 */
+    Smp01Work work;                                                       /* 0x020 */
 } Smp01Object;
 
 #endif
