@@ -41,6 +41,11 @@ const char D_00A46180[24] = "** thinkTurnEnd ** %X\n";
 const char D_00A46198[32] = "** think Atk (%d) ** %X\n";
 const char D_00A461B8[32] = "** think Dmg (%d) ** %X\n";
 const char D_00A461E8[16] = "** reg err %d\n";
+extern const char D_00A461F8[];
+extern const char D_00A46210[];
+extern const char D_00A462D0[];
+extern const char D_00A462E8[];
+extern const char D_00A46318[];
 extern const char D_00A46300[];
 extern const char D_00A46308[];
 extern const char D_00A46468[];
@@ -443,9 +448,32 @@ int cmdGo(ThinkProcess *proc)
     return 0;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/cmd", cmdGosub);
+int cmdGosub(ThinkProcess *proc)
+{
+    ThinkContext *ctx = (ThinkContext *)pContext;
 
-INCLUDE_ASM("asm/nonmatchings/ov01/cmd", cmdReturn);
+    if (ctx->returnDepth < 16) {
+        ctx->returnStack[ctx->returnDepth++] = proc->pc + 2;
+    } else {
+        printf(D_00A461F8);
+        return 1;
+    }
+    proc->pc = cmdNum(proc->pc);
+    return 0;
+}
+
+int cmdReturn(ThinkProcess *proc)
+{
+    ThinkContext *ctx = (ThinkContext *)pContext;
+
+    if (ctx->returnDepth > 0) {
+        proc->pc = ctx->returnStack[--ctx->returnDepth];
+    } else {
+        printf(D_00A46210);
+        return 1;
+    }
+    return 0;
+}
 
 int cmdBra(ThinkProcess *proc)
 {
@@ -533,9 +561,37 @@ INCLUDE_ASM("asm/nonmatchings/ov01/cmd", cmdRmath1);
 
 INCLUDE_ASM("asm/nonmatchings/ov01/cmd", cmdRmath2);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/cmd", cmdRpush);
+int cmdRpush(ThinkProcess *proc)
+{
+    int value = cmdNum(proc->pc);
+    ThinkContext *ctx = (ThinkContext *)pContext;
 
-INCLUDE_ASM("asm/nonmatchings/ov01/cmd", cmdRpop);
+    proc->pc += 2;
+    if (ctx->valueDepth < 32) {
+        ctx->valueStack[ctx->valueDepth++] = value;
+    } else {
+        printf(D_00A462D0);
+        return 1;
+    }
+    return 0;
+}
+
+int cmdRpop(ThinkProcess *proc)
+{
+    int regNo = thinkRegNo(proc->pc);
+    ThinkContext *ctx = (ThinkContext *)pContext;
+    short value;
+
+    proc->pc += 2;
+    if (ctx->valueDepth > 0) {
+        value = ctx->valueStack[--ctx->valueDepth];
+    } else {
+        printf(D_00A462E8);
+        return 1;
+    }
+    thinkRegSet(regNo & 0xFFFF, value & 0xFFFF);
+    return 0;
+}
 
 int cmdTblget(ThinkProcess *proc)
 {
@@ -573,7 +629,20 @@ int cmdRput(ThinkProcess *proc)
     return 0;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/cmd", cmdPrint);
+int cmdPrint(ThinkProcess *proc)
+{
+    short len = 0;
+    char *text = (char *)thinkAdrGet(proc->pc);
+
+    printf(D_00A46318, text);
+    while (text[len++] != 0) {
+    }
+    if (len & 1) {
+        len++;
+    }
+    proc->pc += len;
+    return 0;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/cmd", cmdMemdump);
 

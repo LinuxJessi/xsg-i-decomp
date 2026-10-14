@@ -45,6 +45,22 @@ static int pDataTop;
 static int pContext;
 
 /*
+ * The AI execution context pContext points at. cmdGosub (0x00a1e210) and
+ * cmdReturn (0x00a1e298) push and pop script return addresses on a
+ * sixteen-entry stack at +0x80 (sh $3,0x80($2)) whose depth word sits at
+ * +0xA0 (lw $2,0xA0($5), slti $2,$2,0x10); cmdRpush (0x00a1e878) and cmdRpop
+ * (0x00a1e900) do the same for register values on a thirty-two-entry stack
+ * at +0xA4 (sh $8,0xA4($3)) with its depth at +0xE4 (slti $3,$3,0x20).
+ */
+typedef struct ThinkContext {
+    unsigned char unmodeled_0[0x80];
+    short returnStack[16];          /* +0x80: cmdGosub/cmdReturn */
+    int returnDepth;                /* +0xA0 */
+    short valueStack[32];           /* +0xA4: cmdRpush/cmdRpop */
+    int valueDepth;                 /* +0xE4 */
+} ThinkContext;
+
+/*
  * AI script data-segment base thinkMonsTblGet (0x00a1d790) installs through
  * thinkTopSet before it looks up a monster-set entry. Scaffold-owned data
  * (docs/naming.md).
