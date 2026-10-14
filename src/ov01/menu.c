@@ -16,6 +16,19 @@ extern const signed char D_00A46AF8[];
 extern const signed char D_00A46BE0[];
 extern void menuStatSprite();
 
+/*
+ * statTbl: an array of pointers, indexed by charaId, each pointing at a
+ * 0-terminated run of 0xC-byte entries (data still asm-owned). menuStatIconChk
+ * (0x00A2A4C8..0x00A2A4E0) loads each entry's first word only, as a bitmask
+ * tested against the iconSlot argument.
+ */
+typedef struct StatIconEntry {
+    int flags; /* +0x00 */
+    int srcX;  /* +0x04: menuStatIconPut (0x00A2A56C..0x00A2A574) */
+    int srcY;  /* +0x08 */
+} StatIconEntry;
+extern StatIconEntry *statTbl[];
+
 /* Keep source-owned local BSS objects in their original address order;
  * intervening original-only storage remains scaffold-owned between runs. */
 static ObjectTask *pMenuBat;
@@ -513,7 +526,20 @@ INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuBpBarPut);
 
 INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuStatIconChk);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuStatIconPut);
+int menuStatIconChk(int charaId, int iconSlot);
+
+void menuStatIconPut(int packet, int x, int y, int charaId, int iconSlot)
+{
+    StatIconEntry *base;
+    int icon;
+
+    base = statTbl[charaId];
+    icon = menuStatIconChk(charaId, iconSlot);
+    if (icon != -1) {
+        menuStatSprite(packet, x + 0x90, y + 0x32, 0x16, 0x18, base[icon].srcX,
+                       base[icon].srcY);
+    }
+}
 
 /*
  * eBattleWinOpen2's own argument words (src/main/e_battle_win_open.c, still
