@@ -473,9 +473,71 @@ int configYadoya(void) {
     return 0;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/debug_entry", valUD);
+/*
+ * PadData+0x2C, the button word; the shared PadPrefix leaves it unmodeled,
+ * so the selectors read it through this view of the same object. Bits as
+ * src/main/game_debug_menu.h.
+ */
+typedef struct DebugPadView {
+    unsigned char unmodeled_00[0x2C];
+    unsigned short buttons; /* +0x2C */
+} DebugPadView;
 
-INCLUDE_ASM("asm/nonmatchings/ov01/debug_entry", valLR);
+#define PAD_L1 0x0004
+#define PAD_R1 0x0008
+#define PAD_UP 0x1000
+#define PAD_RIGHT 0x2000
+#define PAD_DOWN 0x4000
+#define PAD_LEFT 0x8000
+
+int valUD(int *value, int min, int max, int step)
+{
+    int old = *value;
+    unsigned short buttons = ((DebugPadView *)&PadData)->buttons;
+
+    if (buttons & PAD_DOWN) {
+        *value += step;
+        if (*value > max) {
+            *value = min;
+        }
+    } else if (buttons & PAD_UP) {
+        *value -= step;
+        if (*value < min) {
+            *value = max;
+        }
+    }
+    return *value != old;
+}
+
+int valLR(int *value, int min, int max, int step)
+{
+    int old = *value;
+
+    if (((DebugPadView *)&PadData)->buttons & PAD_R1) {
+        *value += step * 10;
+        if (*value > max) {
+            *value = min;
+        }
+    }
+    if (((DebugPadView *)&PadData)->buttons & PAD_L1) {
+        *value -= step * 10;
+        if (*value < min) {
+            *value = max;
+        }
+    }
+    if (((DebugPadView *)&PadData)->buttons & PAD_RIGHT) {
+        *value += step;
+        if (*value > max) {
+            *value = min;
+        }
+    } else if (((DebugPadView *)&PadData)->buttons & PAD_LEFT) {
+        *value -= step;
+        if (*value < min) {
+            *value = max;
+        }
+    }
+    return *value != old;
+}
 
 int equipChar(void) {
     valLR(&equipId, 1, 0x20, 1);
