@@ -50,15 +50,20 @@ PlCharacter *dataPlChaGet(int cid)
 typedef struct BattleDataHeader {
     unsigned char unmodeled_00[8];
     int unitInitOffset; /* +0x08 */
-    unsigned char unmodeled_0c[4];
+    int techniqueOffset; /* +0x0C */
     int normalInitOffset; /* +0x10 */
     int specialInitOffset; /* +0x14 */
     int etherInitOffset; /* +0x18 */
-    unsigned char unmodeled_1c[0x38 - 0x1C];
+    int weaponOffset; /* +0x1C */
+    unsigned char unmodeled_20[0x2C - 0x20];
+    int accessoryOffset; /* +0x2C */
+    int skillOffset; /* +0x30 */
+    unsigned char unmodeled_34[0x38 - 0x34];
     int experienceOffset; /* +0x38 */
     int parameterOffset; /* +0x3C */
     int specialTableOffset; /* +0x40 */
     int defaultEquipmentOffset; /* +0x44 */
+    int frameOffset; /* +0x48 */
 } BattleDataHeader;
 
 typedef struct NormalInitRecord { unsigned char opaque[0x0C]; } NormalInitRecord;
@@ -499,9 +504,47 @@ short dataWidGet(unsigned int wid)
     return widChgTbl[wid];
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataTecGet);
+typedef struct TecRecord { unsigned char opaque[0x18]; } TecRecord;
 
-INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataWpnGet);
+extern int D_426F4C;
+extern const char D_00A458C0[];
+
+TecRecord *dataTecGet(int entry)
+{
+    unsigned char *block;
+    int byteOffset;
+    TecRecord *records;
+
+    if (entry <= 0) {
+        printf(D_00A458C0, entry);
+        return 0;
+    }
+    block = (unsigned char *)&D_426F4C - BATTLE_DATA_FIELD_OFFSET(techniqueOffset);
+    byteOffset = D_426F4C;
+    records = (TecRecord *)(block + byteOffset);
+    return &records[entry - 1];
+}
+
+typedef struct WpnRecord { unsigned char opaque[0x20]; } WpnRecord;
+
+extern int D_426F5C;
+extern const char D_00A458D8[];
+
+WpnRecord *dataWpnGet(int entry)
+{
+    unsigned char *block;
+    int byteOffset;
+    WpnRecord *records;
+
+    if (entry <= 0) {
+        printf(D_00A458D8, entry);
+        return 0;
+    }
+    block = (unsigned char *)&D_426F5C - BATTLE_DATA_FIELD_OFFSET(weaponOffset);
+    byteOffset = D_426F5C;
+    records = (WpnRecord *)(block + byteOffset);
+    return &records[entry - 1];
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataAttGet);
 
@@ -509,13 +552,70 @@ INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataEthGet);
 
 INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataItmGet);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataAccGet);
+typedef struct AccRecord { unsigned char opaque[0x10]; } AccRecord;
 
-INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataFrmGet);
+extern int D_426F6C;
+extern const char D_00A45938[];
+
+AccRecord *dataAccGet(int entry)
+{
+    unsigned char *block;
+    int byteOffset;
+    AccRecord *records;
+
+    if (entry <= 0) {
+        printf(D_00A45938, entry);
+        return 0;
+    }
+    block = (unsigned char *)&D_426F6C - BATTLE_DATA_FIELD_OFFSET(accessoryOffset);
+    byteOffset = D_426F6C;
+    records = (AccRecord *)(block + byteOffset);
+    return &records[entry - 1];
+}
+
+typedef struct FrmRecord { unsigned char opaque[0x10]; } FrmRecord;
+
+extern int D_426F88;
+extern const char D_00A45950[];
+
+FrmRecord *dataFrmGet(int entry)
+{
+    unsigned char *block;
+    int byteOffset;
+    FrmRecord *records;
+
+    if (entry <= 0) {
+        printf(D_00A45950, entry);
+        return 0;
+    }
+    block = (unsigned char *)&D_426F88 - BATTLE_DATA_FIELD_OFFSET(frameOffset);
+    byteOffset = D_426F88;
+    records = (FrmRecord *)(block + byteOffset);
+    return &records[entry - 1];
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataEngGet);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataSklGet);
+typedef struct SklRecord { unsigned char opaque[0x08]; } SklRecord;
+
+extern int D_426F70;
+extern const char D_00A45980[];
+
+SklRecord *dataSklGet(int entry)
+{
+    unsigned char *block;
+    int byteOffset;
+    SklRecord *records;
+
+    if (entry <= 0) {
+        printf(D_00A45980, entry);
+        return 0;
+    }
+    block = (unsigned char *)&D_426F70 - BATTLE_DATA_FIELD_OFFSET(skillOffset);
+    byteOffset = D_426F70;
+    records = (SklRecord *)(block + byteOffset);
+    return &records[entry - 1];
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataGainGet);
 
@@ -633,7 +733,30 @@ void *dataUnitFileGet(ObjectTask *unit, int charaId)
 
 INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataPackPcMdlNameGet);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataPackWpnMdlNameGet);
+/* pcPack_1 is a 38-entry table (0x130 bytes, 8-byte stride), terminated by
+ * a zero weaponId; dataPackWpnMdlNameGet searches it and returns the packed
+ * model name for a matching weapon. */
+typedef struct PcPackEntry {
+    int weaponId;
+    char *name;
+} PcPackEntry;
+
+extern PcPackEntry pcPack_1[];
+
+char *dataPackWpnMdlNameGet(int weaponId)
+{
+    char *name;
+    int index;
+
+    name = 0;
+    for (index = 0; pcPack_1[index].weaponId != 0; index++) {
+        if (weaponId == pcPack_1[index].weaponId) {
+            name = pcPack_1[index].name;
+            break;
+        }
+    }
+    return name;
+}
 
 extern void ACT_initMotion(BattleModelActor *actor);
 
