@@ -11,8 +11,82 @@ extern void MEfGetActorCoord(Vector4 *destination, unsigned int actor, unsigned 
 extern Vector4 *MMathApplyMatrix(Vector4 *destination, const Matrix4 *matrix, const Vector4 *vector);
 extern Vector4 *MMathCalcVectorMatrix(Vector4 *destination, const Matrix4 *matrix);
 extern void MGsGPInit(void *packet, void *address, int size);
+extern float MMathMakeRandom2PI(void);
+extern float MMathMakeRandom(void);
+extern Vector4 *MMathDivVectorS(Vector4 *destination, const Vector4 *source, float scale);
+
+/* destination.xyz = left.xyz + right.xyz on VU0 macro mode; w is kept. */
+static __inline__ void bp00AddVectorXYZ(Vector4 *destination, const Vector4 *left, const Vector4 *right)
+{
+    __asm__ __volatile__(
+        "lqc2 $vf1,0(%1)\n\t"
+        "lqc2 $vf2,0(%2)\n\t"
+        "vadd.xyz $vf1xyz,$vf1xyz,$vf2xyz\n\t"
+        "sqc2 $vf1,0(%0)\n\t"
+        :
+        : "r"(destination), "r"(left), "r"(right)
+        : "memory");
+}
+
+/* destination.xyz = left.xyz - right.xyz on VU0 macro mode. */
+static __inline__ void bp00SubVectorXYZ(Vector4 *destination, const Vector4 *left, const Vector4 *right)
+{
+    __asm__ __volatile__(
+        "lqc2 $vf1,0(%1)\n\t"
+        "lqc2 $vf2,0(%2)\n\t"
+        "vsub.xyz $vf1xyz,$vf1xyz,$vf2xyz\n\t"
+        "sqc2 $vf1,0(%0)\n\t"
+        :
+        : "r"(destination), "r"(left), "r"(right)
+        : "memory");
+}
+
+/* Quadword copy of a whole vector. */
+static __inline__ void bp00CopyVector(Vector4 *destination, const Vector4 *source)
+{
+    __asm__ __volatile__(
+        "lq $8,0(%1)\n\t"
+        "sq $8,0(%0)\n\t"
+        :
+        : "r"(destination), "r"(source)
+        : "$8", "memory");
+}
+
+/* cos/sin through the VU0 microsubroutines at 0xe8 and 0x20. */
+static __inline__ float bp00Cos(float angle)
+{
+    float cosine;
+
+    __asm__ __volatile__(
+        "mfc1 $8,%1\n\t"
+        "qmtc2.ni $8,$vf4\n\t"
+        "vcallms 0xe8\n\t"
+        "qmfc2.i $8,$vf1\n\t"
+        "mtc1 $8,%0\n\t"
+        : "=f"(cosine)
+        : "f"(angle)
+        : "$8", "memory");
+    return cosine;
+}
+
+static __inline__ float bp00Sin(float angle)
+{
+    float sine;
+
+    __asm__ __volatile__(
+        "mfc1 $8,%1\n\t"
+        "qmtc2.ni $8,$vf4\n\t"
+        "vcallms 0x20\n\t"
+        "qmfc2.i $8,$vf1\n\t"
+        "mtc1 $8,%0\n\t"
+        : "=f"(sine)
+        : "f"(angle)
+        : "$8", "memory");
+    return sine;
+}
 
 static void fnBP00_PR000(void *self, void *work);
+static void fnBP00_PR010(void *self, void *work);
 static void fnBP00_DP000(void *self, void *work);
 static void fnBP00_PO000(void *self, void *work);
 
@@ -62,9 +136,74 @@ int MEfCreate_BP00(MEfObjRecord *self)
     return 1;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/m_ef_create_bp_00", fnBP00_PR000);
+static void fnBP00_PR000(void *self, void *data)
+{
+    BP00Object *object = (BP00Object *)self;
+    BP00Work *work = (BP00Work *)data;
+    Vector4 origin;
+    Vector4 target;
+    Vector4 step;
+    float angle;
+    float spread;
+    int i;
 
-INCLUDE_ASM("asm/nonmatchings/ov01/m_ef_create_bp_00", fnBP00_PR010);
+    /* Shift the first strand's history one point back. */
+    for (i = 5; i >= 0; i--) {
+        work->visibility[0].flag[i + 1] = work->visibility[0].flag[i];
+        work->trail[0].point[i + 1] = work->trail[0].point[i];
+    }
+    work->visibility[0].flag[0] = 0;
+    if (work->counter < 18) {
+        work->visibility[0].flag[0] = 1;
+        bp00AddVectorXYZ(work->trail[0].point, work->trail[0].point, &work->vectorOrigin[0]);
+    }
+    if (work->counter >= 24) {
+        work->counter = 0;
+        bp00CopyVector(&origin, work->trail[0].point);
+        for (i = 0; i < 5; i++) {
+            Vector4 *head;
+
+            work->visibility[i].flag[0] = 1;
+            head = work->trail[i].point;
+            bp00CopyVector(head, &origin);
+            angle = MMathMakeRandom2PI();
+            head->x += bp00Cos(angle);
+            head->z += bp00Sin(angle);
+            bp00CopyVector(&target, &work->actorCoordinates);
+            spread = MMathMakeRandom() * 5.0f + 1.0f;
+            target.x += spread * bp00Cos(angle);
+            target.z += spread * bp00Sin(angle);
+            bp00SubVectorXYZ(&step, &target, head);
+            MMathDivVectorS(&work->vectorOrigin[i], &step, 9.0f);
+        }
+        object->processCallback = fnBP00_PR010;
+    }
+}
+
+static void fnBP00_PR010(void *self, void *data)
+{
+    BP00Work *work = (BP00Work *)data;
+    int strand;
+    int point;
+
+    for (strand = 0; strand < 5; strand++) {
+        if (strand < work->counter) {
+            for (point = 5; point >= 0; point--) {
+                work->visibility[strand].flag[point + 1] = work->visibility[strand].flag[point];
+                work->trail[strand].point[point + 1] = work->trail[strand].point[point];
+            }
+            work->visibility[strand].flag[0] = 0;
+        }
+    }
+    if (work->counter < 16) {
+        for (strand = 0; strand < 5; strand++) {
+            if (strand < work->counter) {
+                work->visibility[strand].flag[0] = 1;
+                bp00AddVectorXYZ(work->trail[strand].point, work->trail[strand].point, &work->vectorOrigin[strand]);
+            }
+        }
+    }
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/m_ef_create_bp_00", fnBP00_DP000);
 
