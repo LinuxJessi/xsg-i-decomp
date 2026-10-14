@@ -175,7 +175,36 @@ static void makeHermiteCoord(float *destination, void *effect)
                      &state->control[segment_index + 1]);
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/m_ef_create_solb", fnSOLB_PR000);
+/* New trail entries are only emitted while the effect is still travelling. */
+#define SOLB_TRAVEL_FRAMES 0x17
+
+static void fnSOLB_PR000(void *self, void *work)
+{
+    SolbState *state = (SolbState *)work;
+    HermiteVector *head;
+    int i;
+
+    for (i = SOLB_TRAIL_LENGTH - 2; i >= 0; i--) {
+        state->active[i + 1] = state->active[i];
+        state->birth_age[i + 1] = state->birth_age[i];
+        __asm__ __volatile__("lq $8, 0(%1)\n\tsq $8, 0(%0)"
+                             : : "r"(&state->trail[i + 1]), "r"(&state->trail[i]) : "$8", "memory");
+    }
+    state->active[0] = 0;
+    state->birth_age[0] = 0;
+    head = &state->trail[0];
+    __asm__ __volatile__("sqc2 $vf0, 0(%0)" : : "r"(head) : "memory");
+
+    if (state->age < SOLB_TRAVEL_FRAMES) {
+        state->active[0] = 1;
+        state->birth_age[0] = state->age;
+        makeHermiteCoord(&head->x, state);
+        if (++state->frame >= timetbl[state->segment]) {
+            state->frame = 0;
+            makeHermiteParam(++state->segment, state);
+        }
+    }
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/m_ef_create_solb", fnSOLB_DP000);
 
