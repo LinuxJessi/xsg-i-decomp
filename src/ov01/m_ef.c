@@ -3,6 +3,16 @@
  */
 #include "common.h"
 #include "m_ef.h"
+#include "main/act_1.h"
+#include "main/act_2.h"
+
+/* MEfGetActorMatrix's coordinate selectors: the actor itself, the actor
+   raised to a fixed height, and the count of accessory joints. */
+#define MEF_POINT_ACTOR ((u32)-1)
+#define MEF_POINT_ACTOR_RAISED ((u32)-2)
+#define MEF_POINT_JOINT_COUNT 0x28
+
+extern Matrix4 *MMathRotateMatrixY(Matrix4 *out, Matrix4 *matrix, float angle);
 const char D_00A512B0[64] =
     "MEfCheckWorkSize: The size of %s has overflowed [%d > %d]";
 
@@ -30,7 +40,38 @@ int MEfCheckWorkSize(const char *name, int size)
     return 1;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/m_ef", MEfCalcAngle);
+/*
+ * MEfCalcAngle: the pitch/yaw pair that turns "from" towards "to". out->z and
+ * out->w come from VU0's hardwired VF0 = (0,0,0,1). The horizontal distance is
+ * the VU0 square root of the XZ lengths; the height difference is from - to.
+ */
+Vector4 *MEfCalcAngle(Vector4 *destination, const Vector4 *from, const Vector4 *to)
+{
+    Vector4 direction;
+    float distanceXZ = 0.0f;
+
+    __asm__ __volatile__(
+        "lqc2 $vf1,0(%2)\n\t"
+        "lqc2 $vf2,0(%3)\n\t"
+        "vsub.xz $vf3xz,$vf2xz,$vf1xz\n\t"
+        "vmul.xz $vf4xz,$vf3xz,$vf3xz\n\t"
+        "vaddz.x $vf4x,$vf4x,$vf4z\n\t"
+        "vsqrt Q,$vf4x\n\t"
+        "vsub.y $vf3y,$vf1y,$vf2y\n\t"
+        "sqc2 $vf3,0(%4)\n\t"
+        "sqc2 $vf0,0(%1)\n\t"
+        "vwaitq\n\t"
+        "vaddq.x $vf1x,$vf0x,Q\n\t"
+        "qmfc2.ni $8,$vf1\n\t"
+        "mtc1 $8,%0\n\t"
+        : "+f"(distanceXZ)
+        : "r"(destination), "r"(from), "r"(to), "r"(&direction)
+        : "$8", "memory"
+    );
+    destination->x = srsAtan2(direction.y, distanceXZ);
+    destination->y = srsAtan2(direction.x, direction.z);
+    return destination;
+}
 
 /*
  * MEfCalcAngleMatrix: recover the yaw/pitch pair of "matrix" from the
@@ -61,9 +102,104 @@ Vector4 *MEfCalcAngleMatrix(Vector4 *out, const Vector4 *matrix)
     return out;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/m_ef", MEfGetActorMatrix);
+/*
+ * MEfGetActorMatrix: the world matrix of one point of an actor. coordinate
+ * -1 is the actor's own yaw and position, -2 the same raised to a fixed
+ * height of 1.5, and 0..0x27 an accessory joint whose matrix is copied out of
+ * the actor's matrix block. Anything else, or no actor, leaves the identity.
+ */
+Matrix4 *MEfGetActorMatrix(Matrix4 *destination, ActRecord *actor, u32 coordinate)
+{
+    int joint;
 
-INCLUDE_ASM("asm/nonmatchings/ov01/m_ef", MEfGetActorCoord);
+    /* The identity, built by rotating VF0 = (0,0,0,1) one lane per row. */
+    __asm__ __volatile__(
+        "vmr32.xyzw $vf1,$vf0\n\t"
+        "vmr32.xyzw $vf2,$vf1\n\t"
+        "vmr32.xyzw $vf3,$vf2\n\t"
+        "sqc2 $vf0,48(%0)\n\t"
+        "sqc2 $vf1,32(%0)\n\t"
+        "sqc2 $vf2,16(%0)\n\t"
+        "sqc2 $vf3,0(%0)\n\t"
+        :
+        : "r"(destination)
+        : "memory"
+    );
+
+    if (actor == 0) {
+        MOutputDebugStringWarn(D_00A512F0);
+    } else if (coordinate == MEF_POINT_ACTOR) {
+        MMathRotateMatrixY(destination, destination, actor->rotation.y);
+        __asm__ __volatile__(
+            "lqc2 $vf1,0(%1)\n\t"
+            "vmove.w $vf1w,$vf0w\n\t"
+            "sqc2 $vf1,48(%0)\n\t"
+            :
+            : "r"(destination), "r"(&actor->position)
+            : "memory"
+        );
+    } else if (coordinate == MEF_POINT_ACTOR_RAISED) {
+        MMathRotateMatrixY(destination, destination, actor->rotation.y);
+        __asm__ __volatile__(
+            "lqc2 $vf1,0(%1)\n\t"
+            "vmove.w $vf1w,$vf0w\n\t"
+            "sqc2 $vf1,48(%0)\n\t"
+            :
+            : "r"(destination), "r"(&actor->position)
+            : "memory"
+        );
+        (*destination)[3][1] = 1.5f;
+    } else if (coordinate < MEF_POINT_JOINT_COUNT) {
+        joint = ACT_jointGetAccessories((Actor *)actor, coordinate);
+        if (joint < 0) {
+            MOutputDebugStringWarn(D_00A51318, coordinate);
+        } else {
+            /* Integer form on purpose: the original adds the joint's byte
+               offset to the block address with the offset as the first
+               operand, which every pointer-arithmetic spelling (ptr + joint,
+               &ptr[joint], via a named local) reverses ($2/$3 swap and an
+               extra move). */
+            Matrix4 *jointMatrix = (Matrix4 *)(joint * sizeof(Matrix4) + (u32)actor->matrixBlock);
+
+            /* The R5900's native 128-bit copy of the joint's four rows. */
+            __asm__ __volatile__(
+                "lq $8,0(%1)\n\t"
+                "lq $9,16(%1)\n\t"
+                "lq $10,32(%1)\n\t"
+                "lq $11,48(%1)\n\t"
+                "sq $8,0(%0)\n\t"
+                "sq $9,16(%0)\n\t"
+                "sq $10,32(%0)\n\t"
+                "sq $11,48(%0)\n\t"
+                :
+                : "r"(destination), "r"(jointMatrix)
+                : "$8", "$9", "$10", "$11", "memory"
+            );
+        }
+    } else {
+        MOutputDebugStringWarn(D_00A51340, coordinate);
+    }
+    return destination;
+}
+
+/*
+ * MEfGetActorCoord: the translation row of MEfGetActorMatrix, with w = 1.
+ */
+Vector4 *MEfGetActorCoord(Vector4 *destination, ActRecord *actor, u32 coordinate)
+{
+    Matrix4 matrix;
+
+    MEfGetActorMatrix(&matrix, actor, coordinate);
+    __asm__ __volatile__(
+        "lqc2 $vf1,48(%1)\n\t"
+        "vmove.w $vf1w,$vf0w\n\t"
+        "sqc2 $vf1,0(%0)\n\t"
+        :
+        : "r"(destination), "r"(matrix)
+        : "memory"
+    );
+    return destination;
+}
 
 /*
  * Optionally binds the entry's texture, applies its placement matrix, then
