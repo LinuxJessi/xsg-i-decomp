@@ -296,7 +296,64 @@ int entryPhase40(void) {
     return 1;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/entry_first_init", entryPhase45);
+/*
+ * This TU's own view of battle_init.c's BattleUnit/Actor (there kept behind
+ * an opaque typedef, full body local to that TU): only the fields this
+ * function's own flag check reads (BattleUnit.actor +0x14 and Actor.flags
+ * +0x00, both evidenced there by src/ov01/battle_init.c's actUnitTblMake).
+ */
+typedef struct EntryActor {
+    unsigned int flags; /* +0x00 */
+} EntryActor;
+
+typedef struct EntryBattleUnit {
+    unsigned char unmodeled_00[0x14];
+    EntryActor *actor;  /* +0x14 */
+} EntryBattleUnit;
+
+extern int unitTblGet(int side, EntryBattleUnit ***table);
+extern void encountEffDisp(void);
+int entryPhase50(void);
+
+int entryPhase45(void)
+{
+    EntryBattleUnit **table;
+    EntryBattleUnit **next;
+    int count;
+    int remaining;
+    int active;
+
+    if (sefCheckLoad() != 0) {
+        goto done;
+    }
+
+    count = unitTblGet(2, &table);
+    active = 0;
+    if (count > 0) {
+        remaining = count;
+        next = table;
+        do {
+            EntryBattleUnit *unit = *next;
+
+            next++;
+            if (unit != 0 && (unit->actor->flags & 8) != 0) {
+                active++;
+            }
+            remaining--;
+        } while (remaining != 0);
+    }
+
+    if (active != 0) {
+        goto done;
+    }
+
+    encountEffDisp();
+    frameCnt = 0;
+    battleSeq = entryPhase50;
+
+done:
+    return 1;
+}
 
 /*
  * This call site reads battleMain's return register even though
@@ -455,7 +512,31 @@ void cfSnap(void) {
     vramCopyObjCreate(dispIdx, grBBIdxGet());
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/entry_first_init", battleDisp);
+extern void MBattleExec(void);
+extern void xglStudioFlushActiveCamera(void);
+extern void mapDisp(int mapNo);
+extern void ACT_draw(void);
+extern void GameDrawShadow(void);
+extern void SeisanDisp(void);
+
+int battleDisp(void)
+{
+    switch (battleDispMode) {
+    case 0:
+        break;
+    case 1:
+        MBattleExec();
+        xglStudioFlushActiveCamera();
+        mapDisp(mapNoGet());
+        ACT_draw();
+        GameDrawShadow();
+        break;
+    case 2:
+        SeisanDisp();
+        break;
+    }
+    return 1;
+}
 
 extern ObjectTask *objEntry2(void *argument, void (*callback)(ObjectTask *task));
 extern void objStdInit(ObjectTask *task);
@@ -558,13 +639,75 @@ void fadeOutObj(FadeObjTask *self)
 
 INCLUDE_ASM("asm/nonmatchings/ov01/entry_first_init", fadeObjDraw);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/entry_first_init", encEnvMake);
+extern void GS_REG_SET(void *packet, long long register_id, long long control);
+extern int grFBAdrGet(int index);
+
+void encEnvMake(void *packet) {
+    int tbp0 = (grFBAdrGet(grBBIdxGet()) << 5) & 0xFFFF;
+
+    GS_REG_SET(packet, 0xE, 0x1000000000008005LL);
+    GS_REG_SET(packet, 0x3F, 1);
+    GS_REG_SET(packet, 0x6, tbp0 | 0x2000000664020000LL);
+    GS_REG_SET(packet, 0x42, 0);
+    GS_REG_SET(packet, 0x47, 0x30000);
+    GS_REG_SET(packet, 0x14, 0x60);
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/entry_first_init", encEffObjInit);
 
 INCLUDE_ASM("asm/nonmatchings/ov01/entry_first_init", encEffObj);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/entry_first_init", effCalcMatrix);
+/*
+ * This TU's own view of the shared transform helpers (src/ov01/gr_gp_init.c
+ * declares and defines the same functions for its own calls, using its own
+ * TU-local Matrix/FloatVector3/FloatVector4 types): here, the project's
+ * shared Vector4/Matrix4 (include/shared.h) already match those layouts, so
+ * no pointer cast is needed at any call site.
+ */
+extern void xglMatrixUnit(Matrix4 matrix);
+extern void xglMatrixTrans(Matrix4 destination, const Matrix4 source,
+                           Vector4 *translation);
+extern void xglMatrixScale(Matrix4 destination, const Matrix4 source,
+                           Vector4 *scale);
+/*
+ * grRotMatrix only reads angles->x/y/z (Y/X/Z Euler angles); the stack slot
+ * this call site builds also carries a fourth word (the original .s stores
+ * 1.0f at rotation+0xC, matching this TU's other two vectors' own unused .w
+ * stores), so the argument stays a full Vector4 to keep that store, even
+ * though grRotMatrix itself never reads angles->w.
+ */
+extern void grRotMatrix(Matrix4 destination, const Matrix4 source,
+                        Vector4 *angles);
+
+/* theta (original ELF symbol, src/ov01/entry_first_init.c's own .bss). */
+extern float theta;
+
+void effCalcMatrix(ObjectTask *task, Matrix4 matrix, int index) {
+    Vector4 rotation;
+    Vector4 translation;
+    Vector4 scale;
+
+    xglMatrixUnit(matrix);
+
+    translation.x = 0.0f;
+    translation.y = 0.0f;
+    translation.z = 0.0f;
+    translation.w = 1.0f;
+
+    rotation.x = 0.0f;
+    rotation.y = 0.0f;
+    rotation.w = 1.0f;
+    rotation.z = theta * (float)index * 0.125f;
+
+    scale.x = 1.0f;
+    scale.y = 1.0f;
+    scale.z = 1.0f;
+    scale.w = 1.0f;
+
+    xglMatrixTrans(matrix, matrix, &translation);
+    grRotMatrix(matrix, matrix, &rotation);
+    xglMatrixScale(matrix, matrix, &scale);
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/entry_first_init", encEffObjDraw);
 
