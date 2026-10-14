@@ -150,7 +150,16 @@ int thinkProcessExecSub(ThinkProcess *proc)
 
 INCLUDE_ASM("asm/nonmatchings/ov01/cmd", thinkInit);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/cmd", camInit);
+extern int mapNoGet(void);
+extern void *dataMapCameraAdrGet(int mapNo);
+
+void camInit(void)
+{
+    pCamTop = (CamTopEntry *)dataMapCameraAdrGet(mapNoGet());
+    thinkTopSet((int)pCamTop);
+    pCamSetTop = (short *)thinkAdrGet(pCamTop->camTblOffset);
+    camTblIdx = 0;
+}
 
 int thinkMonsTblNumGet(void)
 {
@@ -765,7 +774,33 @@ int cmdUnitparaSet(ThinkProcess *proc)
     return 0;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/cmd", cmdUnitpara);
+typedef union {
+    signed char byteValue;
+    short halfwordValue;
+} CmdUnitParaValue;
+
+extern CmdUnitParaValue *cmdUnitparaSub(ObjectTask *unit, short category, short *valueType);
+
+int cmdUnitpara(ObjectTask *unit, int category, int value, int mode)
+{
+    short truncValue = value;
+    short valueType;
+    CmdUnitParaValue *unitParaValue = cmdUnitparaSub(unit, category, &valueType);
+    int result;
+
+    if (valueType == 1) {
+        result = unitParaValue->byteValue;
+        if (mode == 1) {
+            unitParaValue->byteValue = truncValue;
+        }
+    } else {
+        result = unitParaValue->halfwordValue;
+        if (mode == 1) {
+            unitParaValue->halfwordValue = truncValue;
+        }
+    }
+    return result;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/cmd", cmdUnitparaSub);
 
@@ -1134,7 +1169,30 @@ int cmdCamMoveStop(void)
 
 INCLUDE_ASM("asm/nonmatchings/ov01/cmd", cmdEvent);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/cmd", cmdWaitEvent);
+/*
+ * Structured forms tried against fndiff (asm/nonmatchings/ov01/cmd/cmdWaitEvent.s),
+ * no goto needed:
+ * - if/else-if with a single exit (this form): STRUCTURE MATCH, 25/25 insns
+ *   equal-in-place; whole-file gate passes identical.
+ * A single if/else-if chain assigning one `result` and returning it once
+ * already reproduces the original bytes, so the while-loop and early-return
+ * alternatives were not needed.
+ */
+int cmdWaitEvent(ThinkProcess *proc)
+{
+    int result;
+
+    if (proc->waitActive == 0) {
+        proc->sortMode = cmdNum(proc->pc);
+        result = 2;
+    } else if (thinkProcessChk(proc->sortMode) != 0) {
+        result = 2;
+    } else {
+        proc->pc += 2;
+        result = 0;
+    }
+    return result;
+}
 
 int cmdWaitCnt(ThinkProcess *proc)
 {

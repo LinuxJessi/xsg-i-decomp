@@ -85,13 +85,11 @@ typedef struct MonsTblEntry {
 static MonsTblEntry *pMonsSetTop;
 
 /*
- * The current map's camera-control table entry. camInitExec (0x00a1d820) is
- * the only claimed reader and touches only the initialization script offset
- * (lh $2,2($2) at 0x00a1d82c); the leading two bytes stay untouched by any
- * function this TU claims.
+ * The current map's camera-control table entry. camInitExec (0x00a1d820)
+ * reads the initialization script offset (lh $2,2($2) at 0x00a1d82c).
  */
 typedef struct CamTopEntry {
-    unsigned char unmodeled_0[2];
+    short camTblOffset;            /* +0x00: camInit (0x00a1d6e8, this TU) is the only claimed reader (lh $4,0x0($2) at 0x00a1d728), passing it to thinkAdrGet to install pCamSetTop */
     short initScript;              /* +0x02: camInitExec */
 } CamTopEntry;
 
