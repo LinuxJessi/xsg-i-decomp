@@ -201,7 +201,86 @@ void objStdInit(ObjectTask *task)
     objCmdClear(task);
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/obj", objStdMove);
+/*
+ * Advance an object one update: accelerate, move, and snap each axis onto its
+ * target once it reaches it, overshoots it in the direction of travel, or lies
+ * within 1e-6 of it.  Returns nonzero when all three axes have arrived.  As in
+ * objHatoVec, the negative side of the magnitude test negates the remaining
+ * distance and the positive side compares it as it stands.
+ */
+int objStdMove(ObjectTask *task)
+{
+    ObjectWorkTransform *transform;
+    int arrived;
+
+    transform = &((ObjectWork *)task->work)->transform;
+    arrived = 0;
+
+    {
+        float velocity;
+        float position;
+        float distance;
+        float magnitude;
+
+        velocity = transform->velocity.x + transform->acceleration.x;
+        position = transform->homogeneousVector.x + velocity;
+        transform->velocity.x = velocity;
+        transform->homogeneousVector.x = position;
+        if (position == transform->target.x) {
+            arrived++;
+        } else if ((velocity > 0.0f && transform->target.x < position)
+                   || (velocity < 0.0f && position < transform->target.x)
+                   || ((distance = transform->target.x - position) < 0.0f
+                           ? (magnitude = -distance) : distance) <= 1e-6f) {
+            transform->homogeneousVector.x = transform->target.x;
+            arrived++;
+        }
+    }
+
+    {
+        float velocity;
+        float position;
+        float distance;
+        float magnitude;
+
+        velocity = transform->velocity.y + transform->acceleration.y;
+        position = transform->homogeneousVector.y + velocity;
+        transform->velocity.y = velocity;
+        transform->homogeneousVector.y = position;
+        if (position == transform->target.y) {
+            arrived++;
+        } else if ((velocity > 0.0f && transform->target.y < position)
+                   || (velocity < 0.0f && position < transform->target.y)
+                   || ((distance = transform->target.y - position) < 0.0f
+                           ? (magnitude = -distance) : distance) <= 1e-6f) {
+            transform->homogeneousVector.y = transform->target.y;
+            arrived++;
+        }
+    }
+
+    {
+        float velocity;
+        float position;
+        float distance;
+        float magnitude;
+
+        velocity = transform->velocity.z + transform->acceleration.z;
+        position = transform->homogeneousVector.z + velocity;
+        transform->velocity.z = velocity;
+        transform->homogeneousVector.z = position;
+        if (position == transform->target.z) {
+            arrived++;
+        } else if ((velocity > 0.0f && transform->target.z < position)
+                   || (velocity < 0.0f && position < transform->target.z)
+                   || ((distance = transform->target.z - position) < 0.0f
+                           ? (magnitude = -distance) : distance) <= 1e-6f) {
+            transform->homogeneousVector.z = transform->target.z;
+            arrived++;
+        }
+    }
+
+    return arrived == 3;
+}
 
 /*
  * Aim an object at its target: give each axis the velocity that closes the

@@ -90,17 +90,22 @@ typedef struct {
 /*
  * The +0x90..+0x110 tail of an objWork slot (declared below): objStdInit
  * clears all 0x80 bytes then seeds two homogeneous components to 1.0f.
- * The Vector4 at +0x00 has no evidenced role beyond that write: objStdInit
- * sets only its w component (the classic homogeneous-point default; x/y/z
- * stay at the preceding memset's zero) and no claimed function in this TU
- * reads it back. The Vector4 at +0x30 is `scale`: objStdInit sets all four
- * of its components to 1.0f, the standard multiplicative-identity pattern.
+ * The Vector4 at +0x00 is the object's position: objStdInit sets only its
+ * w component (the classic homogeneous-point default; x/y/z stay at the
+ * preceding memset's zero), and objStdMove advances x/y/z by `velocity` and
+ * snaps them onto `target`. The Vector4 at +0x30 is `scale`: objStdInit sets
+ * all four of its components to 1.0f, the standard multiplicative-identity
+ * pattern. objStdMove adds `acceleration` (+0x50) to `velocity` (+0x40) every
+ * update and stops each axis at `target` (+0x60).
  */
 typedef struct {
     Vector4 homogeneousVector;         /* +0x00: only .w is evidenced */
     unsigned char unmodeled_10[0x20];  /* +0x10 */
     Vector4 scale;                     /* +0x30 */
-    unsigned char unmodeled_40[0x40];  /* +0x40 */
+    Vector4 velocity;                  /* +0x40: objStdMove adds it to +0x00 */
+    Vector4 acceleration;              /* +0x50: objStdMove adds it to velocity */
+    Vector4 target;                    /* +0x60: where objStdMove stops +0x00 */
+    unsigned char unmodeled_70[0x10];  /* +0x70 */
 } ObjectWorkTransform;
 
 /*
