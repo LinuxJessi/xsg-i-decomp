@@ -217,12 +217,41 @@ extern ObjectTask *unitPtrGet(int unitNo);
  */
 extern int calcLineChk(ObjectTask *unit);
 
+/*
+ * calcStatGet (src/ov01/calc.c, still asm) reports whether a unit's status
+ * flags for the given category match the given flag; cmdStatGet
+ * (0x00a22358) is this TU's only claimed caller, redeclared the same way
+ * src/ov01/calc.c and src/ov01/unit_cmd.h already do.
+ */
+extern int calcStatGet(ObjectTask *unit, int category, int flag);
+
 /* calcUPGet's return type comes from its definer, ov01/tu004 calc.c
  * (published include/ov01/calc.h); calcUPGet itself is still asm there, so
  * it is redeclared here the same way src/ov01/snd.c, src/ov01/menu.c and
  * src/ov01/battle_init.c already do. */
 #include "ov01/calc.h"
 extern CalcUnitParam *calcUPGet(ObjectTask *unit);
+
+/*
+ * The battle unit record unitPtrGet (src/ov01/unit_cmd.c, still asm) returns,
+ * as far as cmdCamUnitHeight reads it: a separate motion actor at +0x14, the
+ * same offset src/ov01/unit_cmd.h's UnitRecord and
+ * src/ov01/data_unit_org_get.h's UnitEquipInfo already evidence for the same
+ * real object (neither header published yet, so this TU redeclares its own
+ * view the same way it already redeclares CalcUnitParam above).
+ */
+typedef struct CmdUnitRecord {
+    ObjectTask task;         /* +0x00..+0x13: the ObjectTask prefix, opaque here */
+    void *motionActor;       /* +0x14 */
+} CmdUnitRecord;
+
+/*
+ * sefGetNullPosition (src/main/sef.c) reads a scene-effect null's world
+ * position off an actor; cmdCamUnitHeight (0x00a21948) is the only claimed
+ * caller here, redeclared the same way src/ov01/m_cam.c and src/main/sdv.c
+ * already do.
+ */
+extern void sefGetNullPosition(Vector4 *position, void *actor, int part, int flag);
 
 /*
  * CalcUnitParam is owned by a different TU (ov01/tu004 calc.c) and is not
