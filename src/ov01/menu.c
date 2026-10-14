@@ -15,6 +15,8 @@ typedef struct MenuEtherStatusEntry {
 extern const signed char D_00A46AF8[];
 extern const signed char D_00A46BE0[];
 extern void menuStatSprite();
+extern int rnd(int max);
+extern float ETRotDist;
 
 /*
  * statTbl: an array of pointers, indexed by charaId, each pointing at a
@@ -403,10 +405,25 @@ INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuEventTimerDisp);
 
 INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuEventTimerDispSub);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuTimeSet);
+void menuTimeSet(int time) {
+    int timerRoll;
 
-/* menuTimeSet (this TU, still asm) applies a new menu time setting. */
-void menuTimeSet(int time);
+    eventTimer = time;
+    timerRoll = rnd(100);
+    if (timerRoll >= 0x60) {
+        eventTimerX = 10;
+    } else if (timerRoll >= 0x3D) {
+        eventTimerX = 4;
+    } else {
+        eventTimerX = 2;
+    }
+
+    ETRotDist = (float)eventTimer * 1.5707964f;
+    if (ETRotDist > 6.2831855f) {
+        ETRotDist -= 6.2831855f;
+    }
+}
+
 int menuTimeNext(void) {
     eventTimer++;
     if (eventTimer >= 4) {
