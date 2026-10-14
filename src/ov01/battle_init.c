@@ -1301,6 +1301,8 @@ typedef struct CursorSelectList {
     int count;         /* +0x48 */
     int curIdx;         /* +0x4C */
     int prevIdx;         /* +0x50 */
+    unsigned char unmodeled_54[4];
+    int groupFlag;       /* +0x58: toggled by curGrpSel */
 } CursorSelectList;
 
 /*
@@ -1357,7 +1359,19 @@ int curSel(CursorObject *cursor, CursorSelectList *list, int nextMask, int prevM
     return list->curIdx;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", curGrpSel);
+int curGrpSel(CursorObject *cursor, CursorSelectList *list, int nextMask, int prevMask)
+{
+    if (!(dataPadRead(1) & nextMask) && !(dataPadRead(1) & prevMask)) {
+        return 0;
+    }
+    if (list->groupFlag == 0) {
+        list->groupFlag = 1;
+    } else {
+        list->groupFlag = 0;
+    }
+    sndSysSePlay(0xA);
+    return 1;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", curMove2Pos);
 
