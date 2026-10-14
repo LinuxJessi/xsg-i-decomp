@@ -751,7 +751,28 @@ void dataNBreadCB(int result) {
     }
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataFileLoadNB);
+extern int xglCdReadFile(const char *name, void *buffer, int mode, int flags);
+extern const char D_00A45A10[];
+extern const char D_00A45A28[];
+
+int dataFileLoadNB(const char *filename, void *destination)
+{
+    /* xglCdReadFile's published declaration (include/umbrella/public.h:161,
+     * also include/main/xgl_cd.h:6) types the fourth argument `int flags`;
+     * this call (like src/main/window_tex_load.c:348 and src/main/srs.c:582,
+     * the lane's other published callers passing a callback here) passes
+     * dataNBreadCB's completion callback through that int, so the cast
+     * stays rather than retyping a shared, out-of-lane header. */
+    int result = xglCdReadFile(filename, destination, 1, (int)dataNBreadCB);
+
+    if (result < 0) {
+        printf(D_00A45A10, filename);
+        return 0;
+    }
+    cdReqNum++;
+    printf(D_00A45A28, cdReqNum, filename, destination);
+    return 1;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataFileInfoInit);
 
@@ -769,7 +790,25 @@ void dataLeaderCidReset(void) {
     leaderCid = 0;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataLeaderReload);
+extern unsigned char *PartyDataGet(void);
+extern const char D_00A45AB0[];
+
+/* src/main/party.c owns PartyDataPrefix; this TU's own overlay reaches
+ * only the leader battle id PartyLeaderSet/PartyLeaderCheck evidence at
+ * +0x2C. */
+typedef struct PartyLeaderView {
+    unsigned char unmodeled_00[0x2C];
+    unsigned short leader_battle_id; /* +0x2C */
+} PartyLeaderView;
+
+void dataLeaderReload(void)
+{
+    unsigned short leaderBattleId = ((PartyLeaderView *)PartyDataGet())->leader_battle_id;
+
+    if (leaderBattleId != leaderCid) {
+        printf(D_00A45AB0);
+    }
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataMotNameGetMenu);
 
@@ -869,6 +908,13 @@ extern void ACT_initMotion(BattleModelActor *actor);
  * texture buffers selected by the leader path, not file identifiers. */
 #define LEADER_ANIMATION_ADDRESS ((void *)0x01070800)
 #define LEADER_TEXTURE_ADDRESS ((void *)0x010B1000)
+/* dataUnitFileLoadFaceMdl's cache-miss buffers: lui $3,(0x10B4000>>16) /
+ * ori $3,$3,(0x10B4000&0xFFFF) builds the model address below. */
+#define FACE_MODEL_ADDRESS ((void *)0x010B4000)
+/* dataUnitFileLoadFaceMdl's cache-miss buffers: lui $4,(0x10E6000>>16) /
+ * ori $4,$4,(0x10E6000&0xFFFF) builds the texture address below (stored to
+ * actor->textureAdr, not actor->animationAdr). */
+#define FACE_TEXTURE_ADDRESS ((void *)0x010E6000)
 
 extern char mdlFileName[];
 extern char mdlFileName2[];
@@ -960,7 +1006,35 @@ int dataUnitFileLoadMdl(UnitEquipInfo *unit, int charaId, UnitFileInfo *file)
     return 1;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataUnitFileLoadFaceMdl);
+extern const char D_00A45E50[];
+extern void *dataChildActorCreate(int callerId);
+
+int dataUnitFileLoadFaceMdl(ObjectTask *unit, int charaId, UnitFileInfo *file)
+{
+    /* The caller (dataUnitFileLoadMdl, this file:996) passes
+     * &unit->task.object; ObjectTask is the first member of UnitEquipInfo's
+     * `task` union (this file's header, data_unit_org_get.h:150-151), so
+     * that ObjectTask pointer is the UnitEquipInfo record itself. */
+    UnitEquipInfo *equip = (UnitEquipInfo *)unit;
+    BattleModelActor *actor;
+
+    if (charaId != file->faceCharaId) {
+        file->faceCharaId = charaId;
+        if (dataLeaderCidGet() == charaId) {
+            file->faceModelAdr = FACE_MODEL_ADDRESS;
+            file->faceTextureAdr = FACE_TEXTURE_ADDRESS;
+        }
+    } else {
+        printf(D_00A45E50, charaId, file->faceModelAdr);
+    }
+
+    actor = dataChildActorCreate(charaId);
+    actor->modelAdr = file->faceModelAdr;
+    equip->faceActor = actor;
+    actor->animationAdr = file->animationAdr;
+    actor->textureAdr = file->faceTextureAdr;
+    return 1;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataUnitFileLoadMot);
 
@@ -1022,7 +1096,41 @@ int dataUnitFileLoadMotSp2(UnitEquipInfo *unit, int motionId, int slot, int p3, 
     return 1;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataUnitFileLoad2);
+extern const char D_00A45F58[];
+extern void dataUnitFileLoad2Sub(ObjectTask *unit);
+
+/* unitCmdSet's queued-command record: src/ov01/unit_cmd.h:157-162 (CmdEntry)
+ * and src/ov01/calc.c:28-34 (CalcCmdEntry) both restate this same layout
+ * for their own calls into unitCmdSet (still asm, src/ov01/unit_cmd.c), so
+ * this TU forward-declares the identical selector/argument/extra fields
+ * rather than inventing its own. This call only writes selector and
+ * argument; extra and the trailing 8 bytes are unwritten here, matching
+ * calc.c's own "unwritten by the one evidenced call" note for the same
+ * tail. */
+typedef struct CmdEntry {
+    int selector; /* +0x00 */
+    int argument; /* +0x04 */
+    int extra;    /* +0x08: unwritten by this call */
+    unsigned char unmodeled_0c[8]; /* +0x0C: unwritten by this call */
+} CmdEntry;
+extern void unitCmdSet(ObjectTask *unit, CmdEntry *cmd);
+extern int rnd(int max);
+
+void dataUnitFileLoad2(ObjectTask *unit)
+{
+    CmdEntry cmd;
+
+    printf(D_00A45F58, unit);
+    dataUnitFileLoad2Sub(unit);
+
+    cmd.selector = 0x25;
+    if (!(((BattleActor *)unit->work)->flags & BATTLE_ACTOR_FLAG_ENEMY)) {
+        cmd.argument = 0;
+    } else {
+        cmd.argument = rnd(0xA);
+    }
+    unitCmdSet(unit, &cmd);
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataUnitFileLoad2Sub);
 

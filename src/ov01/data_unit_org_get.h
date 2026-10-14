@@ -133,7 +133,10 @@ typedef struct UnitFileInfo {
     int textureSize; /* +0x24 */
     unsigned char unmodeled_28[0x10C - 0x28];
     int faceCharaId; /* +0x10C */
-    unsigned char unmodeled_110[0x20];
+    void *faceModelAdr; /* +0x110: dataUnitFileLoadFaceMdl's cached face model buffer */
+    unsigned char unmodeled_114[0x128 - 0x114];
+    void *faceTextureAdr; /* +0x128: dataUnitFileLoadFaceMdl's cached face texture buffer (stored to actor->textureAdr) */
+    unsigned char unmodeled_12c[0x130 - 0x12C];
 } UnitFileInfo;
 
 
@@ -154,6 +157,7 @@ typedef struct UnitEquipInfo {
     BattleModelActor *motionActor;
     unsigned char unmodeled_18[4];
     BattleModelActor *equipActor[4];
+    BattleModelActor *faceActor; /* +0x2C: dataUnitFileLoadFaceMdl's child face actor */
 } UnitEquipInfo;
 
 extern void dataMotAdrSet(BattleModelActor *actor, int motionId);
