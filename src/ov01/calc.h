@@ -128,7 +128,10 @@ struct CalcUnitParam {
     short turnBias;             /* +0x3E: calcWct/calcTurnEnd */
     short waitCount;            /* +0x40: calcTurnEnd/calcWctDec */
     short waitCountBase;        /* +0x42: calcTurnEnd */
-    unsigned char unmodeled_44[0x50 - 0x44];
+    short posId;                /* +0x44: calcLineChk/calcMoveChk/calcA2Chk's
+                                 * `lh $x,0x44($2)`, fed to dataPosLineGet
+                                 * (src/ov01/data_unit_org_get.c). */
+    unsigned char unmodeled_46[0x50 - 0x46];
     CalcUnitParam *linkedUnit;   /* +0x50: menuStatChrIdGet reads its charaId */
     unsigned char unmodeled_54[0x5E - 0x54];
     short weaponId[3];       /* +0x5E: per-slot weapon ids */
@@ -138,7 +141,10 @@ struct CalcUnitParam {
     short normalTechniqueId[CALC_NORMAL_TECHNIQUE_COUNT]; /* +0x76 */
     short slotTechniqueId[2];   /* +0x82: calcSlotAChk's own pair, right
                                  * after normalTechniqueId. */
-    unsigned char unmodeled_86[0xAC - 0x86];
+    unsigned char unmodeled_86[0xA6 - 0x86];
+    short skillId[3];            /* +0xA6: calcSkillEquChk's `lh $3,0x6($2)`,
+                                  * mirroring CalcCharParaData's skillId at
+                                  * the same offset. */
     u16 statActiveMask[8];   /* +0xAC: calcStatTurn's per-category bit set */
     /*
      * +0xBC: calcStatReset (this TU, 0x00a17918) clears this per-category
@@ -249,11 +255,13 @@ typedef struct CalcEtherStatus {
 
 /*
  * dataAccGet's (src/ov01/data_unit_org_get.c, still asm) return record, as far as
- * calcMagDefGet (this TU) reads it.
+ * calcMagDefGet, calcSkillEquChk and calcPhyDefGet (this TU) read it.
  */
 typedef struct AccessoryData {
-    unsigned char unmodeled_00[0xD];
+    unsigned char unmodeled_00[0xC];
+    unsigned char phyDefense;   /* +0xC: calcPhyDefGet's accumulated term */
     unsigned char magicDefense; /* +0xD: calcMagDefGet's accumulated term */
+    u16 skillId;                 /* +0xE: calcSkillEquChk's `lhu $3,0xE($2)` */
 } AccessoryData;
 
 /*

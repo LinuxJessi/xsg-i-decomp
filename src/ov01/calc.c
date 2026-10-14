@@ -68,6 +68,8 @@ struct WpnData {
     u8 equipped;                      /* +0x10: calcAttWpnChk's own check */
     unsigned char unmodeled_11[0x18 - 0x11];
     short dblAct;                     /* +0x18: calcDblActChk requires nonzero */
+    unsigned char unmodeled_1a[0x1C - 0x1A];
+    short phyDefense;                 /* +0x1C: calcPhyDefGet's accumulated term */
 };
 
 extern WpnData *dataWpnGet(int weaponId);
@@ -217,7 +219,7 @@ typedef struct CalcTakeEpArg {
     unsigned char unmodeled_14[0x80 - 0x14];
 } CalcTakeEpArg;
 
-extern int calcTakeEpGet(CalcTakeEpArg *arg, short tecId);
+extern int calcTakeEpGet(CalcTakeEpArg *arg, int tecId);
 
 /* dataEthGet (src/ov01/data_unit_org_get.c, still asm), this TU's own
  * private view (see CalcEtherStatus, src/ov01/calc.h). */
@@ -288,7 +290,40 @@ int calcAccEquChk(ObjectTask *unit, int accId)
     return 0;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcSkillEquChk);
+/* dataAccGet (src/ov01/data_unit_org_get.c, still asm), this TU's own
+ * private view (see AccessoryData, src/ov01/calc.h). */
+extern AccessoryData *dataAccGet(int accessoryId);
+
+int calcSkillEquChk(ObjectTask *unit, int skillId)
+{
+    CalcUnitParam *param;
+    int i;
+    short accessoryId;
+
+    for (i = 0; i < 3; i++)
+    {
+        param = calcUPGet(unit);
+        accessoryId = param->accessoryId[i];
+        if (accessoryId != 0)
+        {
+            if (skillId == dataAccGet(accessoryId)->skillId)
+            {
+                return 1;
+            }
+        }
+    }
+
+    for (i = 0; i < 3; i++)
+    {
+        param = calcUPGet(unit);
+        if (skillId == param->skillId[i])
+        {
+            return 1;
+        }
+    }
+
+    return 0;
+}
 
 /* calcSkillEquChk/unitTblGet: calcSkillEquChkAll's own callees, still asm
  * in this TU. calcSkillEquChk's second call below hands it the same fake
@@ -381,7 +416,8 @@ extern void calcBp(ObjectTask *unit, int tid);
 typedef struct TecKindView TecKindView;
 
 struct TecKindView {
-    unsigned char unmodeled_00[0x02];
+    unsigned char unmodeled_00[1];
+    signed char epCost;     /* +0x01: calcTakeEpGet's base term, `lb $16,0x1($2)` */
     u16 flags;              /* +0x02: bit 0x800 rules out a counter */
     unsigned char unmodeled_04[0x11 - 0x04];
     /*
@@ -670,7 +706,34 @@ INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcHit);
 
 INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcWpnAtkGet);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcPhyDefGet);
+int calcPhyDefGet(ObjectTask *unit)
+{
+    int def;
+    int i;
+    short accessoryId;
+    short weaponId;
+
+    def = 0;
+    for (i = 0; i < 3; i++)
+    {
+        accessoryId = calcUPGet(unit)->accessoryId[i];
+        if (accessoryId != 0)
+        {
+            def += dataAccGet(accessoryId)->phyDefense;
+        }
+    }
+
+    for (i = 0; i < 3; i++)
+    {
+        weaponId = calcUPGet(unit)->weaponId[i];
+        if (weaponId != 0)
+        {
+            def += dataWpnGet(weaponId)->phyDefense;
+        }
+    }
+
+    return def;
+}
 
 /* dataAccGet (src/ov01/data_unit_org_get.c, still asm), this TU's own
  * private view (see AccessoryData, src/ov01/calc.h). */
@@ -753,7 +816,33 @@ int calcAtrChg(ObjectTask *unit, int attribute) {
     return result;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcTakeEpGet);
+/* calcSlotAChk (below, this TU): unit and the technique id. */
+extern int calcSlotAChk(ObjectTask *unit, int techId);
+
+/* tecId is `int`, not `short`: with `short` the entry block re-sign-extends
+ * it (`sll $5,$5,16`/`sra $18,$5,16` replacing the original's plain
+ * `daddu $18,$5,$0`), fndiff on form calcTakeEpGet (2026-10-14). */
+int calcTakeEpGet(CalcTakeEpArg *arg, int tecId)
+{
+    ObjectTask *unit = (ObjectTask *) arg;
+    int ep;
+
+    ep = dataTecGet(tecId)->epCost;
+    if (calcStatGet(unit, 1, 0x10)) {
+        ep *= 2;
+    }
+    if (calcStatGet(unit, 3, 0x200)) {
+        ep /= 2;
+    }
+    if (calcStatGet(unit, 3, 0x40)) {
+        ep *= 2;
+    }
+    if (calcStatGet(unit, 7, 0x100) && calcSlotAChk(unit, tecId)) {
+        ep = 0;
+    }
+
+    return (ep < 100) ? ep : 99;
+}
 
 int calcSlotAChk(ObjectTask *unit, int techId)
 {
@@ -835,7 +924,54 @@ INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcAtkChk);
 
 INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcA2Chk);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcLineChk);
+/* dataPosLineGet (src/ov01/data_unit_org_get.c, this TU's own private view
+ * of its PosTblEntry.line member): the position's battle line index. */
+extern short dataPosLineGet(int posId);
+
+int calcLineChk(ObjectTask *unit)
+{
+    ObjectTask **table;
+    short myLine;
+    short otherLine;
+    int side;
+    int count;
+    int i;
+
+    myLine = dataPosLineGet(calcUPGet(unit)->posId);
+    if (myLine == 0)
+    {
+        return 1;
+    }
+
+    if (((CalcActorRecord *) unit->work)->flags & 0x40)
+    {
+        side = 1;
+    }
+    else
+    {
+        side = 0;
+    }
+    i = 0;
+    count = unitTblGet(side, &table);
+    if (count > 0)
+    {
+        for (; i < count; i++)
+        {
+            if (table[i] != 0)
+            {
+                if ((((CalcActorRecord *) table[i]->work)->flags & 0x80) == 0)
+                {
+                    otherLine = dataPosLineGet(calcUPGet(table[i])->posId);
+                    if (otherLine != 0 && otherLine < myLine)
+                    {
+                        return 0;
+                    }
+                }
+            }
+        }
+    }
+    return 1;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcBackLineChk);
 
@@ -1175,7 +1311,28 @@ int calcCfEncount(int flags)
     }
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcPartyStat);
+void calcPartyStat(int side, int mode)
+{
+    ObjectTask **table;
+    ObjectTask *unit;
+    int count;
+    int i;
+
+    count = unitTblGet(side, &table);
+    for (i = 0; i < count; i++) {
+        unit = table[i];
+        if (unit != 0) {
+            switch (mode) {
+            case 0:
+                calcUPGet(unit)->waitCount = 0;
+                break;
+            case 1:
+                calcUPGet(unit)->bcValue++;
+                break;
+            }
+        }
+    }
+}
 
 int calcEtherDisableGet(ObjectTask *unit, int bit)
 {
