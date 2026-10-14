@@ -147,6 +147,22 @@ extern void ACT_setMotion(Actor *actor, unsigned int dataId);
  */
 #define ACTOR_FLAG_CMD_PENDING 0x2u
 
+/*
+ * src/ov01/calc.c restates the same queued-command record (its own
+ * CalcCmdEntry) for calcTurnStart's own call into unitCmdSet, defined in
+ * this TU; unitCmdDeadSet is this TU's own caller.
+ */
+typedef struct CmdEntry CmdEntry;
+
+struct CmdEntry {
+    int selector;      /* +0x00 */
+    int argument;      /* +0x04 */
+    int extra;         /* +0x08 */
+    unsigned char unmodeled_0c[8]; /* +0x0C: unwritten by any claimed call */
+};
+
+extern void unitCmdSet(ObjectTask *unit, CmdEntry *cmd);
+
 /* The three shorts after charaId are CalcUnitParam.weaponId[0..2]. */
 extern void sefSetupPlayer(short charaId, short, short, short);
 extern void sefSetupEnemy(short charaId);

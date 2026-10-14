@@ -84,7 +84,33 @@ int unitNumGet(int side)
     return count;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitLiveNumGet);
+int unitLiveNumGet(int side)
+{
+    UnitRecord **table;
+    UnitRecord **cur;
+    UnitRecord *unit;
+    int count;
+    int remaining;
+    int live;
+
+    count = unitTblGet(side, &table);
+    live = 0;
+    if (count > 0) {
+        cur = table;
+        remaining = count;
+        do {
+            unit = *cur;
+            cur++;
+            if (unit != 0) {
+                if (!(((Actor *)unit->task.work)->flags & 0x80)) {
+                    live++;
+                }
+            }
+            remaining--;
+        } while (remaining != 0);
+    }
+    return live;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitLiveNumGet2);
 
@@ -238,7 +264,26 @@ void unitPlInit(short *plTbl)
     } while (count >= 0);
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitEnInit);
+extern const char D_00A43968[];
+
+void unitEnInit(s16 *pl)
+{
+    int count;
+
+    count = 0;
+    for (;;) {
+        if (pl[0] == 0) {
+            break;
+        }
+        if (count >= 5) {
+            printf(D_00A43968);
+            break;
+        }
+        count++;
+        unitEnCreate(pl);
+        pl += 4;
+    }
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitClipSet);
 
@@ -312,7 +357,20 @@ INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitJobTypeAtk);
 
 INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitCmdAtkEnd);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitCmdDeadSet);
+int unitCmdDeadSet(ObjectTask *unit)
+{
+    CmdEntry cmd;
+
+    if (unit == 0 || (((Actor *) unit->work)->flags & 0x80)) {
+        return 0;
+    }
+    if (*(short *) &calcUPGet(unit)->currentHp != 0) {
+        return 0;
+    }
+    cmd.selector = 0xC;
+    unitCmdSet(unit, &cmd);
+    return 1;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitCmdEther);
 
@@ -928,7 +986,28 @@ void unitDispOn(int side)
     }
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitDispOff);
+void unitDispOff(int side)
+{
+    UnitRecord **table;
+    int count;
+    UnitRecord **cur;
+    int remaining;
+    UnitRecord *unit;
+
+    count = unitTblGet(side, &table);
+    if (count > 0) {
+        cur = table;
+        remaining = count;
+        do {
+            unit = *cur;
+            cur++;
+            if (unit != 0) {
+                unit->motionActor->flags |= 8;
+            }
+            remaining--;
+        } while (remaining != 0);
+    }
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitColiGet);
 
