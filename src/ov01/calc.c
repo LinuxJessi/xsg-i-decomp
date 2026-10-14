@@ -45,6 +45,9 @@ extern int calcDeadUnitNum(ObjectTask *unit, int flag);
 /* calcBattleChk: calcWctDec's own callee, still asm in this TU. */
 extern int calcBattleChk(ObjectTask *unit);
 
+/* calcTrg2PE (this TU, defined below): calcDeadUnitNum's own callee. */
+extern int calcTrg2PE(ObjectTask *unit, int trgFlags);
+
 /*
  * calcWct/calcStatTurn/rnd: calcTurnEnd's own callees, defined later in
  * this TU (calcWct and rnd below, calcStatTurn still asm).
@@ -269,7 +272,21 @@ int calcSkillSub(ObjectTask *unit, int skillId, int typeMask, int levelMask) {
     return result;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcAccEquChk);
+int calcAccEquChk(ObjectTask *unit, int accId)
+{
+    CalcUnitParam *param;
+    int i;
+
+    for (i = 0; i < 3; i++)
+    {
+        param = calcUPGet(unit);
+        if (accId == param->accessoryId[i])
+        {
+            return 1;
+        }
+    }
+    return 0;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcSkillEquChk);
 
@@ -342,14 +359,34 @@ INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcBp);
 
 INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcBp2Tid);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcBc);
+int calcBc(BattleUnit *unit, int delta)
+{
+    int bc;
+
+    bc = calcUPGet((ObjectTask *) unit)->bcValue;
+    bc += delta;
+    if (bc < 0)
+    {
+        bc = 0;
+    }
+    else if (calcUPGet((ObjectTask *) unit)->bcLimit < bc)
+    {
+        bc = calcUPGet((ObjectTask *) unit)->bcLimit;
+    }
+    calcUPGet((ObjectTask *) unit)->bcValue = bc;
+    return 1;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcCounter);
 
 INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcBoostChk);
 
 extern int *actStockGet(void);
-void calcBc(BattleUnit *unit, int delta);
+/* calcBc returns int, not void: its original asm sets $2 = 1
+ * (`addiu $2,$0,0x1`, build/ov01/asm/nonmatchings/ov01/calc/calcBc.s) right
+ * before the epilogue on every path. calcBoost (below, this TU) is the only
+ * caller and discards the result. */
+int calcBc(BattleUnit *unit, int delta);
 void decoEffCall(BattleUnit *unit, int effectId);
 int sndSysSePlay(int soundId);
 
@@ -599,7 +636,21 @@ int calcAtrChg(ObjectTask *unit, int attribute) {
 
 INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcTakeEpGet);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcSlotAChk);
+int calcSlotAChk(ObjectTask *unit, int techId)
+{
+    CalcUnitParam *param;
+    int i;
+
+    for (i = 0; i < 2; i++)
+    {
+        param = calcUPGet(unit);
+        if (param->slotTechniqueId[i] == techId)
+        {
+            return 1;
+        }
+    }
+    return 0;
+}
 
 int calcAttWpnChk(int weaponId)
 {
@@ -789,7 +840,30 @@ INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcItmEnableChk);
 
 INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcTgtUnitTbl);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcDeadUnitNum);
+int calcDeadUnitNum(ObjectTask *unit, int flag)
+{
+    ObjectTask **table;
+    int count;
+    int i;
+    int result;
+
+    count = unitTblGet(calcTrg2PE(unit, flag), &table);
+    result = 0;
+    if (count > 0)
+    {
+        for (i = 0; i < count; i++)
+        {
+            if (table[i] != 0)
+            {
+                if ((((CalcActorRecord *)table[i]->work)->flags & 0x80) != 0)
+                {
+                    result++;
+                }
+            }
+        }
+    }
+    return result;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcBattleChk);
 

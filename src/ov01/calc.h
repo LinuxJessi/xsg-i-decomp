@@ -120,7 +120,9 @@ struct CalcUnitParam {
     u16 currentEp;           /* +0x36: calcPara2OrgSub's copy source */
     short charaId;           /* +0x38 */
     signed char dblActKind;     /* +0x3A: calcDblActChk */
-    unsigned char unmodeled_3b[0x3E - 0x3B];
+    signed char bcLimit;        /* +0x3B: calcBc's own clamp ceiling */
+    signed char bcValue;        /* +0x3C: calcBc's own running counter */
+    unsigned char unmodeled_3d[0x3E - 0x3D];
     short turnBias;             /* +0x3E: calcWct/calcTurnEnd */
     short waitCount;            /* +0x40: calcTurnEnd/calcWctDec */
     short waitCountBase;        /* +0x42: calcTurnEnd */
@@ -132,7 +134,9 @@ struct CalcUnitParam {
     unsigned char unmodeled_6a[0x70 - 0x6A];
     short wpnSlotValue[3];   /* +0x70: calcDblActChk, per weapon slot */
     short normalTechniqueId[CALC_NORMAL_TECHNIQUE_COUNT]; /* +0x76 */
-    unsigned char unmodeled_82[0xAC - 0x82];
+    short slotTechniqueId[2];   /* +0x82: calcSlotAChk's own pair, right
+                                 * after normalTechniqueId. */
+    unsigned char unmodeled_86[0xAC - 0x86];
     u16 statActiveMask[8];   /* +0xAC: calcStatTurn's per-category bit set */
     unsigned char unmodeled_bc[0xCC - 0xBC];
     unsigned char statTurnCount[8][16]; /* +0xCC: calcStatTurn's countdown grid */
