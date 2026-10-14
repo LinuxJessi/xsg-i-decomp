@@ -336,7 +336,20 @@ int unitCmdNext(ObjectTask *unit)
     return objCmdNext(unit);
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitCmdSet);
+void unitCmdSet(ObjectTask *unit, CmdEntry *cmd)
+{
+    Actor *actor;
+    CmdEntry *entry;
+
+    actor = unit->work;
+    entry = objCmdPush(unit);
+    actor->runFrameCounter = 0;
+    actor->moveState = 0;
+    *entry = *cmd;
+    if (entry->selector != 0) {
+        actor->flags |= ACTOR_FLAG_CMD_PENDING;
+    }
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitCmdExec);
 
@@ -443,7 +456,31 @@ int unitCmdEnd(ObjectTask *unit)
 
 INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitCmdDmg);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitCmdEva);
+/*
+ * unitMotSet's own sibling, still asm in this TU; forward-declared for the
+ * call unitCmdEva makes before its own definition appears later in the
+ * file.
+ */
+extern void unitMotSet(ObjectTask *unit, int motion);
+
+int unitCmdEva(ObjectTask *unit)
+{
+    Actor *actor;
+    Actor *motionActor;
+
+    actor = unit->work;
+    if (actor->moveState == 0) {
+        unitMotSet(unit, 0x1A);
+        actor->moveState++;
+    } else {
+        motionActor = ((UnitRecord *) unit)->motionActor;
+        if (motionActor->moveFlags & 0x1000) {
+            unitMotStandSet(unit);
+            return unitCmdNext(unit);
+        }
+    }
+    return 0;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitCmdDef);
 

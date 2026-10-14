@@ -190,6 +190,7 @@ extern void unitClipSet(ObjectTask *unit);
 extern void *objCmdTailGet(ObjectTask *task);
 extern void *objCmdPtrGet(ObjectTask *task);
 extern int objCmdNext(ObjectTask *task);
+extern void *objCmdPush(ObjectTask *task);
 
 extern int unitCmdStand(ObjectTask *unit);
 
