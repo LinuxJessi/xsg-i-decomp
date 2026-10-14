@@ -52,6 +52,47 @@ typedef struct GrGifOpenTag {
     GrGifWord register_id;
 } GrGifOpenTag;
 
+/*
+ * grRotTransPers's output vertex: the screen-space X/Y grPutXxx (siblings,
+ * not decoded here) feed to the GS in 12.4 fixed point (the *16.0f below),
+ * the projected depth as a plain integer, and the out-of-frustum bit
+ * (0x8000) grRotTransPers itself copies from *clipFlags.
+ */
+typedef struct GrScreenVertex {
+    int x;      /* +0x00 */
+    int y;      /* +0x04 */
+    int z;      /* +0x08 */
+    int flags;  /* +0x0c */
+} GrScreenVertex;
+
+extern float grRotTransPers(GrScreenVertex *vertex, const Matrix4 matrix,
+                            const Vector4 *point, int *clipFlags);
+
+/* One GIF packed-mode quadword: an A+D register write, or as the vertex
+ * writers fill it ST/Q, RGBAQ or XYZ2 (the vertex grRotTransPers writes). */
+typedef struct GrGifSTQ {
+    float s; /* +0x00 */
+    float t; /* +0x04 */
+    float q; /* +0x08 */
+} GrGifSTQ;
+
+typedef struct GrGifRGBA {
+    int r; /* +0x00 */
+    int g; /* +0x04 */
+    int b; /* +0x08 */
+    int a; /* +0x0c */
+} GrGifRGBA;
+
+typedef union GrGifQuad {
+    GrGifOpenTag tag;
+    GrGifSTQ stq;
+    GrGifRGBA rgba;
+    GrScreenVertex xyz;
+} GrGifQuad;
+
+/* The packet's quadword at index, from a fresh read of packet->data. */
+#define GR_PACKET_QUAD(packet, index) ((GrGifQuad *)(packet)->data + (index))
+
 static inline void grGifOpenRegister(GrPacket *packet, unsigned long long register_id)
 {
     GrGifOpenTag *tags = packet->data;
@@ -96,6 +137,8 @@ extern const GrVramCopyParams D_00A466F0;
 extern const char D_00A46708[];
 extern int printf(const char *format, ...);
 extern void grVramCopy(GrVramCopyParams *params);
+extern void grGpInit(GrPacket *packet);
+extern void grPacketSend(GrPacket *packet);
 
 typedef struct GrRenderState {
     unsigned char unmodeled_00[0x20];
@@ -269,7 +312,45 @@ void grVramCopyFBtoFB(int source, int destination)
     grVramCopy(&params);
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/gr_gp_init", grVramCopy);
+/* Local-to-local GS transfer: BITBLTBUF (0x50), TRXPOS (0x51), TRXREG
+ * (0x52), then TRXDIR (0x53) = 2 starts it. */
+void grVramCopy(GrVramCopyParams *params)
+{
+    GrPacket packet;
+    int *count;
+
+    grGpInit(&packet);
+    grGifOpenRegister(&packet, 14);
+    count = &packet.count;
+    GR_PACKET_QUAD(&packet, (*count)++)->tag.control.bits = 0x1000000000008004ULL;
+
+    grGifOpenRegister(&packet, 0x50);
+    count = &packet.count;
+    GR_PACKET_QUAD(&packet, (*count)++)->tag.control.bits =
+        params->source_base |
+        (unsigned long long)params->source_width << 16 |
+        (unsigned long long)params->destination_base << 32 |
+        (unsigned long long)params->destination_width << 48;
+
+    grGifOpenRegister(&packet, 0x51);
+    count = &packet.count;
+    GR_PACKET_QUAD(&packet, (*count)++)->tag.control.bits =
+        params->source_x |
+        (unsigned long long)params->source_y << 16 |
+        (unsigned long long)params->destination_x << 32 |
+        (unsigned long long)params->destination_y << 48;
+
+    grGifOpenRegister(&packet, 0x52);
+    count = &packet.count;
+    GR_PACKET_QUAD(&packet, (*count)++)->tag.control.bits =
+        params->width | (unsigned long long)params->height << 32;
+
+    grGifOpenRegister(&packet, 0x53);
+    count = &packet.count;
+    GR_PACKET_QUAD(&packet, (*count)++)->tag.control.bits = 2;
+
+    grPacketSend(&packet);
+}
 
 void grOpenF2(GrPacket *packet)
 {
@@ -394,13 +475,113 @@ void grCloseSpr(void)
     tags[sprGpSave.count].control |= sprNum;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/gr_gp_init", grPutF2);
+/* grPutFT4STQ's quad: four corners, one shared RGBA and per-corner S/T. */
+typedef struct GrFT4STQVertices {
+    Vector4 points[4];       /* +0x00 */
+    unsigned char color[4];  /* +0x40: R, G, B, A */
+    float s[4];              /* +0x44 */
+    float t[4];              /* +0x54 */
+} GrFT4STQVertices;
 
-INCLUDE_ASM("asm/nonmatchings/ov01/gr_gp_init", grPutF4);
+/* grPutF2's line: two end points and one shared RGBA color. */
+typedef struct GrF2Vertices {
+    Vector4 points[2];      /* +0x00 */
+    unsigned char color[4]; /* +0x20: R, G, B, A */
+} GrF2Vertices;
+
+/* Writes each end point as RGBAQ + XYZ2. Without a matrix the points are
+ * already screen coordinates (12.4 fixed point, offset to the GS window). */
+void grPutF2(GrPacket *packet, GrF2Vertices *line, const Matrix4 matrix)
+{
+    int clipFlags = 0;
+    Vector4 *point = line->points;
+    int *count;
+    int i;
+
+    for (i = 0; i < 2; i++, point++) {
+        GR_PACKET_QUAD(packet, packet->count)->rgba.r = line->color[0];
+        GR_PACKET_QUAD(packet, packet->count)->rgba.g = line->color[1];
+        GR_PACKET_QUAD(packet, packet->count)->rgba.b = line->color[2];
+        count = &packet->count;
+        GR_PACKET_QUAD(packet, (*count)++)->rgba.a = line->color[3];
+        if (matrix == 0) {
+            GR_PACKET_QUAD(packet, *count)->xyz.x =
+                (int)point->x * 16 + 0x7000;
+            GR_PACKET_QUAD(packet, *count)->xyz.y =
+                (int)point->y * 16 + 0x7200;
+            GR_PACKET_QUAD(packet, *count)->xyz.z = (int)point->z;
+            GR_PACKET_QUAD(packet, (*count)++)->xyz.flags = 0;
+        } else {
+            grRotTransPers(&GR_PACKET_QUAD(packet, (*count)++)->xyz, matrix,
+                           &line->points[i], &clipFlags);
+        }
+    }
+    f2Num += 2;
+}
+
+/* grPutF4's quad: four corners and one shared RGBA color. */
+typedef struct GrF4Vertices {
+    Vector4 points[4];      /* +0x00 */
+    unsigned char color[4]; /* +0x40: R, G, B, A */
+} GrF4Vertices;
+
+/* grPutF2's writer for four corners instead of two. */
+void grPutF4(GrPacket *packet, GrF4Vertices *quad, const Matrix4 matrix)
+{
+    int clipFlags = 0;
+    Vector4 *point = quad->points;
+    int *count;
+    int i;
+
+    for (i = 0; i < 4; i++, point++) {
+        GR_PACKET_QUAD(packet, packet->count)->rgba.r = quad->color[0];
+        GR_PACKET_QUAD(packet, packet->count)->rgba.g = quad->color[1];
+        GR_PACKET_QUAD(packet, packet->count)->rgba.b = quad->color[2];
+        count = &packet->count;
+        GR_PACKET_QUAD(packet, (*count)++)->rgba.a = quad->color[3];
+        if (matrix == 0) {
+            GR_PACKET_QUAD(packet, *count)->xyz.x =
+                (int)point->x * 16 + 0x7000;
+            GR_PACKET_QUAD(packet, *count)->xyz.y =
+                (int)point->y * 16 + 0x7200;
+            GR_PACKET_QUAD(packet, *count)->xyz.z = (int)point->z;
+            GR_PACKET_QUAD(packet, (*count)++)->xyz.flags = 0;
+        } else {
+            grRotTransPers(&GR_PACKET_QUAD(packet, (*count)++)->xyz, matrix,
+                           &quad->points[i], &clipFlags);
+        }
+    }
+    f4Num += 4;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/gr_gp_init", grPutFT4);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/gr_gp_init", grPutFT4STQ);
+void grPutFT4STQ(GrPacket *packet, GrFT4STQVertices *quad,
+                 const Matrix4 matrix)
+{
+    int clipFlags = 0;
+    int *count;
+    int index;
+    float q;
+    int i;
+
+    for (i = 0; i < 4; i++) {
+        q = grRotTransPers(&(GR_PACKET_QUAD(packet, packet->count) + 2)->xyz,
+                           matrix, &quad->points[i], &clipFlags);
+        GR_PACKET_QUAD(packet, packet->count)->stq.s = quad->s[i] * q;
+        GR_PACKET_QUAD(packet, packet->count)->stq.t = quad->t[i] * q;
+        count = &packet->count;
+        index = *count;
+        GR_PACKET_QUAD(packet, index)->stq.q = q;
+        *count = index + 1;
+        GR_PACKET_QUAD(packet, *count)->rgba.r = quad->color[0];
+        GR_PACKET_QUAD(packet, *count)->rgba.g = quad->color[1];
+        GR_PACKET_QUAD(packet, *count)->rgba.b = quad->color[2];
+        GR_PACKET_QUAD(packet, *count)->rgba.a = quad->color[3];
+        *count += 2;
+    }
+    ft4STQNum += 4;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/gr_gp_init", grPutSpr);
 
@@ -457,19 +638,6 @@ void grRotMatrix(Matrix *destination, Matrix *source, FloatVector3 *angles)
     xglMatrixStackRotZ(angles->z);
     xglMatrixStackSave((float (*)[4])destination);
 }
-
-/*
- * grRotTransPers's output vertex: the screen-space X/Y grPutXxx (siblings,
- * not decoded here) feed to the GS in 12.4 fixed point (the *16.0f below),
- * the projected depth as a plain integer, and the out-of-frustum bit
- * (0x8000) grRotTransPers itself copies from *clipFlags.
- */
-typedef struct GrScreenVertex {
-    int x;      /* +0x00 */
-    int y;      /* +0x04 */
-    int z;      /* +0x08 */
-    int flags;  /* +0x0c */
-} GrScreenVertex;
 
 extern void xglVectorMulMat(Vector4 *destination, const Matrix4 matrix,
                             const Vector4 *vector);
@@ -555,7 +723,32 @@ void grGsRegSet(GrPacket *packet, unsigned long long register_id,
     grGifAppendRegister(packet, register_id, value);
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/gr_gp_init", grGsRegListSet);
+/* One GS register write of grGsRegListSet's list; register_id -1 ends it. */
+typedef struct GrGsRegListEntry {
+    int register_id;          /* +0x00 */
+    unsigned long long value; /* +0x08 */
+} GrGsRegListEntry;
+
+void grGsRegListSet(GrPacket *packet, GrGsRegListEntry *entries)
+{
+    GrGifOpenTag *head;
+    GrGifOpenTag *tags;
+    int *count;
+    int tag_index = packet->count;
+    int register_count = 0;
+
+    grGifAppendRegister(packet, 14, 0x1000000000008000ULL);
+    while (entries->register_id != -1) {
+        grGifOpenRegister(packet, entries->register_id);
+        count = &packet->count;
+        tags = packet->data;
+        tags[(*count)++].control.bits = entries->value;
+        entries++;
+        register_count++;
+    }
+    head = packet->data;
+    head[tag_index].control.bits |= register_count;
+}
 
 void GS_REG_SET(GrPacket *packet, long long register_id, long long control)
 {
