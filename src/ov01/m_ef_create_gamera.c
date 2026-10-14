@@ -12,19 +12,188 @@ extern void MMathCalcHermitePrm(HermiteVector *tangent_start, HermiteVector *tan
                                 const HermiteVector *point_end,
                                 const HermiteVector *point_next);
 
+#define GAMERA_TRAIL_LENGTH 28
+#define GAMERA_PATH_POINTS 4
+
+typedef unsigned int GameraQuadword __attribute__((mode(TI)));
+
+/* One quadword of a GIF packet: a GIF tag, an A+D register write, or a
+ * packed RGBAQ / XYZ2 register value. */
+typedef union GameraGsQword {
+    GameraQuadword whole;
+    unsigned short nloop; /* low halfword of a GIF tag: NLOOP and EOP */
+    struct {
+        u64 tag;
+        u64 registers;
+    } gif;
+    struct {
+        u64 data;
+        unsigned char address;
+    } ad;
+    struct {
+        int r, g, b, a;
+    } rgba;
+    struct {
+        int x, y, z, adc;
+    } xyz;
+} GameraGsQword;
+
+/* The GS packet MGsGPInit prepares and MGsGPTerm flushes (ov01 m_gs.c). */
+typedef struct GameraGsPacket {
+    void *data;
+    int capacity;
+    GameraGsQword *current; /* the open GIF tag */
+    int count;              /* queued quadwords */
+    int regCount;           /* NREG of the open GIF tag */
+} GameraGsPacket;
+
+/* The GAMERA record, at +0x20 of the pooled effect object. */
 typedef struct GameraWork {
-    unsigned char unmodeled_00[0x2d0];
+    unsigned char unmodeled_00[8];
+    u32 actor; /* +0x08 */
+    u32 coord; /* +0x0c */
+    unsigned char unmodeled_10[0x14];
+    u32 target_actor; /* +0x24 */
+    u32 target_coord; /* +0x28 */
+    unsigned char unmodeled_2c[0x44];
+    short frame; /* +0x70 */
+    unsigned char unmodeled_72[0x0e];
+    HermiteVector origin; /* +0x80 */
+    HermiteVector target; /* +0x90 */
+    short trail_active[GAMERA_TRAIL_LENGTH]; /* +0xa0 */
+    short trail_segment[GAMERA_TRAIL_LENGTH]; /* +0xd8 */
+    HermiteVector trail[GAMERA_TRAIL_LENGTH]; /* +0x110 */
     short segment; /* +0x2d0 */
     short path_frame; /* +0x2d2 */
     unsigned char unmodeled_2d4[12];
-    HermiteVector control_points[5]; /* +0x2e0 */
+    HermiteVector control_points[GAMERA_PATH_POINTS]; /* +0x2e0 */
+    float path_angle[GAMERA_PATH_POINTS]; /* +0x320 */
     HermiteVector tangent_start; /* +0x330 */
     HermiteVector tangent_end; /* +0x340 */
+    GameraGsPacket packet; /* +0x350 */
 } GameraWork;
 
-INCLUDE_ASM("asm/nonmatchings/ov01/m_ef_create_gamera", MEfCreate_GAMERA);
+typedef void (*GameraCallback)(void *self, void *work);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/m_ef_create_gamera", makePath_00A388A0);
+/* The pooled effect object: callbacks in its prefix, the record at +0x20. */
+typedef struct GameraEffect {
+    unsigned int : 32;
+    GameraCallback process; /* +0x04 */
+    unsigned int : 32;
+    GameraCallback draw_packet; /* +0x0c */
+    GameraCallback post_process; /* +0x10 */
+    unsigned int : 32;
+    unsigned int : 32;
+    unsigned int : 32;
+    GameraWork work; /* +0x20 */
+} GameraEffect;
+
+extern void MEfGetActorCoord(void *destination, u32 actor, u32 coord);
+extern void MGsGPInit(GameraGsPacket *packet, void *address, int size);
+static void makePath(GameraWork *state);
+static void makeHermiteParams(int segment, GameraWork *state);
+static void fnGAMERA_PR000(void *self, void *work);
+static void fnGAMERA_DP000(void *self, void *work);
+static void fnGAMERA_PO000(void *self, void *work);
+
+/* Copies one sixteen-byte-aligned vector whole through the original's $8. */
+#define GAMERA_COPY_VECTOR(destination, source)                          \
+    __asm__ __volatile__("lq $8, 0(%1)\n\tsq $8, 0(%0)"                  \
+                         : : "r"(destination), "r"(source) : "$8", "memory")
+
+int MEfCreate_GAMERA(MEfObjRecord *self)
+{
+    GameraEffect *effect = (GameraEffect *)self;
+    GameraWork *state = &effect->work;
+    HermiteVector *trail = state->trail;
+    HermiteVector *origin = &state->origin;
+
+    state->frame = 0;
+    MEfGetActorCoord(origin, state->actor, state->coord);
+    MEfGetActorCoord(&state->target, state->target_actor, state->target_coord);
+    memset(state->trail_active, 0, sizeof(state->trail_active));
+    memset(state->trail_segment, 0, sizeof(state->trail_segment));
+    memset(trail, 0, sizeof(state->trail));
+    GAMERA_COPY_VECTOR(trail, origin);
+    state->segment = 0;
+    state->path_frame = 0;
+    makePath(state);
+    makeHermiteParams(0, state);
+    MGsGPInit(&state->packet, 0, 0);
+    effect->process = fnGAMERA_PR000;
+    effect->draw_packet = fnGAMERA_DP000;
+    effect->post_process = fnGAMERA_PO000;
+    return 1;
+}
+
+extern void MEfGetActorMatrix(Matrix4 *matrix, u32 actor, u32 coord);
+extern Vector4 *MMathApplyMatrix(Vector4 *out, Matrix4 *matrix, const Vector4 *vector);
+extern float MMathMakeRandom(void);
+extern float MMathMakeRandom2PI(void);
+extern unsigned short xglSRand(void);
+
+/* Per-point forward distance and radius of the path (splat-named rodata). */
+extern float disttbl_0_00A517D0[GAMERA_PATH_POINTS];
+extern float rtbl_1_00A517E0[GAMERA_PATH_POINTS];
+
+/* Start angles inside (210, 330) degrees are rejected. */
+#define GAMERA_START_ANGLE_MIN 3.6651914f
+#define GAMERA_START_ANGLE_MAX 5.7595863f
+#define GAMERA_ANGLE_STEP 0.20943952f
+#define GAMERA_ANGLE_STEP_GROWTH 1.3f
+#define GAMERA_RADIUS_SCALE_MIN 0.05f
+
+static void makePath(GameraWork *state)
+{
+    Matrix4 matrix;
+    Vector4 point;
+    float angle;
+    float step;
+    float scale;
+    float cosine;
+    float sine;
+    int i;
+
+    MEfGetActorMatrix(&matrix, state->actor, state->coord);
+    do {
+        angle = MMathMakeRandom2PI();
+    } while (!(angle < GAMERA_START_ANGLE_MIN || angle > GAMERA_START_ANGLE_MAX));
+
+    step = GAMERA_ANGLE_STEP;
+    if ((xglSRand() & 1) == 0) {
+        step = -GAMERA_ANGLE_STEP;
+    }
+    scale = MMathMakeRandom() + GAMERA_RADIUS_SCALE_MIN;
+
+    for (i = 0; i < GAMERA_PATH_POINTS; i++) {
+        __asm__ __volatile__("sqc2 $vf0, 0(%0)" : : "r"(&point) : "memory");
+        __asm__ __volatile__(
+            "mfc1 $8,%1\n\t"
+            "qmtc2.ni $8,$vf4\n\t"
+            "vcallms 0xe8\n\t"
+            "qmfc2.i $8,$vf1\n\t"
+            "mtc1 $8,%0\n\t"
+            : "=f"(cosine)
+            : "f"(angle)
+            : "$8", "memory");
+        point.x = cosine * rtbl_1_00A517E0[i] * scale;
+        __asm__ __volatile__(
+            "mfc1 $8,%1\n\t"
+            "qmtc2.ni $8,$vf4\n\t"
+            "vcallms 0x20\n\t"
+            "qmfc2.i $8,$vf1\n\t"
+            "mtc1 $8,%0\n\t"
+            : "=f"(sine)
+            : "f"(angle)
+            : "$8", "memory");
+        point.y = sine * rtbl_1_00A517E0[i] * scale;
+        point.z = disttbl_0_00A517D0[i];
+        MMathApplyMatrix((Vector4 *)&state->control_points[i], &matrix, &point);
+        state->path_angle[i] = angle;
+        angle += step;
+        step *= GAMERA_ANGLE_STEP_GROWTH;
+    }
+}
 
 static void makeHermiteParams(int segment, GameraWork *state)
 {
@@ -62,7 +231,36 @@ static void makeHermiteCoord(float *destination, void *effect)
                      (HermiteVector *)(base + 752 + (segment << 4)));
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/m_ef_create_gamera", fnGAMERA_PR000);
+/* Frames per path segment (makeHermiteCoord steps by 1/8) and the frames
+ * during which the head travels the path and records the trail. */
+#define GAMERA_SEGMENT_FRAMES 8
+#define GAMERA_TRAVEL_FRAMES 0x18
+
+static void fnGAMERA_PR000(void *self, void *work)
+{
+    GameraWork *state = (GameraWork *)work;
+    HermiteVector *head;
+    int i;
+
+    for (i = GAMERA_TRAIL_LENGTH - 2; i >= 0; i--) {
+        state->trail_active[i + 1] = state->trail_active[i];
+        state->trail_segment[i + 1] = state->trail_segment[i];
+        GAMERA_COPY_VECTOR(&state->trail[i + 1], &state->trail[i]);
+    }
+    state->trail_active[0] = 0;
+    head = &state->trail[0];
+    __asm__ __volatile__("sqc2 $vf0, 0(%0)" : : "r"(head) : "memory");
+
+    if (state->frame < GAMERA_TRAVEL_FRAMES) {
+        state->trail_active[0] = 1;
+        state->trail_segment[0] = state->segment;
+        makeHermiteCoord(&head->x, state);
+        if (++state->path_frame >= GAMERA_SEGMENT_FRAMES) {
+            state->path_frame = 0;
+            makeHermiteParams(++state->segment, state);
+        }
+    }
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/m_ef_create_gamera", fnGAMERA_DP000);
 
