@@ -41,9 +41,12 @@ extern void battleMsgPut(int x, int y, int msgId, int frames);
  * The battle actor object a unit's actor/weapon slots point to. src/main/
  * chr.h, src/main/near_dir.h, src/main/set_motion.h and src/ov01/unit_cmd.h
  * all restate this same 0x70-byte head verbatim (a TU-local header cannot be
- * included from another TU); this TU adds only the float its own code
- * touches, at +0xC0 (transWepIn/transWepOut set it to 0.0/1.0, the same
- * "transparency" member src/ov01/unit_cmd.h restates at that offset).
+ * included from another TU); this TU adds only the words its own code
+ * touches: the float at +0xC0 (transWepIn/transWepOut set it to 0.0/1.0, the
+ * same "transparency" member src/ov01/unit_cmd.h restates at that offset)
+ * and the flags word at +0x6F0 (hairWindOn ORs in HAIR_WIND_BIT there for
+ * every other unit's actor; hairWindOff, still INCLUDE_ASM, is this bit's
+ * pair).
  */
 typedef struct Actor {
     u32 flags;
@@ -58,7 +61,11 @@ typedef struct Actor {
     Vector4 scale;
     unsigned char unmodeled_70[0xC0 - 0x70];
     float transparency; /* +0xC0 */
+    unsigned char unmodeled_c4[0x6F0 - 0xC4];
+    u32 windFlags; /* +0x6F0 */
 } Actor;
+
+#define HAIR_WIND_BIT 0x100000
 
 #define WEAPON_HIDDEN_BIT 0x8
 
@@ -442,7 +449,60 @@ int keyBuffIdxGet(void)
     return keyBuffIdx;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", keyBuffSet);
+/*
+ * Sentinel-terminated (0) command-key tables, one per calcUPGet() flags bit
+ * 0x40 (the enemy-side bit objEnCurCreate/objCurDraw already read): data
+ * still asm-owned, original ELF symbol names.
+ */
+extern const unsigned short keyItemTblAgws[];
+extern const unsigned short keyItemTblCha[];
+
+/* "** keyBuffSet: buff full\n"-style diagnostic; data still asm-owned. */
+extern const char D_00A43F60[];
+
+/*
+ * Looks key up in the unit's own command-key table (enemy or character,
+ * chosen by calcUPGet()'s flags bit 0x40) and, if it is a recognised key,
+ * appends it to the shared keyBuff queue. Returns whether it both matched a
+ * table entry and fit in the queue.
+ */
+int keyBuffSet(ObjectTask *unit, unsigned short key)
+{
+    const unsigned short *table;
+    int idx;
+    unsigned short entry;
+    int found;
+
+    found = 0;
+    if (calcUPGet(unit)->flags & 0x40) {
+        table = keyItemTblAgws;
+    } else {
+        table = keyItemTblCha;
+    }
+
+    idx = 0;
+    entry = table[idx];
+    while (entry != 0) {
+        if (key == entry) {
+            found = 1;
+            break;
+        }
+        idx++;
+        entry = table[idx];
+    }
+
+    if (!found) {
+        return 0;
+    }
+
+    if (keyBuffIdx < 8) {
+        keyBuff[keyBuffIdx] = key;
+        keyBuffIdx++;
+        return 1;
+    }
+    printf(D_00A43F60);
+    return 0;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", keyBuffChk);
 
@@ -797,7 +857,46 @@ int scenarioBatDataSync(int *sourceIndex)
 
 INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", etehrCVGet);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", hairWindOn);
+extern void EXM_SetDirectionalWind(Vector4 *direction);
+extern void EXM_SetShakePower(float power);
+extern void EXM_SetShakeTime(float time);
+
+/*
+ * Blows a fixed directional wind and camera shake, then sets HAIR_WIND_BIT
+ * on every other unit's actor (hairWindOff, still INCLUDE_ASM, is this
+ * bit's pair; unit itself is excluded).
+ */
+void hairWindOn(BattleUnit *unit)
+{
+    Vector4 direction;
+    BattleUnit **table;
+    BattleUnit **next;
+    BattleUnit *cur;
+    int remaining;
+    int count;
+
+    direction.x = 0.0f;
+    direction.y = 1.0f;
+    direction.z = 0.0f;
+    direction.w = 0.03f;
+    EXM_SetDirectionalWind(&direction);
+    EXM_SetShakePower(1.0f);
+    EXM_SetShakeTime(0.75f);
+
+    count = unitTblGet(0, &table);
+    if (count > 0) {
+        next = table;
+        remaining = count;
+        do {
+            cur = *next;
+            next++;
+            if (cur != 0 && cur != unit) {
+                cur->actor->windFlags |= HAIR_WIND_BIT;
+            }
+            remaining--;
+        } while (remaining != 0);
+    }
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", hairWindOff);
 
@@ -897,7 +996,56 @@ void syoukanFadeIn(ObjectTask *unit)
     }
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", syoukan1Sub);
+/*
+ * syoukan1Sub's first argument: the two words the body touches (src/ov01/
+ * data_unit_org_get.c owns the rest of whatever record this comes from,
+ * still asm there). The second argument is never read by this body.
+ */
+typedef struct Syoukan1SubArgs {
+    ObjectTask *unit; /* +0x00 */
+    unsigned char unmodeled_04[4];
+    int tecId;         /* +0x08 */
+} Syoukan1SubArgs;
+
+/*
+ * dataTecGet's return, as far as this body reads it: a byte at +0x00 whose
+ * bit 0x10 selects between the selector-0x2C and selector-0xF commands
+ * below (src/ov01/data_unit_org_get.c, dataTecGet's own TU, still asm, owns
+ * the rest of the layout).
+ */
+typedef struct TecFlagView {
+    unsigned char flags; /* +0x00 */
+} TecFlagView;
+
+extern TecFlagView *dataTecGet(int tecId);
+
+void syoukan1Sub(Syoukan1SubArgs *args, int reserved, int extra)
+{
+    SyoukanCmdEntry cmd;
+
+    unitCmdClear(args->unit);
+
+    cmd.selector = 0x2B;
+    cmd.argument = 8;
+    cmd.extra = extra;
+    unitCmdSet(args->unit, &cmd);
+
+    if (dataTecGet(args->tecId)->flags & 0x10) {
+        cmd.selector = 0x2C;
+    } else {
+        cmd.selector = 0xF;
+    }
+    unitCmdSet(args->unit, &cmd);
+
+    cmd.selector = 0x25;
+    cmd.argument = 0;
+    unitCmdSet(args->unit, &cmd);
+
+    cmd.selector = 0xD;
+    cmd.argument = 7;
+    cmd.extra = 0;
+    unitCmdSet(args->unit, &cmd);
+}
 
 /*
  * calcUPGet(unit)->linkedUnit's own CalcUnitParam (ov01/tu004 calc.c, still
