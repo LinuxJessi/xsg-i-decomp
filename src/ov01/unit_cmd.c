@@ -198,7 +198,32 @@ INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitAgwsPilotGet);
 
 INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitCreate);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitRemoveActor);
+/*
+ * Disposes the unit's actors: the optional sub-actor, the three weapon slots
+ * (indexed `slot & 3` like every other wpnActor access) and finally the
+ * motion actor. The weapon slot is reached as pointer arithmetic on the
+ * array: the subscript form makes the compiler hoist unit+12 as a loop base
+ * (+16 displacement), the original keeps unit itself with +0x1C.
+ */
+void unitRemoveActor(UnitRecord *unit)
+{
+    Actor *motionActor;
+    Actor *actor;
+    int i;
+
+    motionActor = unit->motionActor;
+    actor = unit->subActor;
+    if (actor != 0) {
+        ACT_dispose(actor);
+    }
+    for (i = 0; i < 3; i++) {
+        actor = *(unit->wpnActor + (i & 3));
+        if (actor != 0) {
+            ACT_dispose(actor);
+        }
+    }
+    ACT_dispose(motionActor);
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitRemove);
 
@@ -364,7 +389,31 @@ int unitCmdFree(ObjectTask *unit)
 
 INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitCmdAtk);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitCmdAtkSub);
+extern const char D_00A43980[];
+
+/*
+ * The error report is wrapped the way a debug-print macro wraps it, in a
+ * do/while (0) block: the original calls printf with jal and returns
+ * normally, while a bare trailing printf call is turned into a sibling call.
+ * The two range tests stay nested: the original branches on each one (lb),
+ * where a single `&&` folds them into one unsigned compare.
+ */
+#define UNIT_ERROR_PRINT(args) do { printf args; } while (0)
+
+void unitCmdAtkSub(ObjectTask *unit, UnitActRequest *request)
+{
+    TecJobView *tec;
+
+    scenarioBatInit();
+    tec = dataTecGet(request->id);
+    if (tec->jobType < 8) {
+        if (tec->jobType >= 0) {
+            unitJobTypeAtk(unit, request, tec);
+            return;
+        }
+    }
+    UNIT_ERROR_PRINT((D_00A43980, tec->jobType, request->id));
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitJobTypeAtk);
 
@@ -1046,7 +1095,20 @@ void unitDispOff(int side)
     }
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitColiGet);
+/*
+ * Combined collision distance of a unit approaching targetUnit, in the
+ * position table's units (/ 100). The first term is converted and kept in a
+ * callee-saved FP register across the second calcUPGet call, as the original
+ * does.
+ */
+float unitColiGet(ObjectTask *unit, ObjectTask *targetUnit)
+{
+    float distance;
+
+    distance = calcUPGet(unit)->coliMove;
+    distance += calcUPGet(targetUnit)->coliTarget;
+    return distance / 100.0f;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitAgwsChk);
 

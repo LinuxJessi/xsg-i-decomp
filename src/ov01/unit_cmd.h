@@ -121,7 +121,12 @@ struct UnitRecord {
     Actor *motionActor;                /* +0x14 */
     unsigned char unmodeled_018[0x1c - 0x18]; /* +0x18..+0x1b */
     Actor *wpnActor[4];                /* +0x1c */
+    Actor *subActor;                   /* +0x2c: unitRemoveActor disposes it
+                                         * first when it is set */
 };
+
+/* Defined in src/main/act_1.c on its own ActRecord spelling of the actor. */
+extern void ACT_dispose(Actor *actor);
 
 /* Its first parameter is already Actor-typed (src/main/act_2.c). */
 extern void *ACT_animGetData(Actor *actor, unsigned int dataId);
@@ -245,5 +250,29 @@ extern int dataMtdRead(UnitRecord *unit, int trigger);
 extern int dataDefWpnGet(UnitRecord *unit);
 extern void transWepIn(UnitRecord *unit, int slot);
 extern void transWepOut(UnitRecord *unit, int slot);
+
+/*
+ * The 0x10-byte action request unitCmdAtk builds on its stack and hands to
+ * unitCmdAtkSub, which forwards it to unitJobTypeAtk; its first word is the
+ * technique id dataTecGet resolves.
+ */
+typedef struct UnitActRequest {
+    int id;              /* +0x00: technique id */
+    unsigned char unmodeled_04[0x0C];
+} UnitActRequest;
+
+/*
+ * dataTecGet's record (src/ov01/data_unit_org_get.c, opaque there) as far as
+ * unitCmdAtkSub reads it: the signed job type at +4 picks one of
+ * unitJobTypeAtk's eight job kinds ("** JobType err" otherwise).
+ */
+typedef struct TecJobView {
+    unsigned char unmodeled_00[4];
+    signed char jobType; /* +0x04 */
+} TecJobView;
+
+extern void scenarioBatInit(void);
+extern TecJobView *dataTecGet(int tecId);
+extern void unitJobTypeAtk(ObjectTask *unit, UnitActRequest *request, TecJobView *tec);
 
 #endif /* SRC_OV01_UNIT_CMD_H */
