@@ -138,7 +138,13 @@ struct CalcUnitParam {
                                  * after normalTechniqueId. */
     unsigned char unmodeled_86[0xAC - 0x86];
     u16 statActiveMask[8];   /* +0xAC: calcStatTurn's per-category bit set */
-    unsigned char unmodeled_bc[0xCC - 0xBC];
+    /*
+     * +0xBC: calcStatReset (this TU, 0x00a17918) clears this per-category
+     * word (AND ~mask) instead of statActiveMask when its fourth argument
+     * is nonzero; every known caller passes 0 there, so only the clear
+     * itself is evidenced.
+     */
+    u16 statAltMask[8];      /* +0xBC */
     unsigned char statTurnCount[8][16]; /* +0xCC: calcStatTurn's countdown grid */
     u16 etherDisableFlags;   /* +0x14C: calcEtherDisableGet/Set's bit set */
     unsigned char unmodeled_14e[0x15C - 0x14E];

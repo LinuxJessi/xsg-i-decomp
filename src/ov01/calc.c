@@ -357,7 +357,59 @@ int calcEp(ObjectTask *unit, int delta)
 
 INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcBp);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcBp2Tid);
+/* calcBp (this TU, still asm): unit and the BP-decay timeline id. */
+extern void calcBp(ObjectTask *unit, int tid);
+
+/*
+ * dataTecGet's return, as far as calcBp2Tid reads it: a byte at +0x11
+ * selecting the BP timeline (data_unit_org_get.c, dataTecGet's own TU,
+ * still asm, owns the rest of the layout).
+ */
+typedef struct TecKindView TecKindView;
+
+struct TecKindView {
+    unsigned char unmodeled_00[0x11];
+    /*
+     * +0x11: calcBp2Tid's timeline selector. calcBp2Tid.s (0x00a1267c)
+     * reads it with `lb $2,0x11($2)` (signed byte load), hence `signed char`.
+     */
+    signed char kind;
+};
+
+extern TecKindView *dataTecGet(int tecId);
+extern int menuTimeGet(void);
+extern const char D_00A443D8[]; /* "** BP up: EventTimer G (%d)\n" */
+
+int calcBp2Tid(ObjectTask *unit, int tecId)
+{
+    BattleActor *actor;
+    int kind;
+    int tid;
+
+    actor = (BattleActor *) unit->work;
+    if (actor->flags & 0x40) {
+        return 0;
+    }
+
+    kind = dataTecGet(tecId)->kind;
+    if (kind == 0) {
+        tid = 4;
+    } else if (kind == 1) {
+        tid = 6;
+    } else if (kind == 2) {
+        tid = 10;
+    } else {
+        tid = 0;
+    }
+
+    if (menuTimeGet() == 2) {
+        tid *= 3;
+        printf(D_00A443D8, tid);
+    }
+
+    calcBp(unit, tid);
+    return 1;
+}
 
 int calcBc(BattleUnit *unit, int delta)
 {
@@ -894,7 +946,7 @@ int calcTrg2PE(ObjectTask *unit, int trgFlags)
 /* calcStatIdx2Bit/calcStatReset: calcStatTurn's own callees, defined later
  * in this TU (calcStatIdx2Bit below) or still asm (calcStatReset). */
 extern int calcStatIdx2Bit(int statIdx);
-extern void calcStatReset(ObjectTask *unit, int category, int mask, int unused);
+extern void calcStatReset(ObjectTask *unit, int category, int mask, int useAltMask);
 
 void calcStatTurn(ObjectTask *unit)
 {
@@ -938,7 +990,23 @@ INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcStatSetChk);
 
 INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcStatSet);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcStatReset);
+/* calcStatBit2Idx (this TU, defined below): shared with calcStatTurn. */
+extern int calcStatBit2Idx(int statBit);
+
+void calcStatReset(ObjectTask *unit, int category, int mask, int useAltMask)
+{
+    CalcUnitParam *up;
+    int idx;
+
+    up = calcUPGet(unit);
+    if (useAltMask == 0) {
+        up->statActiveMask[category] &= ~mask;
+        idx = calcStatBit2Idx(mask);
+        up->statTurnCount[category][idx] = 0;
+    } else {
+        up->statAltMask[category] &= ~mask;
+    }
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcStatDefTurnGet);
 
@@ -967,7 +1035,7 @@ int calcStatIdx2Bit(int statIdx)
     return 1 << statIdx;
 }
 
-void calcStatReset(ObjectTask *unit, int category, int mask, int unused);
+void calcStatReset(ObjectTask *unit, int category, int mask, int useAltMask);
 
 void calcStatResetCha(ObjectTask *unit) {
     calcStatReset(unit, 0, 0x7FFF, 0);
@@ -1048,7 +1116,35 @@ void calcSplineInit(CalcSpline *spline, int start, int end, int duration)
 
 INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcSpline);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcLinerSub);
+/*
+ * calcLinerSub's own point table, as far as it reads it: a pointer to an
+ * array of Vector4 entries (calcSpline's own callee, still asm in this TU).
+ * Vector4 is the shared four-float record from include/shared.h, used the
+ * same way (an indexed array, only x/y/z read) by src/ov01/unit_cmd.c's
+ * cmdTarget fields.
+ *
+ * The original (asm/nonmatchings/ov01/calc/calcLinerSub.s, 0x00a18a98):
+ * `sll $6,$6,4` scales idx by 16 before `addu $6,$6,$2` adds it to the base,
+ * proving the 16-byte stride per entry; the two `ldl/ldr` pairs at
+ * `0x7($6)`/`0x0($6)` and `0xf($6)`/`0x8($6)` copy points[idx] and
+ * points[idx+1] (0x10 bytes each) whole, and the `lwc1`/`sub.s`/`mul.s`/
+ * `add.s` sequence on $f0-$f5 at offsets 0x0/0x4/0x8 of each copy is the
+ * x/y/z lerp this function writes through `out`.
+ */
+typedef struct CalcLinerTbl {
+    Vector4 *points;
+} CalcLinerTbl;
+
+void calcLinerSub(CalcLinerTbl *tbl, Vector4 *out, int idx, float ratio)
+{
+    Vector4 a, b;
+
+    a = tbl->points[idx];
+    b = tbl->points[idx + 1];
+    out->x = a.x + (b.x - a.x) * ratio;
+    out->y = a.y + (b.y - a.y) * ratio;
+    out->z = a.z + (b.z - a.z) * ratio;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcBezierSub);
 
