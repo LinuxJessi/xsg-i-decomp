@@ -106,11 +106,48 @@ void *MCamGetSysCam(void)
     return sysCam;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/m_cam", MCamGetCurrentBaseCoord);
+/*
+ * R5900 native 128-bit vector copy (lq/sq through $8). The getters below copy
+ * through this one inline helper: the original shares a single lq/sq tail
+ * between both cases, which gcc's cross-jumping only produces when the two
+ * inlined asm statements come from the same source line.
+ */
+static __inline__ void MCamCopyVector(Vector4 *destination, const Vector4 *source)
+{
+    __asm__ __volatile__("lq $8,0(%1)\n\tsq $8,0(%0)"
+                         : : "r"(destination), "r"(source)
+                         : "$8", "memory");
+}
+
+Vector4 *MCamGetCurrentBaseCoord(Vector4 *baseCoord, int point)
+{
+    __asm__ __volatile__("sq $0,0(%0)" : : "r"(baseCoord) : "memory");
+    switch (point) {
+    case 0:
+        MCamCopyVector(baseCoord, &camParams.baseCoord[0]);
+        break;
+    case 1:
+        MCamCopyVector(baseCoord, &camParams.baseCoord[1]);
+        break;
+    }
+    return baseCoord;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/m_cam", MCamGetCurrentCoord);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/m_cam", MCamGetCurrentAngle);
+Vector4 *MCamGetCurrentAngle(Vector4 *angle, int point)
+{
+    __asm__ __volatile__("sq $0,0(%0)" : : "r"(angle) : "memory");
+    switch (point) {
+    case 0:
+        MCamCopyVector(angle, &camParams.angle[0]);
+        break;
+    case 1:
+        MCamCopyVector(angle, &camParams.angle[1]);
+        break;
+    }
+    return angle;
+}
 
 /* Vector copies below are the R5900 native 128-bit lq/sq pair through $8. */
 Vector4 *MCamGetCurrentEye(Vector4 *eye)
