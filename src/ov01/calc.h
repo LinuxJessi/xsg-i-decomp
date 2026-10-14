@@ -94,7 +94,7 @@ enum CalcTechniqueCount { CALC_NORMAL_TECHNIQUE_COUNT = 6 };
 typedef struct CalcUnitParam CalcUnitParam;
 
 struct CalcUnitParam {
-    unsigned char unmodeled_00[0x02];
+    short maxHp;                /* +0x00: calcIdol2Chk's threshold base */
     short maxEp;                /* +0x02: calcEp's clamp ceiling */
     unsigned char unmodeled_04[0x0C - 0x04];
     unsigned char hitStat;      /* +0x0C: calcHitParaGet's own signed view */
@@ -111,7 +111,9 @@ struct CalcUnitParam {
     */
     short coliMove;             /* +0x10: term used when this unit moves */
     short coliTarget;           /* +0x12: term used when it is approached */
-    unsigned char unmodeled_14[0x1C - 0x14];
+    unsigned char unmodeled_14[0x16 - 0x14];
+    signed char counterRate;    /* +0x16: calcCounter's base counter chance */
+    unsigned char unmodeled_17[0x1C - 0x17];
     u16 flags;               /* +0x1C */
     unsigned char unmodeled_1e[0x24 - 0x1E];
     u16 statProtect[1];      /* +0x24: calcStatProtectGet/Set's group word */

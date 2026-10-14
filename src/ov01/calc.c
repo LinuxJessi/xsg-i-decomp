@@ -35,7 +35,7 @@ struct CalcCmdEntry {
                                      * is evidenced here. */
 };
 
-extern void calcAp(ObjectTask *unit, int ap);
+extern int calcAp(ObjectTask *unit, int ap);
 extern CalcCmdEntry *unitCmdPtrGet(ObjectTask *unit);
 extern void unitCmdSet(ObjectTask *unit, CalcCmdEntry *cmd);
 
@@ -333,7 +333,20 @@ int calcSkillEquChkAll(int skillId)
     return found;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcAp);
+int calcAp(ObjectTask *unit, int ap)
+{
+    int current = calcUPGet(unit)->dblActKind;
+
+    if (ap < 0 && current < -ap) {
+        return 0;
+    }
+    current += ap;
+    if (current > 6) {
+        current = 6;
+    }
+    calcUPGet(unit)->dblActKind = current;
+    return 1;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcHp);
 
@@ -368,7 +381,9 @@ extern void calcBp(ObjectTask *unit, int tid);
 typedef struct TecKindView TecKindView;
 
 struct TecKindView {
-    unsigned char unmodeled_00[0x11];
+    unsigned char unmodeled_00[0x02];
+    u16 flags;              /* +0x02: bit 0x800 rules out a counter */
+    unsigned char unmodeled_04[0x11 - 0x04];
     /*
      * +0x11: calcBp2Tid's timeline selector. calcBp2Tid.s (0x00a1267c)
      * reads it with `lb $2,0x11($2)` (signed byte load), hence `signed char`.
@@ -429,7 +444,23 @@ int calcBc(BattleUnit *unit, int delta)
     return 1;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcCounter);
+/* calcSkill (this TU, still asm): unit's skill bonus for the given kind. */
+extern int calcSkill(ObjectTask *unit, int kind, int mask);
+
+int calcCounter(ObjectTask *unit, int tecId)
+{
+    int rate;
+
+    if (dataTecGet(tecId)->flags & 0x800) {
+        return 0;
+    }
+    rate = calcUPGet(unit)->counterRate;
+    rate += calcSkill(unit, 0x4000, 0x4000);
+    if (rate > 100) {
+        rate = 100;
+    }
+    return rnd(100) < rate;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcBoostChk);
 
@@ -455,7 +486,17 @@ int calcBoost(BattleUnit *unit, int mode) {
     return sndSysSePlay(9);
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcIdol2Chk);
+int calcIdol2Chk(ObjectTask *unit)
+{
+    int hp = (short) calcUPGet(unit)->currentHp;
+
+    if ((((BattleActor *) unit->work)->flags & 0x40) == 0) {
+        if (hp < calcUPGet(unit)->maxHp / 5) {
+            return 1;
+        }
+    }
+    return 0;
+}
 
 int calcTuigekiChk(ObjectTask *unit)
 {
@@ -482,7 +523,33 @@ int calcSpecChk(ObjectTask *unit, int specId)
     return result;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcDItemChk);
+/*
+ * dataItmGet's return, as far as calcItmEnableChk and calcDItemChk read it:
+ * the item's target-selection flags at +0x08 (`lbu $5,0x8($2)`), handed on
+ * to calcTgtUnitTbl, and a one-bit flag at the bottom of +0x09 that
+ * calcDItemChk tests (`lbu $3,0x9($2)`, `andi 0x1`, `andi 0xFF`).
+ */
+typedef struct ItmTrgView {
+    unsigned char unmodeled_00[0x08];
+    u8 trgFlags;        /* +0x08 */
+    u8 dItemEnable : 1; /* +0x09 bit 0 */
+} ItmTrgView;
+
+extern ItmTrgView *dataItmGet(int itmId);
+extern int calcTgtUnitTbl(ObjectTask *unit, int trgFlags, ObjectTask **table);
+extern int cfEventGet(void);
+extern int dataItmBoxChk(int itmId);
+
+int calcDItemChk(ObjectTask *unit, int itmId)
+{
+    if (calcUPGet(unit)->dblActKind >= 6
+        && (dataItmGet(itmId)->trgFlags & 0x10) == 0
+        && dataItmBoxChk(itmId) >= 2
+        && dataItmGet(itmId)->dItemEnable) {
+        return 1;
+    }
+    return 0;
+}
 
 void calcTurnStart(ObjectTask *unit)
 {
@@ -774,7 +841,26 @@ INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcBackLineChk);
 
 INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcWpnEnableChk);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcWpnUse);
+int calcWpnUse(ObjectTask *unit, int slot)
+{
+    CalcUnitParam *up;
+
+    if (slot != -1) {
+        if (slot >= 4) {
+            return 1;
+        }
+        up = calcUPGet(unit);
+        if (calcAttWpnChk(up->weaponId[slot]) != 0) {
+            if (up->wpnSlotValue[slot] != 0xFF) {
+                up->wpnSlotValue[slot]--;
+            }
+            if (up->wpnSlotValue[slot] < 0) {
+                up->wpnSlotValue[slot] = 0;
+            }
+        }
+    }
+    return 1;
+}
 
 int calcWpnEquipOrg(int charaId, int slot, int weaponId, int hand) {
     CalcCharParaData *origin;
@@ -888,7 +974,16 @@ INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcSameWpnChk);
 
 INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcEthEnableChk);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcItmEnableChk);
+int calcItmEnableChk(ObjectTask *unit, int itmId)
+{
+    if (calcTgtUnitTbl(unit, dataItmGet(itmId)->trgFlags, 0) == 0) {
+        return 0;
+    }
+    if (itmId == 0x10 && (cfEventGet() & 8) != 0) {
+        return 0;
+    }
+    return 1;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcTgtUnitTbl);
 
