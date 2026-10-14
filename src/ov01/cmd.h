@@ -317,6 +317,7 @@ extern int monsSetNoGet(void);
 extern short thinkRegNo(short pc);
 extern int thinkRegGet(int regIndex);
 extern void thinkRegSet(int regIndex, int value);
+
 extern int cmdNum(short pc);
 extern int cmdThinksetSub(ThinkProcess *proc);
 extern void cmdAtktblSortSub(ThinkProcess *proc);

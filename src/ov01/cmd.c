@@ -45,6 +45,8 @@ extern const char D_00A46300[];
 extern const char D_00A46308[];
 extern const char D_00A46468[];
 extern const char D_00A46578[];
+extern const char D_00A465C0[]; /* "** camCenterLength err **\n": cmdCamCenterLength (printf arg when camMode < 0) */
+extern float MCamGetLengthActor(int selector);
 
 void thinkSysInit(void)
 {
@@ -383,7 +385,25 @@ int thinkRegGet(int regIndex)
     return (short)value;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/cmd", thinkRegSet);
+void thinkRegSet(int regIndex, int value)
+{
+    unsigned short reg = regIndex;
+    unsigned short copy = reg;
+    unsigned short val = value & 0x7FFF;
+    short *address;
+
+    reg &= 0x3FFF;
+
+    if (copy & 0x4000) {
+        short *indirect = (short *)(pContext + reg * 2);
+
+        address = (short *)thinkAdrGet(*indirect);
+        *address = val;
+    } else {
+        address = (short *)(pContext + reg * 2);
+        *address = val;
+    }
+}
 
 int cmdReg(short pc)
 {
@@ -1087,7 +1107,18 @@ INCLUDE_ASM("asm/nonmatchings/ov01/cmd", cmdCamMove);
 
 INCLUDE_ASM("asm/nonmatchings/ov01/cmd", cmdCamShake);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/cmd", cmdCamCenterLength);
+int cmdCamCenterLength(ThinkProcess *proc)
+{
+    int regNo = thinkRegNo(proc->pc);
+
+    proc->pc += 2;
+    if (camMode < 0) {
+        printf(D_00A465C0);
+        return 0;
+    }
+    thinkRegSet(regNo & 0xFFFF, (int)(MCamGetLengthActor(camMode) * 100.0f) & 0xFFFF);
+    return 0;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/cmd", cmdCamUnitHeight);
 
@@ -1167,7 +1198,23 @@ int cmdCamMoveStop(void)
     return 0;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/cmd", cmdEvent);
+int cmdEvent(ThinkProcess *proc)
+{
+    int regNo = thinkRegNo(proc->pc);
+    ThinkProcess newProc;
+    int scriptOffset;
+    int handle;
+
+    proc->pc += 2;
+    scriptOffset = cmdNum(proc->pc);
+    proc->pc += 2;
+    newProc.dataTop = pDataTop;
+    newProc.pc = scriptOffset;
+    newProc.context = pContext;
+    handle = thinkProcessAdd(&newProc);
+    thinkRegSet(regNo & 0xFFFF, handle & 0xFFFF);
+    return 0;
+}
 
 /*
  * Structured forms tried against fndiff (asm/nonmatchings/ov01/cmd/cmdWaitEvent.s),
