@@ -13,12 +13,24 @@ The Sony SDK and public libraries do not need to be recovered.
 
 ## Progress
 
-Recovered 5,737 of 7,645 in-scope game function(s) (75.043%).
+Recovered 5,852 of 7,645 in-scope game function(s) (76.547%).
+
+<!-- coverage-report:begin -->
+Recovered 5,852 of 7,645 in-scope game function(s) (76.547%).
+
+- `exact_c` (pure C): 5,515 function(s)
+- `exact_c_with_asm`: 332 function(s)
+- `exact_asm`: 5 function(s)
+- `exact_vu_microcode`: 1 VU microprogram(s) (main/vu0-microcode): 224 instruction pair(s), 1,792 bytes, 19 entry point(s)
+  A VU microprogram is not an EE function: it is counted in its own
+  units and enters no EE function denominator.
+- empty-body functions: 6 of the counted function(s) are 8-byte `jr ra; nop` bodies
+<!-- coverage-report:end -->
 
 | Version | Target | Functions | Progress |
 | --- | --- | ---: | ---: |
 | NTSC-U | `SLUS_204.69` | 3,320 / 3,671 | 90.439% |
-| NTSC-U | `OV01.OVL` | 623 / 1,081 | 57.632% |
+| NTSC-U | `OV01.OVL` | 738 / 1,081 | 68.270% |
 | NTSC-U | `OV02.OVL` | 54 / 110 | 49.091% |
 | NTSC-U | `OV10.OVL` | 155 / 361 | 42.936% |
 | NTSC-U | `OV11.OVL` | 60 / 139 | 43.165% |
