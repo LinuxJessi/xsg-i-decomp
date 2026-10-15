@@ -159,6 +159,8 @@ extern void MenuModelMain(void);
 
 /* EUC-JP bytes for the model-test diagnostic with its leading control byte. */
 
+/* JP: モデルテスト
+ * EN: Model test */
 const unsigned char D_004C2AE8[16] =
     "\x0B\xA5\xE2\xA5\xC7\xA5\xEB\xA5\xC6\xA5\xB9\xA5\xC8";
 

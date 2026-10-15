@@ -85,6 +85,8 @@ typedef struct UwamonoMapUnit {
 
 /* Runtime-loaded object message with a hexadecimal unit identifier. */
 
+/* JP: 常駐上物ロード %x\n
+ * EN: Loading resident field objects %x\n */
 const char D_004CA028[24] = "\xBE\xEF\xC3\xF3\xBE\xE5\xCA\xAA\xA5\xED\xA1\xBC\xA5\xC9 %x\n";
 
 int uwares_tbl[14] = { 0 };

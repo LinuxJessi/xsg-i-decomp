@@ -1065,6 +1065,8 @@ static unsigned char dvdname_2[12] = "xenosaga.00";
  * continues from DVD; the final control-marked label says “Button: Continue”.
  * Preserve the embedded font controls and line breaks from the original. */
 
+/* JP: ハードディスクドライブにあるゼノサーガの\n\nアプリケーションデータが読み込めません。\n\nこれ以降はＤＶＤから読み込みを行います。\n\n\n\n○ボタン：続行
+ * EN: Cannot load the Xenosaga\n\napplication data on the hard disk drive.\n\nData will be loaded from the DVD from now on.\n\n\n\nCircle button: Continue */
 const unsigned char D_004D2628[] =
     "\x0b\x0e\x01\x01\x00\x00\x00\x0d\x03\xa5\xcf\xa1\xbc\xa5\xc9\xa5\xc7\xa5\xa3\xa5"
     "\xb9\xa5\xaf\xa5\xc9\xa5\xe9\xa5\xa4\xa5\xd6\xa4\xcb\xa4\xa2\xa4\xeb\xa5\xbc\xa5"

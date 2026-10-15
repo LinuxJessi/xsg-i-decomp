@@ -1220,6 +1220,8 @@ void GameDefocusSet(int index, int type, const int *settings)
     DefocusLayer *layer;
 
     if (index >= 16) {
+        /* JP: GameDefocusSet()の引数が異常です(%d)。\n
+         * EN: Invalid argument to GameDefocusSet() (%d).\n */
         printf("GameDefocusSet()\xA4\xCE\xB0\xFA\xBF\xF4\xA4\xAC\xB0\xDB\xBE\xEF\xA4\xC7\xA4\xB9(%d)\xA1\xA3\n", index);
         return;
     }
@@ -1252,6 +1254,8 @@ void GameDefocusQuickSet(int group_index, int preset, int color, int intensity)
 
     row_address = (u32)GameDefocusParam + (u32)group_index * 0x110u;
     if (group_index >= 4) {
+        /* JP: GameDefocusQuickSet()の引数が異常です(%d)。\n
+         * EN: Invalid argument to GameDefocusQuickSet() (%d).\n */
         printf("GameDefocusQuickSet()\xA4\xCE\xB0\xFA\xBF\xF4\xA4\xAC\xB0\xDB\xBE\xEF\xA4\xC7\xA4\xB9(%d)\xA1\xA3\n", group_index);
         return;
     }

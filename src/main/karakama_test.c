@@ -619,9 +619,13 @@ const char D_004C9CA0[] = "\xA1\xDF return\0\0\0\0\0\0";
 const char D_004C9D08[] = "buffer:%08x\n";
 const char D_004C9D18[] = "REGISTCF";
 const char D_004C9D28[] = "SO_VOK05";
+/* JP: サウンドパケットテスト
+ * EN: Sound packet test */
 const char D_004C9D38[24] = "\x0B\xA5\xB5\xA5\xA6\xA5\xF3\xA5\xC9\xA5\xD1\xA5\xB1\xA5\xC3\xA5\xC8\xA5\xC6\xA5\xB9\xA5\xC8";
 const char D_004C9D50[] = "\x0BSE=%8x\n";
 const char D_004C9D60[] = "\x0BID=%8x vol=%3d pan=%3d\n";
+/* JP: 唐鎌
+ * EN: Karakama */
 const char D_004DB6A8[] = "\x0B\xC5\xE2\xB3\xF9";
 const char D_004DB6B8[] = "ENV_VOK";
 static u64 rgba_0 = 0x0000FF00000000FFULL;
@@ -652,5 +656,4 @@ static TexTestSprite TestEnv_1_0036DDB0 = {
     {0x8FF8, 0x8DF8, 0x40000000, 0}
 };
 const char D_004C9D80[16] = "SetMapUnitTest\n";
-
 

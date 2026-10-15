@@ -658,115 +658,179 @@ extern int xglHddMcCreate(HddMcRequestParam *request);
 
 extern int xglHddMcSave(HddMcRequestParam *request);
 
+/* JP: エンセフェロン
+ * EN: Encephalon */
 #define MC_MAP_NAME_ENCEPHALON "\xA5\xA8\xA5\xF3\xA5\xBB\xA5\xD5\xA5\xA7\xA5\xED\xA5\xF3"
 
+/* JP: シミュレーター内
+ * EN: Inside the simulator */
 #define MC_MAP_NAME_SIMULATOR "\xA5\xB7\xA5\xDF\xA5\xE5\xA5\xEC\xA1\xBC\xA5\xBF\xA1\xBC\xC6\xE2"
 
+/* JP: メモカテスト
+ * EN: Memory card test */
 #define MC_TEXT_TITLE "\x0B\xA5\xE1\xA5\xE2\xA5\xAB\xA5\xC6\xA5\xB9\xA5\xC8"
 
+/* JP: ポート選択
+ * EN: Select port */
 #define MC_TEXT_SELECT_PORT "\xA5\xDD\xA1\xBC\xA5\xC8\xC1\xAA\xC2\xF2"
 
+/* JP: フォーマット
+ * EN: Format */
 #define MC_TEXT_FORMAT "\xA5\xD5\xA5\xA9\xA1\xBC\xA5\xDE\xA5\xC3\xA5\xC8"
 
+/* JP: アンフォーマット
+ * EN: Unformat */
 #define MC_TEXT_UNFORMAT "\xA5\xA2\xA5\xF3\xA5\xD5\xA5\xA9\xA1\xBC\xA5\xDE\xA5\xC3\xA5\xC8"
 
+/* JP: ロード　ファイル確認中
+ * EN: Load: Checking file */
 #define MC_TEXT_LOAD_CHECKING \
     "\xA5\xED\xA1\xBC\xA5\xC9\xA1\xA1\xA5\xD5\xA5\xA1\xA5\xA4\xA5\xEB" \
     "\xB3\xCE\xC7\xA7\xC3\xE6"
 
+/* JP: ロード　ファイルがありません\n\nＯ：戻る
+ * EN: Load: No file found\n\nO: Return */
 #define MC_TEXT_LOAD_NO_FILE \
     "\xA5\xED\xA1\xBC\xA5\xC9\xA1\xA1\xA5\xD5\xA5\xA1\xA5\xA4\xA5\xEB" \
     "\xA4\xAC\xA4\xA2\xA4\xEA\xA4\xDE\xA4\xBB\xA4\xF3\n\n\xA3\xCF\xA1" \
     "\xA7\xCC\xE1\xA4\xEB"
 
+/* JP: ファイル番号 %2d/99
+ * EN: File number %2d/99 */
 #define MC_TEXT_FILE_OF_99 "\xA5\xD5\xA5\xA1\xA5\xA4\xA5\xEB\xC8\xD6\xB9\xE6 %2d/99"
 
+/* JP: ファイルなし
+ * EN: No file */
 #define MC_TEXT_FILE_ABSENT "\xA5\xD5\xA5\xA1\xA5\xA4\xA5\xEB\xA4\xCA\xA4\xB7"
 
+/* JP: ファイルあり
+ * EN: File exists */
 #define MC_TEXT_FILE_PRESENT "\xA5\xD5\xA5\xA1\xA5\xA4\xA5\xEB\xA4\xA2\xA4\xEA"
 
+/* JP: ロード　ファイル%d読み込み中
+ * EN: Load: Reading file %d */
 #define MC_TEXT_LOAD_READING \
     "\xA5\xED\xA1\xBC\xA5\xC9\xA1\xA1\xA5\xD5\xA5\xA1\xA5\xA4\xA5\xEB" \
     "%d\xC6\xC9\xA4\xDF\xB9\xFE\xA4\xDF\xC3\xE6"
 
+/* JP: セーブ　空き容量：確認中
+ * EN: Save: Checking free space */
 #define MC_TEXT_SAVE_CHECKING_FREE \
     "\xA5\xBB\xA1\xBC\xA5\xD6\xA1\xA1\xB6\xF5\xA4\xAD\xCD\xC6\xCE\xCC" \
     "\xA1\xA7\xB3\xCE\xC7\xA7\xC3\xE6"
 
+/* JP: セーブ　空き容量：%5dKbyte
+ * EN: Save: Free space: %5dKbyte */
 #define MC_TEXT_SAVE_FREE \
     "\xA5\xBB\xA1\xBC\xA5\xD6\xA1\xA1\xB6\xF5\xA4\xAD\xCD\xC6\xCE\xCC" \
     "\xA1\xA7%5dKbyte"
 
+/* JP: ファイル番号 %2d
+ * EN: File number %2d */
 #define MC_TEXT_FILE_NUMBER "\xA5\xD5\xA5\xA1\xA5\xA4\xA5\xEB\xC8\xD6\xB9\xE6 %2d"
 
+/* JP: 新規作成します\n\nＯ：はい　　Ｘ：いいえ
+ * EN: Create a new file\n\nO: Yes    X: No */
 #define MC_TEXT_CREATE_CONFIRM \
     "\xBF\xB7\xB5\xAC\xBA\xEE\xC0\xAE\xA4\xB7\xA4\xDE\xA4\xB9\n\n\xA3" \
     "\xCF\xA1\xA7\xA4\xCF\xA4\xA4\xA1\xA1\xA1\xA1\xA3\xD8\xA1\xA7\xA4" \
     "\xA4\xA4\xA4\xA4\xA8"
 
+/* JP: セーブ　新規作成中
+ * EN: Save: Creating a new file */
 #define MC_TEXT_SAVE_CREATING \
     "\xA5\xBB\xA1\xBC\xA5\xD6\xA1\xA1\xBF\xB7\xB5\xAC\xBA\xEE\xC0\xAE" \
     "\xC3\xE6"
 
+/* JP: セーブ　ファイル%d確認中
+ * EN: Save: Checking file %d */
 #define MC_TEXT_SAVE_CHECKING_FILE \
     "\xA5\xBB\xA1\xBC\xA5\xD6\xA1\xA1\xA5\xD5\xA5\xA1\xA5\xA4\xA5\xEB" \
     "%d\xB3\xCE\xC7\xA7\xC3\xE6"
 
+/* JP: セーブ　ファイル%d
+ * EN: Save: File %d */
 #define MC_TEXT_SAVE_FILE "\xA5\xBB\xA1\xBC\xA5\xD6\xA1\xA1\xA5\xD5\xA5\xA1\xA5\xA4\xA5\xEB%d"
 
+/* JP: 上書きしてよろしいですか？\n\nＯ：はい　　Ｘ：いいえ
+ * EN: Overwrite the file?\n\nO: Yes    X: No */
 #define MC_TEXT_OVERWRITE_CONFIRM \
     "\xBE\xE5\xBD\xF1\xA4\xAD\xA4\xB7\xA4\xC6\xA4\xE8\xA4\xED\xA4\xB7" \
     "\xA4\xA4\xA4\xC7\xA4\xB9\xA4\xAB\xA1\xA9\n\n\xA3\xCF\xA1\xA7\xA4" \
     "\xCF\xA4\xA4\xA1\xA1\xA1\xA1\xA3\xD8\xA1\xA7\xA4\xA4\xA4\xA4\xA4" \
     "\xA8"
 
+/* JP: セーブ　ファイル%d書き込み中
+ * EN: Save: Writing file %d */
 #define MC_TEXT_SAVE_WRITING \
     "\xA5\xBB\xA1\xBC\xA5\xD6\xA1\xA1\xA5\xD5\xA5\xA1\xA5\xA4\xA5\xEB" \
     "%d\xBD\xF1\xA4\xAD\xB9\xFE\xA4\xDF\xC3\xE6"
 
+/* JP: フォーマットしてよろしいですか？\n\nＯ：はい　　×：いいえ
+ * EN: Format?\n\nO: Yes    Cross: No */
 #define MC_TEXT_FORMAT_CONFIRM \
     "\xA5\xD5\xA5\xA9\xA1\xBC\xA5\xDE\xA5\xC3\xA5\xC8\xA4\xB7\xA4\xC6" \
     "\xA4\xE8\xA4\xED\xA4\xB7\xA4\xA4\xA4\xC7\xA4\xB9\xA4\xAB\xA1\xA9" \
     "\n\n\xA3\xCF\xA1\xA7\xA4\xCF\xA4\xA4\xA1\xA1\xA1\xA1\xA1\xDF\xA1" \
     "\xA7\xA4\xA4\xA4\xA4\xA4\xA8"
 
+/* JP: フォーマット中・・・
+ * EN: Formatting... */
 #define MC_TEXT_FORMATTING \
     "\xA5\xD5\xA5\xA9\xA1\xBC\xA5\xDE\xA5\xC3\xA5\xC8\xC3\xE6\xA1\xA6" \
     "\xA1\xA6\xA1\xA6"
 
+/* JP: フォーマットが終了しました\n\nＯ：戻る
+ * EN: Formatting complete\n\nO: Return */
 #define MC_TEXT_FORMAT_DONE \
     "\xA5\xD5\xA5\xA9\xA1\xBC\xA5\xDE\xA5\xC3\xA5\xC8\xA4\xAC\xBD\xAA" \
     "\xCE\xBB\xA4\xB7\xA4\xDE\xA4\xB7\xA4\xBF\n\n\xA3\xCF\xA1\xA7\xCC" \
     "\xE1\xA4\xEB"
 
+/* JP: アンフォーマットしてよろしいですか？\n\nＯ：はい　　×：いいえ
+ * EN: Unformat?\n\nO: Yes    Cross: No */
 #define MC_TEXT_UNFORMAT_CONFIRM \
     "\xA5\xA2\xA5\xF3\xA5\xD5\xA5\xA9\xA1\xBC\xA5\xDE\xA5\xC3\xA5\xC8" \
     "\xA4\xB7\xA4\xC6\xA4\xE8\xA4\xED\xA4\xB7\xA4\xA4\xA4\xC7\xA4\xB9" \
     "\xA4\xAB\xA1\xA9\n\n\xA3\xCF\xA1\xA7\xA4\xCF\xA4\xA4\xA1\xA1\xA1" \
     "\xA1\xA1\xDF\xA1\xA7\xA4\xA4\xA4\xA4\xA4\xA8"
 
+/* JP: アンフォーマット中・・・
+ * EN: Unformatting... */
 #define MC_TEXT_UNFORMATTING \
     "\xA5\xA2\xA5\xF3\xA5\xD5\xA5\xA9\xA1\xBC\xA5\xDE\xA5\xC3\xA5\xC8" \
     "\xC3\xE6\xA1\xA6\xA1\xA6\xA1\xA6"
 
+/* JP: アンフォーマットが終了しました\n\nＯ：戻る
+ * EN: Unformatting complete\n\nO: Return */
 #define MC_TEXT_UNFORMAT_DONE \
     "\xA5\xA2\xA5\xF3\xA5\xD5\xA5\xA9\xA1\xBC\xA5\xDE\xA5\xC3\xA5\xC8" \
     "\xA4\xAC\xBD\xAA\xCE\xBB\xA4\xB7\xA4\xDE\xA4\xB7\xA4\xBF\n\n\xA3" \
     "\xCF\xA1\xA7\xCC\xE1\xA4\xEB"
 
+/* JP: ＨＤＤロード　ファイルがありません\n\nＯ：戻る
+ * EN: HDD load: No file found\n\nO: Return */
 #define MC_TEXT_HDD_LOAD_NO_FILE \
     "\xA3\xC8\xA3\xC4\xA3\xC4\xA5\xED\xA1\xBC\xA5\xC9\xA1\xA1\xA5\xD5" \
     "\xA5\xA1\xA5\xA4\xA5\xEB\xA4\xAC\xA4\xA2\xA4\xEA\xA4\xDE\xA4\xBB" \
     "\xA4\xF3\n\n\xA3\xCF\xA1\xA7\xCC\xE1\xA4\xEB"
 
+/* JP: ＨＤＤロード
+ * EN: HDD load */
 #define MC_TEXT_HDD_LOAD "\xA3\xC8\xA3\xC4\xA3\xC4\xA5\xED\xA1\xBC\xA5\xC9"
 
+/* JP: ＨＤＤセーブ　空き容量：%5dKbyte
+ * EN: HDD save: Free space: %5dKbyte */
 #define MC_TEXT_HDD_SAVE_FREE \
     "\xA3\xC8\xA3\xC4\xA3\xC4\xA5\xBB\xA1\xBC\xA5\xD6\xA1\xA1\xB6\xF5" \
     "\xA4\xAD\xCD\xC6\xCE\xCC\xA1\xA7%5dKbyte"
 
+/* JP: ロード
+ * EN: Load */
 #define MC_TEXT_LOAD "\xA5\xED\xA1\xBC\xA5\xC9"
 
+/* JP: セーブ
+ * EN: Save */
 #define MC_TEXT_SAVE "\xA5\xBB\xA1\xBC\xA5\xD6"
 
 static unsigned char tbl_48[4];
@@ -926,18 +990,30 @@ static unsigned char TestEnv_0_0036A030[0x90] = {
     0x01, 0x80, 0x00, 0x00, 0x00, 0x40, 0x8B, 0x80, 0xEE, 0x1E, 0x53, 0x53, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x47, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x44, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x42, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0xB8, 0x42, 0xA9, 0x06, 0x00, 0x07, 0x20, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7A, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x8A, 0x00, 0x00, 0x00, 0x88, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00
 };
 
+/* JP: アルファ
+ * EN: Alpha */
 static unsigned char test_1[22] = "\017\000\000\000\r\002\016\004\004\000\000\000\245\242\245\353\245\325\245\241\013";
 
+/* JP: 縁どり
+ * EN: Outline */
 static char test_4[16] = "\r\003\016\002\002\000\000\000\261\357\244\311\244\352\013";
 
+/* JP: 縁どり
+ * EN: Outline */
 static char test_5[16] = "\r\003\016\001\001\000\000\000\261\357\244\311\244\352\013";
 
+/* JP: ルビのテストヴＡＢＣ０１２
+ * EN: Ruby annotation test: vu ABC012 */
 static char test1_6[33] = "\r\003\030\001\245\353\245\323\244\316\245\306\245\271\245\310\245\364\243\301\243\302\243\303\243\260\243\261\243\262\030";
 
+/* JP: 漢字との対比
+ * EN: Comparison with kanji */
 static char test2_7[15] = "\r\003\264\301\273\372\244\310\244\316\302\320\310\346";
 
 static char test_10[13] = "\r\000\016\000\000\000\000\000\017D\000\200";
 
+/* JP: 文字テスト
+ * EN: Character test */
 static unsigned char txt_11[15] = "\001\200\005\000\312\270\273\372\245\306\245\271\245\310";
 
 static unsigned char xy3_12[12] = { 5, 0, 1, 0, 0, 1, 1, 1, 2, 1, 1, 2 };
@@ -952,6 +1028,8 @@ static char test_16[25] = "\031\000\243\316\243\357\243\362\243\355\243\341\243\
 
 static char test_17[43] = "\031\001\243\320\243\362\243\357\243\360\243\357\243\362\243\364\243\351\243\357\243\356\243\341\243\354\241\245\243\260\243\261\243\262\243\263\247\241\247\243\247\246";
 
+/* JP: テストテスト漢字テスト漢字
+ * EN: Test; test kanji; test kanji */
 static char test_18[40] = "\r\000\245\306\245\271\245\310\r\004\245\306\245\271\245\310\264\301\273\372\r\003\016\001\001\200\200\200\245\306\245\271\245\310\264\301\273\372\013";
 
 static char test_19[31] = "\246\330\247\241\247\242\247\243\247\301\247\321\247\322\247\323\247\361\250\241\250\242\250\243\250\300\255\241\255\242";
@@ -960,6 +1038,8 @@ static char init_20[13] = "\r\003\016\002\002\030\030\030\014\200\200\200";
 
 static char test_21[33] = "\025\002\004\000\031\003\025\002\002\010Half-width iiiiii test";
 
+/* JP: 全角文字列と一緒に…
+ * EN: Together with a full-width character string... */
 static char test_22[21] = "\301\264\263\321\312\270\273\372\316\363\244\310\260\354\275\357\244\313\241\304";
 
 static char test_23[33] = "\025\002\004\001\031\003\025\002\002\010Half-width iiiiii test";
@@ -1053,12 +1133,20 @@ char D_004C0808[32] __attribute__((section(".rodata"))) = "data\\yajima\\scenari
 
 char D_004C0828[16] __attribute__((section(".rodata"))) = "host0:nisui.txt";
 
+/* JP: 縮小文字のテストっす拡大菩薩魔法嵐闘\n\n菩薩魔法嵐闘\n改行テスト
+ * EN: Small character test; enlarge; bodhisattva, magic, storm, battle\n\nbodhisattva, magic, storm, battle\nLine break test */
 char D_004C0838[80] __attribute__((section(".rodata"))) = "\r\003\022\014\014\275\314\276\256\312\270\273\372\244\316\245\306\245\271\245\310\244\303\244\271\022  \263\310\302\347\022\014\014\312\356\273\247\313\342\313\241\315\362\306\256\022\n\n\312\356\273\247\313\342\313\241\315\362\306\256\n\262\376\271\324\245\306\245\271\245\310";
 
+/* JP: テスト（０）
+ * EN: Test (0) */
 char D_004C0888[24] __attribute__((section(".rodata"))) = "\r\002\016\004\004\000\000\000\245\306\245\271\245\310\241\312\243\260\241\313";
 
+/* JP: テスト（１）
+ * EN: Test (1) */
 char D_004C08A0[16] __attribute__((section(".rodata"))) = "\r\001\245\306\245\271\245\310\241\312\243\261\241\313";
 
+/* JP: ええと──　ああ　マークⅡ㌢
+ * EN: Um... ah... mark II, centi */
 char D_004C08B0[32] __attribute__((section(".rodata"))) = "\244\250\244\250\244\310\250\241\250\241\241\241\244\242\244\242\241\241\245\336\241\274\245\257\255\266\255\302";
 
 char D_004C08D0[16] __attribute__((section(".rodata"))) = "\013\r\002\025\002\001\014\025\002\002\010";
@@ -1081,6 +1169,8 @@ const char D_004C0958[16] = "3050C1_9";
 
 const char D_004C0968[16] = "prologue";
 
+/* JP: ムービープレーヤー\n\n\n%s\n\n上下で選択。\n\n○ボタンを押すと黒画面で待機します。\n\nその状態でさらに○ボタンで再生開始。\n\n再生中はゲーム中と同じ操作が可能。\n\n再生が終了するとまた黒画面で待機。\n\nそこで○ボタンを押すとこの画面に戻ります。
+ * EN: Movie player\n\n\n%s\n\nUse up/down to select.\n\nPress the circle button to wait on a black screen.\n\nPress the circle button again to start playback.\n\nThe usual in-game controls are available during playback.\n\nAfter playback ends, wait on a black screen again.\n\nPress the circle button there to return to this screen. */
 char D_004C0978[240] __attribute__((section(".rodata"))) = "\013\025\002\001\010\245\340\241\274\245\323\241\274\245\327\245\354\241\274\245\344\241\274\n\n\n%s\n\n\276\345\262\274\244\307\301\252\302\362\241\243\n\n\241\373\245\334\245\277\245\363\244\362\262\241\244\271\244\310\271\365\262\350\314\314\244\307\302\324\265\241\244\267\244\336\244\271\241\243\n\n\244\275\244\316\276\365\302\326\244\307\244\265\244\351\244\313\241\373\245\334\245\277\245\363\244\307\272\306\300\270\263\253\273\317\241\243\n\n\272\306\300\270\303\346\244\317\245\262\241\274\245\340\303\346\244\310\306\261\244\270\301\340\272\356\244\254\262\304\307\275\241\243\n\n\272\306\300\270\244\254\275\252\316\273\244\271\244\353\244\310\244\336\244\277\271\365\262\350\314\314\244\307\302\324\265\241\241\243\n\n\244\275\244\263\244\307\241\373\245\334\245\277\245\363\244\362\262\241\244\271\244\310\244\263\244\316\262\350\314\314\244\313\314\341\244\352\244\336\244\271\241\243";
 
 char D_004C0A68[24] __attribute__((section(".rodata"))) = "data\\movie\\mpeg2\\%s.pss";
@@ -1143,17 +1233,25 @@ char D_004C0C68[16] __attribute__((section(".rodata"))) = "SHUTDOWN";
 
 static char hdd_status_format[24] __attribute__((section(".rodata"))) = "HDIOC_STATUS:%d\n";
 
+/* JP: HDDデバイスが存在しません:%d\n
+ * EN: HDD device does not exist: %d\n */
 static char hdd_status_error_format[32] __attribute__((section(".rodata"))) =
     "HDD\xA5\xC7\xA5\xD0\xA5\xA4\xA5\xB9\xA4\xAC\xC2\xB8\xBA\xDF\xA4\xB7\xA4\xDE\xA4\xBB\xA4\xF3:%d\n";
 
 static char hdd_free_format[24] __attribute__((section(".rodata"))) = "xglHddMcGetFree:%d\n";
 
+/* JP: ＨＤＤテスト
+ * EN: HDD test */
 static char hdd_test_title[16] __attribute__((section(".rodata"))) = "\x0B\xA3\xC8\xA3\xC4\xA3\xC4\xA5\xC6\xA5\xB9\xA5\xC8";
 
 static char hdd_no_use_title[16] __attribute__((section(".rodata"))) = "HDD NoUse";
 
+/* JP: ポート２
+ * EN: Port 2 */
 char D_004C0CE8[16] __attribute__((section(".rodata"))) = "\245\335\241\274\245\310\243\262";
 
+/* JP: ポート１
+ * EN: Port 1 */
 char D_004C0CF8[16] __attribute__((section(".rodata"))) = "\245\335\241\274\245\310\243\261";
 
 static int rate_2_004D9F60 = 128;
@@ -3505,13 +3603,18 @@ static unsigned char tbl_48[4];
 
 static unsigned char tbl_49[4];
 
+/* JP: ＸＴＸデコード
+ * EN: XTX decode */
 static char D_004C14B8[16] __attribute__((section(".rodata"))) = "\x0B\xA3\xD8\xA3\xD4\xA3\xD8\xA5\xC7\xA5\xB3\xA1\xBC\xA5\xC9";
 
+/* JP: 起動時オプションでファイル名を指定してください
+ * EN: Please specify a filename in the startup options. */
 static char D_004C14C8[48] __attribute__((section(".rodata"))) = "\x0B\xB5\xAF\xC6\xB0\xBB\xFE\xA5\xAA\xA5\xD7\xA5\xB7\xA5\xE7\xA5\xF3\xA4\xC7\xA5\xD5\xA5\xA1\xA5\xA4\xA5\xEB\xCC\xBE\xA4\xF2\xBB\xD8\xC4\xEA\xA4\xB7\xA4\xC6\xA4\xAF\xA4\xC0\xA4\xB5\xA4\xA4";
 
+/* JP: 終了しました
+ * EN: Finished */
 static char D_004C14F8[16] __attribute__((section(".rodata"))) = "\xBD\xAA\xCE\xBB\xA4\xB7\xA4\xDE\xA4\xB7\xA4\xBF";
 
 const char D_004C1508[16] = "XTX DECODE";
 
 static char D_004C1518[24] __attribute__((section(".rodata"))) = "%4d.%2d.%2d\n%2d.%2d.%2d";
-

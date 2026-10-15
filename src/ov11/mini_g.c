@@ -719,6 +719,8 @@ extern void dprintf(const char *fmt, ...);
 
 /* ov11:0x00a05de0. Reports category 1, printing D_00A0C078 through
  * dprintf, when PoMultiChk's multiplicity equals 1. */
+/* JP: ワンペア\n
+ * EN: One pair\n */
 static const char D_00A0C078[16] = "\xA5\xEF\xA5\xF3\xA5\xDA\xA5\xA2\n";
 
 static int PoChk1(void)
@@ -732,6 +734,8 @@ static int PoChk1(void)
 
 /* ov11:0x00a05e20. Reports category 2, printing D_00A0C088 through
  * dprintf, when PoMultiChk's multiplicity equals 2. */
+/* JP: ツーペア\n
+ * EN: Two pair\n */
 static const char D_00A0C088[16] = "\xA5\xC4\xA1\xBC\xA5\xDA\xA5\xA2\n";
 
 static int PoChk2(void)
@@ -745,6 +749,8 @@ static int PoChk2(void)
 
 /* ov11:0x00a05e60. Reports category 3, printing D_00A0C098 through
  * dprintf, when PoMultiChk's multiplicity equals 3. */
+/* JP: スリーカード\n
+ * EN: Three of a kind\n */
 static const char D_00A0C098[16] = "\xA5\xB9\xA5\xEA\xA1\xBC\xA5\xAB\xA1\xBC\xA5\xC9\n";
 
 static int PoChk3(void)
@@ -761,6 +767,8 @@ INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", PoChk4);
 /* ov11:0x00a05fb0. Substitutes category 5 and prints D_00A0C0B8 through
  * dprintf whenever PoFlushChk returns nonzero; PoFlushChk's own nonzero
  * value is discarded rather than reused as the category. */
+/* JP: フラッシュ\n
+ * EN: Flush\n */
 static const char D_00A0C0B8[16] = "\xA5\xD5\xA5\xE9\xA5\xC3\xA5\xB7\xA5\xE5\n";
 
 static int PoChk5(void)
@@ -776,6 +784,8 @@ static int PoChk5(void)
 
 /* ov11:0x00a05fe8. Reports category 6, printing D_00A0C0C8 through
  * dprintf, when PoMultiChk's multiplicity equals 4. */
+/* JP: フルハウス\n
+ * EN: Full house\n */
 static const char D_00A0C0C8[16] = "\xA5\xD5\xA5\xEB\xA5\xCF\xA5\xA6\xA5\xB9\n";
 
 static int PoChk6(void)
@@ -789,6 +799,8 @@ static int PoChk6(void)
 
 /* ov11:0x00a06028. Reports category 7, printing D_00A0C0D8 through
  * dprintf, when PoMultiChk's multiplicity equals 5. */
+/* JP: フォーカード\n
+ * EN: Four of a kind\n */
 static const char D_00A0C0D8[16] = "\xA5\xD5\xA5\xA9\xA1\xBC\xA5\xAB\xA1\xBC\xA5\xC9\n";
 
 static int PoChk7(void)
@@ -800,6 +812,8 @@ static int PoChk7(void)
     return 0;
 }
 
+/* JP: ストレートフラッシュ\n
+ * EN: Straight flush\n */
 static const char D_00A0C0E8[24] = "\xA5\xB9\xA5\xC8\xA5\xEC\xA1\xBC\xA5\xC8\xA5\xD5\xA5\xE9\xA5\xC3\xA5\xB7\xA5\xE5\n";
 
 static int PoChk8(void)
@@ -833,6 +847,8 @@ static int PoChk8(void)
  * this run, reports 0. */
 #define POKER_HAND_RANK_INDEX 0xD1 /* short index; 0x1A2 / sizeof(short) */
 
+/* JP: ロイヤルストレートフラッシュ\n
+ * EN: Royal flush\n */
 static const char D_00A0C100[32] = "\xA5\xED\xA5\xA4\xA5\xE4\xA5\xEB\xA5\xB9\xA5\xC8\xA5\xEC\xA1\xBC\xA5\xC8\xA5\xD5\xA5\xE9\xA5\xC3\xA5\xB7\xA5\xE5\n";
 
 static int PoChk9(void)

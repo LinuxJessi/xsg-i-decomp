@@ -77,6 +77,8 @@ static int UmnSimulationScriptNoTbl[] = {
     0x00010B35
 };
 static const char *msg00_0_00A10888 = "Environmental Simulator";
+/* JP: シミュレーション
+ * EN: Simulation */
 const char D_00A132F8[] =
     "\245\267\245\337\245\345\245\354\241\274\245\267\245\347\245\363";
 extern void WindowDXSet(void *window);

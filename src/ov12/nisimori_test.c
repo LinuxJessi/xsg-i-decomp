@@ -28,6 +28,8 @@ extern unsigned char PadData[];
  * docs/naming.md "Scaffold-owned data keeps its splat name"): the debug
  * font control sequence NisimoriTest passes to xglFontDebugPrintf. */
 /* Font control bytes used by NisimoriTest; operands remain partially unknown. */
+/* JP: 西森
+ * EN: Nishimori */
 const char D_00A51430[16] = "\x0b\xc0\xbe\xbf\xb9";
 
 /*

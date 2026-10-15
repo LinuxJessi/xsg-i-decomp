@@ -904,4 +904,6 @@ void MAP_updateUnitItem(ItemMapUnit *unit)
 
 
 
+/* JP: 上物用デバッグメニュー
+ * EN: Field object debug menu */
 const char D_004CA680[24] = "\276\345\312\252\315\321\245\307\245\320\245\303\245\260\245\341\245\313\245\345\241\274";

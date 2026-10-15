@@ -169,28 +169,52 @@ const char D_004CA7F8[];
 
 static int debmode = 0;
 
+/* JP: 射撃軌跡表示　　オン
+ * EN: Shot trajectory display: On */
 const char D_004CA698[24] = "\xBC\xCD\xB7\xE2\xB5\xB0\xC0\xD7\xC9\xBD\xBC\xA8\xA1\xA1\xA1\xA1\xA5\xAA\xA5\xF3";
 
+/* JP: 射撃軌跡表示　　オフ
+ * EN: Shot trajectory display: Off */
 const char D_004CA6B0[24] = "\xBC\xCD\xB7\xE2\xB5\xB0\xC0\xD7\xC9\xBD\xBC\xA8\xA1\xA1\xA1\xA1\xA5\xAA\xA5\xD5";
 
+/* JP: 上物情報表示　　オン
+ * EN: Field object information display: On */
 const char D_004CA6C8[24] = "\xBE\xE5\xCA\xAA\xBE\xF0\xCA\xF3\xC9\xBD\xBC\xA8\xA1\xA1\xA1\xA1\xA5\xAA\xA5\xF3";
 
+/* JP: 上物情報表示　　オフ
+ * EN: Field object information display: Off */
 const char D_004CA6E0[24] = "\xBE\xE5\xCA\xAA\xBE\xF0\xCA\xF3\xC9\xBD\xBC\xA8\xA1\xA1\xA1\xA1\xA5\xAA\xA5\xD5";
 
+/* JP: 上物情報出力　　オン
+ * EN: Field object information output: On */
 const char D_004CA6F8[24] = "\xBE\xE5\xCA\xAA\xBE\xF0\xCA\xF3\xBD\xD0\xCE\xCF\xA1\xA1\xA1\xA1\xA5\xAA\xA5\xF3";
 
+/* JP: 上物情報出力　　オフ
+ * EN: Field object information output: Off */
 const char D_004CA710[24] = "\xBE\xE5\xCA\xAA\xBE\xF0\xCA\xF3\xBD\xD0\xCE\xCF\xA1\xA1\xA1\xA1\xA5\xAA\xA5\xD5";
 
+/* JP: コリジョン表示　オン
+ * EN: Collision display: On */
 const char D_004CA728[24] = "\xA5\xB3\xA5\xEA\xA5\xB8\xA5\xE7\xA5\xF3\xC9\xBD\xBC\xA8\xA1\xA1\xA5\xAA\xA5\xF3";
 
+/* JP: コリジョン表示　オフ
+ * EN: Collision display: Off */
 const char D_004CA740[24] = "\xA5\xB3\xA5\xEA\xA5\xB8\xA5\xE7\xA5\xF3\xC9\xBD\xBC\xA8\xA1\xA1\xA5\xAA\xA5\xD5";
 
+/* JP: 射撃フラグ　　　オン
+ * EN: Shooting flag: On */
 const char D_004CA758[24] = "\xBC\xCD\xB7\xE2\xA5\xD5\xA5\xE9\xA5\xB0\xA1\xA1\xA1\xA1\xA1\xA1\xA5\xAA\xA5\xF3";
 
+/* JP: 射撃フラグ　　　オフ
+ * EN: Shooting flag: Off */
 const char D_004CA770[24] = "\xBC\xCD\xB7\xE2\xA5\xD5\xA5\xE9\xA5\xB0\xA1\xA1\xA1\xA1\xA1\xA1\xA5\xAA\xA5\xD5";
 
+/* JP: イベントアイテム一覧
+ * EN: Event item list */
 const char D_004CA788[24] = "\xA5\xA4\xA5\xD9\xA5\xF3\xA5\xC8\xA5\xA2\xA5\xA4\xA5\xC6\xA5\xE0\xB0\xEC\xCD\xF7";
 
+/* JP: 宝箱中身一覧
+ * EN: Treasure chest contents list */
 const char D_004CA7A0[16] = "\xCA\xF5\xC8\xA2\xC3\xE6\xBF\xC8\xB0\xEC\xCD\xF7";
 
 void PauseMenuPageUwamono(void)
@@ -253,6 +277,8 @@ void PauseMenuPageUwamono(void)
 
 char D_004DB798[4] = "\xA1\xE4";
 
+/* JP: ×ボタンで戻る
+ * EN: Press the cross button to return */
 const char D_004CA7E8[16] = "\xA1\xDF\xA5\xDC\xA5\xBF\xA5\xF3\xA4\xC7\xCC\xE1\xA4\xEB";
 
 const char D_004CA7F8[16] = "%3d %s %c";
@@ -326,15 +352,23 @@ void DebDispItemBox(void)
         if (money == 0) {
             HexToStr(count, amount_text);
             xglFontDebugPrintf(4, y, "%3d %s", id, name);
+            /* JP: %s個
+             * EN: %s items */
             xglFontDebugPrintf(128, y, "%s\270\304", amount_text);
         } else {
             HexToStr(money, amount_text);
+            /* JP: %3d お金 %sＧ
+             * EN: %3d Money %sG */
             xglFontDebugPrintf(4, y, "%3d \244\252\266\342 %s\243\307", id, amount_text);
         }
         if (xglFlagsGet1(id + 0x79EC7) == 1)
+            /* JP: 取得済
+             * EN: Already obtained */
             xglFontDebugPrintf(152, y, "\274\350\306\300\272\321");
         if (chance != 0) {
             HexToStr(chance, chance_text);
+            /* JP: 確率%s
+             * EN: Probability %s */
             xglFontDebugPrintf(186, y, "\263\316\316\250%s", chance_text);
         }
         y += 16;
@@ -391,42 +425,72 @@ void DispDebugUwamono(void)
         y += 32;
         if (unit->serial < 0x1000) {
             x = screen_col - 32;
+            /* JP: パーツ%4d
+             * EN: Part %4d */
             xglFontDebugPrintf(x, y, "\015\000\245\321\241\274\245\304%4d", unit->serial);
         } else {
             x = screen_col - 32;
+            /* JP: モデル0x%4x
+             * EN: Model 0x%4x */
             xglFontDebugPrintf(x, y, "\015\000\245\342\245\307\245\3530x%4x", unit->serial);
         }
         switch (info->kind) {
         case UWAMONO_DOOR:
+            /* JP: ドア
+             * EN: Door */
             xglFontDebugPrintf(x, y + 12, "\015\000\245\311\245\242");
             break;
         case UWAMONO_BREAKABLE:
+            /* JP: 壊れ物
+             * EN: Breakable object */
             xglFontDebugPrintf(x, y + 12, "\015\000\262\365\244\354\312\252");
             if (info->state_flags & UWAMONO_SELF_BREAK)
+                /* JP: 自壊 ○
+                 * EN: Self-destruction: Yes */
                 xglFontDebugPrintf(x, y + 24, "\015\000\274\253\262\365 \241\373");
             else
+                /* JP: 自壊 ×
+                 * EN: Self-destruction: No */
                 xglFontDebugPrintf(x, y + 24, "\015\000\274\253\262\365 \241\337");
             if (info->state_flags & UWAMONO_ENEMY_BREAK)
+                /* JP: 敵壊 ○
+                 * EN: Enemy destruction: Yes */
                 xglFontDebugPrintf(x, y + 36, "\015\000\305\250\262\365 \241\373");
             else
+                /* JP: 敵壊 ×
+                 * EN: Enemy destruction: No */
                 xglFontDebugPrintf(x, y + 36, "\015\000\305\250\262\365 \241\337");
             break;
         case UWAMONO_COLLISION:
             if (unit->serial == MAP_UNIT_COLLISION) {
+                /* JP: コリジョン
+                 * EN: Collision */
                 xglFontDebugPrintf(x, y + 12, "\015\000\245\263\245\352\245\270\245\347\245\363");
             } else if (unit->serial == MAP_UNIT_SOUND) {
+                /* JP: 音 0x%8x
+                 * EN: Sound 0x%8x */
                 xglFontDebugPrintf(x, y + 12, "\015\000\262\273 0x%8x", info->sound);
                 break;
             } else {
+                /* JP: トラップ
+                 * EN: Trap */
                 xglFontDebugPrintf(x, y + 12, "\015\000\245\310\245\351\245\303\245\327");
             }
             if (info->state_flags & UWAMONO_SELF_BREAK)
+                /* JP: 自壊 ○
+                 * EN: Self-destruction: Yes */
                 xglFontDebugPrintf(x, y + 24, "\015\000\274\253\262\365 \241\373");
             else
+                /* JP: 自壊 ×
+                 * EN: Self-destruction: No */
                 xglFontDebugPrintf(x, y + 24, "\015\000\274\253\262\365 \241\337");
             if (info->state_flags & UWAMONO_ENEMY_BREAK)
+                /* JP: 敵壊 ○
+                 * EN: Enemy destruction: Yes */
                 xglFontDebugPrintf(x, y + 36, "\015\000\305\250\262\365 \241\373");
             else
+                /* JP: 敵壊 ×
+                 * EN: Enemy destruction: No */
                 xglFontDebugPrintf(x, y + 36, "\015\000\305\250\262\365 \241\337");
             break;
         case UWAMONO_TREASURE:
@@ -440,12 +504,18 @@ void DispDebugUwamono(void)
                 category = ItemBoxTbl[item].category;
             }
             if (money != 0)
+                /* JP: お金 %6d G
+                 * EN: Money %6d G */
                 xglFontDebugPrintf(x, y + 24, "\015\000\244\252\266\342 %6d G", money);
             else
+                /* JP: %s %3d個
+                 * EN: %s %3d items */
                 xglFontDebugPrintf(x, y + 24, "\015\000%s %3d\270\304",
                                    GetItemName(category, index), count);
             break;
         case UWAMONO_ITEM:
+            /* JP: アイテム
+             * EN: Item */
             xglFontDebugPrintf(x, y + 12, "\015\000\245\242\245\244\245\306\245\340");
             {
                 int item = info->item;
@@ -456,19 +526,29 @@ void DispDebugUwamono(void)
                 category = ItemBoxTbl[item].category;
             }
             if (money != 0)
+                /* JP: お金 %6dG
+                 * EN: Money %6dG */
                 xglFontDebugPrintf(x, y + 24, "\015\000\244\252\266\342 %6dG", money);
             else
+                /* JP: %s %3d個
+                 * EN: %s %3d items */
                 xglFontDebugPrintf(x, y + 24, "\015\000%s %3d\270\304",
                                    GetItemName(category, index), count);
             break;
         case UWAMONO_SAVE:
+            /* JP: セーブ
+             * EN: Save */
             xglFontDebugPrintf(x, y + 12, "\015\000\245\273\241\274\245\326");
             break;
         case UWAMONO_SHOP:
+            /* JP: ショップ
+             * EN: Shop */
             xglFontDebugPrintf(x, y + 12, "\015\000\245\267\245\347\245\303\245\327");
             break;
         }
         if (unit->serial != MAP_UNIT_SOUND && info->sound > 0)
+            /* JP: 音 0x%8x
+             * EN: Sound 0x%8x */
             xglFontDebugPrintf(x, y + 48, "\015\000\262\273 0x%8x", info->sound);
     }
 }
@@ -595,6 +675,8 @@ void DispPillar(Vector4 *base, Vector4 *step, const int *colors)
 
 char D_004DB798[4];
 const char D_004DB7A0[4];
+/* JP: 宝箱
+ * EN: Treasure chest */
 char D_004DB7D8[8] = "\015\000\312\365\310\242";
 static int debmode;
 static int page_2;
@@ -612,4 +694,3 @@ const char D_004CA788[24];
 const char D_004CA7A0[16];
 const char D_004CA7E8[16];
 const char D_004CA7F8[16];
-

@@ -1137,20 +1137,30 @@ const char D_004CBCF8[16] = "12:51:35";
 
 const char D_004CBD08[16] = "db%d%d : %d";
 
+/* JP: エフェクト選択\n
+ * EN: Effect selection\n */
 const char D_004CBD18[16] = "\245\250\245\325\245\247\245\257\245\310\301\252\302\362\n";
 
 const char D_004CBD28[16] = "%sz : %d";
 
+/* JP: コンボ＆雑魚敵領域テスト用のエフェクト選択
+ * EN: Effect selection for combo and regular enemy region tests */
 const char D_004CBD38[48] = "\245\263\245\363\245\334\241\365\273\250\265\373\305\250\316\316\260\350\245\306\245\271\245\310\315\321\244\316\245\250\245\325\245\247\245\257\245\310\301\252\302\362";
 
+/* JP: ＣＦ領域テスト用のエフェクト選択
+ * EN: Effect selection for CF region tests */
 const char D_004CBD68[40] =
     "\xA3\xC3\xA3\xC6\xCE\xCE\xB0\xE8\xA5\xC6\xA5\xB9\xA5\xC8\xCD\xD1"
     "\xA4\xCE\xA5\xA8\xA5\xD5\xA5\xA7\xA5\xAF\xA5\xC8\xC1\xAA\xC2\xF2";
 
+/* JP: 決定ボタンを押すとエフェクト起動\n
+ * EN: Press the confirm button to start the effect.\n */
 const char D_004CBD90[40] = "\267\350\304\352\245\334\245\277\245\363\244\362\262\241\244\271\244\310\245\250\245\325\245\247\245\257\245\310\265\257\306\260\n";
 
 const char D_004CBDB8[16] = "Now Loading\241\304\n";
 
+/* JP: ロード中\n
+ * EN: Loading\n */
 const char D_004CBDC8[16] = "\245\355\241\274\245\311\303\346\n";
 
 const char D_004CBDD8[16] = "hama.lex";

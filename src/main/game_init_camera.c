@@ -227,4 +227,6 @@ char *DB_pathFindName(char *path)
 
 
 
+/* JP: 遠藤
+ * EN: Endo */
 const char D_004DA660[8] = "\031\000\261\363\306\243";

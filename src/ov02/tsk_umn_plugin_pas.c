@@ -25,6 +25,8 @@ static void *msg00_0_00A10C40 = (void *)D_00A13440;
 unsigned char plugin_folder[16] = { 0 };
 static const char D_00A13450[8] = "";
 /* The original EUC-JP debug label spells プラグイン. */
+/* JP: プラグイン
+ * EN: Plugin */
 static const char D_00A13540[16] =
     "\xA5\xD7\xA5\xE9\xA5\xB0\xA5\xA4\xA5\xF3";
 extern unsigned short D_4A1A0C[];

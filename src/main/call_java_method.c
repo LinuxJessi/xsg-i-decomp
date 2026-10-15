@@ -393,6 +393,8 @@ int Check_InsideID(void *actor_ptr, LayoutHeader *first, LayoutHeader *second)
 }
 
 /* Font-script labels for the locator debug modes. */
+/* JP: 芳川テスト
+ * EN: Yoshikawa test */
 const char D_004CBB18[16] = "\013\xCB\xA7\xC0\xEE\xA5\xC6\xA5\xB9\xA5\xC8";
 const char D_004CBB28[16] = "\013HairTest";
 const char D_004CBB38[16] = "\013WindTest";

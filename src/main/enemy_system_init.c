@@ -295,24 +295,46 @@ EnemyInitActor *ACT_createEnemy(int number, int id)
 
 const char D_004DB858[8] = ".dat";
 
+/* JP: 初期化していない
+ * EN: Not initialized */
 const char D_004CAEF0[17] = "\275\351\264\374\262\275\244\267\244\306\244\244\244\312\244\244";
 
+/* JP: 警戒中：ポーズ
+ * EN: On alert: pose */
 const char D_004CAF08[15] = "\267\331\262\374\303\346\241\247\245\335\241\274\245\272";
 
+/* JP: 警戒中：威嚇
+ * EN: On alert: intimidation */
 const char D_004CAF18[13] = "\267\331\262\374\303\346\241\247\260\322\263\305";
 
+/* JP: 警戒中：回転
+ * EN: On alert: turning */
 const char D_004CAF28[13] = "\267\331\262\374\303\346\241\247\262\363\305\276";
 
+/* JP: 警戒中：ルート移動
+ * EN: On alert: moving along route */
 const char D_004CAF38[19] = "\267\331\262\374\303\346\241\247\245\353\241\274\245\310\260\334\306\260";
 
+/* JP: ユニーク動作
+ * EN: Unique action */
 const char D_004CAF50[13] = "\245\346\245\313\241\274\245\257\306\260\272\356";
 
+/* JP: 爆発ダメージ中
+ * EN: Taking explosion damage */
 const char D_004CAF60[15] = "\307\372\310\257\245\300\245\341\241\274\245\270\303\346";
 
+/* JP: 電撃ダメージ中
+ * EN: Taking electric shock damage */
 const char D_004CAF70[15] = "\305\305\267\342\245\300\245\341\241\274\245\270\303\346";
 
+/* JP: 封印ダメージ中
+ * EN: Taking seal damage */
 const char D_004CAF80[15] = "\311\365\260\365\245\300\245\341\241\274\245\270\303\346";
 
+/* JP: ルート上を逃亡
+ * EN: Fleeing along route */
 const char D_004CAF90[15] = "\245\353\241\274\245\310\276\345\244\362\306\250\313\264";
 
+/* JP: ルート上を追跡
+ * EN: Pursuing along route */
 const char D_004CAFA0[15] = "\245\353\241\274\245\310\276\345\244\362\304\311\300\327";

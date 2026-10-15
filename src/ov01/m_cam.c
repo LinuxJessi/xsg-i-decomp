@@ -8,6 +8,8 @@
 
 extern void MOutputDebugStringWarn(const char *format, ...);
 /* The message body after the ASCII prefix is encoded in EUC-JP. */
+/* JP: MCamReleaseControl: カメラは制御中ではない
+ * EN: MCamReleaseControl: The camera is not under control */
 const char D_00A50EF0[48] =
     "MCamReleaseControl: \xA5\xAB\xA5\xE1\xA5\xE9\xA4\xCF\xC0\xA9\xB8\xE6\xC3\xE6\xA4\xC7\xA4\xCF\xA4\xCA\xA4\xA4";
 const char D_00A51000[40] = "MCamGetAtkRange: Invalid ID (%d)";

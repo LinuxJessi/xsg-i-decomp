@@ -81,6 +81,8 @@ int MAP_loadUnitResource(MapUnitSlot *unit, int resource_id)
 
     if (model == 0) {
         /* Report the missing model resource. */
+        /* JP: モデルが見つかりませんでした。\n
+         * EN: Model not found.\n */
         LOG("\245\342\245\307\245\353\244\254\270\253\244\304\244\253\244\352\244\336\244\273\244\363\244\307\244\267\244\277\241\243\n");
     }
 

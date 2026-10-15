@@ -193,9 +193,13 @@ extern float xglRotTransPers(int *result, float matrix[4][4],
 
 extern const char D_004D2170[24];
 
+/* JP: fm%04d を読み込みます\n
+ * EN: Loading fm%04d\n */
 static const char D_004D2188[24] =
     "fm%04d \244\362\306\311\244\337\271\376\244\337\244\336\244\271\n";
 
+/* JP: mvs%04d を読み込みます\n
+ * EN: Loading mvs%04d\n */
 static const char D_004D21A0[24] =
     "mvs%04d \244\362\306\311\244\337\271\376\244\337\244\336\244\271\n";
 

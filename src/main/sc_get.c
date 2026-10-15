@@ -1483,9 +1483,13 @@ static int (*_scFuncHandler[73])(ScriptTask *task) = {
 
 static const char D_004CC790[40] = "--- error no load effect data %d";
 
+/* JP: 範囲外のエフェクトを消去しようとしてます %d %d
+ * EN: Attempting to delete an out-of-range effect %d %d */
 static const char D_004CC7B8[48] =
     "\xC8\xCF\xB0\xCF\xB3\xB0\xA4\xCE\xA5\xA8\xA5\xD5\xA5\xA7\xA5\xAF\xA5\xC8\xA4\xF2\xBE\xC3\xB5\xEE\xA4\xB7\xA4\xE8\xA4\xA6\xA4\xC8\xA4\xB7\xA4\xC6\xA4\xDE\xA4\xB9\x20\x25\x64\x20\x25\x64";
 
+/* JP: 範囲外のTask(%d)です
+ * EN: Task(%d) is out of range */
 static const char D_004CC7E8[24] = "\xC8\xCF\xB0\xCF\xB3\xB0\xA4\xCE" "Task(%d)" "\xA4\xC7\xA4\xB9";
 
 static const char D_004CC800[24] = "task work is empty : %d";

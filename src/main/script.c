@@ -123,6 +123,8 @@ const char D_004C1D60[] = "setDirection2";
 
 /* EUC-JP text below means "event in progress". */
 
+/* JP: イベント実行中
+ * EN: Event running */
 const char func_observer_debug_text[16] =
     "\xa5\xa4\xa5\xd9\xa5\xf3\xa5\xc8\xbc\xc2\xb9\xd4\xc3\xe6";
 
@@ -1244,7 +1246,11 @@ int DB_lightSave(ScriptFileSelect *state)
     if (lightFileNum >= 100)
         lightFileNum = 0;
     DB_reset(32, 160);
+    /* JP: ●ボタン：ロード
+     * EN: Filled circle button: Load */
     DB_println("\xa1\xfc\xa5\xdc\xa5\xbf\xa5\xf3\xa1\xa7\xa5\xed\xa1\xbc\xa5\xc9");
+    /* JP: ■ボタン：セーブ
+     * EN: Filled square button: Save */
     DB_println("\xa2\xa3\xa5\xdc\xa5\xbf\xa5\xf3\xa1\xa7\xa5\xbb\xa1\xbc\xa5\xd6");
     DB_println("lgt%02d.rc", lightFileNum);
     if (pad->pressed & 0x80) {

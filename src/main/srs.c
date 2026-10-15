@@ -284,6 +284,8 @@ typedef struct SrsBattlePrm {
 
 extern void tracePrint(const char *format, ...);
 
+/* JP: #### ＣＦエフェクトメモリが足りません!!
+ * EN: #### Not enough CF effect memory!! */
 static const char D_004CC720[40] = "#### \243\303\243\306\245\250\245\325\245\247\245\257\245\310\245\341\245\342\245\352\244\254\302\255\244\352\244\336\244\273\244\363!!";
 
 static const char D_004CC748[32] = "-- err category(%d) eft(%d)";
