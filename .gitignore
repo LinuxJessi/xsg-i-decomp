@@ -42,13 +42,16 @@
 /config/toolchain-local.json
 
 # ----------------------------------------------------------------- tools/
-# The build system is tracked; the workflow tools are not.
+# The build system and reusable header tools are tracked.
 /tools/*
 !/tools/configure.py
 !/tools/elf_gate.py
 !/tools/coverage_report.py
 !/tools/objdiff_report.py
 !/tools/tu_edit.py
+!/tools/header_harvest.py
+!/tools/header_types.py
+!/tools/header_inputs/
 !/tools/tu/
 
 # Inside tools/tu/, these regenerate the tracked inputs from the project's
