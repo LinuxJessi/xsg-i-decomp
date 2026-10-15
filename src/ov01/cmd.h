@@ -45,6 +45,22 @@ static int pDataTop;
 static int pContext;
 
 /*
+ * The AI execution context pContext points at. cmdGosub (0x00a1e210) and
+ * cmdReturn (0x00a1e298) push and pop script return addresses on a
+ * sixteen-entry stack at +0x80 (sh $3,0x80($2)) whose depth word sits at
+ * +0xA0 (lw $2,0xA0($5), slti $2,$2,0x10); cmdRpush (0x00a1e878) and cmdRpop
+ * (0x00a1e900) do the same for register values on a thirty-two-entry stack
+ * at +0xA4 (sh $8,0xA4($3)) with its depth at +0xE4 (slti $3,$3,0x20).
+ */
+typedef struct ThinkContext {
+    unsigned char unmodeled_0[0x80];
+    short returnStack[16];          /* +0x80: cmdGosub/cmdReturn */
+    int returnDepth;                /* +0xA0 */
+    short valueStack[32];           /* +0xA4: cmdRpush/cmdRpop */
+    int valueDepth;                 /* +0xE4 */
+} ThinkContext;
+
+/*
  * AI script data-segment base thinkMonsTblGet (0x00a1d790) installs through
  * thinkTopSet before it looks up a monster-set entry. Scaffold-owned data
  * (docs/naming.md).
@@ -85,13 +101,11 @@ typedef struct MonsTblEntry {
 static MonsTblEntry *pMonsSetTop;
 
 /*
- * The current map's camera-control table entry. camInitExec (0x00a1d820) is
- * the only claimed reader and touches only the initialization script offset
- * (lh $2,2($2) at 0x00a1d82c); the leading two bytes stay untouched by any
- * function this TU claims.
+ * The current map's camera-control table entry. camInitExec (0x00a1d820)
+ * reads the initialization script offset (lh $2,2($2) at 0x00a1d82c).
  */
 typedef struct CamTopEntry {
-    unsigned char unmodeled_0[2];
+    short camTblOffset;            /* +0x00: camInit (0x00a1d6e8, this TU) is the only claimed reader (lh $4,0x0($2) at 0x00a1d728), passing it to thinkAdrGet to install pCamSetTop */
     short initScript;              /* +0x02: camInitExec */
 } CamTopEntry;
 
@@ -203,12 +217,41 @@ extern ObjectTask *unitPtrGet(int unitNo);
  */
 extern int calcLineChk(ObjectTask *unit);
 
+/*
+ * calcStatGet (src/ov01/calc.c, still asm) reports whether a unit's status
+ * flags for the given category match the given flag; cmdStatGet
+ * (0x00a22358) is this TU's only claimed caller, redeclared the same way
+ * src/ov01/calc.c and src/ov01/unit_cmd.h already do.
+ */
+extern int calcStatGet(ObjectTask *unit, int category, int flag);
+
 /* calcUPGet's return type comes from its definer, ov01/tu004 calc.c
  * (published include/ov01/calc.h); calcUPGet itself is still asm there, so
  * it is redeclared here the same way src/ov01/snd.c, src/ov01/menu.c and
  * src/ov01/battle_init.c already do. */
 #include "ov01/calc.h"
 extern CalcUnitParam *calcUPGet(ObjectTask *unit);
+
+/*
+ * The battle unit record unitPtrGet (src/ov01/unit_cmd.c, still asm) returns,
+ * as far as cmdCamUnitHeight reads it: a separate motion actor at +0x14, the
+ * same offset src/ov01/unit_cmd.h's UnitRecord and
+ * src/ov01/data_unit_org_get.h's UnitEquipInfo already evidence for the same
+ * real object (neither header published yet, so this TU redeclares its own
+ * view the same way it already redeclares CalcUnitParam above).
+ */
+typedef struct CmdUnitRecord {
+    ObjectTask task;         /* +0x00..+0x13: the ObjectTask prefix, opaque here */
+    void *motionActor;       /* +0x14 */
+} CmdUnitRecord;
+
+/*
+ * sefGetNullPosition (src/main/sef.c) reads a scene-effect null's world
+ * position off an actor; cmdCamUnitHeight (0x00a21948) is the only claimed
+ * caller here, redeclared the same way src/ov01/m_cam.c and src/main/sdv.c
+ * already do.
+ */
+extern void sefGetNullPosition(Vector4 *position, void *actor, int part, int flag);
 
 /*
  * CalcUnitParam is owned by a different TU (ov01/tu004 calc.c) and is not
@@ -319,6 +362,7 @@ extern int monsSetNoGet(void);
 extern short thinkRegNo(short pc);
 extern int thinkRegGet(int regIndex);
 extern void thinkRegSet(int regIndex, int value);
+
 extern int cmdNum(short pc);
 extern int cmdThinksetSub(ThinkProcess *proc);
 extern void cmdAtktblSortSub(ThinkProcess *proc);

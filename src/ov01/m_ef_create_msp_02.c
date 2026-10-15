@@ -3,6 +3,7 @@
  */
 #include "common.h"
 #include "ov01/m_ef_create.h"
+#include "ov01/m_ef.h"
 #include "shared.h"
 
 extern float MMathCalcRotNear(float first, float second);
@@ -12,7 +13,9 @@ extern float MMathMakeRandom(void);
 extern float MMathMakeRandom2PI(void);
 extern float MMathCalcLengthXZ(Vector4 *vector);
 extern float MMathCalcLengthYZ(Vector4 *vector);
-extern void MMathCalcAngle(Vector4 *angles, Vector4 *from, Vector4 *to);
+/* Returns its destination: needed for the $2/$3 choice in MEfCreate_MSP02's
+ * second quadword-copy pair. */
+extern Vector4 *MMathCalcAngle(Vector4 *angles, Vector4 *from, Vector4 *to);
 extern void MMathVectorInterpolation(Vector4 *destination, Vector4 *first,
                                      Vector4 *second, float parameter);
 extern void MMathRotateMatrixYX(Matrix4 matrix, int flags, Vector4 *angles);
@@ -31,7 +34,7 @@ extern float tanf(float value);
  * and nothing here is sized to round the record out (docs/naming.md).
  *
  *   creationParameters  read, never written, by MEfCreate_MSP02 alone: the
- *                       actor/part pairs it passes to MEfGetActorMatrix
+ *                       actor/selector pairs it passes to MEfGetActorMatrix
  *                       (+0x08, +0x0c) and MEfGetActorCoord (+0x24, +0x28),
  *                       the Vector4 at +0x10 it rotates into spawnPoint, and
  *                       the pair fnMSP02_DM000 passes to MEfDrawModel (+0x40,
@@ -54,10 +57,10 @@ extern float tanf(float value);
  *   spread, angle       0.2 and MMathMakeRandom2PI() at creation, rewritten
  *                       here every seventh frame.
  *   drawPacket          MEfCreate_MSP02 calls MGsGPInit on +0x118 and stores
- *                       the two eight-byte svGetPrmFromName results at +0x130
- *                       and +0x138; fnMSP02_DP000 re-initialises the same
- *                       packet every frame, walks its pointer/counter fields
- *                       and picks one of the two eight-byte values per slot.
+ *                       the two cloud textures' TEX0 values (svGetPrmFromName)
+ *                       at +0x130 and +0x138; fnMSP02_DP000 re-initialises the
+ *                       same packet every frame, walks its pointer/counter
+ *                       fields and picks one of the two TEX0 values per slot.
  *                       Its interior belongs to the MGs packet builder, which
  *                       is outside this TU.
  *   active              MEfCreate_MSP02 memsets exactly 0x14 bytes here;
@@ -89,7 +92,14 @@ extern float tanf(float value);
 #define MSP02_POINTS_OFFSET 0x160
 
 struct MspCreationParameters {
-    unsigned char unmodeled_000[0x40];
+    unsigned char unmodeled_000[0x08];
+    ActRecord *actor;                                              /* 0x008 */
+    u32 actorCoordinate;                                           /* 0x00c */
+    Vector4 creationOffset;                                        /* 0x010 */
+    unsigned char unmodeled_020[0x04];
+    ActRecord *targetActor;                                        /* 0x024 */
+    u32 targetCoordinate;                                          /* 0x028 */
+    unsigned char unmodeled_02c[0x14];
     int model_entry;
     const char *texture_name;
     unsigned char unmodeled_048[0x28];
@@ -110,14 +120,112 @@ typedef struct MspEffect {
     Vector4 turn;                                                  /* 0x100 */
     float spread;                                                  /* 0x110 */
     float angle;                                                   /* 0x114 */
-    unsigned char drawPacket[0x28];                                /* 0x118 */
+    unsigned char drawPacket[0x18];                                /* 0x118 */
+    /* GS TEX0 of the de_cld01 / de_cld02 cloud textures
+     * (MEfCreate_MSP02: sd $2, 0x130($19) / sd $2, 0x138($19)). */
+    u64 cloudTexture[2];                                           /* 0x130 */
     unsigned short active[MSP02_TRAIL_SLOTS];                      /* 0x140 */
     unsigned char alignmentBeforePoints[0xc];                      /* 0x154 */
     Vector4 points[MSP02_TRAIL_SLOTS][MSP02_TRAIL_POINTS];         /* 0x160 */
     float twist[MSP02_TRAIL_SLOTS][MSP02_TRAIL_POINTS];            /* 0x2a0 */
 } MspEffect;
 
-INCLUDE_ASM("asm/nonmatchings/ov01/m_ef_create_msp_02", MEfCreate_MSP02);
+/* svGetPrmFromName's output (SvImageParameter, src/main/sv_get_image_item.c):
+ * the named texture's GS TEX0 value and its scaled width and height. Only
+ * the TEX0 is kept (MEfCreate_MSP02: ld $2, 0x0($29) after each call). */
+typedef struct Msp02ImageParameter {
+    u64 texture;
+    float width;
+    float height;
+} Msp02ImageParameter;
+
+typedef struct MspObject {
+    unsigned char unmodeled_00[4];
+    void (*processCallback)(void *self, MspEffect *effect);        /* 0x04 */
+    void (*drawModelCallback)(void *self, MspEffect *effect);      /* 0x08 */
+    void (*drawCallback)(void *self, MspEffect *effect);           /* 0x0c */
+    void (*postCallback)(void *self, MspEffect *effect);           /* 0x10 */
+    unsigned char unmodeled_14[0x0c];
+    MspEffect work;                                                /* 0x20 */
+} MspObject;
+
+extern Vector4 *MEfCalcCircumXZ(Vector4 *destination, const Vector4 *center, float radius);
+extern Vector4 *MMathSubVectorDivS(Vector4 *destination, const Vector4 *first,
+                                   const Vector4 *second, float divisor);
+extern void MGsGPInit(void *packet, void *address, int size);
+extern Msp02ImageParameter *svGetPrmFromName(const char *name, Msp02ImageParameter *output);
+/* MEfCreate_MSP02: lui $4, %hi(D_00A51680) / %hi(D_00A51690) for svGetPrmFromName. */
+extern const char D_00A51680[]; /* "de_cld01" */
+extern const char D_00A51690[]; /* "de_cld02" */
+
+#define MSP02_FLIGHT_FRAMES 20
+
+static void fnMSP02_PR000(void *task, MspEffect *effect);
+static void fnMSP02_DM000(void *task, MspEffect *effect);
+static void fnMSP02_DP000(void *task, MspEffect *effect);
+static void fnMSP02_PO000(void *self, MspEffect *effect);
+
+int MEfCreate_MSP02(MspObject *object)
+{
+    MspEffect *effect = &object->work;
+    struct MspCreationParameters *parameters =
+        (struct MspCreationParameters *)effect->creationParameters;
+    Msp02ImageParameter parameter;
+    Vector4 targetPoint;
+    Matrix4 actorMatrix;
+
+    effect->frame = 0;
+    MEfGetActorMatrix(&actorMatrix, parameters->actor, parameters->actorCoordinate);
+    MMathApplyMatrix(&effect->spawnPoint, actorMatrix, &parameters->creationOffset);
+    MEfGetActorCoord(&targetPoint, parameters->targetActor, parameters->targetCoordinate);
+    MEfCalcCircumXZ(&effect->circumPoint, &targetPoint, 1.0f);
+    /* Quadword copies: position = previousPosition = spawnPoint. */
+    __asm__ __volatile__(
+        "lq $8, 0(%1)\n"
+        "sq $8, 0(%0)\n"
+        :
+        : "r"(&effect->position), "r"(&effect->spawnPoint)
+        : "$8", "memory");
+    __asm__ __volatile__(
+        "lq $8, 0(%1)\n"
+        "sq $8, 0(%0)\n"
+        :
+        : "r"(&effect->previousPosition), "r"(&effect->spawnPoint)
+        : "$8", "memory");
+    MMathSubVectorDivS(&effect->velocity, &effect->circumPoint, &effect->spawnPoint,
+                       (float)MSP02_FLIGHT_FRAMES);
+    MMathCalcAngle(&effect->rotation, 0, &effect->velocity);
+    /* Quadword copies: target = previousTarget = spawnPoint. */
+    __asm__ __volatile__(
+        "lq $8, 0(%1)\n"
+        "sq $8, 0(%0)\n"
+        :
+        : "r"(&effect->target), "r"(&effect->spawnPoint)
+        : "$8", "memory");
+    __asm__ __volatile__(
+        "lq $8, 0(%1)\n"
+        "sq $8, 0(%0)\n"
+        :
+        : "r"(&effect->previousTarget), "r"(&effect->spawnPoint)
+        : "$8", "memory");
+    MMathCalcAngle(&effect->turn, 0, &effect->velocity);
+    effect->spread = 0.2f;
+    effect->angle = MMathMakeRandom2PI();
+    MGsGPInit(effect->drawPacket, 0, 0);
+    svGetPrmFromName(D_00A51680, &parameter);
+    effect->cloudTexture[0] = parameter.texture;
+    svGetPrmFromName(D_00A51690, &parameter);
+    effect->cloudTexture[1] = parameter.texture;
+    memset(effect->active, 0, sizeof(effect->active));
+    memset(effect->points, 0, sizeof(effect->points));
+    memset(effect->twist, 0, sizeof(effect->twist));
+
+    object->processCallback = fnMSP02_PR000;
+    object->drawModelCallback = fnMSP02_DM000;
+    object->drawCallback = fnMSP02_DP000;
+    object->postCallback = fnMSP02_PO000;
+    return 1;
+}
 
 /*
  * fnMSP02_PR000: per-frame update of the MSP02 effect: while the effect is younger than

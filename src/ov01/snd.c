@@ -12,6 +12,28 @@ extern int dataFileLoadNB(const char *filename, void *destination);
 
 extern int sndBankGet();
 
+/* ov01:0x00a2d1f8. The base of loaded sound-effect bank metadata (one record
+ * shaped like sndSeRegDat's element, ov01:0x00a42d18, size 0x68). */
+extern unsigned char sndSeDat[0x68];
+
+typedef struct {
+    SndSeLoadWork work; /* +0x00 */
+    /* +0x0c: address of the loaded bank's "sed"-tagged sound-effect block,
+     * computed from the header offset at dest+8 once the bank is loaded
+     * (dataSndSeLoad2 ov01:0x00a2d67c; checked against a magic before
+     * playback in sndSeTrans ov01:0x00a2d984). */
+    void *sed;
+    /* +0x10: address of the loaded bank's "swd"-tagged wave-data block,
+     * computed from the header offset at dest+0xc the same way (dataSndSeLoad2
+     * ov01:0x00a2d684; checked in sndSeTrans ov01:0x00a2d9c8). */
+    void *swd;
+} SndSeRegBank;
+typedef struct {
+    int id;               /* +0x00 */
+    SndSeRegBank bank[5]; /* +0x04 */
+} SndSeRegDat;
+extern SndSeRegDat sndSeRegDat[6];
+
 INCLUDE_ASM("asm/nonmatchings/ov01/snd", sndInit);
 
 extern int dmgBankOffs[3];
@@ -71,25 +93,15 @@ INCLUDE_ASM("asm/nonmatchings/ov01/snd", dataSndStEdNameGet);
 
 INCLUDE_ASM("asm/nonmatchings/ov01/snd", dataSndSeNameGet);
 
-/* ov01:0x00a2d1f8. Returns the address of sndSeDat (ov01:0x00a42d18, size
- * 0x68), the base of loaded sound-effect bank metadata; only its address is
- * evidenced by this allocation, not its internal layout. */
-extern unsigned char sndSeDat[0x68];
-
-void *sndSeAdrGet(void)
+/*
+ * Declared unprototyped in this TU: dataSndSeLoad2 (ov01:0x00a2d654/
+ * 0x00a2d658) and dataSndSeLoad evaluate and pass the owning unit's charaId
+ * here even though the body below ignores every argument.
+ */
+void *sndSeAdrGet()
 {
     return sndSeDat;
 }
-
-typedef struct {
-    SndSeLoadWork work;             /* +0x00 */
-    unsigned char unmodeled_0c[8]; /* +0x0c */
-} SndSeRegBank;
-typedef struct {
-    int id;               /* +0x00 */
-    SndSeRegBank bank[5]; /* +0x04 */
-} SndSeRegDat;
-extern SndSeRegDat sndSeRegDat[6];
 
 SndSeRegDat *sndSeRegAdrChk(int id)
 {
@@ -280,7 +292,33 @@ int dataSndSeLoadSub(ObjectTask *unit, int seType, SndSeLoadWork *work)
 
 INCLUDE_ASM("asm/nonmatchings/ov01/snd", dataSndSeLoad);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/snd", dataSndSeLoad2);
+/*
+ * ov01:0x00a2d648. Derives the two tagged-block pointers of the current
+ * unit's base sound-effect bank from its loaded file header, unless either
+ * is already set.
+ */
+void dataSndSeLoad2(ObjectTask *unit)
+{
+    SndSeRegDat *record;
+    SndSeRegBank *bank;
+    unsigned char *dest;
+
+    /* sndSeAdrGet ignores its argument (ov01:0x00a42d18 is a fixed global),
+     * but the caller still evaluates and passes the owning unit's charaId
+     * here (ov01:0x00a2d654/0x00a2d658), matching every other lookup in this
+     * TU that keys off calcUPGet(unit)->charaId. */
+    record = (SndSeRegDat *)sndSeAdrGet(calcUPGet(unit)->charaId);
+    bank = &record->bank[0];
+    if (bank->sed != 0) {
+        return;
+    }
+    if (bank->swd != 0) {
+        return;
+    }
+    dest = bank->work.dest;
+    bank->sed = dest + *(int *)(dest + 8);
+    bank->swd = dest + *(int *)(dest + 0xC);
+}
 
 /*
  * ov01:0x00a2d6a0. Claims a unit sound registration, loads its base bank,

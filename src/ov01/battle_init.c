@@ -41,9 +41,12 @@ extern void battleMsgPut(int x, int y, int msgId, int frames);
  * The battle actor object a unit's actor/weapon slots point to. src/main/
  * chr.h, src/main/near_dir.h, src/main/set_motion.h and src/ov01/unit_cmd.h
  * all restate this same 0x70-byte head verbatim (a TU-local header cannot be
- * included from another TU); this TU adds only the float its own code
- * touches, at +0xC0 (transWepIn/transWepOut set it to 0.0/1.0, the same
- * "transparency" member src/ov01/unit_cmd.h restates at that offset).
+ * included from another TU); this TU adds only the words its own code
+ * touches: the float at +0xC0 (transWepIn/transWepOut set it to 0.0/1.0, the
+ * same "transparency" member src/ov01/unit_cmd.h restates at that offset)
+ * and the flags word at +0x6F0 (hairWindOn ORs in HAIR_WIND_BIT there for
+ * every other unit's actor; hairWindOff, still INCLUDE_ASM, is this bit's
+ * pair).
  */
 typedef struct Actor {
     u32 flags;
@@ -58,7 +61,11 @@ typedef struct Actor {
     Vector4 scale;
     unsigned char unmodeled_70[0xC0 - 0x70];
     float transparency; /* +0xC0 */
+    unsigned char unmodeled_c4[0x6F0 - 0xC4];
+    u32 windFlags; /* +0x6F0 */
 } Actor;
+
+#define HAIR_WIND_BIT 0x100000
 
 #define WEAPON_HIDDEN_BIT 0x8
 
@@ -442,7 +449,60 @@ int keyBuffIdxGet(void)
     return keyBuffIdx;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", keyBuffSet);
+/*
+ * Sentinel-terminated (0) command-key tables, one per calcUPGet() flags bit
+ * 0x40 (the enemy-side bit objEnCurCreate/objCurDraw already read): data
+ * still asm-owned, original ELF symbol names.
+ */
+extern const unsigned short keyItemTblAgws[];
+extern const unsigned short keyItemTblCha[];
+
+/* "** keyBuffSet: buff full\n"-style diagnostic; data still asm-owned. */
+extern const char D_00A43F60[];
+
+/*
+ * Looks key up in the unit's own command-key table (enemy or character,
+ * chosen by calcUPGet()'s flags bit 0x40) and, if it is a recognised key,
+ * appends it to the shared keyBuff queue. Returns whether it both matched a
+ * table entry and fit in the queue.
+ */
+int keyBuffSet(ObjectTask *unit, unsigned short key)
+{
+    const unsigned short *table;
+    int idx;
+    unsigned short entry;
+    int found;
+
+    found = 0;
+    if (calcUPGet(unit)->flags & 0x40) {
+        table = keyItemTblAgws;
+    } else {
+        table = keyItemTblCha;
+    }
+
+    idx = 0;
+    entry = table[idx];
+    while (entry != 0) {
+        if (key == entry) {
+            found = 1;
+            break;
+        }
+        idx++;
+        entry = table[idx];
+    }
+
+    if (!found) {
+        return 0;
+    }
+
+    if (keyBuffIdx < 8) {
+        keyBuff[keyBuffIdx] = key;
+        keyBuffIdx++;
+        return 1;
+    }
+    printf(D_00A43F60);
+    return 0;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", keyBuffChk);
 
@@ -797,7 +857,46 @@ int scenarioBatDataSync(int *sourceIndex)
 
 INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", etehrCVGet);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", hairWindOn);
+extern void EXM_SetDirectionalWind(Vector4 *direction);
+extern void EXM_SetShakePower(float power);
+extern void EXM_SetShakeTime(float time);
+
+/*
+ * Blows a fixed directional wind and camera shake, then sets HAIR_WIND_BIT
+ * on every other unit's actor (hairWindOff, still INCLUDE_ASM, is this
+ * bit's pair; unit itself is excluded).
+ */
+void hairWindOn(BattleUnit *unit)
+{
+    Vector4 direction;
+    BattleUnit **table;
+    BattleUnit **next;
+    BattleUnit *cur;
+    int remaining;
+    int count;
+
+    direction.x = 0.0f;
+    direction.y = 1.0f;
+    direction.z = 0.0f;
+    direction.w = 0.03f;
+    EXM_SetDirectionalWind(&direction);
+    EXM_SetShakePower(1.0f);
+    EXM_SetShakeTime(0.75f);
+
+    count = unitTblGet(0, &table);
+    if (count > 0) {
+        next = table;
+        remaining = count;
+        do {
+            cur = *next;
+            next++;
+            if (cur != 0 && cur != unit) {
+                cur->actor->windFlags |= HAIR_WIND_BIT;
+            }
+            remaining--;
+        } while (remaining != 0);
+    }
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", hairWindOff);
 
@@ -835,13 +934,149 @@ INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", flowSpecProcInit);
 
 INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", flowSpecProc);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", syoukanFadeOut);
+/*
+ * The queued-command record unitCmdSet writes (src/ov01/unit_cmd.c, still
+ * asm there); src/ov01/calc.c restates the same layout as CalcCmdEntry for
+ * its own call into unitCmdSet, defined in that TU.
+ */
+typedef struct SyoukanCmdEntry SyoukanCmdEntry;
 
-INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", syoukanFadeIn);
+struct SyoukanCmdEntry {
+    int selector;      /* +0x00 */
+    int argument;      /* +0x04 */
+    int extra;         /* +0x08 */
+    unsigned char unmodeled_0c[8]; /* +0x0C: unwritten by any call here */
+};
 
-INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", syoukan1Sub);
+extern void unitCmdClear(ObjectTask *unit);
+extern void unitCmdSet(ObjectTask *unit, SyoukanCmdEntry *cmd);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", syoukan2Sub);
+/*
+ * syoukanFadeOut clears and re-queues (selector 0x30) every live side-0
+ * unit except the acting unit itself; syoukanFadeIn (next) is its
+ * counterpart with a different selector.
+ */
+void syoukanFadeOut(ObjectTask *unit)
+{
+    BattleUnit **table;
+    int count;
+    int i;
+
+    count = unitTblGet(0, &table);
+    for (i = 0; i < count; i++) {
+        if (table[i] != 0 && (ObjectTask *)table[i] != unit) {
+            SyoukanCmdEntry cmd;
+
+            cmd.selector = 0x30;
+            unitCmdClear((ObjectTask *)table[i]);
+            unitCmdSet((ObjectTask *)table[i], &cmd);
+        }
+    }
+}
+
+/*
+ * syoukanFadeIn is syoukanFadeOut's counterpart (selector 0x2F instead of
+ * 0x30, same loop shape).
+ */
+void syoukanFadeIn(ObjectTask *unit)
+{
+    BattleUnit **table;
+    int count;
+    int i;
+
+    count = unitTblGet(0, &table);
+    for (i = 0; i < count; i++) {
+        if (table[i] != 0 && (ObjectTask *)table[i] != unit) {
+            SyoukanCmdEntry cmd;
+
+            cmd.selector = 0x2F;
+            unitCmdClear((ObjectTask *)table[i]);
+            unitCmdSet((ObjectTask *)table[i], &cmd);
+        }
+    }
+}
+
+/*
+ * syoukan1Sub's first argument: the two words the body touches (src/ov01/
+ * data_unit_org_get.c owns the rest of whatever record this comes from,
+ * still asm there). The second argument is never read by this body; the
+ * third is the character id of the unit the summon replaces, carried in the
+ * 0x2B command's extra word (syoukan2Sub fills the same word from
+ * linkedUnit->charaId).
+ */
+typedef struct Syoukan1SubArgs {
+    ObjectTask *unit; /* +0x00 */
+    unsigned char unmodeled_04[4];
+    int tecId;         /* +0x08 */
+} Syoukan1SubArgs;
+
+/*
+ * dataTecGet's return, as far as this body reads it: a byte at +0x00 whose
+ * bit 0x10 selects between the selector-0x2C and selector-0xF commands
+ * below (src/ov01/data_unit_org_get.c, dataTecGet's own TU, still asm, owns
+ * the rest of the layout).
+ */
+typedef struct TecFlagView {
+    unsigned char flags; /* +0x00 */
+} TecFlagView;
+
+extern TecFlagView *dataTecGet(int tecId);
+
+void syoukan1Sub(Syoukan1SubArgs *args, int reserved, int replacementCharaId)
+{
+    SyoukanCmdEntry cmd;
+
+    unitCmdClear(args->unit);
+
+    cmd.selector = 0x2B;
+    cmd.argument = 8;
+    cmd.extra = replacementCharaId;
+    unitCmdSet(args->unit, &cmd);
+
+    if (dataTecGet(args->tecId)->flags & 0x10) {
+        cmd.selector = 0x2C;
+    } else {
+        cmd.selector = 0xF;
+    }
+    unitCmdSet(args->unit, &cmd);
+
+    cmd.selector = 0x25;
+    cmd.argument = 0;
+    unitCmdSet(args->unit, &cmd);
+
+    cmd.selector = 0xD;
+    cmd.argument = 7;
+    cmd.extra = 0;
+    unitCmdSet(args->unit, &cmd);
+}
+
+/*
+ * calcUPGet(unit)->linkedUnit's own CalcUnitParam (ov01/tu004 calc.c, still
+ * asm there, not yet published to add these members) carries a short at
+ * +0x44 inside calc.h's own unmodeled_44 span; the short at +0x38 is
+ * already published as charaId.
+ */
+#define CALC_PARAM_LINKED_UNK44_OFF 0x44
+
+void syoukan2Sub(ObjectTask **unit)
+{
+    SyoukanCmdEntry cmd;
+
+    unitCmdClear(*unit);
+
+    cmd.selector = 0x2B;
+    cmd.argument = *(short *)((char *)calcUPGet(*unit)->linkedUnit + CALC_PARAM_LINKED_UNK44_OFF);
+    cmd.extra = calcUPGet(*unit)->linkedUnit->charaId;
+    unitCmdSet(*unit, &cmd);
+
+    cmd.selector = 0xD;
+    cmd.argument = 1;
+    cmd.extra = 1;
+    unitCmdSet(*unit, &cmd);
+
+    cmd.selector = 0x2F;
+    unitCmdSet(*unit, &cmd);
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", specSyoukanProc);
 
@@ -1301,6 +1536,8 @@ typedef struct CursorSelectList {
     int count;         /* +0x48 */
     int curIdx;         /* +0x4C */
     int prevIdx;         /* +0x50 */
+    unsigned char unmodeled_54[4];
+    int groupFlag;       /* +0x58: toggled by curGrpSel */
 } CursorSelectList;
 
 /*
@@ -1357,7 +1594,19 @@ int curSel(CursorObject *cursor, CursorSelectList *list, int nextMask, int prevM
     return list->curIdx;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", curGrpSel);
+int curGrpSel(CursorObject *cursor, CursorSelectList *list, int nextMask, int prevMask)
+{
+    if (!(dataPadRead(1) & nextMask) && !(dataPadRead(1) & prevMask)) {
+        return 0;
+    }
+    if (list->groupFlag == 0) {
+        list->groupFlag = 1;
+    } else {
+        list->groupFlag = 0;
+    }
+    sndSysSePlay(0xA);
+    return 1;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", curMove2Pos);
 

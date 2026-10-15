@@ -3,6 +3,8 @@
  */
 #include "common.h"
 #include "shared.h"
+#include "main/xgl_dma.h"
+#include "main/xgl_render.h"
 
 /*
  * .bss for this TU is still scaffold-owned (config/tu-build.json
@@ -50,6 +52,12 @@ typedef struct MvRenderControl {
 
 #define MV_RENDER_STATE ((MvRenderControl *) 0x004a90e0)
 
+/* Owned by this TU's carved .data (asm/data/ov01/m_mv.data.s). */
+extern MvGifEnvironment mvEnv;
+
+#define MV_PAD_SKIP_HELD 0x100
+#define MV_PAD_SKIP_PRESSED 0x40
+
 
 
 
@@ -57,6 +65,9 @@ void MMvStop(void);
 
 /* Defined in src/main/xgl_1.c, still INCLUDE_ASM there. */
 extern int xglMovieClose(void *movie);
+extern int xglMoviePlay(void *movie);
+extern void FlushCache(int mode);
+extern void xglDmaDirectNormal(u32 channel, u32 address, u32 count);
 
 typedef struct MvPlayOptions {
     int flags;
@@ -75,7 +86,33 @@ int MMvInit(void)
     return 1;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/m_mv", MMvExec);
+void MMvExec(void)
+{
+    int finished;
+
+    if (mvFlags_00A43720 & MV_FLAG_PLAYING)
+    {
+        if ((mvFlags_00A43720 & MV_FLAG_SKIP_ENABLED) &&
+            (PadData.half_28 & MV_PAD_SKIP_HELD) &&
+            (PadData.half_2a & MV_PAD_SKIP_PRESSED))
+        {
+            MMvStop();
+            return;
+        }
+
+        finished = xglMoviePlay(D_00A5B6D0);
+        /* The flip base occupies bits 5 and above of the low command word. */
+        mvEnv.transfer_tag = 0x2000000640000000ULL | (u64)(0x24020000 | (sRender.flip_base << 5));
+        FlushCache(0);
+        xglDmaDirectNormal(2, (u32)&mvEnv, 9);
+
+        if (finished)
+        {
+            xglMovieClose(D_00A5B6D0);
+            mvFlags_00A43720 &= ~MV_FLAG_PLAYING;
+        }
+    }
+}
 
 int MMvPlay(const char *filename)
 {

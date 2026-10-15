@@ -84,7 +84,33 @@ int unitNumGet(int side)
     return count;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitLiveNumGet);
+int unitLiveNumGet(int side)
+{
+    UnitRecord **table;
+    UnitRecord **cur;
+    UnitRecord *unit;
+    int count;
+    int remaining;
+    int live;
+
+    count = unitTblGet(side, &table);
+    live = 0;
+    if (count > 0) {
+        cur = table;
+        remaining = count;
+        do {
+            unit = *cur;
+            cur++;
+            if (unit != 0) {
+                if (!(((Actor *)unit->task.work)->flags & 0x80)) {
+                    live++;
+                }
+            }
+            remaining--;
+        } while (remaining != 0);
+    }
+    return live;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitLiveNumGet2);
 
@@ -172,7 +198,32 @@ INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitAgwsPilotGet);
 
 INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitCreate);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitRemoveActor);
+/*
+ * Disposes the unit's actors: the optional sub-actor, the three weapon slots
+ * (indexed `slot & 3` like every other wpnActor access) and finally the
+ * motion actor. The weapon slot is reached as pointer arithmetic on the
+ * array: the subscript form makes the compiler hoist unit+12 as a loop base
+ * (+16 displacement), the original keeps unit itself with +0x1C.
+ */
+void unitRemoveActor(UnitRecord *unit)
+{
+    Actor *motionActor;
+    Actor *actor;
+    int i;
+
+    motionActor = unit->motionActor;
+    actor = unit->subActor;
+    if (actor != 0) {
+        ACT_dispose(actor);
+    }
+    for (i = 0; i < 3; i++) {
+        actor = *(unit->wpnActor + (i & 3));
+        if (actor != 0) {
+            ACT_dispose(actor);
+        }
+    }
+    ACT_dispose(motionActor);
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitRemove);
 
@@ -238,7 +289,26 @@ void unitPlInit(short *plTbl)
     } while (count >= 0);
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitEnInit);
+extern const char D_00A43968[];
+
+void unitEnInit(s16 *pl)
+{
+    int count;
+
+    count = 0;
+    for (;;) {
+        if (pl[0] == 0) {
+            break;
+        }
+        if (count >= 5) {
+            printf(D_00A43968);
+            break;
+        }
+        count++;
+        unitEnCreate(pl);
+        pl += 4;
+    }
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitClipSet);
 
@@ -291,7 +361,20 @@ int unitCmdNext(ObjectTask *unit)
     return objCmdNext(unit);
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitCmdSet);
+void unitCmdSet(ObjectTask *unit, CmdEntry *cmd)
+{
+    Actor *actor;
+    CmdEntry *entry;
+
+    actor = unit->work;
+    entry = objCmdPush(unit);
+    actor->runFrameCounter = 0;
+    actor->moveState = 0;
+    *entry = *cmd;
+    if (entry->selector != 0) {
+        actor->flags |= ACTOR_FLAG_CMD_PENDING;
+    }
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitCmdExec);
 
@@ -306,13 +389,50 @@ int unitCmdFree(ObjectTask *unit)
 
 INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitCmdAtk);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitCmdAtkSub);
+extern const char D_00A43980[];
+
+/*
+ * The error report is wrapped the way a debug-print macro wraps it, in a
+ * do/while (0) block: the original calls printf with jal and returns
+ * normally, while a bare trailing printf call is turned into a sibling call.
+ * The two range tests stay nested: the original branches on each one (lb),
+ * where a single `&&` folds them into one unsigned compare.
+ */
+#define UNIT_ERROR_PRINT(args) do { printf args; } while (0)
+
+void unitCmdAtkSub(ObjectTask *unit, UnitActRequest *request)
+{
+    TecJobView *tec;
+
+    scenarioBatInit();
+    tec = dataTecGet(request->id);
+    if (tec->jobType < 8) {
+        if (tec->jobType >= 0) {
+            unitJobTypeAtk(unit, request, tec);
+            return;
+        }
+    }
+    UNIT_ERROR_PRINT((D_00A43980, tec->jobType, request->id));
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitJobTypeAtk);
 
 INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitCmdAtkEnd);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitCmdDeadSet);
+int unitCmdDeadSet(ObjectTask *unit)
+{
+    CmdEntry cmd;
+
+    if (unit == 0 || (((Actor *) unit->work)->flags & 0x80)) {
+        return 0;
+    }
+    if (*(short *) &calcUPGet(unit)->currentHp != 0) {
+        return 0;
+    }
+    cmd.selector = 0xC;
+    unitCmdSet(unit, &cmd);
+    return 1;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitCmdEther);
 
@@ -385,7 +505,31 @@ int unitCmdEnd(ObjectTask *unit)
 
 INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitCmdDmg);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitCmdEva);
+/*
+ * unitMotSet's own sibling, still asm in this TU; forward-declared for the
+ * call unitCmdEva makes before its own definition appears later in the
+ * file.
+ */
+extern void unitMotSet(ObjectTask *unit, int motion);
+
+int unitCmdEva(ObjectTask *unit)
+{
+    Actor *actor;
+    Actor *motionActor;
+
+    actor = unit->work;
+    if (actor->moveState == 0) {
+        unitMotSet(unit, 0x1A);
+        actor->moveState++;
+    } else {
+        motionActor = ((UnitRecord *) unit)->motionActor;
+        if (motionActor->moveFlags & 0x1000) {
+            unitMotStandSet(unit);
+            return unitCmdNext(unit);
+        }
+    }
+    return 0;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitCmdDef);
 
@@ -928,9 +1072,43 @@ void unitDispOn(int side)
     }
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitDispOff);
+void unitDispOff(int side)
+{
+    UnitRecord **table;
+    int count;
+    UnitRecord **cur;
+    int remaining;
+    UnitRecord *unit;
 
-INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitColiGet);
+    count = unitTblGet(side, &table);
+    if (count > 0) {
+        cur = table;
+        remaining = count;
+        do {
+            unit = *cur;
+            cur++;
+            if (unit != 0) {
+                unit->motionActor->flags |= 8;
+            }
+            remaining--;
+        } while (remaining != 0);
+    }
+}
+
+/*
+ * Combined collision distance of a unit approaching targetUnit, in the
+ * position table's units (/ 100). The first term is converted and kept in a
+ * callee-saved FP register across the second calcUPGet call, as the original
+ * does.
+ */
+float unitColiGet(ObjectTask *unit, ObjectTask *targetUnit)
+{
+    float distance;
+
+    distance = calcUPGet(unit)->coliMove;
+    distance += calcUPGet(targetUnit)->coliTarget;
+    return distance / 100.0f;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitAgwsChk);
 

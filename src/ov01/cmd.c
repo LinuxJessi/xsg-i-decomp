@@ -41,10 +41,18 @@ const char D_00A46180[24] = "** thinkTurnEnd ** %X\n";
 const char D_00A46198[32] = "** think Atk (%d) ** %X\n";
 const char D_00A461B8[32] = "** think Dmg (%d) ** %X\n";
 const char D_00A461E8[16] = "** reg err %d\n";
+extern const char D_00A461F8[];
+extern const char D_00A46210[];
+extern const char D_00A46248[]; /* "** ONGO err\n": cmdOngo (printf arg when the jump-table index is out of range) */
+extern const char D_00A462D0[];
+extern const char D_00A462E8[];
+extern const char D_00A46318[];
 extern const char D_00A46300[];
 extern const char D_00A46308[];
 extern const char D_00A46468[];
 extern const char D_00A46578[];
+extern const char D_00A465C0[]; /* "** camCenterLength err **\n": cmdCamCenterLength (printf arg when camMode < 0) */
+extern float MCamGetLengthActor(int selector);
 
 void thinkSysInit(void)
 {
@@ -150,7 +158,16 @@ int thinkProcessExecSub(ThinkProcess *proc)
 
 INCLUDE_ASM("asm/nonmatchings/ov01/cmd", thinkInit);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/cmd", camInit);
+extern int mapNoGet(void);
+extern void *dataMapCameraAdrGet(int mapNo);
+
+void camInit(void)
+{
+    pCamTop = (CamTopEntry *)dataMapCameraAdrGet(mapNoGet());
+    thinkTopSet((int)pCamTop);
+    pCamSetTop = (short *)thinkAdrGet(pCamTop->camTblOffset);
+    camTblIdx = 0;
+}
 
 int thinkMonsTblNumGet(void)
 {
@@ -374,7 +391,41 @@ int thinkRegGet(int regIndex)
     return (short)value;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/cmd", thinkRegSet);
+/*
+ * Script VM register operand, as thinkRegNo reads it from the script and
+ * thinkRegGet/thinkRegSet decode it:
+ *   bit 15 (0x8000, tested by cmdNum)  the script operand names a register
+ *                                      rather than a literal
+ *   bit 14  THINK_REG_INDIRECT      the register holds a script offset; the
+ *                                   halfword at that offset is the real operand
+ *   bits 0-13 THINK_REG_INDEX_MASK  index into the context's register file
+ * The register file is the array of halfwords at the start of the think
+ * context (pContext); each register holds a 15-bit value (THINK_VALUE_MASK)
+ * that thinkValSet sign-extends from bit 14.
+ */
+#define THINK_REG_INDIRECT 0x4000
+#define THINK_REG_INDEX_MASK 0x3FFF
+#define THINK_VALUE_MASK 0x7FFF
+
+void thinkRegSet(int regOperand, int value)
+{
+    unsigned short regIndex = regOperand;
+    unsigned short operand = regIndex;
+    unsigned short regValue = value & THINK_VALUE_MASK;
+    short *slot;
+
+    regIndex &= THINK_REG_INDEX_MASK;
+
+    if (operand & THINK_REG_INDIRECT) {
+        short *indirect = (short *)pContext + regIndex;
+
+        slot = (short *)thinkAdrGet(*indirect);
+        *slot = regValue;
+    } else {
+        slot = (short *)pContext + regIndex;
+        *slot = regValue;
+    }
+}
 
 int cmdReg(short pc)
 {
@@ -414,9 +465,32 @@ int cmdGo(ThinkProcess *proc)
     return 0;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/cmd", cmdGosub);
+int cmdGosub(ThinkProcess *proc)
+{
+    ThinkContext *ctx = (ThinkContext *)pContext;
 
-INCLUDE_ASM("asm/nonmatchings/ov01/cmd", cmdReturn);
+    if (ctx->returnDepth < 16) {
+        ctx->returnStack[ctx->returnDepth++] = proc->pc + 2;
+    } else {
+        printf(D_00A461F8);
+        return 1;
+    }
+    proc->pc = cmdNum(proc->pc);
+    return 0;
+}
+
+int cmdReturn(ThinkProcess *proc)
+{
+    ThinkContext *ctx = (ThinkContext *)pContext;
+
+    if (ctx->returnDepth > 0) {
+        proc->pc = ctx->returnStack[--ctx->returnDepth];
+    } else {
+        printf(D_00A46210);
+        return 1;
+    }
+    return 0;
+}
 
 int cmdBra(ThinkProcess *proc)
 {
@@ -484,7 +558,22 @@ const char D_00A46308[16] = "R%02d = %d\n";
 const char D_00A46468[32] = "** COUNTER BOOST CHR=%d\n";
 const char D_00A46578[24] = "** unit No err -> %d\n";
 
-INCLUDE_ASM("asm/nonmatchings/ov01/cmd", cmdOngo);
+int cmdOngo(ThinkProcess *proc)
+{
+    int index = cmdNum(proc->pc);
+    int count;
+
+    proc->pc += 2;
+    count = cmdNum(proc->pc);
+    proc->pc += 2;
+
+    if (count < index) {
+        printf(D_00A46248);
+        return 1;
+    }
+    proc->pc = cmdNum(proc->pc + index * 2);
+    return 0;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/cmd", cmdOngosub);
 
@@ -504,9 +593,37 @@ INCLUDE_ASM("asm/nonmatchings/ov01/cmd", cmdRmath1);
 
 INCLUDE_ASM("asm/nonmatchings/ov01/cmd", cmdRmath2);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/cmd", cmdRpush);
+int cmdRpush(ThinkProcess *proc)
+{
+    int value = cmdNum(proc->pc);
+    ThinkContext *ctx = (ThinkContext *)pContext;
 
-INCLUDE_ASM("asm/nonmatchings/ov01/cmd", cmdRpop);
+    proc->pc += 2;
+    if (ctx->valueDepth < 32) {
+        ctx->valueStack[ctx->valueDepth++] = value;
+    } else {
+        printf(D_00A462D0);
+        return 1;
+    }
+    return 0;
+}
+
+int cmdRpop(ThinkProcess *proc)
+{
+    int regNo = thinkRegNo(proc->pc);
+    ThinkContext *ctx = (ThinkContext *)pContext;
+    short value;
+
+    proc->pc += 2;
+    if (ctx->valueDepth > 0) {
+        value = ctx->valueStack[--ctx->valueDepth];
+    } else {
+        printf(D_00A462E8);
+        return 1;
+    }
+    thinkRegSet(regNo & 0xFFFF, value & 0xFFFF);
+    return 0;
+}
 
 int cmdTblget(ThinkProcess *proc)
 {
@@ -525,7 +642,30 @@ int cmdTblget(ThinkProcess *proc)
     return 0;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/cmd", cmdTblset);
+/*
+ * TBLSET <register> <table> <entry>: store the register's value into one
+ * halfword of a script table. regOperand keeps the register-addressing flags
+ * thinkRegGet decodes; tableOffset is the table's script byte offset and
+ * entry its decoded halfword index.
+ */
+int cmdTblset(ThinkProcess *proc)
+{
+    int regOperand = thinkRegNo(proc->pc);
+    int tableOffset;
+    int entry;
+    int value;
+    short *slot;
+
+    proc->pc += 2;
+    tableOffset = cmdNum(proc->pc);
+    proc->pc += 2;
+    entry = cmdNum(proc->pc);
+    proc->pc += 2;
+    value = thinkRegGet(regOperand & 0xFFFF);
+    slot = (short *)thinkAdrGet(tableOffset + entry * 2);
+    *slot = value;
+    return 0;
+}
 
 int cmdRput(ThinkProcess *proc)
 {
@@ -544,7 +684,20 @@ int cmdRput(ThinkProcess *proc)
     return 0;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/cmd", cmdPrint);
+int cmdPrint(ThinkProcess *proc)
+{
+    short len = 0;
+    char *text = (char *)thinkAdrGet(proc->pc);
+
+    printf(D_00A46318, text);
+    while (text[len++] != 0) {
+    }
+    if (len & 1) {
+        len++;
+    }
+    proc->pc += len;
+    return 0;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/cmd", cmdMemdump);
 
@@ -765,7 +918,33 @@ int cmdUnitparaSet(ThinkProcess *proc)
     return 0;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/cmd", cmdUnitpara);
+typedef union {
+    signed char byteValue;
+    short halfwordValue;
+} CmdUnitParaValue;
+
+extern CmdUnitParaValue *cmdUnitparaSub(ObjectTask *unit, short category, short *valueType);
+
+int cmdUnitpara(ObjectTask *unit, int category, int value, int mode)
+{
+    short truncValue = value;
+    short valueType;
+    CmdUnitParaValue *unitParaValue = cmdUnitparaSub(unit, category, &valueType);
+    int result;
+
+    if (valueType == 1) {
+        result = unitParaValue->byteValue;
+        if (mode == 1) {
+            unitParaValue->byteValue = truncValue;
+        }
+    } else {
+        result = unitParaValue->halfwordValue;
+        if (mode == 1) {
+            unitParaValue->halfwordValue = truncValue;
+        }
+    }
+    return result;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/cmd", cmdUnitparaSub);
 
@@ -1052,9 +1231,34 @@ INCLUDE_ASM("asm/nonmatchings/ov01/cmd", cmdCamMove);
 
 INCLUDE_ASM("asm/nonmatchings/ov01/cmd", cmdCamShake);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/cmd", cmdCamCenterLength);
+int cmdCamCenterLength(ThinkProcess *proc)
+{
+    int regNo = thinkRegNo(proc->pc);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/cmd", cmdCamUnitHeight);
+    proc->pc += 2;
+    if (camMode < 0) {
+        printf(D_00A465C0);
+        return 0;
+    }
+    thinkRegSet(regNo & 0xFFFF, (int)(MCamGetLengthActor(camMode) * 100.0f) & 0xFFFF);
+    return 0;
+}
+
+int cmdCamUnitHeight(ThinkProcess *proc)
+{
+    int regNo = thinkRegNo(proc->pc);
+    short unitNo;
+    CmdUnitRecord *unit;
+    Vector4 pos;
+
+    proc->pc += 2;
+    unitNo = unitNoChk(cmdNum(proc->pc));
+    proc->pc += 2;
+    unit = (CmdUnitRecord *)unitPtrGet(unitNo);
+    sefGetNullPosition(&pos, unit->motionActor, 13, 0);
+    thinkRegSet(regNo & 0xFFFF, (int)(pos.y * 100.0f) & 0xFFFF);
+    return 0;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/cmd", cmdCamCoordGet);
 
@@ -1132,9 +1336,48 @@ int cmdCamMoveStop(void)
     return 0;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/cmd", cmdEvent);
+int cmdEvent(ThinkProcess *proc)
+{
+    int regNo = thinkRegNo(proc->pc);
+    ThinkProcess newProc;
+    int scriptOffset;
+    int handle;
 
-INCLUDE_ASM("asm/nonmatchings/ov01/cmd", cmdWaitEvent);
+    proc->pc += 2;
+    scriptOffset = cmdNum(proc->pc);
+    proc->pc += 2;
+    newProc.dataTop = pDataTop;
+    newProc.pc = scriptOffset;
+    newProc.context = pContext;
+    handle = thinkProcessAdd(&newProc);
+    thinkRegSet(regNo & 0xFFFF, handle & 0xFFFF);
+    return 0;
+}
+
+/*
+ * Structured forms tried against fndiff (asm/nonmatchings/ov01/cmd/cmdWaitEvent.s),
+ * no goto needed:
+ * - if/else-if with a single exit (this form): STRUCTURE MATCH, 25/25 insns
+ *   equal-in-place; whole-file gate passes identical.
+ * A single if/else-if chain assigning one `result` and returning it once
+ * already reproduces the original bytes, so the while-loop and early-return
+ * alternatives were not needed.
+ */
+int cmdWaitEvent(ThinkProcess *proc)
+{
+    int result;
+
+    if (proc->waitActive == 0) {
+        proc->sortMode = cmdNum(proc->pc);
+        result = 2;
+    } else if (thinkProcessChk(proc->sortMode) != 0) {
+        result = 2;
+    } else {
+        proc->pc += 2;
+        result = 0;
+    }
+    return result;
+}
 
 int cmdWaitCnt(ThinkProcess *proc)
 {
@@ -1284,7 +1527,27 @@ int cmdThinkNoGet(ThinkProcess *proc)
     return 0;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/cmd", cmdStatGet);
+int cmdStatGet(ThinkProcess *proc)
+{
+    int regNo = thinkRegNo(proc->pc);
+    int category;
+    int flag;
+    int unitNo;
+    ObjectTask *unit;
+    int value;
+
+    proc->pc += 2;
+    category = cmdNum(proc->pc);
+    proc->pc += 2;
+    flag = cmdNum(proc->pc);
+    proc->pc += 2;
+    unitNo = cmdNum(proc->pc);
+    proc->pc += 2;
+    unit = unitPtrGet(unitNo);
+    value = calcStatGet(unit, category, flag);
+    thinkRegSet(regNo & 0xFFFF, value & 0xFFFF);
+    return 0;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/cmd", cmdStatSet);
 

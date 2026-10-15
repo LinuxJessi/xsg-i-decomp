@@ -14,7 +14,67 @@ typedef struct MenuEtherStatusEntry {
 
 extern const signed char D_00A46AF8[];
 extern const signed char D_00A46BE0[];
-extern void menuStatSprite();
+void menuStatSprite(int packet, int x, int y, int width, int height, int srcX, int srcY);
+extern int rnd(int max);
+extern float ETRotDist;
+
+/*
+ * statTbl: an array of pointers, indexed by charaId, each pointing at a
+ * 0-terminated run of 0xC-byte entries (data still asm-owned). menuStatIconChk
+ * (0x00A2A4C8..0x00A2A4E0) loads each entry's first word only, as a bitmask
+ * tested against the statFlags mask argument.
+ */
+typedef struct StatIconEntry {
+    int flags; /* +0x00 */
+    int srcX;  /* +0x04: menuStatIconPut (0x00A2A56C..0x00A2A574) */
+    int srcY;  /* +0x08 */
+} StatIconEntry;
+extern StatIconEntry *statTbl[];
+
+typedef struct MenuRGBA {
+    unsigned char r;
+    unsigned char g;
+    unsigned char b;
+    unsigned char a;
+} MenuRGBA;
+
+/* The sprite colour: menuStatSpriteRGB copies a caller's MenuRGBA into it
+ * byte-wise (lwl/lwr, swl/swr), while menuStatSprite/menuStatSprite2 copy the
+ * whole word from an aligned local (lw/sw), so the field is word-aligned. */
+typedef union MenuColor {
+    unsigned int word;
+    MenuRGBA rgba;
+} MenuColor;
+
+/* grPutSpr's sprite record: two corner vertices, a colour and the texel rectangle. */
+typedef struct GrSprite {
+    float x0, y0, z0, w0; /* +0x00 */
+    float x1, y1, z1, w1; /* +0x10 */
+    MenuColor color;      /* +0x20 */
+    short u0;             /* +0x24 */
+    short u1;             /* +0x26 */
+    short v0;             /* +0x28 */
+    short v1;             /* +0x2A */
+} GrSprite;
+
+#define SPRITE_Z 16777212.0f
+
+extern void grPutSpr(int packet, GrSprite *sprite, int flags);
+/* The shared sprite colour, .word 0x80808080 (build/ov01/asm/data/ov01/menu.rodata.s:587;
+ * rodata still asm-owned). */
+extern const MenuRGBA D_00A46C10;
+
+/* The event timer object's work, as far as menuEventTimerDisp reads it:
+ * its x/z position (lwc1 at +0x90/+0x98). */
+typedef struct MenuEventTimerWork {
+    unsigned char unmodeled_00[0x90];
+    float x; /* +0x90 */
+    unsigned char unmodeled_94[4];
+    float z; /* +0x98 */
+} MenuEventTimerWork;
+
+void menuATBEnvMake(int packet);
+void menuEventTimerDispSub(ObjectTask *task, int packet);
 
 /* Keep source-owned local BSS objects in their original address order;
  * intervening original-only storage remains scaffold-owned between runs. */
@@ -386,14 +446,45 @@ INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuMapItemDispSub);
 
 INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuSelLine);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuEventTimerDisp);
+void menuEventTimerDisp(ObjectTask *task, int packet)
+{
+    MenuEventTimerWork *work;
+    int x;
+    int y;
+
+    work = task->work;
+    x = work->x;
+    y = work->z;
+    menuATBEnvMake(packet);
+    menuEventTimerDispSub(task, packet);
+    x -= 0x18;
+    y += 0x38;
+    grOpenSpr(packet);
+    menuStatSprite(packet, x, y, 0x18, 0x4E, 0x80, 0x32);
+    grCloseSpr();
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuEventTimerDispSub);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuTimeSet);
+void menuTimeSet(int time) {
+    int timerRoll;
 
-/* menuTimeSet (this TU, still asm) applies a new menu time setting. */
-void menuTimeSet(int time);
+    eventTimer = time;
+    timerRoll = rnd(100);
+    if (timerRoll >= 0x60) {
+        eventTimerX = 10;
+    } else if (timerRoll >= 0x3D) {
+        eventTimerX = 4;
+    } else {
+        eventTimerX = 2;
+    }
+
+    ETRotDist = (float)eventTimer * 1.5707964f;
+    if (ETRotDist > 6.2831855f) {
+        ETRotDist -= 6.2831855f;
+    }
+}
+
 int menuTimeNext(void) {
     eventTimer++;
     if (eventTimer >= 4) {
@@ -511,9 +602,41 @@ void menuApBarPut(int packet, int x, int y, int amount)
 
 INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuBpBarPut);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuStatIconChk);
+/*
+ * Index of the first icon entry of the character's table whose flags share a
+ * bit with statFlags (a status flag mask), or -1 when none does.
+ */
+int menuStatIconChk(int charaId, int statFlags)
+{
+    StatIconEntry *icons;
+    int index;
 
-INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuStatIconPut);
+    icons = statTbl[charaId];
+    if (icons == 0 || statFlags == 0) {
+        return -1;
+    }
+    for (index = 0; icons[index].flags != 0; index++) {
+        if (icons[index].flags & statFlags) {
+            return index;
+        }
+    }
+    return -1;
+}
+
+int menuStatIconChk(int charaId, int statFlags);
+
+void menuStatIconPut(int packet, int x, int y, int charaId, int statFlags)
+{
+    StatIconEntry *icons;
+    int index;
+
+    icons = statTbl[charaId];
+    index = menuStatIconChk(charaId, statFlags);
+    if (index != -1) {
+        menuStatSprite(packet, x + 0x90, y + 0x32, 0x16, 0x18, icons[index].srcX,
+                       icons[index].srcY);
+    }
+}
 
 /*
  * eBattleWinOpen2's own argument words (src/main/e_battle_win_open.c, still
@@ -645,7 +768,6 @@ int menuDFontIdxGet(const signed char *text)
     return -1;
 }
 
-void menuStatSprite(int packet, int x, int y, int width, int height, int srcX, int srcY, int srcRow);
 
 /* The font sheet is a 25-column grid of 0xA x 0x12 (10x18) glyph cells. */
 #define FONT_GLYPH_COLUMNS 25
@@ -659,18 +781,67 @@ void menuFontPutSub(int packet, int x, int y, int charCode) {
     row = charCode / FONT_GLYPH_COLUMNS;
     col = charCode % FONT_GLYPH_COLUMNS;
     menuStatSprite(packet, x, y, FONT_GLYPH_WIDTH, FONT_GLYPH_HEIGHT,
-                   col * FONT_GLYPH_WIDTH, row * FONT_GLYPH_HEIGHT, row);
+                   col * FONT_GLYPH_WIDTH, row * FONT_GLYPH_HEIGHT);
 }
 
 INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuFontPut);
 
 INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuActCurPut);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuStatSprite);
+void menuStatSprite(int packet, int x, int y, int width, int height, int srcX, int srcY) {
+    GrSprite sprite;
+    MenuColor color;
 
-INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuStatSprite2);
+    color.rgba = D_00A46C10;
+    sprite.x0 = x;
+    sprite.y0 = y;
+    sprite.z0 = SPRITE_Z;
+    sprite.x1 = x + width;
+    sprite.y1 = y + height;
+    sprite.z1 = SPRITE_Z;
+    sprite.u0 = srcX;
+    sprite.u1 = srcX + width + 1;
+    sprite.v0 = srcY;
+    sprite.v1 = srcY + height + 1;
+    sprite.color = color;
+    grPutSpr(packet, &sprite, 0);
+}
 
-INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuStatSpriteRGB);
+void menuStatSprite2(int packet, int x, int y, int width, int height, int srcLeft, int srcTop, int srcRight, int srcBottom) {
+    GrSprite sprite;
+    MenuColor color;
+
+    color.rgba = D_00A46C10;
+    sprite.u0 = srcLeft;
+    sprite.x0 = x;
+    sprite.y0 = y;
+    sprite.v0 = srcTop;
+    sprite.z0 = SPRITE_Z;
+    sprite.x1 = x + width;
+    sprite.y1 = y + height;
+    sprite.z1 = SPRITE_Z;
+    sprite.u1 = srcRight;
+    sprite.v1 = srcBottom;
+    sprite.color = color;
+    grPutSpr(packet, &sprite, 0);
+}
+
+void menuStatSpriteRGB(int packet, int x, int y, int width, int height, int srcX, int srcY, const MenuRGBA *rgba) {
+    GrSprite sprite;
+
+    sprite.x0 = x;
+    sprite.y0 = y;
+    sprite.z0 = SPRITE_Z;
+    sprite.x1 = x + width;
+    sprite.y1 = y + height;
+    sprite.z1 = SPRITE_Z;
+    sprite.u0 = srcX;
+    sprite.u1 = srcX + width + 1;
+    sprite.v0 = srcY;
+    sprite.v1 = srcY + height + 1;
+    sprite.color.rgba = *rgba;
+    grPutSpr(packet, &sprite, 0);
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuStatSprite2RGB);
 

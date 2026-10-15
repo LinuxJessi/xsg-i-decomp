@@ -50,15 +50,23 @@ PlCharacter *dataPlChaGet(int cid)
 typedef struct BattleDataHeader {
     unsigned char unmodeled_00[8];
     int unitInitOffset; /* +0x08 */
-    unsigned char unmodeled_0c[4];
+    int techniqueOffset; /* +0x0C */
     int normalInitOffset; /* +0x10 */
     int specialInitOffset; /* +0x14 */
     int etherInitOffset; /* +0x18 */
-    unsigned char unmodeled_1c[0x38 - 0x1C];
+    int weaponOffset; /* +0x1C */
+    int ethOffset; /* +0x20 */
+    int itmOffset; /* +0x24 */
+    int attOffset; /* +0x28 */
+    int accessoryOffset; /* +0x2C */
+    int skillOffset; /* +0x30 */
+    int gainOffset; /* +0x34 */
     int experienceOffset; /* +0x38 */
     int parameterOffset; /* +0x3C */
     int specialTableOffset; /* +0x40 */
     int defaultEquipmentOffset; /* +0x44 */
+    int frameOffset; /* +0x48 */
+    int engOffset; /* +0x4C */
 } BattleDataHeader;
 
 typedef struct NormalInitRecord { unsigned char opaque[0x0C]; } NormalInitRecord;
@@ -499,25 +507,239 @@ short dataWidGet(unsigned int wid)
     return widChgTbl[wid];
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataTecGet);
+/*
+ * dataMotNameGetMenu reads motionId as a short at +0x14. calcBp2Tid
+ * (src/ov01/calc.c, this TU's TecKindView) reads the same +0x11 byte this
+ * file's dataFileLoadWepSp/dataFileLoadWepSp2 compare against 6 and names
+ * it kind (a BP timeline/special-weapon selector); kept as the same name
+ * and signed-byte width here since this file owns the rest of the layout.
+ */
+typedef struct TecRecord {
+    unsigned char unmodeled_00[0x11];
+    signed char kind; /* +0x11 */
+    unsigned char unmodeled_12[0x14 - 0x12];
+    short motionId; /* +0x14 */
+    unsigned char unmodeled_16[0x18 - 0x16];
+} TecRecord;
 
-INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataWpnGet);
+extern int D_426F4C;
+extern const char D_00A458C0[];
 
-INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataAttGet);
+TecRecord *dataTecGet(int entry)
+{
+    unsigned char *block;
+    int byteOffset;
+    TecRecord *records;
 
-INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataEthGet);
+    if (entry <= 0) {
+        printf(D_00A458C0, entry);
+        return 0;
+    }
+    block = (unsigned char *)&D_426F4C - BATTLE_DATA_FIELD_OFFSET(techniqueOffset);
+    byteOffset = D_426F4C;
+    records = (TecRecord *)(block + byteOffset);
+    return &records[entry - 1];
+}
 
-INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataItmGet);
+/* dataMotNameGetMenu reads the weapon's technique id as a short at +0x14. */
+typedef struct WpnRecord {
+    unsigned char unmodeled_00[0x14];
+    short tecId; /* +0x14 */
+    unsigned char unmodeled_16[0x20 - 0x16];
+} WpnRecord;
 
-INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataAccGet);
+extern int D_426F5C;
+extern const char D_00A458D8[];
 
-INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataFrmGet);
+WpnRecord *dataWpnGet(int entry)
+{
+    unsigned char *block;
+    int byteOffset;
+    WpnRecord *records;
 
-INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataEngGet);
+    if (entry <= 0) {
+        printf(D_00A458D8, entry);
+        return 0;
+    }
+    block = (unsigned char *)&D_426F5C - BATTLE_DATA_FIELD_OFFSET(weaponOffset);
+    byteOffset = D_426F5C;
+    records = (WpnRecord *)(block + byteOffset);
+    return &records[entry - 1];
+}
 
-INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataSklGet);
+typedef struct AttRecord { unsigned char opaque[0x0E]; } AttRecord;
 
-INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataGainGet);
+extern int D_426F68;
+extern const char D_00A458F0[];
+
+AttRecord *dataAttGet(int entry)
+{
+    unsigned char *block;
+    int byteOffset;
+    AttRecord *records;
+
+    if (entry <= 0) {
+        printf(D_00A458F0, entry);
+        return 0;
+    }
+    block = (unsigned char *)&D_426F68 - BATTLE_DATA_FIELD_OFFSET(attOffset);
+    byteOffset = D_426F68;
+    records = (AttRecord *)(block + byteOffset);
+    return &records[entry - 1];
+}
+
+typedef struct EthRecord { unsigned char opaque[0x0C]; } EthRecord;
+
+extern int D_426F60;
+extern const char D_00A45908[];
+
+EthRecord *dataEthGet(int entry)
+{
+    unsigned char *block;
+    int byteOffset;
+    EthRecord *records;
+
+    if (entry <= 0) {
+        printf(D_00A45908, entry);
+        return 0;
+    }
+    block = (unsigned char *)&D_426F60 - BATTLE_DATA_FIELD_OFFSET(ethOffset);
+    byteOffset = D_426F60;
+    records = (EthRecord *)(block + byteOffset);
+    return &records[entry - 1];
+}
+
+typedef struct ItmRecord { unsigned char opaque[0x14]; } ItmRecord;
+
+extern int D_426F64;
+extern const char D_00A45920[];
+
+ItmRecord *dataItmGet(int entry)
+{
+    unsigned char *block;
+    int byteOffset;
+    ItmRecord *records;
+
+    if (entry <= 0) {
+        printf(D_00A45920, entry);
+        return 0;
+    }
+    block = (unsigned char *)&D_426F64 - BATTLE_DATA_FIELD_OFFSET(itmOffset);
+    byteOffset = D_426F64;
+    records = (ItmRecord *)(block + byteOffset);
+    return &records[entry - 1];
+}
+
+typedef struct AccRecord { unsigned char opaque[0x10]; } AccRecord;
+
+extern int D_426F6C;
+extern const char D_00A45938[];
+
+AccRecord *dataAccGet(int entry)
+{
+    unsigned char *block;
+    int byteOffset;
+    AccRecord *records;
+
+    if (entry <= 0) {
+        printf(D_00A45938, entry);
+        return 0;
+    }
+    block = (unsigned char *)&D_426F6C - BATTLE_DATA_FIELD_OFFSET(accessoryOffset);
+    byteOffset = D_426F6C;
+    records = (AccRecord *)(block + byteOffset);
+    return &records[entry - 1];
+}
+
+typedef struct FrmRecord { unsigned char opaque[0x10]; } FrmRecord;
+
+extern int D_426F88;
+extern const char D_00A45950[];
+
+FrmRecord *dataFrmGet(int entry)
+{
+    unsigned char *block;
+    int byteOffset;
+    FrmRecord *records;
+
+    if (entry <= 0) {
+        printf(D_00A45950, entry);
+        return 0;
+    }
+    block = (unsigned char *)&D_426F88 - BATTLE_DATA_FIELD_OFFSET(frameOffset);
+    byteOffset = D_426F88;
+    records = (FrmRecord *)(block + byteOffset);
+    return &records[entry - 1];
+}
+
+typedef struct EngRecord { unsigned char opaque[0x0C]; } EngRecord;
+
+extern int D_426F8C;
+extern const char D_00A45968[];
+
+EngRecord *dataEngGet(int entry)
+{
+    unsigned char *block;
+    int byteOffset;
+    EngRecord *records;
+
+    if (entry <= 0) {
+        printf(D_00A45968, entry);
+        return 0;
+    }
+    block = (unsigned char *)&D_426F8C - BATTLE_DATA_FIELD_OFFSET(engOffset);
+    byteOffset = D_426F8C;
+    records = (EngRecord *)(block + byteOffset);
+    return &records[entry - 1];
+}
+
+typedef struct SklRecord { unsigned char opaque[0x08]; } SklRecord;
+
+extern int D_426F70;
+extern const char D_00A45980[];
+
+SklRecord *dataSklGet(int entry)
+{
+    unsigned char *block;
+    int byteOffset;
+    SklRecord *records;
+
+    if (entry <= 0) {
+        printf(D_00A45980, entry);
+        return 0;
+    }
+    block = (unsigned char *)&D_426F70 - BATTLE_DATA_FIELD_OFFSET(skillOffset);
+    byteOffset = D_426F70;
+    records = (SklRecord *)(block + byteOffset);
+    return &records[entry - 1];
+}
+
+typedef struct GainRecord { unsigned char opaque[0x14]; } GainRecord;
+
+/*
+ * D_426F74 is a selector field 0x34 bytes into a loaded battle-data table;
+ * dataGainGet's table starts 0x294 bytes before this field's own byte
+ * offset, the same idiom dataExpTblGet uses for its own table. Splat has
+ * not named the table's own base, only this field.
+ */
+extern int D_426F74;
+extern const char D_00A45998[];
+
+GainRecord *dataGainGet(int entry)
+{
+    unsigned char *block;
+    int byteOffset;
+    GainRecord *records;
+
+    if (entry <= 0) {
+        printf(D_00A45998, entry);
+        return 0;
+    }
+    block = (unsigned char *)&D_426F74 - BATTLE_DATA_FIELD_OFFSET(gainOffset);
+    byteOffset = D_426F74;
+    records = (GainRecord *)(block + byteOffset);
+    return (GainRecord *)((unsigned char *)&records[entry] - 0x294);
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataFileLoad);
 
@@ -547,7 +769,28 @@ void dataNBreadCB(int result) {
     }
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataFileLoadNB);
+extern int xglCdReadFile(const char *name, void *buffer, int mode, int flags);
+extern const char D_00A45A10[];
+extern const char D_00A45A28[];
+
+int dataFileLoadNB(const char *filename, void *destination)
+{
+    /* xglCdReadFile's published declaration (include/umbrella/public.h:161,
+     * also include/main/xgl_cd.h:6) types the fourth argument `int flags`;
+     * this call (like src/main/window_tex_load.c:348 and src/main/srs.c:582,
+     * the lane's other published callers passing a callback here) passes
+     * dataNBreadCB's completion callback through that int, so the cast
+     * stays rather than retyping a shared, out-of-lane header. */
+    int result = xglCdReadFile(filename, destination, 1, (int)dataNBreadCB);
+
+    if (result < 0) {
+        printf(D_00A45A10, filename);
+        return 0;
+    }
+    cdReqNum++;
+    printf(D_00A45A28, cdReqNum, filename, destination);
+    return 1;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataFileInfoInit);
 
@@ -565,9 +808,65 @@ void dataLeaderCidReset(void) {
     leaderCid = 0;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataLeaderReload);
+extern unsigned char *PartyDataGet(void);
+extern const char D_00A45AB0[];
 
-INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataMotNameGetMenu);
+/* src/main/party.c owns PartyDataPrefix; this TU's own overlay reaches
+ * only the leader battle id PartyLeaderSet/PartyLeaderCheck evidence at
+ * +0x2C. */
+typedef struct PartyLeaderView {
+    unsigned char unmodeled_00[0x2C];
+    unsigned short leader_battle_id; /* +0x2C */
+} PartyLeaderView;
+
+void dataLeaderReload(void)
+{
+    unsigned short leaderBattleId = ((PartyLeaderView *)PartyDataGet())->leader_battle_id;
+
+    if (leaderBattleId != leaderCid) {
+        printf(D_00A45AB0);
+    }
+}
+
+extern char *strcpy(char *destination, const char *source);
+extern char *strcat(char *destination, const char *source);
+extern int dataMotNameGetSub(char *name, CalcUnitParam *up, int motionId, int weaponId);
+static char *motNameBase;
+static char *motNameExt;
+
+/*
+ * Menu-side motion name lookup. The unit-origin record is the unit's own
+ * CalcUnitParam (0x180 bytes, include/ov01/calc.h), so the weapon slot
+ * selects weaponId[]; the weapon record names its technique and the
+ * technique record names the motion.
+ */
+int dataMotNameGetMenu(char *name, int orgId, int weaponSlot)
+{
+    CalcUnitParam *origin;
+    int weaponId;
+    int tecId;
+    int motionId;
+    int found;
+
+    *name = 0;
+    origin = (CalcUnitParam *)dataUnitOrgGet(orgId);
+    weaponId = origin->weaponId[weaponSlot];
+    if (weaponId == 0) {
+        return 0;
+    }
+    tecId = dataWpnGet(weaponId)->tecId;
+    motionId = dataTecGet(tecId)->motionId;
+    if (motionId == 0) {
+        return 0;
+    }
+    strcpy(name, motNameBase);
+    found = dataMotNameGetSub(name, origin, motionId, weaponSlot);
+    strcat(name, motNameExt);
+    if (found == 0) {
+        *name = 0;
+    }
+    return found;
+}
 
 extern char *strcpy(char *destination, const char *source);
 extern char *strcat(char *destination, const char *source);
@@ -633,7 +932,30 @@ void *dataUnitFileGet(ObjectTask *unit, int charaId)
 
 INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataPackPcMdlNameGet);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataPackWpnMdlNameGet);
+/* pcPack_1 is a 38-entry table (0x130 bytes, 8-byte stride), terminated by
+ * a zero weaponId; dataPackWpnMdlNameGet searches it and returns the packed
+ * model name for a matching weapon. */
+typedef struct PcPackEntry {
+    int weaponId;
+    char *name;
+} PcPackEntry;
+
+extern PcPackEntry pcPack_1[];
+
+char *dataPackWpnMdlNameGet(int weaponId)
+{
+    char *name;
+    int index;
+
+    name = 0;
+    for (index = 0; pcPack_1[index].weaponId != 0; index++) {
+        if (weaponId == pcPack_1[index].weaponId) {
+            name = pcPack_1[index].name;
+            break;
+        }
+    }
+    return name;
+}
 
 extern void ACT_initMotion(BattleModelActor *actor);
 
@@ -642,6 +964,13 @@ extern void ACT_initMotion(BattleModelActor *actor);
  * texture buffers selected by the leader path, not file identifiers. */
 #define LEADER_ANIMATION_ADDRESS ((void *)0x01070800)
 #define LEADER_TEXTURE_ADDRESS ((void *)0x010B1000)
+/* dataUnitFileLoadFaceMdl's cache-miss buffers: lui $3,(0x10B4000>>16) /
+ * ori $3,$3,(0x10B4000&0xFFFF) builds the model address below. */
+#define FACE_MODEL_ADDRESS ((void *)0x010B4000)
+/* dataUnitFileLoadFaceMdl's cache-miss buffers: lui $4,(0x10E6000>>16) /
+ * ori $4,$4,(0x10E6000&0xFFFF) builds the texture address below (stored to
+ * actor->textureAdr, not actor->animationAdr). */
+#define FACE_TEXTURE_ADDRESS ((void *)0x010E6000)
 
 extern char mdlFileName[];
 extern char mdlFileName2[];
@@ -733,7 +1062,35 @@ int dataUnitFileLoadMdl(UnitEquipInfo *unit, int charaId, UnitFileInfo *file)
     return 1;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataUnitFileLoadFaceMdl);
+extern const char D_00A45E50[];
+extern void *dataChildActorCreate(int callerId);
+
+int dataUnitFileLoadFaceMdl(ObjectTask *unit, int charaId, UnitFileInfo *file)
+{
+    /* The caller (dataUnitFileLoadMdl, this file:996) passes
+     * &unit->task.object; ObjectTask is the first member of UnitEquipInfo's
+     * `task` union (this file's header, data_unit_org_get.h:150-151), so
+     * that ObjectTask pointer is the UnitEquipInfo record itself. */
+    UnitEquipInfo *equip = (UnitEquipInfo *)unit;
+    BattleModelActor *actor;
+
+    if (charaId != file->faceCharaId) {
+        file->faceCharaId = charaId;
+        if (dataLeaderCidGet() == charaId) {
+            file->faceModelAdr = FACE_MODEL_ADDRESS;
+            file->faceTextureAdr = FACE_TEXTURE_ADDRESS;
+        }
+    } else {
+        printf(D_00A45E50, charaId, file->faceModelAdr);
+    }
+
+    actor = dataChildActorCreate(charaId);
+    actor->modelAdr = file->faceModelAdr;
+    equip->faceActor = actor;
+    actor->animationAdr = file->animationAdr;
+    actor->textureAdr = file->faceTextureAdr;
+    return 1;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataUnitFileLoadMot);
 
@@ -795,7 +1152,41 @@ int dataUnitFileLoadMotSp2(UnitEquipInfo *unit, int motionId, int slot, int p3, 
     return 1;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataUnitFileLoad2);
+extern const char D_00A45F58[];
+extern void dataUnitFileLoad2Sub(ObjectTask *unit);
+
+/* unitCmdSet's queued-command record: src/ov01/unit_cmd.h:157-162 (CmdEntry)
+ * and src/ov01/calc.c:28-34 (CalcCmdEntry) both restate this same layout
+ * for their own calls into unitCmdSet (still asm, src/ov01/unit_cmd.c), so
+ * this TU forward-declares the identical selector/argument/extra fields
+ * rather than inventing its own. This call only writes selector and
+ * argument; extra and the trailing 8 bytes are unwritten here, matching
+ * calc.c's own "unwritten by the one evidenced call" note for the same
+ * tail. */
+typedef struct CmdEntry {
+    int selector; /* +0x00 */
+    int argument; /* +0x04 */
+    int extra;    /* +0x08: unwritten by this call */
+    unsigned char unmodeled_0c[8]; /* +0x0C: unwritten by this call */
+} CmdEntry;
+extern void unitCmdSet(ObjectTask *unit, CmdEntry *cmd);
+extern int rnd(int max);
+
+void dataUnitFileLoad2(ObjectTask *unit)
+{
+    CmdEntry cmd;
+
+    printf(D_00A45F58, unit);
+    dataUnitFileLoad2Sub(unit);
+
+    cmd.selector = 0x25;
+    if (!(((BattleActor *)unit->work)->flags & BATTLE_ACTOR_FLAG_ENEMY)) {
+        cmd.argument = 0;
+    } else {
+        cmd.argument = rnd(0xA);
+    }
+    unitCmdSet(unit, &cmd);
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataUnitFileLoad2Sub);
 

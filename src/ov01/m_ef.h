@@ -6,6 +6,7 @@
 #define SRC_OV01_M_EF_H
 
 #include "shared.h"
+#include "main/act_1.h"
 
 extern float MMathMakeRandom2PI(void);
 
@@ -74,13 +75,13 @@ typedef struct MEfWeaponCoord {
     Vector4 local_position;
 } MEfWeaponCoord;
 
-extern void *MEfGetActorMatrix(void *destination, void *actor, u32 coordinate);
+extern Matrix4 *MEfGetActorMatrix(Matrix4 *destination, ActRecord *actor, u32 coordinate);
 
 /*
  * MEfCalcAngle: sibling function of this same TU, still INCLUDE_ASM
  * scaffolding and untouched by this allocation; declared only to call it.
  */
-extern void *MEfCalcAngle(Vector4 *destination, const Vector4 *from, const Vector4 *to);
+extern Vector4 *MEfCalcAngle(Vector4 *destination, const Vector4 *from, const Vector4 *to);
 
 /*
  * MOutputDebugStringWarn: main-owned diagnostic logger (main:0x002eef50,
