@@ -22,7 +22,7 @@ extern float ETRotDist;
  * statTbl: an array of pointers, indexed by charaId, each pointing at a
  * 0-terminated run of 0xC-byte entries (data still asm-owned). menuStatIconChk
  * (0x00A2A4C8..0x00A2A4E0) loads each entry's first word only, as a bitmask
- * tested against the iconSlot argument.
+ * tested against the statFlags mask argument.
  */
 typedef struct StatIconEntry {
     int flags; /* +0x00 */
@@ -602,35 +602,39 @@ void menuApBarPut(int packet, int x, int y, int amount)
 
 INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuBpBarPut);
 
-int menuStatIconChk(int charaId, int iconSlot)
+/*
+ * Index of the first icon entry of the character's table whose flags share a
+ * bit with statFlags (a status flag mask), or -1 when none does.
+ */
+int menuStatIconChk(int charaId, int statFlags)
 {
-    StatIconEntry *entry;
-    int icon;
+    StatIconEntry *icons;
+    int index;
 
-    entry = statTbl[charaId];
-    if (entry == 0 || iconSlot == 0) {
+    icons = statTbl[charaId];
+    if (icons == 0 || statFlags == 0) {
         return -1;
     }
-    for (icon = 0; entry[icon].flags != 0; icon++) {
-        if (entry[icon].flags & iconSlot) {
-            return icon;
+    for (index = 0; icons[index].flags != 0; index++) {
+        if (icons[index].flags & statFlags) {
+            return index;
         }
     }
     return -1;
 }
 
-int menuStatIconChk(int charaId, int iconSlot);
+int menuStatIconChk(int charaId, int statFlags);
 
-void menuStatIconPut(int packet, int x, int y, int charaId, int iconSlot)
+void menuStatIconPut(int packet, int x, int y, int charaId, int statFlags)
 {
-    StatIconEntry *base;
-    int icon;
+    StatIconEntry *icons;
+    int index;
 
-    base = statTbl[charaId];
-    icon = menuStatIconChk(charaId, iconSlot);
-    if (icon != -1) {
-        menuStatSprite(packet, x + 0x90, y + 0x32, 0x16, 0x18, base[icon].srcX,
-                       base[icon].srcY);
+    icons = statTbl[charaId];
+    index = menuStatIconChk(charaId, statFlags);
+    if (index != -1) {
+        menuStatSprite(packet, x + 0x90, y + 0x32, 0x16, 0x18, icons[index].srcX,
+                       icons[index].srcY);
     }
 }
 

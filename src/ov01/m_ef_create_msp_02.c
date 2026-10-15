@@ -3,6 +3,7 @@
  */
 #include "common.h"
 #include "ov01/m_ef_create.h"
+#include "ov01/m_ef.h"
 #include "shared.h"
 
 extern float MMathCalcRotNear(float first, float second);
@@ -33,7 +34,7 @@ extern float tanf(float value);
  * and nothing here is sized to round the record out (docs/naming.md).
  *
  *   creationParameters  read, never written, by MEfCreate_MSP02 alone: the
- *                       actor/part pairs it passes to MEfGetActorMatrix
+ *                       actor/selector pairs it passes to MEfGetActorMatrix
  *                       (+0x08, +0x0c) and MEfGetActorCoord (+0x24, +0x28),
  *                       the Vector4 at +0x10 it rotates into spawnPoint, and
  *                       the pair fnMSP02_DM000 passes to MEfDrawModel (+0x40,
@@ -56,10 +57,10 @@ extern float tanf(float value);
  *   spread, angle       0.2 and MMathMakeRandom2PI() at creation, rewritten
  *                       here every seventh frame.
  *   drawPacket          MEfCreate_MSP02 calls MGsGPInit on +0x118 and stores
- *                       the two eight-byte svGetPrmFromName results at +0x130
- *                       and +0x138; fnMSP02_DP000 re-initialises the same
- *                       packet every frame, walks its pointer/counter fields
- *                       and picks one of the two eight-byte values per slot.
+ *                       the two cloud textures' TEX0 values (svGetPrmFromName)
+ *                       at +0x130 and +0x138; fnMSP02_DP000 re-initialises the
+ *                       same packet every frame, walks its pointer/counter
+ *                       fields and picks one of the two TEX0 values per slot.
  *                       Its interior belongs to the MGs packet builder, which
  *                       is outside this TU.
  *   active              MEfCreate_MSP02 memsets exactly 0x14 bytes here;
@@ -92,12 +93,12 @@ extern float tanf(float value);
 
 struct MspCreationParameters {
     unsigned char unmodeled_000[0x08];
-    unsigned int actor;                                            /* 0x008 */
-    unsigned int actorPart;                                        /* 0x00c */
+    ActRecord *actor;                                              /* 0x008 */
+    u32 actorCoordinate;                                           /* 0x00c */
     Vector4 creationOffset;                                        /* 0x010 */
     unsigned char unmodeled_020[0x04];
-    unsigned int coordinateActor;                                  /* 0x024 */
-    unsigned int coordinatePart;                                   /* 0x028 */
+    ActRecord *targetActor;                                        /* 0x024 */
+    u32 targetCoordinate;                                          /* 0x028 */
     unsigned char unmodeled_02c[0x14];
     int model_entry;
     const char *texture_name;
@@ -120,21 +121,23 @@ typedef struct MspEffect {
     float spread;                                                  /* 0x110 */
     float angle;                                                   /* 0x114 */
     unsigned char drawPacket[0x18];                                /* 0x118 */
-    /* MEfCreate_MSP02: sd $2, 0x130($19) / sd $2, 0x138($19). */
-    u64 cloudPrimitive[2];                                         /* 0x130 */
+    /* GS TEX0 of the de_cld01 / de_cld02 cloud textures
+     * (MEfCreate_MSP02: sd $2, 0x130($19) / sd $2, 0x138($19)). */
+    u64 cloudTexture[2];                                           /* 0x130 */
     unsigned short active[MSP02_TRAIL_SLOTS];                      /* 0x140 */
     unsigned char alignmentBeforePoints[0xc];                      /* 0x154 */
     Vector4 points[MSP02_TRAIL_SLOTS][MSP02_TRAIL_POINTS];         /* 0x160 */
     float twist[MSP02_TRAIL_SLOTS][MSP02_TRAIL_POINTS];            /* 0x2a0 */
 } MspEffect;
 
-/* The GS parameter svGetPrmFromName fills in: only the primitive tag is kept
- * (MEfCreate_MSP02: ld $2, 0x0($29) after each call). */
-typedef struct Msp02GsParameter {
-    u64 primitiveTag;
-    float scaleU;
-    float scaleV;
-} Msp02GsParameter;
+/* svGetPrmFromName's output (SvImageParameter, src/main/sv_get_image_item.c):
+ * the named texture's GS TEX0 value and its scaled width and height. Only
+ * the TEX0 is kept (MEfCreate_MSP02: ld $2, 0x0($29) after each call). */
+typedef struct Msp02ImageParameter {
+    u64 texture;
+    float width;
+    float height;
+} Msp02ImageParameter;
 
 typedef struct MspObject {
     unsigned char unmodeled_00[4];
@@ -146,13 +149,11 @@ typedef struct MspObject {
     MspEffect work;                                                /* 0x20 */
 } MspObject;
 
-extern void MEfGetActorMatrix(Matrix4 destination, unsigned int actor, unsigned int part);
-extern void MEfGetActorCoord(Vector4 *destination, unsigned int actor, unsigned int coordinate);
 extern Vector4 *MEfCalcCircumXZ(Vector4 *destination, const Vector4 *center, float radius);
 extern Vector4 *MMathSubVectorDivS(Vector4 *destination, const Vector4 *first,
                                    const Vector4 *second, float divisor);
 extern void MGsGPInit(void *packet, void *address, int size);
-extern Msp02GsParameter *svGetPrmFromName(const char *name, Msp02GsParameter *output);
+extern Msp02ImageParameter *svGetPrmFromName(const char *name, Msp02ImageParameter *output);
 /* MEfCreate_MSP02: lui $4, %hi(D_00A51680) / %hi(D_00A51690) for svGetPrmFromName. */
 extern const char D_00A51680[]; /* "de_cld01" */
 extern const char D_00A51690[]; /* "de_cld02" */
@@ -169,15 +170,15 @@ int MEfCreate_MSP02(MspObject *object)
     MspEffect *effect = &object->work;
     struct MspCreationParameters *parameters =
         (struct MspCreationParameters *)effect->creationParameters;
-    Msp02GsParameter parameter;
-    Vector4 coordinate;
+    Msp02ImageParameter parameter;
+    Vector4 targetPoint;
     Matrix4 actorMatrix;
 
     effect->frame = 0;
-    MEfGetActorMatrix(actorMatrix, parameters->actor, parameters->actorPart);
+    MEfGetActorMatrix(&actorMatrix, parameters->actor, parameters->actorCoordinate);
     MMathApplyMatrix(&effect->spawnPoint, actorMatrix, &parameters->creationOffset);
-    MEfGetActorCoord(&coordinate, parameters->coordinateActor, parameters->coordinatePart);
-    MEfCalcCircumXZ(&effect->circumPoint, &coordinate, 1.0f);
+    MEfGetActorCoord(&targetPoint, parameters->targetActor, parameters->targetCoordinate);
+    MEfCalcCircumXZ(&effect->circumPoint, &targetPoint, 1.0f);
     /* Quadword copies: position = previousPosition = spawnPoint. */
     __asm__ __volatile__(
         "lq $8, 0(%1)\n"
@@ -212,9 +213,9 @@ int MEfCreate_MSP02(MspObject *object)
     effect->angle = MMathMakeRandom2PI();
     MGsGPInit(effect->drawPacket, 0, 0);
     svGetPrmFromName(D_00A51680, &parameter);
-    effect->cloudPrimitive[0] = parameter.primitiveTag;
+    effect->cloudTexture[0] = parameter.texture;
     svGetPrmFromName(D_00A51690, &parameter);
-    effect->cloudPrimitive[1] = parameter.primitiveTag;
+    effect->cloudTexture[1] = parameter.texture;
     memset(effect->active, 0, sizeof(effect->active));
     memset(effect->points, 0, sizeof(effect->points));
     memset(effect->twist, 0, sizeof(effect->twist));

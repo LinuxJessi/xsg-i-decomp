@@ -306,6 +306,13 @@ typedef struct EntryActor {
     unsigned int flags; /* +0x00 */
 } EntryActor;
 
+/*
+ * Actor.flags bit that unitDispOff (src/ov01/unit_cmd.c) sets on a unit's
+ * motion actor and unitActupdate tests to skip the motion update: the actor
+ * is display-off and update-disabled while it is set.
+ */
+#define ENTRY_ACTOR_FLAG_DISP_OFF 0x8u
+
 typedef struct EntryBattleUnit {
     unsigned char unmodeled_00[0x14];
     EntryActor *actor;  /* +0x14 */
@@ -321,14 +328,14 @@ int entryPhase45(void)
     EntryBattleUnit **next;
     int count;
     int remaining;
-    int active;
+    int dispOffCount;
 
     if (sefCheckLoad() != 0) {
         goto done;
     }
 
     count = unitTblGet(2, &table);
-    active = 0;
+    dispOffCount = 0;
     if (count > 0) {
         remaining = count;
         next = table;
@@ -336,14 +343,14 @@ int entryPhase45(void)
             EntryBattleUnit *unit = *next;
 
             next++;
-            if (unit != 0 && (unit->actor->flags & 8) != 0) {
-                active++;
+            if (unit != 0 && (unit->actor->flags & ENTRY_ACTOR_FLAG_DISP_OFF) != 0) {
+                dispOffCount++;
             }
             remaining--;
         } while (remaining != 0);
     }
 
-    if (active != 0) {
+    if (dispOffCount != 0) {
         goto done;
     }
 

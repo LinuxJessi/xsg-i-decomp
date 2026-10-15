@@ -6,6 +6,7 @@
 #define SRC_OV01_M_EF_CREATE_SMP_01_H
 
 #include "shared.h"
+#include "ov01/m_ef.h"
 
 /* The SMP01 work area fnSMP01_PO000 (the object's post-process callback)
  * is handed: it reaches only the frame counter at +0x70, which it
@@ -28,24 +29,25 @@ typedef struct Smp01Packet {
     int auxCount;  /* 0x10 */
 } Smp01Packet;
 
-/* The output of svGetPrmFromName: the named texture's GS TEX0 value (the
- * packet callback sends it as an A+D TEX0_1 record) and its UV scale. */
-typedef struct Smp01GsParameter {
-    u64 texture0;
-    float scaleU;
-    float scaleV;
-} Smp01GsParameter;
+/* svGetPrmFromName's output (SvImageParameter, src/main/sv_get_image_item.c):
+ * the named texture's GS TEX0 value (the packet callback sends it as an A+D
+ * TEX0_1 record) and its scaled width and height. */
+typedef struct Smp01ImageParameter {
+    u64 texture;
+    float width;
+    float height;
+} Smp01ImageParameter;
 
 enum { SMP01_SMOKE_TRAILS = 10, SMP01_SMOKE_POINTS = 3 };
 
 /* The SMP01 work area (object + 0x20). */
 typedef struct Smp01Work {
     unsigned char unmodeled_000[8];    /* 0x000 */
-    int sourceActor;                   /* 0x008 */
-    int sourcePart;                    /* 0x00C */
+    ActRecord *sourceActor;            /* 0x008: the matrix source */
+    u32 sourceCoordinate;              /* 0x00C: its coordinate selector */
     Vector4 sourceOffset;              /* 0x010 */
     unsigned char unmodeled_020[4];    /* 0x020 */
-    int coordinateActor;               /* 0x024 */
+    ActRecord *targetActor;            /* 0x024: the coordinate source */
     unsigned char unmodeled_028[0x18]; /* 0x028 */
     int modelEntry;                    /* 0x040 */
     const char *textureName;           /* 0x044 */

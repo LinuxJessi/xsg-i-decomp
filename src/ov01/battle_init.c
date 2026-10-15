@@ -999,7 +999,10 @@ void syoukanFadeIn(ObjectTask *unit)
 /*
  * syoukan1Sub's first argument: the two words the body touches (src/ov01/
  * data_unit_org_get.c owns the rest of whatever record this comes from,
- * still asm there). The second argument is never read by this body.
+ * still asm there). The second argument is never read by this body; the
+ * third is the character id of the unit the summon replaces, carried in the
+ * 0x2B command's extra word (syoukan2Sub fills the same word from
+ * linkedUnit->charaId).
  */
 typedef struct Syoukan1SubArgs {
     ObjectTask *unit; /* +0x00 */
@@ -1019,7 +1022,7 @@ typedef struct TecFlagView {
 
 extern TecFlagView *dataTecGet(int tecId);
 
-void syoukan1Sub(Syoukan1SubArgs *args, int reserved, int extra)
+void syoukan1Sub(Syoukan1SubArgs *args, int reserved, int replacementCharaId)
 {
     SyoukanCmdEntry cmd;
 
@@ -1027,7 +1030,7 @@ void syoukan1Sub(Syoukan1SubArgs *args, int reserved, int extra)
 
     cmd.selector = 0x2B;
     cmd.argument = 8;
-    cmd.extra = extra;
+    cmd.extra = replacementCharaId;
     unitCmdSet(args->unit, &cmd);
 
     if (dataTecGet(args->tecId)->flags & 0x10) {

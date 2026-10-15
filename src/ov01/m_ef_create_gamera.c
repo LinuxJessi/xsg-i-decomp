@@ -3,6 +3,7 @@
  */
 #include "common.h"
 #include "ov01/m_ef_create.h"
+#include "ov01/m_ef.h"
 #include "shared.h"
 #include "main/m_math.h"
 
@@ -50,16 +51,16 @@ typedef struct GameraGsPacket {
 /* The GAMERA record, at +0x20 of the pooled effect object. */
 typedef struct GameraWork {
     unsigned char unmodeled_00[8];
-    u32 actor; /* +0x08 */
-    u32 coord; /* +0x0c */
+    ActRecord *actor;        /* +0x08, the matrix source makePath reads */
+    u32 coordinate;          /* +0x0c, its coordinate selector */
     unsigned char unmodeled_10[0x14];
-    u32 target_actor; /* +0x24 */
-    u32 target_coord; /* +0x28 */
+    ActRecord *target_actor; /* +0x24, the coordinate source of target */
+    u32 target_coordinate;   /* +0x28, its coordinate selector */
     unsigned char unmodeled_2c[0x44];
     short frame; /* +0x70 */
     unsigned char unmodeled_72[0x0e];
-    HermiteVector origin; /* +0x80 */
-    HermiteVector target; /* +0x90 */
+    Vector4 origin; /* +0x80 */
+    Vector4 target; /* +0x90 */
     short trail_active[GAMERA_TRAIL_LENGTH]; /* +0xa0 */
     short trail_segment[GAMERA_TRAIL_LENGTH]; /* +0xd8 */
     HermiteVector trail[GAMERA_TRAIL_LENGTH]; /* +0x110 */
@@ -88,7 +89,6 @@ typedef struct GameraEffect {
     GameraWork work; /* +0x20 */
 } GameraEffect;
 
-extern void MEfGetActorCoord(void *destination, u32 actor, u32 coord);
 extern void MGsGPInit(GameraGsPacket *packet, void *address, int size);
 static void makePath(GameraWork *state);
 static void makeHermiteParams(int segment, GameraWork *state);
@@ -106,11 +106,11 @@ int MEfCreate_GAMERA(MEfObjRecord *self)
     GameraEffect *effect = (GameraEffect *)self;
     GameraWork *state = &effect->work;
     HermiteVector *trail = state->trail;
-    HermiteVector *origin = &state->origin;
+    Vector4 *origin = &state->origin;
 
     state->frame = 0;
-    MEfGetActorCoord(origin, state->actor, state->coord);
-    MEfGetActorCoord(&state->target, state->target_actor, state->target_coord);
+    MEfGetActorCoord(origin, state->actor, state->coordinate);
+    MEfGetActorCoord(&state->target, state->target_actor, state->target_coordinate);
     memset(state->trail_active, 0, sizeof(state->trail_active));
     memset(state->trail_segment, 0, sizeof(state->trail_segment));
     memset(trail, 0, sizeof(state->trail));
@@ -126,7 +126,6 @@ int MEfCreate_GAMERA(MEfObjRecord *self)
     return 1;
 }
 
-extern void MEfGetActorMatrix(Matrix4 *matrix, u32 actor, u32 coord);
 extern Vector4 *MMathApplyMatrix(Vector4 *out, Matrix4 *matrix, const Vector4 *vector);
 extern float MMathMakeRandom(void);
 extern float MMathMakeRandom2PI(void);
@@ -154,7 +153,7 @@ static void makePath(GameraWork *state)
     float sine;
     int i;
 
-    MEfGetActorMatrix(&matrix, state->actor, state->coord);
+    MEfGetActorMatrix(&matrix, state->actor, state->coordinate);
     do {
         angle = MMathMakeRandom2PI();
     } while (!(angle < GAMERA_START_ANGLE_MIN || angle > GAMERA_START_ANGLE_MAX));

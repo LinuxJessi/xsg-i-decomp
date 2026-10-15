@@ -391,23 +391,39 @@ int thinkRegGet(int regIndex)
     return (short)value;
 }
 
-void thinkRegSet(int regIndex, int value)
+/*
+ * Script VM register operand, as thinkRegNo reads it from the script and
+ * thinkRegGet/thinkRegSet decode it:
+ *   bit 15  THINK_OPERAND_REGISTER  the script operand names a register rather
+ *                                   than a literal (cmdNum)
+ *   bit 14  THINK_REG_INDIRECT      the register holds a script offset; the
+ *                                   halfword at that offset is the real operand
+ *   bits 0-13 THINK_REG_INDEX_MASK  index into the context's register file
+ * The register file is the array of halfwords at the start of the think
+ * context (pContext); each register holds a 15-bit value (THINK_VALUE_MASK)
+ * that thinkValSet sign-extends from bit 14.
+ */
+#define THINK_REG_INDIRECT 0x4000
+#define THINK_REG_INDEX_MASK 0x3FFF
+#define THINK_VALUE_MASK 0x7FFF
+
+void thinkRegSet(int regOperand, int value)
 {
-    unsigned short reg = regIndex;
-    unsigned short copy = reg;
-    unsigned short val = value & 0x7FFF;
-    short *address;
+    unsigned short regIndex = regOperand;
+    unsigned short operand = regIndex;
+    unsigned short regValue = value & THINK_VALUE_MASK;
+    short *slot;
 
-    reg &= 0x3FFF;
+    regIndex &= THINK_REG_INDEX_MASK;
 
-    if (copy & 0x4000) {
-        short *indirect = (short *)(pContext + reg * 2);
+    if (operand & THINK_REG_INDIRECT) {
+        short *indirect = (short *)pContext + regIndex;
 
-        address = (short *)thinkAdrGet(*indirect);
-        *address = val;
+        slot = (short *)thinkAdrGet(*indirect);
+        *slot = regValue;
     } else {
-        address = (short *)(pContext + reg * 2);
-        *address = val;
+        slot = (short *)pContext + regIndex;
+        *slot = regValue;
     }
 }
 
@@ -626,20 +642,28 @@ int cmdTblget(ThinkProcess *proc)
     return 0;
 }
 
+/*
+ * TBLSET <register> <table> <entry>: store the register's value into one
+ * halfword of a script table. regOperand keeps the register-addressing flags
+ * thinkRegGet decodes; tableOffset is the table's script byte offset and
+ * entry its decoded halfword index.
+ */
 int cmdTblset(ThinkProcess *proc)
 {
-    int regNo = thinkRegNo(proc->pc);
-    int base;
-    int rawIndex;
+    int regOperand = thinkRegNo(proc->pc);
+    int tableOffset;
+    int entry;
     int value;
+    short *slot;
 
     proc->pc += 2;
-    base = cmdNum(proc->pc);
+    tableOffset = cmdNum(proc->pc);
     proc->pc += 2;
-    rawIndex = cmdNum(proc->pc);
+    entry = cmdNum(proc->pc);
     proc->pc += 2;
-    value = thinkRegGet(regNo & 0xFFFF);
-    *(short *)thinkAdrGet(base + rawIndex * 2) = value;
+    value = thinkRegGet(regOperand & 0xFFFF);
+    slot = (short *)thinkAdrGet(tableOffset + entry * 2);
+    *slot = value;
     return 0;
 }
 

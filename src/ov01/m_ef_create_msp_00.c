@@ -3,6 +3,7 @@
  */
 #include "common.h"
 #include "ov01/m_ef_create.h"
+#include "ov01/m_ef.h"
 #include "shared.h"
 
 extern Matrix4 *MMathRotateMatrixYXZ(Matrix4 *destination,
@@ -12,8 +13,6 @@ extern Matrix4 *MMathScaleMatrix(Matrix4 *destination,
                                  Matrix4 *matrix,
                                  const Vector4 *scale);
 extern void MEfDrawModel(const Vector4 *place, int entry, const char *texture);
-extern void MEfGetActorMatrix(Matrix4 destination, unsigned int actor, unsigned int part);
-extern void MEfGetActorCoord(Vector4 *destination, unsigned int actor, unsigned int coordinate);
 extern Vector4 *MEfCalcCircumXZ(Vector4 *destination, const Vector4 *center, float radius);
 extern Vector4 *MEfCalcAngle(Vector4 *destination, const Vector4 *from, const Vector4 *to);
 extern Vector4 *MMathApplyMatrix(Vector4 *destination, const Matrix4 *matrix, const Vector4 *vector);
@@ -28,7 +27,7 @@ extern void MGsGPInit(void *packet, void *address, int size);
 
 /*
  * The MSP00 effect record: the work area the MEf effect object carries at
- * +0x20. MEfCreate_MSP00 reads the creation request (actor/part pairs and the
+ * +0x20. MEfCreate_MSP00 reads the creation request (actor/selector pairs and the
  * creation offset), seeds the flight vectors and clears the ten-slot trail;
  * fnMSP00_PR000 moves the head and shifts the trail every frame.
  */
@@ -38,12 +37,12 @@ extern void MGsGPInit(void *packet, void *address, int size);
 
 typedef struct MSP00Effect {
     unsigned char unmodeled_000[0x08];
-    unsigned int actor;                                         /* 0x008 */
-    unsigned int actorPart;                                     /* 0x00c */
+    ActRecord *actor;                                           /* 0x008 */
+    u32 actorCoordinate;                                        /* 0x00c */
     Vector4 creationOffset;                                     /* 0x010 */
     unsigned char unmodeled_020[0x04];
-    unsigned int coordinateActor;                               /* 0x024 */
-    unsigned int coordinatePart;                                /* 0x028 */
+    ActRecord *targetActor;                                     /* 0x024 */
+    u32 targetCoordinate;                                       /* 0x028 */
     unsigned char unmodeled_02c[0x44];
     int frame;                                                  /* 0x070 */
     unsigned char unmodeled_74[0xc];                            /* 0x074 */
@@ -81,14 +80,14 @@ static void fnMSP00_PO000(void *self, void *work);
 int MEfCreate_MSP00(MSP00Object *object)
 {
     MSP00Effect *effect = &object->work;
-    Vector4 coordinate;
+    Vector4 targetPoint;
     Matrix4 actorMatrix;
 
     effect->frame = 0;
-    MEfGetActorMatrix(actorMatrix, effect->actor, effect->actorPart);
-    MMathApplyMatrix(&effect->spawnPoint, (const Matrix4 *)&actorMatrix, &effect->creationOffset);
-    MEfGetActorCoord(&coordinate, effect->coordinateActor, effect->coordinatePart);
-    MEfCalcCircumXZ(&effect->circumPoint, &coordinate, 1.0f);
+    MEfGetActorMatrix(&actorMatrix, effect->actor, effect->actorCoordinate);
+    MMathApplyMatrix(&effect->spawnPoint, &actorMatrix, &effect->creationOffset);
+    MEfGetActorCoord(&targetPoint, effect->targetActor, effect->targetCoordinate);
+    MEfCalcCircumXZ(&effect->circumPoint, &targetPoint, 1.0f);
     /* Quadword copies: position = previousPosition = spawnPoint. */
     __asm__ __volatile__(
         "lq $8, 0(%1)\n"

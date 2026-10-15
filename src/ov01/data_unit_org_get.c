@@ -12,10 +12,7 @@ extern const char D_00A457B0[32];
  * pass a one-based index, so dataUnitOrgGet returns orgData[id - 1].
  */
 typedef struct UnitOrgRecord {
-    unsigned char unmodeled_0[0x5E];
-    /* dataMotNameGetMenu indexes this by weaponId to find the technique
-     * id table dataWpnGet/dataTecGet resolve from. */
-    short wpnTecTbl[(0x180 - 0x5E) / 2]; /* +0x5E */
+    unsigned char unmodeled_0[0x180];
 } UnitOrgRecord;
 
 static const char D_00A456A8[32];
@@ -544,7 +541,7 @@ TecRecord *dataTecGet(int entry)
     return &records[entry - 1];
 }
 
-/* dataMotNameGetMenu reads tecId as a short at +0x14. */
+/* dataMotNameGetMenu reads the weapon's technique id as a short at +0x14. */
 typedef struct WpnRecord {
     unsigned char unmodeled_00[0x14];
     short tecId; /* +0x14 */
@@ -837,26 +834,33 @@ extern int dataMotNameGetSub(char *name, CalcUnitParam *up, int motionId, int we
 static char *motNameBase;
 static char *motNameExt;
 
-int dataMotNameGetMenu(char *name, int orgId, int weaponId)
+/*
+ * Menu-side motion name lookup. The unit-origin record is the unit's own
+ * CalcUnitParam (0x180 bytes, include/ov01/calc.h), so the weapon slot
+ * selects weaponId[]; the weapon record names its technique and the
+ * technique record names the motion.
+ */
+int dataMotNameGetMenu(char *name, int orgId, int weaponSlot)
 {
-    UnitOrgRecord *org;
+    CalcUnitParam *origin;
+    int weaponId;
     int tecId;
     int motionId;
     int found;
 
     *name = 0;
-    org = (UnitOrgRecord *)dataUnitOrgGet(orgId);
-    tecId = org->wpnTecTbl[weaponId];
-    if (tecId == 0) {
+    origin = (CalcUnitParam *)dataUnitOrgGet(orgId);
+    weaponId = origin->weaponId[weaponSlot];
+    if (weaponId == 0) {
         return 0;
     }
-    motionId = dataWpnGet(tecId)->tecId;
-    motionId = dataTecGet(motionId)->motionId;
+    tecId = dataWpnGet(weaponId)->tecId;
+    motionId = dataTecGet(tecId)->motionId;
     if (motionId == 0) {
         return 0;
     }
     strcpy(name, motNameBase);
-    found = dataMotNameGetSub(name, (CalcUnitParam *)org, motionId, weaponId);
+    found = dataMotNameGetSub(name, origin, motionId, weaponSlot);
     strcat(name, motNameExt);
     if (found == 0) {
         *name = 0;

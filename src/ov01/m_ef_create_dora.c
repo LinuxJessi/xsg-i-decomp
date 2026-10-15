@@ -3,6 +3,7 @@
  */
 #include "common.h"
 #include "ov01/m_ef_create.h"
+#include "ov01/m_ef.h"
 #include "shared.h"
 #include "main/m_math.h"
 
@@ -17,17 +18,17 @@ typedef unsigned int DoraQuadword __attribute__((mode(TI)));
  * The earlier quadword arrays preserve its observed sixteen-byte alignment. */
 typedef struct DoraHermiteState {
     u32 unmodeled_00[2];
-    u32 actor;     /* +0x08, MEfGetActorMatrix actor */
-    u32 coord;     /* +0x0c, MEfGetActorMatrix coordinate */
-    Vector4 offset; /* +0x10, translation applied to that matrix */
+    ActRecord *actor;       /* +0x08, the matrix source makePath reads */
+    u32 coordinate;         /* +0x0c, its coordinate selector */
+    Vector4 offset;         /* +0x10, translation applied to that matrix */
     unsigned char unmodeled_20[4];
-    u32 actor_id;
-    u32 actor_coord_id;
+    ActRecord *target_actor; /* +0x24, the coordinate source MEfCreate_DORA reads */
+    u32 target_coordinate;   /* +0x28, its coordinate selector */
     unsigned char unmodeled_2c[0x44];
     short frame;
     unsigned char unmodeled_72[0x0e];
     DoraQuadword weapon_coord;
-    HermiteVector actor_coord;
+    Vector4 actor_coord;
     short trail_active[DORA_TRAIL_SLOTS];
     short trail_segment[DORA_TRAIL_SLOTS];
     unsigned char unmodeled_128[8];
@@ -63,7 +64,6 @@ typedef struct DoraObject {
 } DoraObject;
 
 extern Vector4 *MEfCalcWeaponCoord(void *destination, void *weapon);
-extern void MEfGetActorCoord(void *destination, u32 actor, u32 part);
 extern void MGsGPInit(void *packet, void *address, int size);
 
 static void makePath(DoraHermiteState *state);
@@ -79,7 +79,7 @@ int MEfCreate_DORA(MEfObjRecord *self)
 
     state->frame = 0;
     MEfCalcWeaponCoord(&state->weapon_coord, state);
-    MEfGetActorCoord(&state->actor_coord, state->actor_id, state->actor_coord_id);
+    MEfGetActorCoord(&state->actor_coord, state->target_actor, state->target_coordinate);
     memset(state->trail_active, 0, sizeof(state->trail_active));
     memset(state->trail_segment, 0, sizeof(state->trail_segment));
     memset(state->trail, 0, sizeof(state->trail));
@@ -105,9 +105,8 @@ int MEfCreate_DORA(MEfObjRecord *self)
 extern float disttbl_0_00A51820[4];
 extern float rtbl_1_00A51830[4];
 
-extern void MEfGetActorMatrix(Vector4 *destination, u32 actor, u32 part);
-extern void MMathTranslateMatrix(Vector4 *destination, Vector4 *matrix, Vector4 *translation);
-extern void MMathRotateMatrixX(Vector4 *destination, Vector4 *matrix, float angle);
+extern void MMathTranslateMatrix(Matrix4 *destination, Matrix4 *matrix, Vector4 *translation);
+extern void MMathRotateMatrixX(Matrix4 *destination, Matrix4 *matrix, float angle);
 extern float MMathMakeRandom2PI(void);
 extern float MMathMakeRandom(void);
 extern unsigned short xglSRand(void);
@@ -117,7 +116,7 @@ extern void *MMathApplyMatrix(void *destination, const void *matrix, const void 
  * source actor, turning either way at random. */
 static void makePath(DoraHermiteState *state)
 {
-    Vector4 matrix[4];
+    Matrix4 matrix;
     Vector4 offset;
     float angle;
     float angle_step;
@@ -127,9 +126,9 @@ static void makePath(DoraHermiteState *state)
     int point;
 
     angle_step = 0.13962634f;
-    MEfGetActorMatrix(matrix, state->actor, state->coord);
-    MMathTranslateMatrix(matrix, matrix, &state->offset);
-    MMathRotateMatrixX(matrix, matrix, 0.27925268f);
+    MEfGetActorMatrix(&matrix, state->actor, state->coordinate);
+    MMathTranslateMatrix(&matrix, &matrix, &state->offset);
+    MMathRotateMatrixX(&matrix, &matrix, 0.27925268f);
     angle = MMathMakeRandom2PI();
     if ((xglSRand() & 1) == 0) {
         angle_step = -0.13962634f;
@@ -158,7 +157,7 @@ static void makePath(DoraHermiteState *state)
             : "$8", "memory");
         offset.y = sine * rtbl_1_00A51830[point] * radius;
         offset.z = disttbl_0_00A51820[point];
-        MMathApplyMatrix(&state->control_points[point], matrix, &offset);
+        MMathApplyMatrix(&state->control_points[point], &matrix, &offset);
         state->path_progress[point] = angle;
         angle += angle_step;
         angle_step *= 1.2f;

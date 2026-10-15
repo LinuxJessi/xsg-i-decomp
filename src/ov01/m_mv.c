@@ -102,7 +102,7 @@ void MMvExec(void)
 
         finished = xglMoviePlay(D_00A5B6D0);
         /* The flip base occupies bits 5 and above of the low command word. */
-        mvEnv.transfer_tag = 0x2000000640000000ULL | (u64)~(~0x24020000U & ~((u32)sRender.flip_base << 5));
+        mvEnv.transfer_tag = 0x2000000640000000ULL | (u64)(0x24020000 | (sRender.flip_base << 5));
         FlushCache(0);
         xglDmaDirectNormal(2, (u32)&mvEnv, 9);
 

@@ -11,14 +11,12 @@ extern void *MEfCalcAngle(Vector4 *destination, const Vector4 *from,
 extern void *MMathApplyMatrix(Vector4 *destination, const Vector4 *matrix,
                               const Vector4 *point);
 
-extern void MEfGetActorMatrix(Vector4 *destination, int actor, int part);
-extern void MEfGetActorCoord(Vector4 *destination, int actor, int part);
 extern Vector4 *MEfCalcCircumXZ(Vector4 *destination, const Vector4 *center,
                                 float radius);
 extern float MMathMakeRandom2PI(void);
 extern void MGsGPInit(Smp01Packet *packet, void *address, int size);
-extern Smp01GsParameter *svGetPrmFromName(const char *name,
-                                          Smp01GsParameter *output);
+extern Smp01ImageParameter *svGetPrmFromName(const char *name,
+                                             Smp01ImageParameter *output);
 extern const char D_00A51480[];
 extern const char D_00A51490[];
 
@@ -34,17 +32,17 @@ int MEfCreate_SMP01(MEfObjRecord *self)
     /* This constructor interprets its own variant of the pooled work. */
     Smp01Object *object = (Smp01Object *)self;
     Smp01Work *work = &object->work;
-    Smp01GsParameter parameter;
-    Vector4 actorCoordinate;
-    Vector4 actorMatrix[4];
+    Smp01ImageParameter parameter;
+    Vector4 targetPoint;
+    Matrix4 actorMatrix;
 
     work->frame = 0;
     work->phase = 0;
     work->phaseCount = 0;
-    MEfGetActorMatrix(actorMatrix, work->sourceActor, work->sourcePart);
-    MMathApplyMatrix(&work->spawnPoint, actorMatrix, &work->sourceOffset);
-    MEfGetActorCoord(&actorCoordinate, work->coordinateActor, -1);
-    MEfCalcCircumXZ(&work->targetPosition, &actorCoordinate, 1.0f);
+    MEfGetActorMatrix(&actorMatrix, work->sourceActor, work->sourceCoordinate);
+    MMathApplyMatrix(&work->spawnPoint, (const Vector4 *)actorMatrix, &work->sourceOffset);
+    MEfGetActorCoord(&targetPoint, work->targetActor, MEF_POINT_ACTOR);
+    MEfCalcCircumXZ(&work->targetPosition, &targetPoint, 1.0f);
     __asm__ __volatile__("lq $8,0(%1)\n\tsq $8,0(%0)"
                          : : "r"(&work->position), "r"(&work->spawnPoint)
                          : "$8", "memory");
@@ -56,9 +54,9 @@ int MEfCreate_SMP01(MEfObjRecord *self)
 
     MGsGPInit(&work->packet, 0, 0);
     svGetPrmFromName(D_00A51480, &parameter);
-    work->smokeTexture0First = parameter.texture0;
+    work->smokeTexture0First = parameter.texture;
     svGetPrmFromName(D_00A51490, &parameter);
-    work->smokeTexture0Second = parameter.texture0;
+    work->smokeTexture0Second = parameter.texture;
     memset(work->smokeActive, 0, sizeof(work->smokeActive));
     memset(work->smokePoints, 0, sizeof(work->smokePoints));
     memset(work->smokeAngles, 0, sizeof(work->smokeAngles));

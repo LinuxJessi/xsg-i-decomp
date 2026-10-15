@@ -3,14 +3,9 @@
  */
 #include "common.h"
 #include "m_ef.h"
+#include "ov01/m_ef.h"
 #include "main/act_1.h"
 #include "main/act_2.h"
-
-/* MEfGetActorMatrix's coordinate selectors: the actor itself, the actor
-   raised to a fixed height, and the count of accessory joints. */
-#define MEF_POINT_ACTOR ((u32)-1)
-#define MEF_POINT_ACTOR_RAISED ((u32)-2)
-#define MEF_POINT_JOINT_COUNT 0x28
 
 extern Matrix4 *MMathRotateMatrixY(Matrix4 *out, Matrix4 *matrix, float angle);
 const char D_00A512B0[64] =
@@ -149,7 +144,7 @@ Matrix4 *MEfGetActorMatrix(Matrix4 *destination, ActRecord *actor, u32 coordinat
             : "memory"
         );
         (*destination)[3][1] = 1.5f;
-    } else if (coordinate < MEF_POINT_JOINT_COUNT) {
+    } else if (coordinate < MEF_POINT_ACCESSORY_COUNT) {
         joint = ACT_jointGetAccessories((Actor *)actor, coordinate);
         if (joint < 0) {
             MOutputDebugStringWarn(D_00A51318, coordinate);

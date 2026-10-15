@@ -204,9 +204,9 @@ void objStdInit(ObjectTask *task)
 /*
  * Advance an object one update: accelerate, move, and snap each axis onto its
  * target once it reaches it, overshoots it in the direction of travel, or lies
- * within 1e-6 of it.  Returns nonzero when all three axes have arrived.  As in
- * objHatoVec, the negative side of the magnitude test negates the remaining
- * distance and the positive side compares it as it stands.
+ * within 1e-6 of it.  Returns nonzero when all three axes have arrived.
+ * magnitude is |distance|; each side of the sign test compares its own copy,
+ * which is the shape the original's duplicated compare comes from.
  */
 int objStdMove(ObjectTask *task)
 {
@@ -231,7 +231,8 @@ int objStdMove(ObjectTask *task)
         } else if ((velocity > 0.0f && transform->target.x < position)
                    || (velocity < 0.0f && position < transform->target.x)
                    || ((distance = transform->target.x - position) < 0.0f
-                           ? (magnitude = -distance) : distance) <= 1e-6f) {
+                           ? (magnitude = -distance, magnitude <= 1e-6f)
+                           : (magnitude = distance, magnitude <= 1e-6f))) {
             transform->homogeneousVector.x = transform->target.x;
             arrived++;
         }
@@ -252,7 +253,8 @@ int objStdMove(ObjectTask *task)
         } else if ((velocity > 0.0f && transform->target.y < position)
                    || (velocity < 0.0f && position < transform->target.y)
                    || ((distance = transform->target.y - position) < 0.0f
-                           ? (magnitude = -distance) : distance) <= 1e-6f) {
+                           ? (magnitude = -distance, magnitude <= 1e-6f)
+                           : (magnitude = distance, magnitude <= 1e-6f))) {
             transform->homogeneousVector.y = transform->target.y;
             arrived++;
         }
@@ -273,7 +275,8 @@ int objStdMove(ObjectTask *task)
         } else if ((velocity > 0.0f && transform->target.z < position)
                    || (velocity < 0.0f && position < transform->target.z)
                    || ((distance = transform->target.z - position) < 0.0f
-                           ? (magnitude = -distance) : distance) <= 1e-6f) {
+                           ? (magnitude = -distance, magnitude <= 1e-6f)
+                           : (magnitude = distance, magnitude <= 1e-6f))) {
             transform->homogeneousVector.z = transform->target.z;
             arrived++;
         }
