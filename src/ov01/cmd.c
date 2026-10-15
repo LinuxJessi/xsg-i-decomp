@@ -394,8 +394,8 @@ int thinkRegGet(int regIndex)
 /*
  * Script VM register operand, as thinkRegNo reads it from the script and
  * thinkRegGet/thinkRegSet decode it:
- *   bit 15  THINK_OPERAND_REGISTER  the script operand names a register rather
- *                                   than a literal (cmdNum)
+ *   bit 15 (0x8000, tested by cmdNum)  the script operand names a register
+ *                                      rather than a literal
  *   bit 14  THINK_REG_INDIRECT      the register holds a script offset; the
  *                                   halfword at that offset is the real operand
  *   bits 0-13 THINK_REG_INDEX_MASK  index into the context's register file
