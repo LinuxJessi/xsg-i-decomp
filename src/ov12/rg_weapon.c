@@ -375,7 +375,7 @@ extern int RgRobotGetGeom(int robotId);
 extern void RgRobotGiveDamage(int robotId, RgVector direction, int flags, float damage);
 extern void RgRobotInvalidAttack(int robotId, RgVector direction, float damage);
 extern int RgRobotIsInvalidAttack(int robotId, RgVector direction);
-extern unsigned char *RgWeaponEssCastToAttack(int ess);
+extern RgWeaponAttackEssence *RgWeaponEssCastToAttack(RgWeaponEssenceCommon *ess);
 extern const char D_00A53730[];
 extern const char D_00A53740[];
 
@@ -399,7 +399,7 @@ void _HitRobotAttackType(RgWeaponAttackType *weapon, int robotId, int damage)
         weapon->active = 0;
         XrgSubVector(direction, ownPosition, targetPosition);
         if (RgRobotIsInvalidAttack(robotId, direction) == 0) {
-            attackEssence = RgWeaponEssCastToAttack(weapon->common.ess);
+            attackEssence = (unsigned char *) RgWeaponEssCastToAttack((RgWeaponEssenceCommon *) weapon->common.ess);
             if (attackEssence != 0) {
                 CreateRgHitEffectPosDir(damage, direction, attackEssence + 0x3bc, D_00A53730);
             }
@@ -1040,7 +1040,18 @@ RgWeaponEnergyEssence *RgWeaponEssCastToEnergy(RgWeaponEssenceCommon *ess)
     return 0;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_weapon", RgWeaponEssCastToAttack);
+RgWeaponAttackEssence *RgWeaponEssCastToAttack(RgWeaponEssenceCommon *ess)
+{
+    if (ess != 0) {
+        if ((int) ess->m_pCreateMethod == (int) _CreateWeaponAttackType) {
+            return (RgWeaponAttackEssence *) ess;
+        }
+        if ((int) ess->m_pCreateMethod == (int) _CreateWeaponUnArmedType) {
+            return (RgWeaponAttackEssence *) ess;
+        }
+    }
+    return 0;
+}
 
 RgWeaponShieldEssence *RgWeaponEssCastToShield(RgWeaponEssenceCommon *ess)
 {
