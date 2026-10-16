@@ -667,7 +667,36 @@ INCLUDE_ASM("asm/nonmatchings/ov10/card_fread", CGCPYamaDispSub);
 
 INCLUDE_ASM("asm/nonmatchings/ov10/card_fread", CGCPJunkDispSub);
 
-INCLUDE_ASM("asm/nonmatchings/ov10/card_fread", CardPlayCntAllOpe);
+s32 CardPlayCntAllOpe(CardGameWork *work, s16 opId)
+{
+    s16 *playerOp;
+    s16 *enemyOp;
+    s16 want;
+    s32 count;
+    s32 remaining;
+
+    want = opId;
+    count = 0;
+    enemyOp = work->enemy.operations;
+    playerOp = work->player.operations;
+    remaining = 3;
+    do {
+        s16 playerId = *playerOp;
+        s16 enemyId;
+
+        playerOp += 1;
+        enemyId = *enemyOp;
+        enemyOp += 1;
+        if ((want ^ playerId) == 0) {
+            count = count + 1;
+        }
+        remaining -= 1;
+        if ((want ^ enemyId) == 0) {
+            count = count + 1;
+        }
+    } while (remaining >= 0);
+    return count;
+}
 
 s32 CardPlayCntOpe(CardPlaySide *side, s16 opId)
 {
