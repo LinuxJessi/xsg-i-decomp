@@ -54,6 +54,17 @@
 !/tools/header_inputs/
 !/tools/tu/
 
+# The TU acceptance audit and the modules its gate imports directly.
+!/tools/tu_audit.py
+!/tools/asm_contract_lint.py
+!/tools/compiler_calibrate.py
+!/tools/external_reference.py
+!/tools/inventory.py
+!/tools/match.py
+!/tools/native_ti.py
+!/tools/toolchain_probe.py
+!/tools/verify_target.py
+
 # Inside tools/tu/, these regenerate the tracked inputs from the project's
 # private migration evidence, or audit against the acceptance records.
 /tools/tu/gen_main.py
