@@ -4911,6 +4911,18 @@ def derive(root, unit, unit_dir, tu_id, source, obj, *, _declared=None,
         raw_cc1 = overlay_cc1_sidecar(unit_dir, unit, ctx['name'])
         if raw_cc1:
             out['raw_cc1_provenance'] = raw_cc1
+        # Overlay NOBITS placements come from the guarded storage record,
+        # rather than the initialized-data discovery below. Keep their
+        # refreshed coordinates when a worker writes this derivation back;
+        # otherwise any source form silently removes the existing BSS runs.
+        # The overlay build still validates the allocation record and the
+        # complete linked image; retaining a request grants no new ownership.
+        for sec in ('.bss', '.sbss'):
+            if declared.get(sec):
+                out['runs'][sec] = copy.deepcopy(declared[sec])
+                out['sections'][sec] = dict(
+                    note='retained guarded overlay NOBITS placements; '
+                         'allocation and linked-image checks remain required')
     # When an immutable record supplies exact raw-object offsets for initialized
     # owners, validate those coordinates directly.  The legacy heuristic below
     # assumes the raw input section and original scaffold family have the same

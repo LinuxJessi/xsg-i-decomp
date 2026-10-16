@@ -133,7 +133,30 @@ static CasinoSpriteWords BGTEST_Tex  = {0, 0, 511, 447, 0, 1136, 0};
 static CasinoRectWords BGTEST_Rect  = {0, 0, 512, 448};
 static int flg_104  = 0;
 
-INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", MakeBoxPos);
+/* Four GS XYZ vertices for an untextured box. Coordinates use 12.4
+ * fixed point around the overlay's (0x7000, 0x7200) drawing origin;
+ * the upper word supplies Z = 1. BoxPOS remains scaffold-owned storage. */
+extern unsigned long long BoxPOS[4];
+
+static void MakeBoxPos(int x, int y, int width, int height)
+{
+    int left;
+    int right;
+    unsigned long long top;
+    unsigned long long bottom;
+    unsigned long long depth;
+
+    left = x * 16 + 0x7000;
+    top = (unsigned long long)(y * 16 + 0x7200);
+    right = (x + width) * 16 + 0x7000;
+    bottom = (unsigned long long)((y + height) * 16 + 0x7200);
+    depth = 1ULL << 32;
+
+    BoxPOS[0] = left | (top << 16) | depth;
+    BoxPOS[1] = right | (top << 16) | depth;
+    BoxPOS[2] = left | (bottom << 16) | depth;
+    BoxPOS[3] = right | (bottom << 16) | depth;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", DrawNonTextureBox);
 
@@ -307,7 +330,7 @@ static int check_mode(void)
     int index;
 
     for (index = 0; index < 3; index++) {
-        if (Gwork[index + 8] == 1) {
+        if (Gwork.words[index + 8] == 1) {
             return 1;
         }
     }
@@ -462,7 +485,7 @@ extern int pow(unsigned long long base, unsigned long long exponent);
 
 static void NgPaidPrint(void)
 {
-    decprint(Gwork[42] * dptoli(pow(DOUBLE_TWO, litodp(Gwork[46]))), 7, 0x1B2, 0x182);
+    decprint(Gwork.words[42] * dptoli(pow(DOUBLE_TWO, litodp(Gwork.words[46]))), 7, 0x1B2, 0x182);
 }
 
 INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", NgGetsDownBtnPrint);
@@ -575,7 +598,20 @@ static void PoRateTableDraw(void)
 
 INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", PoBonusBGDraw);
 
-INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", PoResetCard);
+/* Poker's deck-use flags, dealt cards and replacement choices occupy
+ * these fields of Gwork. PoShuffleCard uses replacement value 1 to deal
+ * a slot; card value 53 denotes an empty hand slot. */
+static void PoResetCard(void)
+{
+    int index;
+    for (index = 52; index >= 0; index--) {
+        Gwork.poker_deal.card_used[index] = 0;
+    }
+    for (index = 0; index < 5; index++) {
+        Gwork.poker_deal.hand_cards[index] = 53;
+        Gwork.poker_deal.replace_selected[index] = 1;
+    }
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", PoShuffleCard);
 
@@ -699,7 +735,7 @@ static int PoFlushChk(void)
     int suit;
     int index;
 
-    hand = (struct PokerHandWork *)Gwork;
+    hand = (struct PokerHandWork *)Gwork.words;
     card = &hand->cards[1];
     suit = PoGetMark(hand->cards[0]);
     for (index = 1; index < 5; index++) {
@@ -824,7 +860,7 @@ static int PoChk8(void)
     if (PoFlushChk() == 0) {
         return 0;
     }
-    hand = (struct PokerHandWork *)Gwork;
+    hand = (struct PokerHandWork *)Gwork.words;
     first = hand->cards[0];
     if (hand->cards[1] != first + 1 ||
         hand->cards[2] != first + 2 ||
@@ -860,7 +896,7 @@ static int PoChk9(void)
         return 0;
     }
 
-    hand = (short *)Gwork;
+    hand = (short *)Gwork.words;
     base = hand[POKER_HAND_RANK_INDEX];
     if (base == PoGetBase(PoGetBase(base))) {
         if (hand[POKER_HAND_RANK_INDEX + 1] == base + 9 &&
@@ -1014,11 +1050,11 @@ INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", PokerMain);
  * not separately evidenced. */
 static void PoInitWork(void)
 {
-    Gwork[96] = 0;
-    Gwork[97] = 0;
-    Gwork[100] = 0;
-    Gwork[101] = 0;
-    Gwork[98] = 0;
+    Gwork.words[96] = 0;
+    Gwork.words[97] = 0;
+    Gwork.words[100] = 0;
+    Gwork.words[101] = 0;
+    Gwork.words[98] = 0;
 }
 
 /* ov11:0x00a06c28. Loads the six poker minigame textures (four suits plus
@@ -1129,8 +1165,8 @@ static void init_menu_mode(void)
     xglCdReadFile(D_00A0C320, (void *)MENU_BG_TEX_BUFFER, 0, 0);
     xglCdReadFile(D_00A0C338, (void *)MENU_WINDOW_TEX_BUFFER, 0, 0);
 
-    Gwork[3] = 0;
-    ((short *)Gwork)[MENU_LEVEL_INDEX] = 0;
+    Gwork.words[3] = 0;
+    ((short *)Gwork.words)[MENU_LEVEL_INDEX] = 0;
 }
 
 /* ov11:0x00a07470. Loads the casino test-mode background texture. */
@@ -1226,7 +1262,7 @@ static int VW_SamlistInit(void)
     char *enabled;
     int *sampler;
 
-    sampler = Gwork;
+    sampler = Gwork.words;
     sampler_offset(&sampler, &count);
     enabled = SaveWork;
     enabled += 6;
@@ -1291,7 +1327,7 @@ static void MUSIC_CALL(int musicId);
 
 static void InitWork(void)
 {
-    unsigned char *work = (unsigned char *)Gwork;
+    unsigned char *work = (unsigned char *)Gwork.words;
     short *slot;
     int value;
 
