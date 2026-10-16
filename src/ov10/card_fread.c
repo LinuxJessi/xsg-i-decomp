@@ -83,17 +83,17 @@ typedef int s32;
 
 /* Compact deck-build list CardMakeDeckProc/CardLoadDeckProc/CardSaveDeckProc
  * edit: a card-type group count followed by one 4-byte group record per
- * group, whose selected-copy count is its first halfword. */
+ * group: the card id (CardGetDeckCardCnt compares it, lh at +0x14 + 4*i)
+ * and its selected-copy count (lh at +0x16 + 4*i in both counters). */
 typedef struct CardDeckGroupEntry {
-    s16 copyCount;              /* +0x00 */
-    u8 unmodeled_02[2];
+    s16 cardId;                 /* +0x00 */
+    s16 copyCount;              /* +0x02 */
 } CardDeckGroupEntry;
 
 typedef struct CardDeckGroupList {
     u8 unmodeled_00[0x12];
     s16 groupCount;             /* +0x12 */
-    u8 unmodeled_14[2];
-    CardDeckGroupEntry groups[1]; /* +0x16: groupCount entries */
+    CardDeckGroupEntry groups[1]; /* +0x14: groupCount entries */
 } CardDeckGroupList;
 
 s32 CardGetDeckAllCnt(CardDeckGroupList *deck)
@@ -108,7 +108,19 @@ s32 CardGetDeckAllCnt(CardDeckGroupList *deck)
     return total;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov10/card_fread", CardGetDeckCardCnt);
+s32 CardGetDeckCardCnt(s16 cardId, CardDeckGroupList *deck)
+{
+    s32 total;
+    int i;
+
+    total = 0;
+    for (i = 0; i < deck->groupCount; i++) {
+        if (deck->groups[i].cardId == cardId) {
+            total += deck->groups[i].copyCount;
+        }
+    }
+    return total;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov10/card_fread", CardCleanUpDeck);
 
