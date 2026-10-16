@@ -308,7 +308,18 @@ void _DetachChildUseXenoActor(XrgActor *pParent, XrgActor *pChild)
     ACT_setHumanHand(pParent->pXenoAct, 0);
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov12/xrg_actor", _IsEndOfMotUseXenoActor);
+int _IsEndOfMotUseXenoActor(XrgActor *pActor)
+{
+    XenoAct *pXenoAct = pActor->pXenoAct;
+
+    if (pActor->motionID == -1) {
+        return 1;
+    }
+    if (pXenoAct == 0 || (pXenoAct->motionFlags & 0x1000) == 0) {
+        return 0;
+    }
+    return 1;
+}
 
 void _DumpHead(void) {
 
