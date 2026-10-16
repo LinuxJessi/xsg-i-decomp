@@ -29,7 +29,11 @@ typedef struct XenoAct {
     unsigned char unmodeled_092[0x510 - 0x092];
     StudioLight light;                 /* 0x510: _InitAfterLoadXenoActor's
                                            xglLightSetDefault target */
-    unsigned char unmodeled_600[0x6F4 - 0x600];
+    unsigned char unmodeled_600[0x6F0 - 0x600];
+    unsigned int motionFlags;         /* 0x6F0: _IsEndOfMotUseXenoActor tests bit 0x1000
+                                         (lw + andi 0x1000 at ov12:0x00a464ec) as the
+                                         motion-ended flag; main's chr.h and menu_model.c
+                                         name the same word motion_flags/motionFlags */
     float motionFrame;                /* 0x6F4 */
     unsigned char unmodeled_6f8[0x8D0 - 0x6F8];
     void *dupFileData;                 /* 0x8D0: resourceFiles[2]->data, cached by
