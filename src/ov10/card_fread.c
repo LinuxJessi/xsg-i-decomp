@@ -321,11 +321,56 @@ INCLUDE_ASM("asm/nonmatchings/ov10/card_fread", CardPlayDrawSute);
 
 INCLUDE_ASM("asm/nonmatchings/ov10/card_fread", CardPlayRecavery);
 
-INCLUDE_ASM("asm/nonmatchings/ov10/card_fread", CardPlayCleanHand);
+void CardPlayCleanHand(CardHand *hand)
+{
+    s32 kept;
+    s32 i;
 
-INCLUDE_ASM("asm/nonmatchings/ov10/card_fread", CardPlayCleanYama);
+    kept = 0;
+    for (i = 0; i < 40; i++) {
+        if (hand->cards[i] >= 0) {
+            if (i != kept) {
+                hand->cards[kept] = hand->cards[i];
+                hand->cards[i] = -1;
+            }
+            kept++;
+        }
+    }
+}
 
-INCLUDE_ASM("asm/nonmatchings/ov10/card_fread", CardPlayCleanJunk);
+void CardPlayCleanYama(CardPlaySide *side)
+{
+    s32 kept;
+    s32 i;
+
+    kept = 0;
+    for (i = 0; i < 40; i++) {
+        if (side->deck[i] >= 0) {
+            if (i != kept) {
+                side->deck[kept] = side->deck[i];
+                side->deck[i] = -1;
+            }
+            kept++;
+        }
+    }
+}
+
+void CardPlayCleanJunk(CardPlaySide *side)
+{
+    s32 kept;
+    s32 i;
+
+    kept = 0;
+    for (i = 0; i < 40; i++) {
+        if (side->junk[i] >= 0) {
+            if (i != kept) {
+                side->junk[kept] = side->junk[i];
+                side->junk[i] = -1;
+            }
+            kept++;
+        }
+    }
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov10/card_fread", CardPlayDesertCard);
 
