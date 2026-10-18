@@ -115428,6 +115428,38 @@
         },
         {
           "range": [
+            "0x00A4D730",
+            "0x00A4D7C8"
+          ],
+          "generated": [
+            "0x00A4D730",
+            "0x00A4D7C8"
+          ],
+          "generated_by": [
+            "CardPlayCommandCondition"
+          ],
+          "c_owned_symbols": [
+            "jtbl_00A4D730"
+          ],
+          "also_referenced_by_c": [],
+          "c_input_spans": [
+            {
+              "section": ".rodata",
+              "range": [
+                "0x00A4D730",
+                "0x00A4D7C8"
+              ],
+              "object_range": [
+                48,
+                200
+              ],
+              "symbols": [],
+              "anonymous_emission": true
+            }
+          ]
+        },
+        {
+          "range": [
             "0x00A4D7F0",
             "0x00A4DA44"
           ],
@@ -115457,8 +115489,8 @@
                 "0x00A4DA44"
               ],
               "object_range": [
-                48,
-                644
+                208,
+                804
               ],
               "symbols": [],
               "anonymous_emission": true
