@@ -44,7 +44,8 @@ typedef struct CardDefinition {
 /* One card of a board slot's stack (10 bytes). */
 typedef struct CardBattleLayer {
     u8 state;
-    u8 unmodeled_01;
+    s8 flag;                       /* +0x01: signed byte; CardEnemySet tests it with `lb` (0x00a3271c) and
+                                    * clears it with `sb` for the base layer of a slot holding card 14 */
     u8 boostCount;                 /* +0x02: CCC26ExecSub adds one */
     s8 life;                       /* +0x03: CCC38ExecSub subtracts two, clamped at zero */
     u8 unmodeled_04;
@@ -59,34 +60,34 @@ typedef struct CardBattleLayer {
  */
 typedef struct CardLayerStack {
     u8 flags;
-    u8 unmodeled_01;
-    u8 power;
-    u8 powerLimit;
-    u8 unmodeled_04[4];
-    CardBattleLayer layers[40];    /* +0x008 */
-    float position[4];             /* +0x198: effect position (CardSetEffect) */
-} CardLayerStack;
-
-/* TU-local view with the movement fields evidenced by CGPRecalcPosSub. */
-typedef struct CardLayerStackView {
-    u8 flags;
     u8 moveFrames;                 /* +0x01: frames remaining in the current movement */
     u8 power;
     u8 powerLimit;
     u8 unmodeled_04[4];
     CardBattleLayer layers[40];    /* +0x008 */
-    float position[3];             /* +0x198: current effect position */
+    float position[3];             /* +0x198: current effect position (CardSetEffect) */
     float step[3];                 /* +0x1A4: per-frame movement toward the next slot */
-} CardLayerStackView;
+} CardLayerStack;
+
+/* Same record under the name the effect table uses. */
+typedef CardLayerStack CardLayerStackView;
 
 /* One battle or disposal slot of a side's board (0x1BC bytes). */
 typedef struct CardBoardSlot {
-    float shuntPosition[3];        /* +0x000: where the card of the slot before
+    union {
+        float shuntPosition[3];    /* +0x000: where the card of the slot before
                                     * this one is shunted to; CGPShuntPosSub
                                     * (0x00a21768) copies that slot's effect
                                     * position 0x1BC bytes forward into it */
+        struct {
+            u8 unmodeled_000[8];
+            s16 playedCard;        /* +0x008: only battle[0] (CardPlaySide+0x198) is
+                                    * read: the command card id the side is playing
+                                    * (`lh` at 0x00a3327c, CGPEnemyExecCommand);
+                                    * ov10/cgp.c calls the same halfword lastCardValue */
+        } cmdView;
+    };
     CardLayerStack battle;         /* +0x00C */
-    u8 unmodeled_1B4[8];
 } CardBoardSlot;
 
 /*
@@ -146,7 +147,9 @@ typedef struct CardCommandControl {
     u8 unmodeled_0A;
     u8 recoveryApplied;            /* +0x0B */
     u16 commandIndex;              /* +0x0C */
-    u8 unmodeled_0E[2];
+    u16 aiPhase;                   /* +0x0E: phase of the AI handler of the current phase; CardEnemyMove and
+                                    * CardEnemySet switch on it (`lhu` 0x00a32598 / 0x00a32684 from work
+                                    * +0x5ACE) and advance it with `sh` */
     CardCommandInput input[2];     /* +0x10: player, enemy */
     u8 unmodeled_20[8];
     u16 slideDirection;            /* +0x28: nonzero slides the offset down (CardMainProc 0x00a0859c lhu) */
