@@ -225,6 +225,14 @@ extern int calcLineChk(ObjectTask *unit);
  */
 extern int calcStatGet(ObjectTask *unit, int category, int flag);
 
+/*
+ * calcStatSet (src/ov01/calc.c, still asm) applies a status category/flag
+ * to a unit and reports the result, with a fourth word this caller passes as 0
+ * (calcStatReset below takes one too); cmdStatSet (0x00a22420) is this TU's only
+ * claimed caller.
+ */
+extern int calcStatSet(ObjectTask *unit, int category, int flag, int unused);
+
 /* calcUPGet's return type comes from its definer, ov01/tu004 calc.c
  * (published include/ov01/calc.h); calcUPGet itself is still asm there, so
  * it is redeclared here the same way src/ov01/snd.c, src/ov01/menu.c and
@@ -303,6 +311,13 @@ typedef struct UnitDmgInfo {
  */
 #define CALC_UNIT_PARAM_HP_OFF 0x34
 #define CALC_UNIT_PARAM_MAX_HP_OFF 0x00
+
+/*
+ * cmdUnittbl (andi $2,$2,0x80 at 0x00a1f9ac) skips a unit whose flags word
+ * has this bit set. src/ov01/calc.c's CALC_ACTOR_FLAG_DEAD is the same bit
+ * (0x80) in its own CalcActorRecord; this TU names it locally.
+ */
+#define CMD_ACTOR_FLAG_DEAD 0x80
 
 /*
  * The battle actor object behind ObjectTask.work, as far as cmdStatChk
@@ -531,13 +546,15 @@ typedef struct McamAngleOffset {
 
 /*
  * mcamPtrGet (this TU, still asm) returns the camera-offset parameter block
- * cmdCamOffsPos (0x00a21458) fills in; only the members that function
- * touches are modeled. cmdCamOffsAng (this TU, still asm) reaches the same
- * +0x70 enable flag for its own angle block, so it stays a separate,
- * unmodeled span here.
+ * cmdCamOffsPos (0x00a21458) fills in. cmdCamOffsAng (C in this TU) reaches
+ * the same +0x70 enable flag for its own angle block, so that block stays a
+ * separate, unmodeled span here.
  */
 typedef struct McamParams {
-    unsigned char unmodeled_0[0x70];
+    int unitTrackMode;                 /* +0x00: mode selector, written 0 by cmdCamCopy (sw $0,0x0($2) at 0x00a20e00) and cmdCamSetPos (sw $0,0x0($17) at 0x00a20e6c); other code in the original stores other values here (observed 0, 1, 3), none of which this TU's C functions rely on; its meaning is not established */
+    unsigned char unmodeled_4[0x10 - 0x4];
+    Vector4 lockPosition;              /* +0x10: cmdCamCopy (swc1 0x10/0x14/0x18, w 1.0f at 0x1C) */
+    unsigned char unmodeled_20[0x70 - 0x20];
     int offsEnabled;                  /* +0x70 */
     unsigned char unmodeled_74[0x80 - 0x74];
     Vector4 offset;                   /* +0x80: x/y/z scaled by 0.01, w fixed at 1.0 */
@@ -545,6 +562,17 @@ typedef struct McamParams {
 } McamParams;
 
 extern McamParams *mcamPtrGet(void);
+
+/*
+ * MCamGetCurrentCoord (src/ov01/m_cam.c) fills a coordinate with the given
+ * camera point (0 or 1); cmdCamCopy (0x00a20d98) passes the point opposite
+ * the current camMode.
+ */
+extern Vector4 *MCamGetCurrentCoord(Vector4 *coord, int point);
+
+/* "** CamCopy err **\n" at 0x00a465a8 (ov01 .rodata): cmdCamCopy's message
+ * when camMode is neither 0 nor 1. */
+extern const char D_00A465A8[];
 
 /*
  * StudioLight's ambient_color (include/main/xgl_studio.h, main/tu101) is the
