@@ -98,7 +98,12 @@ struct CalcUnitParam {
     short maxEp;                /* +0x02: calcEp's clamp ceiling */
     unsigned char unmodeled_04[0x0C - 0x04];
     unsigned char hitStat;      /* +0x0C: calcHitParaGet's own signed view */
-    unsigned char unmodeled_0d[0x0E - 0x0D];
+    /*
+     * +0x0D: calcHitRate (this TU, 0x00a13010) loads the target's byte with
+     * `lbu $3,0xD($2)` and reinterprets it as signed (`sll $18,$3,24`/
+     * `sra $16,$18,24`) as the evasion term it subtracts from the hit rate.
+     */
+    unsigned char evadeStat;
     signed char agility;       /* +0x0E: calcWct's wait-count formula */
     signed char moveKindId;    /* +0x0F: unitCmdMove compares it with 4 */
     /*
@@ -136,7 +141,8 @@ struct CalcUnitParam {
     unsigned char unmodeled_54[0x5E - 0x54];
     short weaponId[3];       /* +0x5E: per-slot weapon ids */
     short accessoryId[3];    /* +0x64: calcMagDefGet's per-slot item ids */
-    unsigned char unmodeled_6a[0x70 - 0x6A];
+    short attachmentId[3];   /* +0x6A: calcWpnEnableChk's `lh $3,0x6A($3)`,
+                              * mirroring CalcCharParaData's attachmentId */
     short wpnSlotValue[3];   /* +0x70: calcDblActChk, per weapon slot */
     short normalTechniqueId[CALC_NORMAL_TECHNIQUE_COUNT]; /* +0x76 */
     short slotTechniqueId[2];   /* +0x82: calcSlotAChk's own pair, right
@@ -159,6 +165,92 @@ struct CalcUnitParam {
     struct UnitWork *statEffUnits[8]; /* +0x15C: statEffOn/statEffOff */
 };
 
+/*
+ * Bits of CalcUnitParam.flags (+0x1C) that recovered code tests, every one
+ * an `lhu $3,0x1C($2)`/`andi $3,$3,<bit>` on calcUPGet's result. Enum
+ * constants, not macros: header_harvest.py can never publish a macro, and it
+ * publishes an enum only when another TU's declaration needs it (as
+ * CALC_NORMAL_TECHNIQUE_COUNT above is carried by the array bound in
+ * CalcUnitParam). Nothing declares these, so today they are visible only to
+ * the TUs that include this header (calc.c); the other TUs read the bit as a
+ * literal beside a comment that names the enumerator. The field itself stays
+ * u16. Each name states the effect the test has in the function cited, no
+ * more; a bit whose effect is not established is named by its position.
+ */
+enum CalcUnitFlag {
+    /* calcHitRate alone (0x00a130f0, on the target): set, it blocks the
+     * result 2 of the first roll. */
+    CALC_UNIT_FLAG_NO_HIT_RESULT_2 = 0x1,
+    /* calcHitRate alone (0x00a1314c, on the target): set, it blocks the
+     * result 1 of the second roll. */
+    CALC_UNIT_FLAG_NO_HIT_RESULT_1 = 0x2,
+    /* The unit is an AGWS. src/ov01/data_unit_org_get.h already spells this
+     * bit CALC_UNIT_FLAG_AGWS, as a macro; this enumerator is spelled
+     * differently because that header is not visible to calc.c and a macro of
+     * the same name would rewrite an enumerator once it is published. Unify the
+     * two when the declaration is published. The evidence, by the original
+     * names of what the bit selects:
+     * keyBuffSet (ov01/battle_init, 0x00a0b1c0) reads keyItemTblAgws instead
+     * of keyItemTblCha when it is set, and unitCmdAgws (ov01/unit_cmd,
+     * 0x00a027fc..0x00a02804) takes the character id from linkedUnit instead
+     * of baseCharaId; calcPara2Org and calcSkillEquChkAll (this TU) also
+     * redirect to linkedUnit on it. Tested the same way by calcWpnAtkGet
+     * (0x00a13478), calcPowLevGet (0x00a136b8), calcTgtUnitTbl
+     * (0x00a16d50, 0x00a16dfc), calcPlusAglGet, futtobiChk, scenarioCam
+     * (0x00a0ba9c) and sndConvSe. */
+    CALC_UNIT_FLAG_IS_AGWS = 0x40,
+    /* calcAtkChk alone (`lhu $3,0x1C($2)`/`andi $3,$3,0x100`,
+     * 0x00a1603c..0x00a16040, on the target): set, a range-class-0
+     * technique cannot attack it. */
+    CALC_UNIT_FLAG_NO_RANGE0_ATTACK = 0x100,
+    /* calcBackLineChk alone (0x00a16370, selector 0, on a unit standing
+     * further back): set, the check fails. */
+    CALC_UNIT_FLAG_BLOCKS_BACK_LINE = 0x800
+};
+
+/*
+ * Bits of the target-selection byte that dataItmGet's record carries at
+ * +0x08 (an unsigned `lbu`; calc.c's ItmTrgView.trgFlags, battle_init.c's
+ * ItmTrgView), which calcTgtUnitTbl and calcDeadUnitNum take as an int, and
+ * that cmdAtktbl, calcTgtUnitTbl and calcDeadUnitNum hand to calcTrg2PE.
+ * calcTrg2PE's own side selections (0x40 and 0x80, compared as a pair)
+ * are spelled in its body.
+ */
+enum CalcTrgFlag {
+    /* calcTgtUnitTbl alone (`andi $2,$16,0x4` at 0x00a16d38, `andi
+     * $23,$16,0x4` at 0x00a16d90): set, units carrying CALC_UNIT_FLAG_IS_AGWS
+     * are left out of the table (the unit itself included). */
+    CALC_TRG_EXCLUDE_AGWS = 0x4,
+    /* The unit itself: calcTgtUnitTbl (0x00a16d04) makes the table that one
+     * unit, and calcTrg2PE answers with the unit's own side for any word
+     * carrying it. */
+    CALC_TRG_SELF = 0x8,
+    /* calcDItemChk (this TU) needs it clear; scenarioCam (ov01/battle_init,
+     * `ori $2,$3,0x10` at 0x00a0baf0) adds it to the item's word in the
+     * camera event when the exec record's tecId is nonzero. Role not
+     * established. */
+    CALC_TRG_BIT4 = 0x10,
+    /* calcTgtUnitTbl alone (`andi $22,$16,0x20` at 0x00a16d94): set, the
+     * table takes the units carrying CALC_ACTOR_FLAG_DEAD instead of the
+     * ones without it. */
+    CALC_TRG_DEAD_UNITS = 0x20
+};
+
+/*
+ * The charaId range src/ov01/data_unit_org_get.h names
+ * SPECIAL_MODEL_CHARACTER_ID_BEGIN/END (macros, not visible to calc.c):
+ * futtobiChk (`slti $3,$3,0xBB` at 0x00a14648, `slti $3,$3,0xC3` at
+ * 0x00a14660) and calcLinePos (the same pair at 0x00a154e0/0x00a154f8), both
+ * this TU, compare CalcUnitParam.charaId against it, as do the still-asm
+ * calcWpnAtkGet (0x00a13490/0x00a134a8), calcPowLevGet (0x00a136d0/
+ * 0x00a136e8) and calcPlusAglGet.
+ * The CALC_ spelling avoids the macro collision, as for the flag enums above.
+ */
+enum CalcSpecialModelCharacterId {
+    CALC_SPECIAL_MODEL_CHARACTER_ID_BEGIN = 0xBB,
+    CALC_SPECIAL_MODEL_CHARACTER_ID_END = 0xC3
+};
+
 /* calcUPGet follows ObjectTask.work at +0x10 to the battle actor's up
  * member at +0x84 (0x00A11010..0x00A1101C). calcTurnStart/End use its
  * flags at +0x00. The shared head is also the base of rendered actors,
@@ -176,6 +268,36 @@ typedef struct BattleActor {
 } BattleActor;
 
 typedef BattleActor CalcActorRecord;
+
+/*
+ * Bits of BattleActor.flags (+0x00 of ObjectTask.work) that this TU's
+ * recovered code tests (an `lw` of the word, then an `andi` with the bit;
+ * calcWpnAtkGet: `lw $2,0x0($3)`/`andi $2,$2,0x40`). The spelling
+ * is CALC_ACTOR_* and not the ACTOR_FLAG_ENEMY of src/ov01/unit_cmd.h or
+ * the BATTLE_ACTOR_FLAG_ENEMY of src/ov01/data_unit_org_get.h: those are
+ * macros, and data_unit_org_get.c includes its own header before
+ * ov01/calc.h, so an enumerator of the same name would be rewritten by the
+ * macro once this enum reaches the generated header.
+ */
+enum CalcActorFlag {
+    /* The enemy bit src/ov01/unit_cmd.h evidences (unitLoad picks
+     * sefSetupEnemy on it); tested here by calcWpnAtkGet (0x00a13460),
+     * calcPowLevGet (0x00a136a0), calcBackLineChk (0x00a162d8) and the
+     * older functions that spell 0x40. */
+    CALC_ACTOR_FLAG_ENEMY = 0x40,
+    /* Set by unitCmdDead (ov01/unit_cmd, `ori $2,$3,0x80`/`sw $2,0x0($17)`
+     * at 0x00a0307c..0x00a03080 and `ori $2,$2,0x80`/`sw $2,0x0($17)` at
+     * 0x00a03270..0x00a03274, $17 the work record) and by unitCmdEscape (0x00a06cfc..0x00a06d00); counted by
+     * calcDeadUnitNum (0x00a16eac), skipped by calcBackLineChk
+     * (0x00a1631c) and selected or skipped by calcTgtUnitTbl
+     * (0x00a16dc0, 0x00a16ddc). */
+    CALC_ACTOR_FLAG_DEAD = 0x80,
+    /* calcHitRate (0x00a130a4, on the target: result 1 outright),
+     * calcTurnStart (queues selector 0xD when no command is pending) and
+     * unitMotStandSet (ov01/unit_cmd, motion 0x1D) test it; what it marks
+     * is not established. */
+    CALC_ACTOR_FLAG_BIT11 = 0x800
+};
 
 /*
  * calcUPGet (this TU, still asm, 0x00a11010): `lw $3,16($4)` loads
