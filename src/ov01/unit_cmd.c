@@ -417,7 +417,34 @@ void unitCmdAtkSub(ObjectTask *unit, UnitActRequest *request)
 
 INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitJobTypeAtk);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitCmdAtkEnd);
+/*
+ * unitCmdAtkEnd's own siblings, both defined later in this TU; forward-
+ * declared for its calls (an implicit declaration would mismatch the
+ * definitions' void return), as the existing unitMotSet declaration before
+ * unitCmdEva does for that function.
+ */
+extern void unitMotSet(ObjectTask *unit, int motion);
+extern void unitWpnMotSet(ObjectTask *unit, int weaponIndex, int animGroup, int motion);
+
+void unitCmdAtkEnd(ObjectTask *unit)
+{
+    CmdEntry cmd;
+
+    unitCmdClear(unit);
+    if (unitMotGet(unit) == 0x20) {
+        cmd.selector = 0xD;
+        cmd.argument = 0x21;
+        cmd.extra = 0;
+        unitCmdSet(unit, &cmd);
+        unitWpnMotSet(unit, dataDefWpnGet((UnitRecord *) unit), 0, 0x32);
+        if (calcUPGet(unit)->charaId == 7) {
+            unitWpnMotSet(unit, 1, 0, 0x32);
+        }
+    } else {
+        unitMotSet(unit, 1);
+    }
+    unitFaceMotSet(unit, 0x35);
+}
 
 int unitCmdDeadSet(ObjectTask *unit)
 {
@@ -635,7 +662,60 @@ int unitCmdMoveChaWarp(ObjectTask *unit)
     return 0;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitCmdMoveChaJump2);
+/*
+ * unitCmdMoveChaJump2's and unitCmdMovePosNorm's own siblings, still asm
+ * (unitCmdLenGet) or defined later in this TU; forward-declared for their
+ * calls. unitCmdLenGet returns its distance in $f0, which both hand on as
+ * unitCmdDivSet's distance (mov.s $f12,$f0 at 0x00a044f4 and 0x00a0416c).
+ */
+extern float unitCmdLenGet(ObjectTask *unit);
+extern void unitCmdDivSet(UnitRecord *unit, float distance, float step);
+
+/*
+ * A three-hop jump to the command's target: step 0 stores distance / 3 in
+ * hopLength and passes unitCmdDivSet the whole distance and hopLength as the
+ * step; steps 1..3 each wait for unitCmdJump to land, aim the next hop and
+ * pass unitCmdDivSet the remaining distance with hopLength as the step, or
+ * that remaining distance itself as the step for the last hop (beq $2,$18
+ * at 0x00a04168 skips the lwc1 $f0,0($19) at 0x00a04170); the step after
+ * the last hop finishes the move. Nothing is divided by hopLength: the only
+ * division is the one by 3 cited below. The work slot points at the Actor record;
+ * it is read again after unitCmdPtrGet (lw $2,0x10($16) at 0x00a040d0) for
+ * the hopLength address. hops is an int local, not a 3.0f literal: the
+ * original keeps 3 in $18 and converts it for the division (mtc1 $18,$f13;
+ * cvt.s.w $f13,$f13; div.s $f13,$f0,$f13 at 0x00a040f0..0x00a0410c), while a
+ * float literal is loaded ready-made with lui/mtc1.
+ */
+int unitCmdMoveChaJump2(ObjectTask *unit)
+{
+    Actor *actor;
+    float *hopLength;
+    int hops;
+    float length;
+
+    hops = 3;
+    actor = unit->work;
+    unitCmdPtrGet(unit);
+    hopLength = &((Actor *)unit->work)->hopLength;
+    if (actor->moveState == 0) {
+        length = unitCmdLenGet(unit);
+        *hopLength = length / hops;
+        unitCmdDivSet((UnitRecord *)unit, length, *hopLength);
+        unitCmdVASet(unit, 3, 0);
+        actor->moveState++;
+    } else if (actor->moveState > hops) {
+        unitCmdMoveNext(unit, 0);
+    } else if (unitCmdJump(unit, 3, 2, 0) != 0) {
+        actor->movePhase = 0;
+        unitCmdDstSet(unit, 3, 0);
+        length = unitCmdLenGet(unit);
+        unitCmdDivSet((UnitRecord *)unit, length,
+                      actor->moveState == hops ? length : *hopLength);
+        unitCmdVASet(unit, 3, 0);
+        actor->moveState++;
+    }
+    return 0;
+}
 
 int unitCmdMoveChaHover2(ObjectTask *unit)
 {
@@ -663,7 +743,51 @@ int unitCmdMoveChaHover3(ObjectTask *unit)
 
 INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitCmdMovePos);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitCmdMovePosNorm);
+/*
+ * Step 0 passes unitCmdDivSet the distance unitCmdLenGet returned (mov.s
+ * $f12,$f0 at 0x00a044f4) and the step 255.0f (0x437F0000 through lui/mtc1
+ * into $f13 at 0x00a044e8/0x00a044ec); nothing here divides by 255.0f.
+ * The queued command's argument word is parked in Actor.targetUnit for the jump
+ * (lw $2,0x4($4); sw $2,0x80($17) at 0x00a044b4/0x00a044e0) and written back
+ * before the run's unitCmdDstSet reads it (sw $2,0x4($4) at 0x00a04568).
+ */
+int unitCmdMovePosNorm(ObjectTask *unit)
+{
+    Actor *actor;
+    CmdEntry *cmd;
+
+    actor = unit->work;
+    cmd = unitCmdPtrGet(unit);
+    switch (actor->moveState) {
+    case 0:
+        actor->targetUnit = (ObjectTask *)cmd->argument;
+        unitCmdDivSet((UnitRecord *)unit, unitCmdLenGet(unit), 255.0f);
+        unitCmdVASet(unit, 4, 0);
+        unitCmdJump(unit, 4, 2, 0);
+        actor->moveState++;
+        break;
+    case 1:
+        if (unitCmdJump(unit, 4, 2, 0) != 0) {
+            actor->moveState++;
+        }
+        break;
+    case 2:
+        actor->movePhase = 0;
+        cmd->argument = (int)actor->targetUnit;
+        unitCmdDstSet(unit, 2, 1);
+        unitCmdVASet(unit, 2, 0);
+        unitCmdDirSet((UnitRecord *)unit);
+        unitCmdRun(unit, 2, 1);
+        actor->moveState++;
+        break;
+    case 3:
+        if (unitCmdRun(unit, 2, 1) != 0) {
+            unitCmdMoveNext(unit, 1);
+        }
+        break;
+    }
+    return 0;
+}
 
 int unitCmdMovePosRun(ObjectTask *unit)
 {
@@ -945,7 +1069,23 @@ void unitCmdStat(ObjectTask *unit)
     unitCmdNext(unit);
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitCmdReadWait);
+int unitCmdReadWait(ObjectTask *unit)
+{
+    Actor *actor;
+    CmdEntry *cmd;
+
+    actor = unit->work;
+    cmd = unitCmdPtrGet(unit);
+    if (actor->moveState == 0) {
+        if (dataCdSync() <= cmd->argument) {
+            dataUnitFileLoad2Sub(unit);
+            actor->moveState++;
+        }
+    } else {
+        return unitCmdNext(unit);
+    }
+    return 0;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitCmdAgws2);
 
@@ -1008,7 +1148,38 @@ int unitMotGet(ObjectTask *unit)
     return ((UnitRecord *)unit)->motionActor->motion + 1;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitMotStandSet);
+/*
+ * Bits of Actor.flags (unit->work, lw 0x10 then lw 0x0) that unitMotStandSet
+ * tests, named by what this function does with them: 0x800 (andi at
+ * 0x00a072b8) selects motion 0x1D outright; 0x8 (andi at 0x00a072dc) is
+ * tested only after calcIdol2Chk returned nonzero, and when set gates motion
+ * 2 on unitMotGet returning 0x1C or 0x23. This TU is not the only reader of
+ * 0x800: calcHitRate (src/ov01/calc.c on the calc branch) tests the same bit
+ * of the target's actor flags as CALC_ACTOR_FLAG_BIT11 and calcTurnStart
+ * tests and clears it; what the bit means for them is not evidenced here.
+ */
+#define ACTOR_FLAG_STAND_MOTION_1D 0x800u
+#define ACTOR_FLAG_STAND_MOTION_2_GATED 0x8u
+
+/*
+ * One condition for motion 2, as the original branches: separate if/else
+ * arms for the last test turn its bnel (0x00a07308) into a bne.
+ */
+void unitMotStandSet(ObjectTask *unit)
+{
+    int motion;
+
+    if (((Actor *)unit->work)->flags & ACTOR_FLAG_STAND_MOTION_1D) {
+        motion = 0x1D;
+    } else if (calcIdol2Chk(unit) != 0
+               && ((((Actor *)unit->work)->flags & ACTOR_FLAG_STAND_MOTION_2_GATED) == 0
+                   || unitMotGet(unit) == 0x1C || unitMotGet(unit) == 0x23)) {
+        motion = 2;
+    } else {
+        motion = 1;
+    }
+    unitMotSet(unit, motion);
+}
 
 static const char UnitNoGetFailureFormat[32] = "** unitNoGet: err -> %X\n";
 
@@ -1112,7 +1283,30 @@ float unitColiGet(ObjectTask *unit, ObjectTask *targetUnit)
 
 INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitAgwsChk);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitIdChk);
+/*
+ * Counts the units on one side whose CalcUnitParam.charaId equals charaId.
+ * unitTblGet is defined at the top of this TU with `UnitRecord ***table`, so
+ * the table is a UnitRecord ** here and each entry is cast to ObjectTask *
+ * for calcUPGet.
+ */
+int unitIdChk(int side, int charaId)
+{
+    UnitRecord **table;
+    int count;
+    int matchCount;
+    int i;
+
+    matchCount = 0;
+    count = unitTblGet(side, &table);
+    for (i = 0; i < count; i++) {
+        if (table[i] != 0) {
+            if (calcUPGet((ObjectTask *)table[i])->charaId == charaId) {
+                matchCount++;
+            }
+        }
+    }
+    return matchCount != 0;
+}
 
 /* Defined later in this TU (a local sibling still in asm). */
 extern void unitDispOnOff(int flag);

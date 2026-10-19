@@ -12,6 +12,8 @@
 
 extern CalcUnitParam *calcUPGet(ObjectTask *unit);
 extern int calcStatGet(ObjectTask *unit, int category, int flag);
+/* Defined in src/ov01/calc.c (ov01/tu004), not declared in its header. */
+extern int calcIdol2Chk(ObjectTask *unit);
 extern int dataCidGet(int chara_id);
 
 /*
@@ -71,7 +73,13 @@ typedef struct Actor {
     unsigned char unmodeled_c4[0xD0 - 0xC4];
     float posSnapX;        /* +0xD0: unitCmdJump's arrival check rounds it
                              * and compares against posSnapZ*0.5 rounded. */
-    unsigned char unmodeled_d4[0xD8 - 0xD4];
+    float hopLength;       /* +0xD4: replaces four bytes of filler
+                             * (unmodeled_d4) in this existing local Actor
+                             * view. unitCmdMoveChaJump2 takes its address
+                             * (`addiu $19,$2,0xD4`, 0x00a040dc), stores the
+                             * command distance divided by 3 (`swc1 $f13,0($19)`,
+                             * 0x00a04114) and reloads it to aim each
+                             * intermediate hop (`lwc1 $f0,0($19)`, 0x00a04170). */
     float posSnapZ;        /* +0xD8 */
     unsigned char unmodeled_dc[0xE0 - 0xDC];
     int motionFrame;      /* +0xE0: unitActupdate advances it before
@@ -173,6 +181,11 @@ extern void sefSetupPlayer(short charaId, short, short, short);
 extern void sefSetupEnemy(short charaId);
 extern void dataUnitFileLoad(ObjectTask *unit, int mode);
 extern void dataSndSeRegLoad(ObjectTask *unit);
+
+/* Defined in src/ov01/data_unit_org_get.c, declared there the
+ * same way; unitCmdReadWait waits on the first and then calls the second. */
+extern int dataCdSync(void);
+extern void dataUnitFileLoad2Sub(ObjectTask *unit);
 
 extern void ACT_updateMotion(Actor *actor);
 extern float UnduGet(float x, float z);
