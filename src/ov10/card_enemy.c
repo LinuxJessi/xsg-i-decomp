@@ -38,9 +38,112 @@ void InitCpuDeck(void) {
     }
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov10/card_enemy", CardEnemyMove);
+/* Advances the card game turn; defined in ov10/tu008 (still assembler). */
+extern void CGPNextTurnSub(CardGameWork *work);
 
-INCLUDE_ASM("asm/nonmatchings/ov10/card_enemy", CardEnemySet);
+/* AI move-phase handler; defined in ov10/battle_area_check_enemy.c (still assembler). */
+extern int CC_Kara_MoveFase(int side, CardGameWork *work);
+
+/* Board moves of the side's positions; defined in ov10/cgp.c. */
+extern void CGPShuntPosSub(CardPlaySide *side);
+extern void CGPRecalcPosSub(CardPlaySide *side);
+
+/* Frames the move and set phases wait after their AI handler finishes
+ * (`addiu $3,$0,0xF` and `sb` at 0x00a3260c..0x00a32610 and 0x00a326b8..0x00a326c0). */
+#define CARD_ENEMY_WAIT_FRAMES 15
+
+/* aiPhase values of CardEnemyMove (switch at 0x00a3259c..0x00a325c0). */
+#define CARD_ENEMY_MOVE_START 0     /* shunt the positions, then fall into the search */
+#define CARD_ENEMY_MOVE_SEARCH 1    /* run CC_Kara_MoveFase until it finishes */
+#define CARD_ENEMY_MOVE_WAIT 2      /* count the wait down, then end the turn */
+
+void CardEnemyMove(int side, CardGameWork *work) {
+    /* Frames left in the wait (signed byte, `lb` at 0x00a32624, `sb` at 0x00a32610). */
+    static s8 Timer;
+    CardPlaySide *ownSide = side == 0 ? &work->player : &work->enemy;
+
+    switch (work->command.aiPhase) {
+    case CARD_ENEMY_MOVE_START:
+        CGPShuntPosSub(ownSide);
+        work->command.aiPhase++;
+        /* fall through */
+    case CARD_ENEMY_MOVE_SEARCH:
+        if (CC_Kara_MoveFase(side, work) == 0) {
+            CGPRecalcPosSub(ownSide);
+            work->command.aiPhase++;
+            Timer = CARD_ENEMY_WAIT_FRAMES;
+            /* Returns instead of leaving the switch: the break form is 8 bytes longer. */
+            return;
+        }
+        break;
+    case CARD_ENEMY_MOVE_WAIT:
+        if (Timer > 0) {
+            Timer--;
+        } else {
+            CGPNextTurnSub(work);
+        }
+        break;
+    }
+}
+
+/* AI set-phase handler; defined in ov10/battle_area_check_enemy.c (still assembler). */
+extern int CC_Kara_SetFase(int side, CardGameWork *work);
+
+/* Battle slot count of one side (ov10/card_fread.c, still assembler). */
+extern int CardPlayBattleCnt(CardPlaySide *side);
+
+/* aiPhase values of CardEnemySet (switch at 0x00a32688..0x00a32690). */
+#define CARD_ENEMY_SET_CHOOSE 0     /* run CC_Kara_SetFase until it finishes */
+#define CARD_ENEMY_SET_WAIT 1       /* count the wait down, then clear the flags and end the turn */
+
+/* Battle slots and disposal slots per side, 0x1BC bytes apart (loop stride
+ * `addiu $4,$4,0x1BC`, 0x00a32738). */
+#define CARD_BOARD_SLOTS 4
+
+/* Card whose base-layer flag byte the set phase clears once the wait is over
+ * (`lh` / `bnel` against 0xE at 0x00a32710..0x00a32714). */
+#define CARD_ID_FLAG_CLEARED 14
+
+void CardEnemySet(int side, CardGameWork *work) {
+    /* Frames left in the wait (signed byte, `lb` at 0x00a326d4, `sb` at 0x00a326c0). */
+    static s8 Timer;
+    CardPlaySide *ownSide = side == 0 ? &work->player : &work->enemy;
+    int i;
+    /*
+     * The value the battle count is compared with. The original tests it against
+     * a register that already holds 1 (`beq $2,$17` at 0x00a326f8, $17 being the
+     * phase in this arm); the literal 1 in the comparison changes the entry block
+     * (0x00a32664..0x00a3266c) and the branch at 0x00a32692, a local keeps it.
+     */
+    int singleBattleCnt = 1;
+
+    switch (work->command.aiPhase) {
+    case CARD_ENEMY_SET_CHOOSE:
+        if (CC_Kara_SetFase(side, work) == 0) {
+            Timer = CARD_ENEMY_WAIT_FRAMES;
+            work->command.aiPhase++;
+            /* Returns instead of leaving the switch: the break form is 8 bytes longer. */
+            return;
+        }
+        break;
+    case CARD_ENEMY_SET_WAIT:
+        if (Timer > 0) {
+            Timer--;
+        } else {
+            if (CardPlayBattleCnt(ownSide) != singleBattleCnt) {
+                for (i = 0; i < CARD_BOARD_SLOTS; i++) {
+                    if (ownSide->battle[i].battle.layers[0].cardId == CARD_ID_FLAG_CLEARED) {
+                        if (ownSide->battle[i].battle.layers[0].flag != 0) {
+                            ownSide->battle[i].battle.layers[0].flag = 0;
+                        }
+                    }
+                }
+            }
+            CGPNextTurnSub(work);
+        }
+        break;
+    }
+}
 
 /* CardPlayHandCnt (still assembler, ov10/tu002) counts the negative card ids
  * of one side's CardHand (include/ov10/cgp.h, owned by ov10/tu008). */
@@ -473,10 +576,47 @@ int CardEnemyAnswerCardxx(int side, CardGameWork *work, s16 cardId) {
     return result;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov10/card_enemy", CGPEnemyExecCommand);
+/*
+ * Cursor zones the command targets name: 6 and 2 are the disposal rows
+ * (CardEnemyAnswerCardxx: discardZone is 6 for side 0 and 2 for side 1);
+ * every other zone is a battle slot. The first test loads the zone with `lh`
+ * (0x00a332b0) and compares it with both values.
+ */
+#define CARD_ZONE_DISCARD_A 6
+#define CARD_ZONE_DISCARD_B 2
 
-/* Reports the operation card the AI plays; defined in ov10/cgp.c. */
+/* Operation cards per side (loop bound `slti $2,$5,4` at 0x00a33414). */
+#define CARD_OPERATION_SLOTS 4
 
+/* Case 109 (CardSetEffect kinds at 0x00a3364c / 0x00a33678, sound id `lui`/`ori` at 0x00a33668 / 0x00a3367c). */
+#define CARD_EFFECT_TARGET_DOWN 10
+#define CARD_EFFECT_POINTS 12
+#define CARD_EFFECT_SOUND 0x2000D
+
+/* Case 95 compares at most this many cards from the end of the draw pile
+ * (`slti $2,$21,6` at 0x00a338c4, counter starts at 1); case 106 takes at most
+ * this many cards from the junk pile into the hand (`slti $2,$11,2` at 0x00a33830). */
+#define CARD_DRAW_WINDOW 5
+#define CARD_JUNK_PICKUP_MAX 2
+
+/* Command card handlers defined in ov10/ccu_038_exec_sub.c (CCC07ExecSub is declared above). */
+extern void CCC02ExecSub(u8 *commandState);
+extern void CCC03ExecSub(int side, CardGameWork *work, CardHand *hand, CardLayerStack *card);
+extern void CCC06ExecSub(int side, CardGameWork *work, CardHand *hand);
+extern void CCC10ExecSub(int side, CardGameWork *work, CardHand *hand, CardEnemyCursor *position);
+extern void CCC26ExecSub(int side, CardGameWork *work, CardPlaySide *owner, CardEnemyCursor *position);
+extern void CCC30ExecSub(int side, CardGameWork *work, CardLayerStack *card);
+extern void CCC31ExecSub(int side, CardGameWork *work, CardLayerStack *card);
+extern void CCC38ExecSub(int side, CardGameWork *work, CardPlaySide *owner, CardEnemyCursor *position);
+
+/* Draw-pile and junk-pile helpers of ov10/card_fread.c; GetDeckData is defined in
+ * ov10/battle_area_check_enemy.c (still assembler). */
+extern u32 GetDeckData(int side, CardGameWork *work, int cardId);
+extern int CardPlayDrawCard(CardHand *hand);
+extern int CardPlayRecavery(CardHand *hand);
+extern int CardPlayJunkCnt(CardPlaySide *side);
+extern void CardPlayCleanJunk(CardPlaySide *side);
+extern int CardPlayCommandPlay(u16 side, u16 command, CardGameWork *work, s16 operand, s16 target);
 
 /* Board effect request; still assembler (ov10/cgp.c declares the same
  * prototype). */
@@ -485,6 +625,301 @@ extern void CardSetEffect(int side, CardGameWork *work, u8 kind, s8 amount,
 
 /* Discards one operation card of a side; still assembler (ov10/card_fread.c). */
 extern void CardPlayDesertOperation(CardPlaySide *side, int operationIndex);
+
+/* Compacts the draw pile after a card leaves it; still assembler (ov10/card_fread.c). */
+extern void CardPlayCleanYama(CardPlaySide *side);
+
+/* Reshuffles the draw pile; still assembler (ov10/card_fread.c). */
+extern void CardPlayShuffleYama(CardPlaySide *side);
+
+/* The battle or disposal stack a cursor names; zones 6 and 2 are discard zones. */
+static inline CardLayerStack *CardEnemyTargetStack(CardPlaySide *side, CardEnemyCursor *target) {
+    if (target->zone == CARD_ZONE_DISCARD_A || target->zone == CARD_ZONE_DISCARD_B) {
+        return &side->disposal[target->index].battle;
+    }
+    return &side->battle[target->index].battle;
+}
+
+/*
+ * Command card ids dispatched by CGPEnemyExecCommand: the jump table at 0x00a4f7b0 has 37 entries
+ * for ids 83..119 (`addiu $3,$3,-0x53`, `sltiu $2,$3,0x25` at 0x00a33280/0x00a33284); ids without
+ * a case here share the table's default target 0x00a33938 and play through the generic handler.
+ * The names are the ones ov10/ccu_038_exec_sub.c gives the same ids in CardPlayCommandCondition
+ * (they describe the play condition of the card); each comment is the case's target address in
+ * CGPEnemyExecCommand.
+ */
+enum CardCommandId {
+    CARD_COND_OWN_FLAG2_CARD_83 = 83,  /* 0x00a332a8 */
+    CARD_COND_OWN_CARD_NOT_FLAG4_84 = 84,  /* 0x00a33318 */
+    CARD_COND_OWN_ANY_CARD_87 = 87,  /* 0x00a33390 */
+    CARD_COND_OTHER_BATTLE_EMPTY_DISPOSAL_88 = 88,  /* 0x00a333a8 */
+    CARD_COND_OTHER_BATTLE_EMPTY_DISPOSAL_89 = 89,  /* 0x00a333a8 */
+    CARD_COND_OTHER_BATTLE_CARD_90 = 90,  /* 0x00a333c8 */
+    CARD_COND_OTHER_BATTLE_CARD_91 = 91,  /* 0x00a333c8 */
+    CARD_COND_ALWAYS_MET_93 = 93,  /* 0x00a333e8 */
+    CARD_COND_ALWAYS_MET_95 = 95,  /* 0x00a33850 */
+    CARD_COND_OTHER_OPERATION_96 = 96,  /* 0x00a33400 */
+    CARD_COND_OTHER_FLAG1_CARD_OR_OPERATION_97 = 97,  /* 0x00a33448 */
+    CARD_COND_OTHER_DISPOSAL_FLAG2_DEF4_98 = 98,  /* 0x00a33498 */
+    CARD_COND_OTHER_DISPOSAL_DEF_FLAG1_99 = 99,  /* 0x00a334f8 */
+    CARD_COND_OTHER_TWO_LAYERS_103 = 103,  /* 0x00a33528 */
+    CARD_COND_JUNK_FLAGS_105 = 105,  /* 0x00a3330c */
+    CARD_COND_TWO_JUNK_FLAG1_106 = 106,  /* 0x00a33798 */
+    CARD_COND_OWN_BATTLE_NOT_CHKSUB_107 = 107,  /* 0x00a33588 */
+    CARD_COND_OWN_SLOT_CARD_109 = 109,  /* 0x00a335a8 */
+    CARD_COND_OTHER_DISPOSAL_CARD_111 = 111,  /* 0x00a33698 */
+    CARD_COND_OWN_SLOT_CARD_112 = 112,  /* 0x00a33708 */
+    CARD_COND_OWN_FLAG2_CARD_117 = 117,  /* 0x00a332a8 */
+    CARD_COND_JUNK_IDENTITY_OWN_FLAG1_118 = 118,  /* 0x00a3330c */
+    CARD_COND_OTHER_DISPOSAL_CARD_119 = 119  /* 0x00a33778 */
+};
+
+int CGPEnemyExecCommand(int side, CardGameWork *work, CardEnemyCursor *targets, int count) {
+    CardPlaySide *ownSide;
+    CardPlaySide *oppSide;
+    int opponentSide;
+    int result;
+
+    opponentSide = 1;
+    ownSide = &work->player;
+    result = 0;
+    oppSide = &work->enemy;
+    if (side != 0) {
+        ownSide = &work->enemy;
+        oppSide = &work->player;
+        opponentSide = 0;
+    }
+    /*
+     * The command card id is the halfword at +0x198 of the side (`lh` at 0x00a3327c), the
+     * playedCard member of the CardBoardSlot union (battle[0]); the other slots never use it.
+     */
+    /*
+     * Cases are command card ids 83..119, dispatched through the jump table at
+     * 0x00a4f7b0 (`addiu $3,$3,-0x53`, `sltiu $2,$3,0x25`); every other id
+     * plays through the generic command handler in the default arm.
+     */
+    switch (ownSide->battle[0].cmdView.playedCard) {
+    case CARD_COND_OWN_FLAG2_CARD_83:
+    case CARD_COND_OWN_FLAG2_CARD_117:
+        if (targets == 0) {
+            break;
+        }
+        CCC02ExecSub(&CardEnemyTargetStack(ownSide, targets)->flags);
+        result = 1;
+        break;
+    case CARD_COND_OWN_CARD_NOT_FLAG4_84:
+        if (targets == 0) {
+            break;
+        }
+        CCC03ExecSub(side, work, &ownSide->hand, CardEnemyTargetStack(ownSide, targets));
+        result = 1;
+        break;
+    case CARD_COND_JUNK_FLAGS_105:
+    case CARD_COND_JUNK_IDENTITY_OWN_FLAG1_118:
+        result = 1;
+        break;
+    case CARD_COND_OWN_ANY_CARD_87:
+        CCC06ExecSub(side, work, &ownSide->hand);
+        result = 1;
+        break;
+    case CARD_COND_OTHER_BATTLE_EMPTY_DISPOSAL_88:
+    case CARD_COND_OTHER_BATTLE_EMPTY_DISPOSAL_89:
+        if (targets == 0) {
+            break;
+        }
+        CCC07ExecSub(work, &oppSide->hand, targets);
+        result = 1;
+        break;
+    case CARD_COND_OTHER_BATTLE_CARD_90:
+    case CARD_COND_OTHER_BATTLE_CARD_91:
+        if (targets == 0) {
+            break;
+        }
+        CCC10ExecSub(opponentSide, work, &oppSide->hand, targets);
+        result = 1;
+        break;
+    case CARD_COND_ALWAYS_MET_93:
+        CardPlayDrawCard(&ownSide->hand);
+        CardPlayDrawCard(&ownSide->hand);
+        result = 1;
+        break;
+    case CARD_COND_OTHER_OPERATION_96: {
+        int i;
+
+        for (i = 0; i < CARD_OPERATION_SLOTS; i++) {
+            if (oppSide->operations[i] >= 0) {
+                CardPlayDesertOperation(oppSide, i);
+                result = 1;
+                break;
+            }
+        }
+        break;
+    }
+    case CARD_COND_OTHER_FLAG1_CARD_OR_OPERATION_97:
+        if (targets == 0) {
+            break;
+        }
+        if (targets->zone == CARD_ZONE_DISCARD_A || targets->zone == CARD_ZONE_DISCARD_B) {
+            oppSide->disposal[targets->index].battle.layers[0].life = 0;
+        } else {
+            CardPlayDesertOperation(oppSide, targets->index);
+        }
+        result = 1;
+        break;
+    case CARD_COND_OTHER_DISPOSAL_FLAG2_DEF4_98:
+        if (targets == 0) {
+            break;
+        }
+        if (targets->zone == CARD_ZONE_DISCARD_A || targets->zone == CARD_ZONE_DISCARD_B) {
+            oppSide->disposal[targets->index].battle.layers[0].life = 0;
+        } else {
+            oppSide->battle[targets->index].battle.layers[0].life = 0;
+        }
+        result = 1;
+        break;
+    case CARD_COND_OTHER_DISPOSAL_DEF_FLAG1_99:
+        if (targets == 0) {
+            break;
+        }
+        result = 1;
+        oppSide->disposal[targets->index].battle.layers[0].life = 0;
+        break;
+    case CARD_COND_OTHER_TWO_LAYERS_103:
+        if (targets == 0) {
+            break;
+        }
+        if (targets->zone == CARD_ZONE_DISCARD_A || targets->zone == CARD_ZONE_DISCARD_B) {
+            oppSide->disposal[targets->index].battle.layers[1].life = 0;
+        } else {
+            oppSide->battle[targets->index].battle.layers[1].life = 0;
+        }
+        result = 1;
+        break;
+    case CARD_COND_OWN_BATTLE_NOT_CHKSUB_107:
+        if (targets == 0) {
+            break;
+        }
+        CCC26ExecSub(side, work, ownSide, targets);
+        result = 1;
+        break;
+    case CARD_COND_OWN_SLOT_CARD_109: {
+        int i;
+
+        if (targets == 0) {
+            break;
+        }
+        for (i = 0; i < count; i++, targets++) {
+            if (targets->zone == CARD_ZONE_DISCARD_A || targets->zone == CARD_ZONE_DISCARD_B) {
+                ownSide->disposal[targets->index].battle.layers[0].life = 0;
+            } else {
+                ownSide->battle[targets->index].battle.layers[0].life = 0;
+            }
+            CardPlayRecavery(&ownSide->hand);
+            CardPlayRecavery(&ownSide->hand);
+            CardPlayRecavery(&ownSide->hand);
+            CardPlayRecavery(&ownSide->hand);
+        }
+        /* Four cards come back per target: four CardPlayRecavery calls above, and four points reported per target. */
+        CardSetEffect(side, work, CARD_EFFECT_TARGET_DOWN, 0, 0, 0, 0);
+        CardSetEffect(side, work, CARD_EFFECT_POINTS, (s8) (count * 4), CARD_EFFECT_SOUND, 0, 0);
+        result = 1;
+        break;
+    }
+    case CARD_COND_OTHER_DISPOSAL_CARD_111:
+        if (targets == 0) {
+            break;
+        }
+        CCC30ExecSub(opponentSide, work, CardEnemyTargetStack(oppSide, targets));
+        result = 1;
+        break;
+    case CARD_COND_OWN_SLOT_CARD_112:
+        if (targets == 0) {
+            break;
+        }
+        CCC31ExecSub(opponentSide, work, CardEnemyTargetStack(oppSide, targets));
+        result = 1;
+        break;
+    case CARD_COND_OTHER_DISPOSAL_CARD_119:
+        if (targets == 0) {
+            break;
+        }
+        CCC38ExecSub(opponentSide, work, oppSide, targets);
+        result = 1;
+        break;
+    case CARD_COND_TWO_JUNK_FLAG1_106: {
+        int handCount;
+        int junkCount;
+        int taken;
+        int i;
+
+        handCount = CardPlayHandCnt(&ownSide->hand);
+        junkCount = CardPlayJunkCnt(ownSide);
+        taken = 0;
+        /* Bit 0 of the card's kind and bit 0 of its flags both have to be set; their meaning is not
+         * evidenced beyond these two tests. */
+        for (i = 0; i < junkCount && taken < CARD_JUNK_PICKUP_MAX; i++) {
+            if (work->definitions[ownSide->junk[i]].kind & 1) {
+                if (work->definitions[ownSide->junk[i]].flags & 1) {
+                    ownSide->hand.cards[handCount + taken] = ownSide->junk[i];
+                    ownSide->junk[i] = -1;
+                    taken++;
+                }
+            }
+        }
+        CardPlayCleanJunk(ownSide);
+        result = 1;
+        break;
+    }
+    case CARD_COND_ALWAYS_MET_95: {
+        int pileCount;
+        int best;
+        int bestId;
+        int tries;
+        int handCount;
+        int pileIndex;
+        int id;
+        int idData;
+        int next;
+
+        pileCount = CardPlayYamaCnt(ownSide);
+        tries = 1;
+        best = pileCount - 1;
+        bestId = ownSide->deck[best];
+        if (best >= 0) {
+            pileIndex = best;
+            do {
+                id = ownSide->deck[pileIndex];
+                idData = GetDeckData(side, work, id);
+                if (GetDeckData(side, work, bestId) < idData) {
+                    bestId = id;
+                    best = pileIndex;
+                }
+                tries++;
+                if (tries > CARD_DRAW_WINDOW) {
+                    break;
+                }
+                next = pileCount - tries;
+                pileIndex = next;
+            } while (next >= 0);
+        }
+        handCount = CardPlayHandCnt(&ownSide->hand);
+        ownSide->hand.cards[handCount] = ownSide->deck[best];
+        ownSide->deck[best] = -1;
+        CardPlayCleanYama(ownSide);
+        CardPlayShuffleYama(ownSide);
+        CardPlayShuffleYama(ownSide);
+        CardPlayShuffleYama(ownSide);
+        result = 1;
+        break;
+    }
+    default:
+        result = CardPlayCommandPlay((u16) side,
+                                     work->commandIds[ownSide->battle[0].cmdView.playedCard],
+                                     work, 0, 0);
+        break;
+    }
+    return result;
+}
 
 /* Pays one card of the side's cost pile; still assembler (ov10/card_fread.c).
  * ov10/cgp.c declares it over its own partial play record; here the whole
@@ -560,28 +995,183 @@ int CGPEnemyExecOperation(int side, CardGameWork *work, int operationIndex,
     return result;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov10/card_enemy", CGPEnemyLv10SetSub);
+/* Board slot positions, 12 bytes per slot (only the 1P table is read, as in
+ * CardPlayDisployment, ov10/cgp.c). */
+extern float BattlePos1P[][3];
+
+/* Why the card at the hand index cannot be played, or zero (ov10/cgp.c, published C). */
+extern int CGPDispoSub0(int side, CardGameWork *work, int index);
+
+/* Same shapes as ov10/ccu_038_exec_sub.c; CardPlayCleanHand returns nothing (void in ov10/cgp.h). */
+extern int CardPlayDesertBattle(CardHand *hand, CardLayerStack *card);
+extern void CardPlayCleanHand(CardHand *hand);
+
+/* An Lv10 card's id is its base card's id plus 7 (cardId - 7 at 0x00a33d50, 0x00a33f6c, 0x00a33fb0). */
+#define CARD_LV10_ID_OFFSET 7
+
+/* Frames a card takes to slide from the hand to its slot (li 10 at 0x00a33dfc, 10.0f divisor). */
+#define CARD_SLIDE_FRAMES 10
+
+/* Results; the callers (CC_Kara_*, 0x00a37618 / 0x00a37b4c) only test for zero. */
+#define LV10_SET_OK 0               /* the `result = 0` initializer at function entry */
+#define LV10_SET_NO_BASE_CARD (-1)  /* not an Lv10 card, or its base card is not on the board; `li t1,-1` at 0x00a33d54 */
+#define LV10_SET_NO_POINTS 12       /* same code as CGPDispoSub0's "needs more play points"; `li t1,12` at 0x00a33d48 */
+#define LV10_SET_BASE_WAITING 9     /* the base card (id - 7) sits in a disposal slot; `li t1,9` at 0x00a33d68 */
+#define LV10_SET_ALREADY_WAITING 5  /* the Lv10 card itself sits in a disposal slot; `li t1,5` at 0x00a33d74 */
+
+/*
+ * Per-frame movement record of a hand card, 28 bytes each, at +0x192C of the side
+ * (CardMoveRecord / CardPlayField.handMove in ov10/cgp.c). TU-local view: CardPlaySide stops at
+ * 0x106C. Making handMove a real CardPlaySide member (u8 gap to 0x192C plus handMove[40]) was
+ * tested and breaks the ov10/tu000 data carve, which stops with "allocation refused: D_00A4FA10
+ * cc1 directives prove size/alignment 0x8be0/0x8, record claims 0x71a0/0x8", so the view stays.
+ */
+typedef struct CardEnemyMoveRecord {
+    u8 unmodeled_00[4];
+    float position[3];             /* +0x04 */
+    float step[3];                 /* +0x10 */
+} CardEnemyMoveRecord;
+
+typedef struct CardEnemyFieldView {
+    u8 unmodeled_0000[0x192C];
+    CardEnemyMoveRecord handMove[40];  /* +0x192C */
+} CardEnemyFieldView;
+
+/*
+ * Cards CGPEnemyLv10SetSub accepts: the hand card id must be 7, 9 or 10..13 (`beq v1,t0` with
+ * t0 = 7 at 0x00a33ca8, `slti v0,v1,7` / `,14` / `,9` at 0x00a33cac/0x00a33cb8/0x00a33cc4,
+ * `li v0,9` at 0x00a33cd0, `slti v0,v1,10` at 0x00a33cd8, `beq v1,t0` at 0x00a33ce4).
+ * Each is the Lv10 version of the card id - CARD_LV10_ID_OFFSET.
+ */
+enum CardLv10Id {
+    CARD_LV10_7 = 7,
+    CARD_LV10_9 = 9,
+    CARD_LV10_10 = 10,
+    CARD_LV10_11 = 11,
+    CARD_LV10_12 = 12,
+    CARD_LV10_13 = 13
+};
+
+/*
+ * Plays the Lv10 version of a character from the hand over its base card on the board: the base
+ * card's stack is cleared, the new card takes its place keeping the damage already taken, slides
+ * from the hand to the slot and the play cost is paid. Returns 0 when it did.
+ */
+int CGPEnemyLv10SetSub(int side, CardGameWork *work, int index) {
+    CardPlaySide *ownSide;
+    CardEnemyCursor position;  /* zone, hand index and card id of the card being played; never read back */
+    int result = 0;
+    int i;
+
+    position.zone = 5;  /* zone 5 for side 0 (`sh` at 0x00a33c78), 4 for side 1 (0x00a33c84) */
+    ownSide = &work->player;
+    if (side != 0) {
+        position.zone = 4;
+        ownSide = &work->enemy;
+    }
+    position.cardId = ownSide->hand.cards[index];
+    position.index = index;
+
+    switch (ownSide->hand.cards[index]) {
+    case CARD_LV10_7:
+    case CARD_LV10_9:
+    case CARD_LV10_10:
+    case CARD_LV10_11:
+    case CARD_LV10_12:
+    case CARD_LV10_13:
+        switch (ownSide->hand.cards[index]) {
+        case CARD_LV10_10:
+        case CARD_LV10_11:
+        case CARD_LV10_12:
+        case CARD_LV10_13:
+            result = CGPDispoSub0(side, work, index);
+            if (result == LV10_SET_ALREADY_WAITING) {
+                result = 0;
+            }
+            /* falls through: cards 7 and 9 skip CGPDispoSub0 */
+        case CARD_LV10_7:
+        case CARD_LV10_9:
+            if (result == 0) {
+                if (ownSide->hand.playPoints[0]
+                    < work->definitions[ownSide->hand.cards[index]].playCost) {
+                    result = LV10_SET_NO_POINTS;
+                } else {
+                    result = LV10_SET_NO_BASE_CARD;
+                    for (i = 0; i < CARD_BOARD_SLOTS; i++) {
+                        /* Declared inside the body so the loop optimiser leaves the loop alone
+                         * and the subtraction stays in each iteration (0x00a33f6c). */
+                        int baseCardId = ownSide->hand.cards[index] - CARD_LV10_ID_OFFSET;
+
+                        if (baseCardId == ownSide->disposal[i].battle.layers[0].cardId) {
+                            result = LV10_SET_BASE_WAITING;
+                            break;
+                        }
+                        if (ownSide->hand.cards[index]
+                            == ownSide->disposal[i].battle.layers[0].cardId) {
+                            result = LV10_SET_ALREADY_WAITING;
+                            break;
+                        }
+                    }
+                    for (i = 0; i < CARD_BOARD_SLOTS; i++) {
+                        if (ownSide->hand.cards[index] - CARD_LV10_ID_OFFSET
+                            == ownSide->battle[i].battle.layers[0].cardId) {
+                            CardLayerStack *stack = &ownSide->battle[i].battle;
+                            int lifeLost = stack->layers[0].life
+                                - work->definitions[stack->layers[0].cardId].operationDuration;
+
+                            CardPlayDesertBattle(&ownSide->hand, &ownSide->battle[i].battle);
+                            stack->power = work->definitions[position.cardId].basePower;
+                            stack->powerLimit = work->definitions[position.cardId].basePower;
+                            stack->layers[0].cardId = position.cardId;
+                            stack->layers[0].life
+                                = work->definitions[position.cardId].operationDuration + lifeLost;
+                            stack->position[0]
+                                = ((CardEnemyFieldView *) ownSide)->handMove[position.index].position[0];
+                            stack->position[1]
+                                = ((CardEnemyFieldView *) ownSide)->handMove[position.index].position[1];
+                            stack->position[2]
+                                = ((CardEnemyFieldView *) ownSide)->handMove[position.index].position[2];
+                            stack->step[0]
+                                = (BattlePos1P[i][0]
+                                   - ((CardEnemyFieldView *) ownSide)->handMove[position.index].position[0])
+                                  / 10.0f;
+                            stack->step[1]
+                                = (BattlePos1P[i][1]
+                                   - ((CardEnemyFieldView *) ownSide)->handMove[position.index].position[1])
+                                  / 10.0f;
+                            stack->step[2]
+                                = (BattlePos1P[i][2]
+                                   - ((CardEnemyFieldView *) ownSide)->handMove[position.index].position[2])
+                                  / 10.0f;
+                            stack->moveFrames = CARD_SLIDE_FRAMES;
+                            ownSide->hand.playPoints[0]
+                                -= work->definitions[ownSide->hand.cards[position.index]].playCost;
+                            ownSide->hand.cards[position.index] = -1;
+                            CardPlayCleanHand(&ownSide->hand);
+                            result = LV10_SET_OK;
+                            break;
+                        }
+                    }
+                }
+            }
+            break;
+        }
+        break;
+    default:
+        result = LV10_SET_NO_BASE_CARD;
+        break;
+    }
+    return result;
+}
 
 /* AI comm-phase handler; defined in ov10/tu010 (still assembler). */
 extern int CC_Kara_CommFase(int side, CardGameWork *work);
-
-/* Advances the card game turn; defined in ov10/tu008 (still assembler). */
-extern void CGPNextTurnSub(CardGameWork *work);
 
 void CardEnemyComm(int side, CardGameWork *work) {
     if (CC_Kara_CommFase(side, work) == 1) {
         CGPNextTurnSub(work);
     }
 }
-
-/* The draw pile's non-negative entries (ov10/card_fread.c). */
-
-
-/* Compacts the draw pile after a card leaves it; still assembler (ov10/card_fread.c). */
-extern void CardPlayCleanYama(CardPlaySide *side);
-
-/* Reshuffles the draw pile; still assembler (ov10/card_fread.c). */
-extern void CardPlayShuffleYama(CardPlaySide *side);
 
 /*
  * Card id 7 is the AI's search target here: the same draw-to-hand/CleanYama/
@@ -607,9 +1197,6 @@ void CardEnemyAnswerSionSearch(int side, CardGameWork *work) {
 
 /* AI end-of-phase handler; defined in ov10/tu010 (still assembler). */
 extern int CC_Kara_EndFase(int side, CardGameWork *work);
-
-/* Advances the card game turn; defined in ov10/tu008 (still assembler). */
-
 
 void CardEnemyEnd(int side, CardGameWork *work) {
     int endFaseResult = 1;

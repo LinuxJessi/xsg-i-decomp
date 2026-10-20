@@ -118267,24 +118267,60 @@
       ]
     },
     "ov10/tu009": {
+      ".bss": [
+        {
+          "range": [
+            "0x00A57E34",
+            "0x00A57E36"
+          ],
+          "generated": [
+            "0x00A57E34",
+            "0x00A57E36"
+          ],
+          "generated_by": [],
+          "c_owned_symbols": [
+            "D_00A57E34"
+          ],
+          "also_referenced_by_c": [],
+          "c_input_spans": [
+            {
+              "section": ".bss",
+              "range": [
+                "0x00A57E34",
+                "0x00A57E36"
+              ],
+              "object_range": [
+                0,
+                2
+              ],
+              "symbols": [
+                "Timer.0",
+                "Timer.1"
+              ]
+            }
+          ]
+        }
+      ],
       ".rodata": [
         {
           "also_referenced_by_c": [],
           "c_owned_symbols": [
             "D_00A4F710",
-            "jtbl_00A4F740"
+            "jtbl_00A4F740",
+            "jtbl_00A4F7B0"
           ],
           "generated": [
             "0x00a4f710",
-            "0x00a4f7a4"
+            "0x00a4f844"
           ],
           "generated_by": [
+            "CGPEnemyExecCommand",
             "CardEnemyAnswerCardxx",
             "InitCpuDeck"
           ],
           "range": [
             "0x00a4f710",
-            "0x00a4f7b0"
+            "0x00a4f850"
           ]
         }
       ]
@@ -216542,6 +216578,98 @@
             "assembly_sha256": "128bfb9ca8fe612b04cfe4e997f8bbe9acf14e554f785d57c09288856fcd82c9",
             "space": 4,
             "alignment": 4
+          }
+        },
+        {
+          "unit": "ov10",
+          "address": "0x00A57E34",
+          "section": ".bss",
+          "names": [
+            "D_00A57E34"
+          ],
+          "storage_owner": {
+            "name": "Timer.0",
+            "address": "0x00A57E34",
+            "size": 1,
+            "alignment": 1,
+            "type": "s8",
+            "linkage": "internal",
+            "assembly_path": "build/ov10/build/scaffold/src/ov10/card_enemy.s"
+          },
+          "evidence": {
+            "original_tu": "ov10/tu009",
+            "source_path": "src/ov10/card_enemy.c",
+            "source_sha256": "2c143690447c018a82fe30975708fdee43e216119df95166a284dc8599ce3848",
+            "object": "build/ov10/build/scaffold/src/ov10/card_enemy.o",
+            "object_sha256": "fa891ad6e183bfd044ae45d37068c7c2f1d4b84b628ed0876210b1e49e466b10",
+            "raw_input_object": "build/ov10/build/scaffold/src/ov10/card_enemy.o",
+            "raw_input_object_sha256": "fa891ad6e183bfd044ae45d37068c7c2f1d4b84b628ed0876210b1e49e466b10",
+            "assembly_path": "build/ov10/build/scaffold/src/ov10/card_enemy.s",
+            "assembly_sha256": "182f64ff9709caddbe46b7bbba35598d7a97b988a827a6a179e8eb1ee05895d1",
+            "cc1_assembly": "build/ov10/build/scaffold/src/ov10/card_enemy.s",
+            "cc1_assembly_sha256": "182f64ff9709caddbe46b7bbba35598d7a97b988a827a6a179e8eb1ee05895d1",
+            "original_binary": "game/extracted-iso/OV10.OVL",
+            "original_binary_sha256": "a4e27bc538e7d13de80b9e694b5c93e8d55950af28ac8a7269fe8b0d15630c11",
+            "original_scaffold": "build/ov10/asm/data/ov10/card_enemy.bss.s",
+            "original_scaffold_sha256": "991f1422fbac6a70b5f6c2e7e4f1387e5a1d207b5b4ed63b516b0e21ae8aa6b6",
+            "source_definition": "src/ov10/card_enemy.c:62",
+            "extent_evidence": "Function-scope static s8 of CardEnemyMove; cc1 emits one local one-byte NOBITS owner. The original names 0x00A57E34 Timer.0; the scaffold label D_00A57E34 covers [0x00A57E34,0x00A57E36) for both timers.",
+            "compiler_contract": "ov10-tu-c296-G0",
+            "object_path": "build/ov10/build/scaffold/src/ov10/card_enemy.o"
+          },
+          "compiler_storage": {
+            "label": "Timer.0",
+            "source_sha256": "2c143690447c018a82fe30975708fdee43e216119df95166a284dc8599ce3848",
+            "object_sha256": "fa891ad6e183bfd044ae45d37068c7c2f1d4b84b628ed0876210b1e49e466b10",
+            "assembly_sha256": "182f64ff9709caddbe46b7bbba35598d7a97b988a827a6a179e8eb1ee05895d1",
+            "space": 1,
+            "alignment": 1
+          }
+        },
+        {
+          "unit": "ov10",
+          "address": "0x00A57E35",
+          "section": ".bss",
+          "names": [
+            "D_00A57E35"
+          ],
+          "storage_owner": {
+            "name": "Timer.1",
+            "address": "0x00A57E35",
+            "size": 1,
+            "alignment": 1,
+            "type": "s8",
+            "linkage": "internal",
+            "assembly_path": "build/ov10/build/scaffold/src/ov10/card_enemy.s"
+          },
+          "evidence": {
+            "original_tu": "ov10/tu009",
+            "source_path": "src/ov10/card_enemy.c",
+            "source_sha256": "2c143690447c018a82fe30975708fdee43e216119df95166a284dc8599ce3848",
+            "object": "build/ov10/build/scaffold/src/ov10/card_enemy.o",
+            "object_sha256": "fa891ad6e183bfd044ae45d37068c7c2f1d4b84b628ed0876210b1e49e466b10",
+            "raw_input_object": "build/ov10/build/scaffold/src/ov10/card_enemy.o",
+            "raw_input_object_sha256": "fa891ad6e183bfd044ae45d37068c7c2f1d4b84b628ed0876210b1e49e466b10",
+            "assembly_path": "build/ov10/build/scaffold/src/ov10/card_enemy.s",
+            "assembly_sha256": "182f64ff9709caddbe46b7bbba35598d7a97b988a827a6a179e8eb1ee05895d1",
+            "cc1_assembly": "build/ov10/build/scaffold/src/ov10/card_enemy.s",
+            "cc1_assembly_sha256": "182f64ff9709caddbe46b7bbba35598d7a97b988a827a6a179e8eb1ee05895d1",
+            "original_binary": "game/extracted-iso/OV10.OVL",
+            "original_binary_sha256": "a4e27bc538e7d13de80b9e694b5c93e8d55950af28ac8a7269fe8b0d15630c11",
+            "original_scaffold": "build/ov10/asm/data/ov10/card_enemy.bss.s",
+            "original_scaffold_sha256": "991f1422fbac6a70b5f6c2e7e4f1387e5a1d207b5b4ed63b516b0e21ae8aa6b6",
+            "source_definition": "src/ov10/card_enemy.c:109",
+            "extent_evidence": "Function-scope static s8 of CardEnemySet; cc1 emits one local one-byte NOBITS owner. The original names 0x00A57E35 Timer.1.",
+            "compiler_contract": "ov10-tu-c296-G0",
+            "object_path": "build/ov10/build/scaffold/src/ov10/card_enemy.o"
+          },
+          "compiler_storage": {
+            "label": "Timer.1",
+            "source_sha256": "2c143690447c018a82fe30975708fdee43e216119df95166a284dc8599ce3848",
+            "object_sha256": "fa891ad6e183bfd044ae45d37068c7c2f1d4b84b628ed0876210b1e49e466b10",
+            "assembly_sha256": "182f64ff9709caddbe46b7bbba35598d7a97b988a827a6a179e8eb1ee05895d1",
+            "space": 1,
+            "alignment": 1
           }
         }
       ]
