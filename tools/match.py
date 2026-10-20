@@ -92,6 +92,10 @@ def ordinary_c(text, staged=None, headers=(), allow_nested=False):
     # Comments emit no C tokens. Historical accepted comments may describe game
     # text in its original language; executable tokens and literals stay ASCII.
     require(text.isascii(), 'non-ordinary C encoding or alternative preprocessor tokens')
+    # Explicit user decision 2026-10-19: a closed function-local scalar trial,
+    # not packed records, arbitrary attributes, or a different compiler.
+    from tools import unaligned_scalar
+    text = unaligned_scalar.admission_text(text)
     require(not re.search(r'\b(?:asm|__asm|__asm__|__attribute|__attribute__|_Pragma)\b|\.incbin', text),
             'ASM, incbin, attributes or pragmas are not ordinary candidate C')
     if not allow_nested:
@@ -1687,7 +1691,7 @@ def _mmi_block_shape(body):
             'register the MMI lines wrote')
 
 
-def _cop2_parse_construct(text, start):
+def _cop2_parse_construct(text, start, *, mmi_transpose=False):
     # Advance by the keyword actually written, not by a fixed len('__asm__').
     # The permuter's vendored pycparser reprints `__asm__ __volatile__(...)` as
     # `asm __volatile__(...)`, and skipping seven characters past a three-letter
@@ -1739,6 +1743,10 @@ def _cop2_parse_construct(text, start):
     operands = len(outputs) + len(inputs)
     require(len(sections) >= 4, 'COP2 inline must declare a memory clobber')
     clobbers = _cop2_check_clobbers(sections[3])
+    if mmi_transpose:
+        _mmi_cop2_transpose_block(body, outputs, inputs, clobbers)
+        _COP2_SPANS.append(dict(kind='cop2', start=start))
+        return i + 1
     body = _cop2_null_default(body, outputs, clobbers)
     for line in body:
         _cop2_check_line(line)
@@ -1763,7 +1771,7 @@ def _cop2_parse_construct(text, start):
 _COP2_SPANS = []
 
 
-def _cop2_inline_spans(text):
+def _cop2_inline_spans(text, *, mmi_transpose=False):
     """Locate calibrated COP2 inline statements; raise with exact errors."""
     del _COP2_SPANS[:]
     found = []
@@ -1778,7 +1786,7 @@ def _cop2_inline_spans(text):
         # _cop2_parse_construct returns None for it.
         if m.group(0) not in ('__asm__', '__asm', 'asm'):
             continue
-        end = _cop2_parse_construct(text, m.start())
+        end = _cop2_parse_construct(text, m.start(), mmi_transpose=mmi_transpose)
         if end is not None:
             found.append((m.start(), end))
     return found
@@ -1943,7 +1951,7 @@ def _hardware_line_continuations_ok(text):
     return True
 
 
-def hardware_c(text, staged=None, headers=(), inner=None):
+def hardware_c(text, staged=None, headers=(), inner=None, *, mmi_transpose=False):
     """Only calibrated barriers/interrupt operations and an allowlisted
     COP2/VU0-macro spelling set are admitted inline (EE caller side).
 
@@ -2008,7 +2016,9 @@ def hardware_c(text, staged=None, headers=(), inner=None):
         return ' ' if match[0].startswith(('/*', '//')) else match[0]
 
     masked = re.sub(tokens, replace, text, flags=re.S)
-    spans = _cop2_inline_spans(masked)
+    spans = _cop2_inline_spans(masked, mmi_transpose=mmi_transpose)
+    if mmi_transpose:
+        require(count == 0 and len(spans) == 1, 'the bounded MMI/COP2 transpose is one inline block')
     # The scheduling barrier emits nothing, so on its own it is not a hardware
     # operation and cannot make a candidate hardware-eligible. docs/ps2-
     # capabilities.md makes actual COP2/VU instructions in the pinned original
@@ -2297,9 +2307,10 @@ def _mmi_check_clobbers(section):
     return seen
 
 
-def _mmi_block(body, outputs, inputs, clobbers):
+def _mmi_block(body, outputs, inputs, clobbers, *, rows=None):
     """Check one ee-mmi block as a dataflow, in order (see the section comment)."""
-    rows = [_mmi_parse_line(line) + (line,) for line in body]
+    if rows is None:
+        rows = [_mmi_parse_line(line) + (line,) for line in body]
     # User decision 2026-10-10 (follow-up): a block of only `lq`/`sq` 128-bit
     # loads/stores is admitted too (main/tu246 `sq $0,0(%0)` zero-stores,
     # main/tu205 and main/tu263 16-byte copies through a forced base). A select
@@ -2468,6 +2479,73 @@ def mmi_native_ti_c(text, staged=None, headers=()):
     typedef) by `native_ti.source`. Neither route is widened."""
     from tools import native_ti          # imports ordinary_c from this module
     return mmi_c(text, staged, headers, inner=native_ti.hardware_source)
+
+
+def _mmi_cop2_transpose_block(body, outputs, inputs, clobbers):
+    """The two original NML weight transposes (user decision 2026-10-18).
+
+    Reuse the calibrated COP2 lines and the MMI operand/dataflow checker. Only
+    the evidenced seven word-shuffle instructions join them; scalar assembly,
+    arbitrary MMI/COP2 composition and hard-coded pointer inputs stay refused.
+    tools/tu_audit.py selects this composition only for the two original IDs.
+    """
+    require(not outputs and inputs == ['r', 'r', 'r'],
+            'the NML MMI/COP2 transpose has three r pointer inputs and no outputs')
+    require(clobbers == {'$' + str(n) for n in range(2, 10)} | {'memory'},
+            'the NML MMI/COP2 transpose clobbers exactly $2-$9 and memory')
+    expected = ['pextlw $6,$3,$2', 'pextuw $7,$3,$2',
+                'pextlw $8,$5,$4', 'pextuw $9,$5,$4',
+                'pcpyld $2,$8,$6', 'pcpyud $3,$6,$8', 'pcpyld $4,$9,$7']
+    shuffles, rows, loads, from_vu, to_vu, events = [], [], [], [], [], []
+    for line in body:
+        op = line.split(None, 1)[0]
+        if op in _MMI_SIGNATURES or op in ('lq', 'sq'):
+            row = _mmi_parse_line(line)
+            require(op in ('lq', 'pextlw', 'pextuw', 'pcpyld', 'pcpyud'),
+                    'unadmitted instruction in bounded NML transpose: ' + line[:120])
+            if op == 'lq':
+                loads.append(re.sub(_SEP, ',', re.sub(r'[ \t]+', ' ', line)))
+            else:
+                shuffles.append(re.sub(_SEP, ',', re.sub(r'[ \t]+', ' ', line)))
+            events.append(re.sub(_SEP, ',', re.sub(r'[ \t]+', ' ', line)))
+            rows.append(row + (line,))
+            continue
+        found = _cop2_match_line(line)
+        require(found is not None and found[0] in ('transfer', 'move', 'plain3', 'bc3', 'accbc3', 'move2'),
+                'uncalibrated line in bounded NML MMI/COP2 transpose: ' + line[:120])
+        kind, parsed, check = found
+        error = check(parsed)
+        require(not error, str(error) + ' in NML MMI/COP2 transpose: ' + line[:120])
+        roles = []
+        if kind == 'transfer':
+            base = parsed.group('base')
+            require(base in ('%0', '%1', '%2') and not parsed.group('off').startswith('%'),
+                    'NML COP2 memory bases must be C pointer operands with literal offsets')
+        elif kind == 'move':
+            reg = parsed.group('gpr')
+            roles = [('w' if op.startswith('qmfc2') else 'r', reg)]
+            (from_vu if op.startswith('qmfc2') else to_vu).append((reg, parsed.group('src')))
+            events.append('%s %s,vf%s' % (parsed.group('op'), reg, parsed.group('src')))
+        rows.append((op, roles, None, line))
+    require(shuffles == expected, 'the bounded NML MMI transpose must retain its seven original shuffles')
+    require(loads == ['lq $2,0(%2)', 'lq $3,16(%2)', 'lq $4,32(%2)'],
+            'the bounded NML transpose loads three quadwords through its third C input')
+    require(from_vu == [('$5', '0')] and to_vu == [('$2', '5'), ('$3', '6'), ('$4', '7')],
+            'the bounded NML transpose bridges vf0 and vf5-vf7 through its declared GPR scratch')
+    require(events == loads + ['qmfc2 $5,vf0'] + expected +
+            ['qmtc2 $2,vf5', 'qmtc2 $3,vf6', 'qmtc2 $4,vf7'],
+            'NML COP2 bridges must consume the completed transpose, in original producer order')
+    _mmi_block(body, outputs, inputs, clobbers, rows=rows)
+
+
+def mmi_cop2_c(text, staged=None, headers=(), inner=None):
+    """Identity-scoped NML MMI/COP2 composition; not a general hardware widening."""
+    return hardware_c(text, staged, headers, inner=inner, mmi_transpose=True)
+
+
+def mmi_cop2_native_ti_c(text, staged=None, headers=()):
+    from tools import native_ti
+    return mmi_cop2_c(text, staged, headers, inner=native_ti.hardware_source)
 
 
 # ---------------------------------------------------------------------------
@@ -2985,6 +3063,37 @@ def vu_clip_native_ti_c(text, staged=None, headers=()):
     """An `ee-vu-clip` function inside a `native-ti` TU; neither route widened."""
     from tools import native_ti          # imports ordinary_c from this module
     return vu_clip_c(text, staged, headers, inner=native_ti.hardware_source)
+
+
+def _sef_vu_clip_block(lines, outputs, inputs, clobbers):
+    """Only sefClipViewVolumeA's six branch nops and one join nop (2026-10-18)."""
+    filtered, branch_nops, join_nops = [], 0, 0
+    for index, line in enumerate(lines):
+        if line != 'nop':
+            filtered.append(line)
+            continue
+        require(index > 0, 'a SEF clip nop must follow its branch or join jump')
+        if _CLIP_BC1F.fullmatch(lines[index - 1]):
+            branch_nops += 1
+        elif re.fullmatch(r'j' + _WS + r'[1-9]f', lines[index - 1]):
+            join_nops += 1
+        else:
+            require(False, 'a SEF clip nop is allowed only immediately after bc1f or the join jump')
+    require(branch_nops == 6 and join_nops == 1,
+            'sefClipViewVolumeA retains exactly six branch nops and one join nop')
+    require(sum(bool(_CLIP_BC1F.fullmatch(line)) for line in lines) == 6,
+            'sefClipViewVolumeA tests exactly six lanes')
+    _vu_clip_block(filtered, outputs, inputs, clobbers)
+
+
+def sef_vu_clip_c(text, staged=None, headers=(), inner=None):
+    """Identity-scoped original SEF clip scheduling; all other clip checks unchanged."""
+    return _inline_class_c(text, staged, headers, inner, 'ee-vu-clip', _sef_vu_clip_block, 'vu-clip')
+
+
+def sef_vu_clip_native_ti_c(text, staged=None, headers=()):
+    from tools import native_ti
+    return sef_vu_clip_c(text, staged, headers, inner=native_ti.hardware_source)
 
 
 # `ee-assert-break` (user decision 2026-10-11 on main/tu121: "Si break 0 es

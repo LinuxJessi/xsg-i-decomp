@@ -64,6 +64,20 @@ void *AdrsEnemySquare = 0;
 
 /* Distance thresholds and retreat speeds used by the two look-back paths. */
 
+#define D_004D801C 0.01f
+
+#define D_004D8020 3.1415927f
+
+#define D_004D8024 6.2831855f
+
+#define D_004D8028 0.12f
+
+#define D_004D802C 3.1415927f
+
+#define D_004D8030 6.2831855f
+
+#define D_004D8064 0.9f
+
 int Get_EffectCode(int attr)
 {
     int effect[15] = {
@@ -374,8 +388,9 @@ void Enemy_Chase(EnemyActor *self)
     start = self->position_pair;
     Check_Undu(&self->position, &work->escape_target.position, work->map_index,
                &hit, 1, 0, 0);
-    crossed = CrossPointUwamono(self->body_radius, &self->position,
-                                &work->escape_target.position, &cross_point);
+    crossed = CrossPointUwamono(&self->position,
+                                &work->escape_target.position,
+                                self->body_radius, &cross_point);
     if (__builtin_fabsf(hit.x - work->escape_target.position.x) < D_004D800C &&
         __builtin_fabsf(hit.z - work->escape_target.position.z) < D_004D800C &&
         crossed == 0) {
@@ -439,7 +454,176 @@ void Enemy_Chase(EnemyActor *self)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/enemy_1", Enemy_Route);
+void Enemy_Route(EnemyActor *self)
+{
+    EnemyWorkEntry *work = &enepc[self->number];
+    EnemyParams *params = &self->params;
+    Vector4 point;
+    Vector4 origin;
+    Vector4 target;
+    Vector4 hit;
+    signed char directions[16];
+    int saved_parameter = (*(short *)&work->state_40);
+    short length = 0;
+    short i;
+    short available;
+    short index;
+    float distance;
+    float angle;
+    short motion;
+    signed char moved;
+
+    if (work->spline_point_count <= 0)
+        return;
+
+    work->unique_pattern = saved_parameter / 128;
+    if (work->spline_point_count * 128 - 384 <= saved_parameter &&
+        (self->flags & 0x80000000) != 0) {
+        if (work->pause_kind != 8) {
+            Set_Spline_By_Random();
+        } else {
+            Set_Spline_By_Route(self, 0);
+        }
+        self->flags &= 0x7fffffff;
+    }
+
+    if ((work->state_40.spline_parameter % 128) == 0 &&
+        (self->flags & 0x80000000) == 0) {
+        for (i = 0; i < 2; i++) {
+            if (work->action_motion_table[(*(short *)&work->state_40) / 128][0] != -1) {
+                work->unique_step = 0;
+                Enemy_ActionReady(self, 9);
+                return;
+            }
+            if ((i != 0 || params->pause_interval != 0) &&
+                (i != 1 || params->threat_interval != 0)) {
+                switch (i) {
+                case 0:
+                    length = params->pause_interval;
+                    break;
+                case 1:
+                    length = params->threat_interval;
+                    break;
+                }
+                work->route_cursor[i] = (work->route_cursor[i] + 1) % length;
+                if (work->route_marks[i][work->route_cursor[i]] == 1) {
+                    switch (i) {
+                    case 0:
+                        Enemy_ActionReady(self, 1);
+                        break;
+                    case 1:
+                        Enemy_ActionReady(self, 2);
+                        break;
+                    }
+                    work->route_marks[0][work->route_cursor[i]] = work->route_marks[1][work->route_cursor[i]] = 0;
+                    return;
+                }
+                if (work->route_cursor[i] == 0) {
+                    short mark;
+
+                    for (mark = 0; mark < length; mark++)
+                        work->route_marks[i][mark] = 0;
+                    work->route_marks[i][Get_Rnd(0, length - 1)] = 1;
+                }
+                        }
+        }
+    }
+
+    if (work->state_flags & ENEMY_ALERT_RAISE_FLAG) {
+        GetBSplineLoop((*(short *)&work->state_40), work->spline_point_count, 128,
+                       work->spline_points, &point);
+        if (work->fast_point_count == 0)
+            work->state_40.spline_parameter +=
+                work->state_40.spline_parameter % 2 + 2;
+        else
+            work->state_40.spline_parameter +=
+                work->state_40.spline_parameter % 8 + 16;
+    } else {
+        GetBSplineLoopDummy((*(short *)&work->state_40), work->spline_point_count, 128,
+                            work->spline_points, &point, self);
+    }
+
+    distance = Get_Distance(&self->position, &point);
+    if (work->spline_point_count << 7 <= work->state_40.spline_parameter)
+        work->state_40.spline_parameter = 0;
+    if (D_004D801C <= distance)
+        self->target_angle = Get_Angle(&self->position, &point);
+
+    {
+        int airborne = work->state_flags & ENEMY_AIRBORNE_FLAG;
+
+        work->goback_x = point.x - self->position.x;
+        work->goback_z = point.z - self->position.z;
+        self->position.x = point.x;
+        self->position.z = point.z;
+        if (airborne)
+            self->position.y = point.y;
+    }
+
+    moved = TM_Check_Move(self);
+    if (!moved) {
+        if ((int)self->flags < 0) {
+            Homing_Search(self);
+        } else if (work->pause_kind == 8 || work->pause_kind == 3) {
+            work->state_40.spline_parameter = saved_parameter;
+        } else {
+            available = 0;
+            Check_Wall(1.0f, self->body_radius, &origin, directions, -16,
+                       work->map_index, self->number, work->wall_attribute);
+            for (i = 0; i < 16; i++) {
+                if (directions[i] == 0)
+                    directions[available++] = i;
+            }
+            if (available == 0)
+                angle = xglSRand() % 360 / 180.0f * D_004D8020;
+            else
+                angle = directions[xglSRand() % available] * D_004D8024 *
+                        0.0625f;
+            BSpline_Init(work->spline_points, &self->position, angle);
+            work->state_40.spline_parameter = 0;
+        }
+        Set_Motion(self, Get_DefaultMotion(self, 0), 9);
+    } else {
+        if (D_004D8028 <= distance)
+            motion = Get_DefaultMotion(self, 2);
+        else
+            motion = Get_DefaultMotion(self, 1);
+        Set_Motion(self, motion, 9);
+    }
+
+    if ((work->pause_kind == 1 || work->pause_kind == 2) &&
+        (int)self->flags >= 0 && (work->state_40.spline_parameter % 128) == 0) {
+        if (work->fast_point_count > 0)
+            work->fast_point_count--;
+        index = (*(&work->state_40.spline_parameter) / 128 + 2) %
+                work->spline_point_count;
+        origin.x = work->spline_coordinates[index][0];
+        origin.y = work->spline_coordinates[index][1];
+        origin.z = work->spline_coordinates[index][2];
+        available = 0;
+        Check_Wall(1.0f, self->body_radius, &origin, directions, -16,
+                   work->map_index, self->number, work->wall_attribute);
+        for (i = 0; i < 16; i++) {
+            if (directions[i] == 0)
+                directions[available++] = i;
+        }
+        if (available == 0)
+            angle = xglSRand() % 360 / 180.0f * D_004D802C;
+        else
+            angle = directions[xglSRand() % available] * D_004D8030 * 0.0625f;
+        target.x = origin.x + sinf(angle) * params->route_step_length;
+        target.y = self->position.y;
+        target.z = origin.z + cosf(angle) * params->route_step_length;
+        target.w = 1.0f;
+        Check_Straight(self->body_radius, &origin, &target, 16, &hit,
+                       work->map_index, self->number, work->wall_attribute);
+        if (work->state_flags & ENEMY_AIRBORNE_FLAG)
+            hit.y = Get_Height(&hit, work->map_index, 0) +
+                    Get_Rnd(30, 50) / 10.0f;
+        BSpline_Add(work->state_40.spline_parameter, work->spline_point_count,
+                    128, work->spline_points, &hit, 3);
+    }
+}
 
 void Enemy_Escape(EnemyActor *actor)
 {
@@ -1012,7 +1196,34 @@ void ACT_updateEnemy(EnemyActor *self)
         Disp_EnemyMark(self);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/enemy_1", TM_Enemy_Move_Step);
+unsigned char TM_Enemy_Move_Step(int actor_number, Vector4 *step_limit,
+                                 float goback_x)
+{
+    EnemyActor *self = &actor[actor_number];
+    EnemyVector4 old = self->position_pair;
+
+    Get_One_Step(goback_x, &actor[actor_number].position, step_limit,
+                 &enepc[actor_number].goback[0]);
+    enepc[actor_number].goback[0] += (&enepc[actor_number])->drift[0];
+    enepc[actor_number].goback[2] += enepc[actor_number].drift[2];
+
+    if (old.vector.x < step_limit->x) {
+        if (step_limit->x < self->position.x + enepc[actor_number].goback[0])
+            enepc[actor_number].goback[0] = step_limit->x - self->position.x;
+    }
+    if (old.vector.z < step_limit->z) {
+        if (step_limit->z < self->position.z + enepc[actor_number].goback[2])
+            enepc[actor_number].goback[2] = step_limit->z - self->position.z;
+    }
+
+    enepc[actor_number].drift[0] *= D_004D8064;
+    enepc[actor_number].drift[2] *= D_004D8064;
+    actor[actor_number].position.x += enepc[actor_number].goback[0];
+    actor[actor_number].position_f[2] += enepc[actor_number].goback[2];
+    actor[actor_number].target_angle =
+        atan2f(enepc[actor_number].goback[0], enepc[actor_number].goback[2]);
+    return TM_Check_Move(self);
+}
 
 void TM_Check_Move_at_GoBack(EnemyActor *actor)
 {
@@ -1124,7 +1335,7 @@ void Set_EnemyMark(EnemyActor *actor, short mark)
     work->mark_timer = 0;
 }
 
-void Disp_EnemyMark(void)
+void Disp_EnemyMark(EnemyActor *actor)
 {
     EnemyMarkSet mark[16];
 

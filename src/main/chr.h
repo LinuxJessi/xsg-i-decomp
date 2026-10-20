@@ -91,7 +91,7 @@ typedef struct ChrSpline {
 } ChrSpline;
 typedef struct ChrSplineCall {
     u8 *object;
-    ChrSpline *spline;
+    struct ChrSpline *spline;
     int frames;
     u8 wait;
 } ChrSplineCall;
@@ -239,7 +239,8 @@ typedef struct Actor {
     unsigned char unmodeled_70[0x81 - 0x70];
     u8 signal;                                   /* +0x81 */
     u8 relation_kind;                            /* +0x82 */
-    unsigned char unmodeled_83[0x88 - 0x83];
+    unsigned char unmodeled_83[0x86 - 0x83];
+    unsigned short shadow_definition_flags;   /* +0x86 */
     short frame_counter;                         /* +0x88 */
     unsigned char unmodeled_8a[0x90 - 0x8a];
     unsigned char shadow_kind;                  /* +0x90 */
@@ -308,8 +309,8 @@ typedef struct ChrScaleVector {
 
 typedef union ChrResultValue {
     u32 word;
-    ChrScaleVector *vector;
-    Actor *actor;
+    struct ChrScaleVector *vector;
+    struct Actor *actor;
 } ChrResultValue;
 
 /* The actor's own slot in the 64-entry `actor` array at main 0x0043c1e0,
@@ -567,7 +568,7 @@ typedef struct JavaStringValue {
  */
 typedef struct JavaString {
     unsigned int : 32;
-    JavaStringValue *value;
+    struct JavaStringValue *value;
 } JavaString;
 
 /*
@@ -577,7 +578,7 @@ typedef struct JavaString {
  */
 typedef struct ChrTalkCall {
     u8 *object;
-    JavaString *message;
+    struct JavaString *message;
 } ChrTalkCall;
 
 /*
@@ -680,7 +681,7 @@ typedef struct ChrArgsWordCall {
 typedef struct ChrArgsObjectCall {
     u8 *object;
     int offset;
-    ChrScaleCall *source;
+    struct ChrScaleCall *source;
     unsigned char unmodeled_0c[4];
 } ChrArgsObjectCall;
 
@@ -708,14 +709,14 @@ typedef struct ChrFilterParamValue {
 
 typedef struct ChrFilterParamArray {
     unsigned char unmodeled_0[8];
-    ChrFilterParamValue *value;                 /* +0x8 */
+    struct ChrFilterParamValue *value;                 /* +0x8 */
 } ChrFilterParamArray;
 
 /* Call block of Java_xeno_Chr_setFilterParam__aF: object +0x0, the array
  * argument at +0x4 (lw a0,4(s1) at 0x003003a0). */
 typedef struct ChrFilterParamCall {
     u8 *object;
-    ChrFilterParamArray *array;
+    struct ChrFilterParamArray *array;
 } ChrFilterParamCall;
 
 /*

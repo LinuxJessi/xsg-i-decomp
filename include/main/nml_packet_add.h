@@ -4,6 +4,7 @@
 #include "shared.h"
 
 #include "main/ssd_init.h"
+#include "main/xgl_2.h"
 
 /* RssdWork storage is defined by main/tu107; its layout is owned by main/tu110. */
 extern RssdWorkFlags RssdWork;

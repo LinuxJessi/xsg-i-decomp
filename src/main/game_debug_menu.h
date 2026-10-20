@@ -180,4 +180,44 @@ extern void PauseMenuPageUwamono(void);
 extern void PauseMenuPageEnemy(void);
 extern void PauseMenuPagePartyDebug(void);
 
+#define CF_CAMERA_SWITCH 0x02
+
+#define RUNTIME_MODEL_NUMBER_TAG 0x4
+
+#define RUNTIME_CAPTURE_ALPHA 0x02000000
+
+#define ACTOR_CHECK_HIDDEN 0x8
+
+#define MAP_UNIT_CHECK_HIDDEN 0x4
+
+#define MODEL_CHECK_ACTOR 0x200
+
+#define MODEL_CHECK_MAP_UNIT 0x300
+
+#define DEBUG_FLAG_COUNT 7
+
+#define MAP_UNIT_COUNT 64
+
+typedef struct {
+    u32 flags;
+    u8 unmodeled_04[0x300 - 0x04];
+} MapUnitHead;
+
+extern MapUnitHead MapUnit[MAP_UNIT_COUNT];
+
+extern unsigned char SnapDrawCreditFlag;
+
+extern u8 GameDiskChangeT10K;
+
+extern char D_004C03A8[];
+
+extern char D_004D9F00[];
+
+extern char D_004D9F08[];
+
+extern char D_004D9F10[];
+
+extern char *tbl_0_00367A50[];
+
+
 #endif /* SRC_MAIN_GAME_DEBUG_MENU_H */

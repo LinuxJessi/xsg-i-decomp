@@ -40,7 +40,7 @@ static void xglFontPrintDirectCore(const char *text);
 
 /* Prints text straight away into ordering-table slot ot (passed to set_ot). */
 
-extern void xglFontPrintDirectOT(int ot, const char *text);
+void xglFontPrintDirectOT(int ot, const char *text);
 
 static void set_ot(int ot);
 
@@ -252,15 +252,15 @@ static const char D_004D2448[16] = "data\\font0.tex";
 
 static const char D_004D2458[16] = "data\\font1.tex";
 
-extern void xglFontReloadTexture(struct FontDrawCursor *cursor, int flags);
+void xglFontReloadTexture(struct FontDrawCursor *cursor, int flags);
 
 extern void sceVif1PkCloseDirectHLCode(XglPacket *packet);
 
 extern int xglFontCheckProportional(unsigned int high, unsigned int low);
 
-extern unsigned int xglFontGetProportionalSize(int code);
+unsigned int xglFontGetProportionalSize(int code);
 
-extern unsigned int xglFontAscii2Euc(signed char character, signed char **text);
+unsigned int xglFontAscii2Euc(signed char character, signed char **text);
 
 static void xglFontFlushCore(struct FontDrawCursor *cursor, const unsigned char *text);
 
@@ -332,7 +332,33 @@ extern void sceVif1PkOpenDirectHLCode(XglPacket *packet, int mode);
 
 INCLUDE_ASM("asm/main/nonmatchings/xgl_font", xglFontDebugMode);
 
-INCLUDE_ASM("asm/main/nonmatchings/xgl_font", xglFontGetKanjiClutUV);
+int xglFontGetKanjiClutUV(int code, int *clut)
+{
+    unsigned short index = code;
+    unsigned char column = index >> 8;
+    unsigned char row = index;
+    int first_range_or_texture_column;
+    int second_range;
+
+    first_range_or_texture_column = row < 0xad;
+    second_range = row < 0xb0;
+    index = (column + row * 94) - 0xa1;
+    if (first_range_or_texture_column) {
+        index += 0xc4e2;
+    } else if (second_range) {
+        index += 0xc30c;
+    } else {
+        index += 0xc250;
+    }
+    column = index & 0x1f;
+    row = index >> 5;
+    first_range_or_texture_column = column;
+    if (clut != 0) {
+        *clut = ((row >> 5) << 12) + 0x1004;
+    }
+    return ((row & 0x1f) * 0x01800000) +
+        (first_range_or_texture_column * 0x140);
+}
 
 static void set_ot(int ot)
 {

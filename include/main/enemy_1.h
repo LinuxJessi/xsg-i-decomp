@@ -32,15 +32,25 @@ typedef struct EnemyWorkEntry {
     short locator_end_frame;
     short wall_attribute;
     float value_0c;
-    float goback_x;
-    unsigned char unmodeled_014[4];
-    float goback_z;
-    unsigned char unmodeled_01c[4];
+    union {
+        struct {
+            float goback_x;
+            unsigned char unmodeled_014[4];
+            float goback_z;
+            unsigned char unmodeled_01c[4];
+        };
+        float goback[4];
+    };
     Vector4 step_limit;
-    float drift_x;
-    float fall_speed;
-    float drift_z;
-    unsigned char unmodeled_03c[4];
+    union {
+        struct {
+            float drift_x;
+            float fall_speed;
+            float drift_z;
+            unsigned char unmodeled_03c[4];
+        };
+        float drift[4];
+    };
     EnemyWorkState40 state_40;
     short fast_point_count;
     unsigned short hit_count;
@@ -63,7 +73,10 @@ typedef struct EnemyWorkEntry {
     short mark;
     short mark_timer;
     unsigned char unmodeled_078[8];
-    Vector4 spline_points[256];
+    union {
+        Vector4 spline_points[256];
+        float spline_coordinates[256][4];
+    };
     short spline_point_count;
     unsigned char unmodeled_1082[0xe];
     Vector4 route_points[256];

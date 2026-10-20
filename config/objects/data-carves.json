@@ -57399,36 +57399,6 @@
           ]
         },
         {
-          "c_input_spans": [
-            {
-              "anonymous_emission": true,
-              "credit": "verified",
-              "object_range": [
-                24,
-                48
-              ],
-              "range": [
-                "0x004c3840",
-                "0x004c3858"
-              ],
-              "section": ".rodata",
-              "symbols": []
-            }
-          ],
-          "c_owned_symbols": [
-            "D_004C3840"
-          ],
-          "generated": [
-            "0x004c3840",
-            "0x004c3858"
-          ],
-          "generated_by": [],
-          "range": [
-            "0x004c3840",
-            "0x004c3858"
-          ]
-        },
-        {
           "range": [
             "0x004c3930",
             "0x004c3944"

@@ -26,7 +26,201 @@ static void PauseMenuPage0(void)
     GameResourceDump(1);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/game_debug_menu", PauseMenuPage2);
+static void PauseMenuPage2(void)
+{
+    int i;
+    int y;
+    int step;
+    int stepMagnitude;
+    int quality;
+    unsigned int right;
+    unsigned int left;
+    unsigned int *word;
+    unsigned int bit;
+
+    if (GameLoopState.debugPageInitialized == 0) {
+        int slot;
+        GameLoopState.debugPageInitialized = 1;
+        GameLoopState.target.modelNumberCheck = MODEL_CHECK_ACTOR;
+        for (slot = 0; slot < ACTOR_COUNT; slot++) {
+            word = &GameLoopState.scratch.actorFlag8Clear[slot >> 5];
+            bit = 1 << (slot & 0x1f);
+            if (actor[slot].flags & ACTOR_CHECK_HIDDEN) {
+                *word &= ~bit;
+            } else {
+                *word |= bit;
+            }
+        }
+        for (slot = 0; slot < MAP_UNIT_COUNT; slot++) {
+            word = &GameLoopState.mapUnitFlag4Clear[slot >> 5];
+            bit = 1 << (slot & 0x1f);
+            if (MapUnit[slot].flags & MAP_UNIT_CHECK_HIDDEN) {
+                *word &= ~bit;
+            } else {
+                *word |= bit;
+            }
+        }
+    }
+
+    if (PadData.half_2c & PAD_UP) {
+        GameLoopState.debugCursor--;
+    }
+    if (PadData.half_2c & PAD_DOWN) {
+        GameLoopState.debugCursor++;
+    }
+    if (GameLoopState.debugCursor < 0) {
+        GameLoopState.debugCursor = DEBUG_FLAG_COUNT - 1;
+    }
+    if (GameLoopState.debugCursor >= DEBUG_FLAG_COUNT) {
+        GameLoopState.debugCursor = 0;
+    }
+
+    switch (GameLoopState.debugCursor) {
+    case 0:
+        if (PadData.half_2c & (PAD_LEFT | PAD_RIGHT | PAD_CIRCLE)) {
+            GameLoopState.cfCameraFlags ^= CF_CAMERA_SWITCH;
+        }
+        break;
+    case 1:
+        if (PadData.half_2c & (PAD_LEFT | PAD_RIGHT | PAD_CIRCLE)) {
+            GameLoopState.runtimeFlags ^= RUNTIME_MODEL_NUMBER_TAG;
+        }
+        break;
+    case 2:
+        if (PadData.half_2c & (PAD_LEFT | PAD_RIGHT | PAD_CIRCLE)) {
+            SnapDrawCreditFlag ^= 1;
+        }
+        break;
+    case 3: {
+        int step;
+        int quality;
+        unsigned int right;
+        unsigned int left;
+
+        stepMagnitude = 1;
+        right = PadData.half_2c & PAD_RIGHT;
+        left = PadData.half_2c & PAD_LEFT;
+        step = right != 0;
+        if (left) {
+            step = -stepMagnitude;
+        }
+        quality = step + GameLoopState.snapQuality;
+        if (quality < -5) {
+            quality = -5;
+        }
+        if (quality > 100) {
+            quality = 100;
+        }
+        GameLoopState.snapQuality = quality;
+        break;
+    }
+    case 4:
+        right = PadData.half_2c & PAD_RIGHT;
+        left = PadData.half_2c & PAD_LEFT;
+        step = right != 0;
+        if (left) {
+            step = -1;
+        }
+        if (PadData.half_2a & 0x40) {
+            GameLoopState.target.modelNumberCheck ^= 0x100;
+        }
+        GameLoopState.target.modelNumberCheck += step;
+        if (PadData.half_28 & PAD_CIRCLE) {
+            int slot;
+            unsigned int kind;
+
+            for (slot = 0; slot < ACTOR_COUNT; slot++) {
+                actor[slot].flags |= ACTOR_CHECK_HIDDEN;
+            }
+            for (slot = 0; slot < MAP_UNIT_COUNT; slot++) {
+                MapUnit[slot].flags |= MAP_UNIT_CHECK_HIDDEN;
+            }
+            kind = GameLoopState.target.modelNumberCheck & 0xff00;
+            slot = GameLoopState.target.modelNumberCheck & 0xff;
+            switch (kind) {
+            case MODEL_CHECK_ACTOR:
+                actor[slot].flags &= ~ACTOR_CHECK_HIDDEN;
+                break;
+            case MODEL_CHECK_MAP_UNIT:
+                MapUnit[slot].flags &= ~MAP_UNIT_CHECK_HIDDEN;
+                break;
+            }
+        }
+        if (PadData.half_2e & PAD_CIRCLE) {
+            int slot;
+            unsigned int *saved;
+            unsigned int (*actorSaved)[2];
+            unsigned int clearMask;
+
+            for (slot = 0; slot < ACTOR_COUNT; slot++) {
+                unsigned int bit = 1 << (slot & 0x1f);
+                clearMask = ~ACTOR_CHECK_HIDDEN;
+                actorSaved = &GameLoopState.scratch.actorFlag8Clear;
+                if ((*actorSaved)[slot >> 5] & bit) {
+                    actor[slot].flags &= clearMask;
+                } else {
+                    actor[slot].flags |= ACTOR_CHECK_HIDDEN;
+                }
+            }
+            saved = GameLoopState.mapUnitFlag4Clear;
+            clearMask = ~MAP_UNIT_CHECK_HIDDEN;
+            for (slot = 0; slot < MAP_UNIT_COUNT; slot++) {
+                if (saved[slot >> 5] & (1 << (slot & 0x1f))) {
+                    MapUnit[slot].flags &= clearMask;
+                } else {
+                    MapUnit[slot].flags |= MAP_UNIT_CHECK_HIDDEN;
+                }
+            }
+        }
+        break;
+    case 5:
+        if (PadData.half_2c & (PAD_LEFT | PAD_RIGHT | PAD_CIRCLE)) {
+            GameLoopState.runtimeFlags ^= RUNTIME_CAPTURE_ALPHA;
+        }
+        break;
+    case 6:
+        if (PadData.half_2c & (PAD_LEFT | PAD_RIGHT | PAD_CIRCLE)) {
+            GameDiskChangeT10K ^= 1;
+        }
+        break;
+    }
+
+    xglFontDebugPrintf(8, 52, D_004C03A8);
+    y = 64;
+    for (i = 0; i < DEBUG_FLAG_COUNT; i++) {
+        if (i == GameLoopState.debugCursor) {
+            xglFontDebugPrintf(16, y, D_004D9F00);
+        }
+        xglFontDebugPrintf(32, y, tbl_0_00367A50[i]);
+        switch (i) {
+        case 0:
+            xglFontDebugPrintf(128, y + 3, D_004D9F08,
+                               (GameLoopState.cfCameraFlags >> 1) & 1);
+            break;
+        case 1:
+            xglFontDebugPrintf(128, y + 3, D_004D9F08,
+                               (GameLoopState.runtimeFlags >> 2) & 1);
+            break;
+        case 2:
+            xglFontDebugPrintf(128, y + 3, D_004D9F08, SnapDrawCreditFlag);
+            break;
+        case 3:
+            xglFontDebugPrintf(128, y + 3, D_004D9F10, GameLoopState.snapQuality);
+            break;
+        case 4:
+            xglFontDebugPrintf(128, y + 3, D_004D9EF8, GameLoopState.target.modelNumberCheck);
+            break;
+        case 5:
+            xglFontDebugPrintf(128, y + 3, D_004D9F08,
+                               (GameLoopState.runtimeFlags >> 25) & 1);
+            break;
+        case 6:
+            xglFontDebugPrintf(128, y + 3, D_004D9F08, GameDiskChangeT10K);
+            break;
+        }
+        y += 12;
+    }
+}
 
 char D_004D9EF8[8] = "%4x";
 

@@ -17,9 +17,24 @@ static int mode_004DC5A8;
 
 typedef struct CursorState {
     int mode;
-    unsigned char unmodeled_04[0x0C];
+    union { int flag_04; int submode; };
+    int actor_index;
+    int step;
     HomogeneousVector position;
-    unsigned char unmodeled_20[0x30];
+    unsigned char unmodeled_20[0x10];
+    int attach_state;
+    union { int flag_34; ActorHead *attached_actor; };
+    union {
+        struct {
+            unsigned char unmodeled_38[0x0c];
+            float offset_44;
+            unsigned char unmodeled_48[8];
+        };
+        struct {
+            unsigned char unmodeled_38_to_40[8];
+            HomogeneousVector attach_offset;
+        };
+    };
     CursorCallback callback;
     void *callback_argument;
     unsigned char unmodeled_58[8];
@@ -103,7 +118,222 @@ extern float xglSin(float angle);
 extern float xglCos(float angle);
 
 
-INCLUDE_ASM("asm/main/nonmatchings/db_light_write", DB_lightWrite);
+extern int sceWrite(int descriptor, const void *buffer, int size);
+
+extern double fptodp(float value);
+
+extern const char D_004C2020[];
+
+extern const char D_004C2050[];
+
+extern const char D_004C2088[];
+
+typedef struct { float f[28]; } LightFloats;
+
+typedef struct {
+    Matrix4 m;
+} Matrix4Block;
+
+extern StudioCamera *xglStudioGetActiveCamera(void);
+
+extern void xglVectorMulMat(Vector4 *destination, const void *matrix,
+                            const Vector4 *vector);
+
+extern void xglVectorNormal(Vector4 *destination, const Vector4 *vector);
+
+extern const float D_004D7CBC;
+
+extern void ACT_updateSequence(ActorHead *actor);
+
+typedef struct {
+    unsigned char unmodeled_00[0x0C];
+    int mode0;
+    int mode1;
+    unsigned char unmodeled_14[0x1C];
+    float translation[4];
+    int unmodeled_40;
+    void *translation_constraint;
+    unsigned char unmodeled_48[0x488];
+    int view_offset[3];
+    int unmodeled_4dc;
+    int view_mode;
+    void *view_constraint;
+} CameraChannelRecord;
+
+extern CameraChannelRecord tcamera;
+
+extern float cursorSpeed[];
+
+extern const float D_004D7CD0;
+
+extern const float D_004D7CD4;
+
+extern const char D_004C20B8[];
+
+extern const char D_004C20C8[];
+
+extern unsigned short keyData[];
+
+extern float UnduGet(float x, float z);
+
+void updateCursorModePlane(void);
+
+extern const float D_004D7CD8;
+
+extern const float D_004D7CDC;
+
+extern int toolFlags;
+
+extern int cursorMode;
+
+extern int cursorModeName[];
+
+extern const char D_004C2108[];
+
+extern const char D_004C2128[];
+
+extern const char D_004C2148[];
+
+extern void PAD_getKey(unsigned short *keys, int port, int mask);
+
+typedef struct WindRecord {
+    signed char mode;
+    unsigned char unmodeled_01[0x0F];
+    float x;
+    float y;
+    float z;
+    float w;
+    float offset_a;
+    float offset_b;
+} WindRecord;
+
+typedef union WindPoint {
+    Vector4 vector;
+    unsigned long long raw[2];
+} WindPoint;
+
+typedef struct WindMarker {
+    WindPoint from;
+    Vector4 to;
+    int color[4];
+} WindMarker;
+
+extern void EXM_ResetWind(void);
+
+extern int dispy_2;
+
+extern int csr_1;
+
+extern const char D_004DA558[];
+
+extern const char D_004DA560[];
+
+extern const char D_004DA568[];
+
+extern const char D_004DA570[];
+
+extern const char D_004DA578[];
+
+extern const char D_004DA580[];
+
+extern const char D_004DA588[];
+
+extern const char D_004C21C8[];
+
+extern const char D_004C21D8[];
+
+extern const char D_004C21F0[];
+
+extern const char D_004C2200[];
+
+extern const char D_004C2210[];
+
+extern const char D_004C2220[];
+
+extern const char D_004C2230[];
+
+extern const char D_004C2240[];
+
+extern const char D_004C2250[];
+
+extern const char D_004C2260[];
+
+extern const char D_004C2270[];
+
+extern const char D_004C2290[];
+
+extern const char D_004C22C8[];
+
+extern const char D_004C22F8[];
+
+void drawVector4(const Vector3 *vector, Matrix4 *matrix, int color_index);
+
+void drawCircle2(Matrix4 *matrix, int color_index, float radius);
+
+typedef struct CursorCameraRecordView {
+    unsigned char unmodeled_00[0x0C];
+    int mode[4];
+    unsigned char unmodeled_1c[0x4D0 - 0x1C];
+    Vector4 view_offset;
+    int view_mode;
+    HomogeneousVector *view_constraint;
+} CursorCameraRecordView;
+
+typedef struct UpdateLightKeys {
+    unsigned short buttons;
+    unsigned short pressed;
+    unsigned char unmodeled_04[6];
+    signed char stick_x;
+    signed char stick_y;
+} UpdateLightKeys;
+
+void updateCursorMode0(void);
+
+void updateCursorMode2(void);
+
+void DB_lightWrite(int descriptor)
+{
+    char buffer[128];
+    StudioLight *light;
+    int lightNumber;
+    int lightIndex;
+
+    xglStudioGetLight(&light);
+    sceWrite(descriptor, buffer,
+             sprintf(buffer,
+                     D_004C2020,
+                     0, light->ambient_color.x, light->ambient_color.y,
+                     light->ambient_color.z));
+
+    lightIndex = 0;
+    do {
+        lightNumber = lightIndex + 1;
+        sceWrite(descriptor, buffer,
+                 sprintf(buffer, D_004C2020, lightNumber,
+                         ((LightFloats *)light)->f[lightIndex * 8 + 4],
+                         ((LightFloats *)light)->f[lightIndex * 8 + 5],
+                         ((LightFloats *)light)->f[lightIndex * 8 + 6]));
+        sceWrite(descriptor, buffer,
+                 sprintf(buffer, D_004C2050, lightNumber,
+                         ((LightFloats *)light)->f[lightIndex * 8 + 8],
+                         ((LightFloats *)light)->f[lightIndex * 8 + 9],
+                         ((LightFloats *)light)->f[lightIndex * 8 + 10]));
+        lightIndex = lightNumber;
+    } while (lightIndex < 3);
+
+    {
+        const char *stage_format = D_004C2088;
+        double stage_red;
+        double stage_green;
+        double stage_blue;
+
+        stage_red = fptodp(GameLoopState.stage_color.x);
+        stage_green = fptodp(GameLoopState.stage_color.y);
+        stage_blue = fptodp(GameLoopState.stage_color.z);
+        sceWrite(descriptor, buffer,
+                 sprintf(buffer, stage_format, stage_red, stage_green, stage_blue));
+    }
+}
 
 typedef struct {
     Matrix4 matrix;
@@ -250,7 +480,73 @@ typedef struct {
     Vector4 output[2];
 } DebugLineScratch;
 
-INCLUDE_ASM("asm/main/nonmatchings/db_light_write", drawCircle2);
+void drawCircle2(Matrix4 *matrix, int color_index, float radius)
+{
+    int segment;
+    int colour;
+    const unsigned char *alpha;
+    const unsigned char *blue;
+    const unsigned char *green;
+    const unsigned char *red_column;
+    const unsigned char *green_column;
+    const unsigned char *blue_column;
+    const unsigned char *alpha_column;
+    const unsigned char *red;
+    StudioCamera *camera;
+    DebugLineScratch *scratch = (DebugLineScratch *)0x70000000;
+    unsigned int *write;
+    float angle;
+    float scale;
+
+    color_index *= 2;
+    xglStudioGetCamera(&camera, 0);
+    xglMatrixStackUnit();
+    xglMatrixStackSave(scratch->transform.world);
+    scratch->transform.screen_offset = camera->screenOffset;
+    scratch->transform.screen_scale.x = 1.0f;
+    scratch->transform.screen_scale.y = -1.0f;
+    scratch->transform.screen_scale.z = 1.0f;
+    scratch->transform.screen_scale.w = 1.0f;
+    scratch->transform.local = matrix;
+    scratch->input[0].x = 0.0f;
+    scratch->input[0].y = 0.0f;
+    scratch->input[0].z = 0.0f;
+    scratch->input[0].w = 1.0f;
+    transformVector(scratch->output, scratch->input, 1, &scratch->transform);
+    colour = color_index * 4 + 4;
+    angle = 0.0f;
+    scale = 16.0f;
+    write = (unsigned int *)scratch;
+    ((DebugRectPacket *)write)->count = 0x8011;
+    ((DebugRectPacket *)write)->primitive = 0x20054000;
+    ((DebugRectPacket *)write)->registers = 0xffffff51;
+    ((DebugRectPacket *)write)->reserved = 0;
+    write += 4;
+    red_column = &col[0];
+    green_column = &col[1];
+    blue_column = &col[2];
+    alpha_column = &col[3];
+    green = green_column + colour;
+    blue = blue_column + colour;
+    alpha = alpha_column + colour;
+    red = red_column + colour;
+    for (segment = 0; segment < 17; segment++) {
+        write[0] = *red;
+        write[1] = *green;
+        write[2] = *blue;
+        write[3] = *alpha;
+        write += 4;
+        write[0] = (unsigned int)((scratch->output[0].x +
+                                   xglSin(angle) * radius) * scale);
+        write[1] = (unsigned int)((scratch->output[0].y +
+                                   xglCos(angle) * radius) * scale);
+        angle += 0.39269908f;
+        write[2] = 0xffffffffU;
+        write[3] = 0;
+        write += 4;
+    }
+    xglPrimAddGifTagDirect(0, (const void *)0x70000000, 35);
+}
 
 void drawVector2(const Vector3 *vector, Matrix4 *matrix, int color_index)
 {
@@ -304,7 +600,56 @@ void drawVector2(const Vector3 *vector, Matrix4 *matrix, int color_index)
 
 
 
-INCLUDE_ASM("asm/main/nonmatchings/db_light_write", drawVector4S);
+void drawVector4S(const Vector3 *vector, Matrix4 *matrix, int color_index,
+                  DebugLineScratch *scratch)
+{
+    StudioCamera *camera;
+    StudioCamera *camera_slot;
+    StudioCamera **slot_ptr = &camera_slot;
+    unsigned int (*write)[4];
+    const unsigned char *colour;
+    Vector4 *position;
+    int vertex_index;
+
+    color_index *= 2;
+    xglStudioGetCamera(&camera_slot, 0);
+    camera = *slot_ptr;
+    scratch->transform.local = matrix;
+    *(Matrix4Block *)scratch->transform.world = *(Matrix4Block *)camera->viewMatrix;
+    scratch->transform.screen_offset = camera->screenOffset;
+    scratch->transform.screen_scale = camera->screenScale;
+    scratch->input[0].w = 1.0f;
+    scratch->input[0].x = 0.0f;
+    scratch->input[0].y = 0.0f;
+    scratch->input[0].z = 0.0f;
+    scratch->input[1].x = vector->x;
+    scratch->input[1].y = vector->y;
+    scratch->input[1].z = vector->z;
+    scratch->input[1].w = 1.0f;
+    position = scratch->output;
+    transformVector(position, scratch->input, 2, &scratch->transform);
+    colour = &col[color_index * 4];
+    write = (unsigned int (*)[4])scratch;
+    (*write)[0] = 0x8002;
+    (*write)[1] = 0x2004c000;
+    (*write)[2] = 0xffffff51;
+    (*write)[3] = 0;
+    write++;
+    for (vertex_index = 0; vertex_index < 2; vertex_index++, position++) {
+        (*write)[0] = colour[0];
+        (*write)[1] = colour[1];
+        (*write)[2] = colour[2];
+        (*write)[3] = colour[3];
+        colour += 4;
+        write++;
+        (*write)[0] = (unsigned int)(position->x * 16.0f);
+        (*write)[1] = (unsigned int)(position->y * 16.0f);
+        (*write)[2] = (unsigned int)(4294967296.0f - position->z);
+        (*write)[3] = 0;
+        write++;
+    }
+    xglPrimAddGifTagDirect(0, scratch, 5);
+}
 
 #include "main/xgl_2.h"
 
@@ -458,10 +803,88 @@ void drawAxis(Matrix4 matrix, float scale)
 
 INCLUDE_ASM("asm/main/nonmatchings/db_light_write", drawCircle3);
 
-INCLUDE_ASM("asm/main/nonmatchings/db_light_write", drawTags);
+void drawTags(const Vector3 *position, Matrix4 *matrix, const char *label)
+{
+    Vector4 *output;
+    StudioCamera *camera;
+    StudioCamera *camera_slot;
+    DebugLineScratch *scratch = (DebugLineScratch *)0x70000000;
+
+    xglStudioGetCamera(&camera_slot, 0);
+    camera = camera_slot;
+    scratch->transform.screen_offset = camera->screenOffset;
+    *(Matrix4Block *)scratch->transform.world = *(Matrix4Block *)camera->viewMatrix;
+    scratch->transform.screen_scale = camera->screenScale;
+    scratch->input[0].x = position->x;
+    scratch->input[0].y = position->y;
+    scratch->input[0].z = position->z;
+    scratch->input[0].w = 1.0f;
+    scratch->transform.local = matrix;
+    output = scratch->output;
+    transformVector(output, scratch->input, 1, &scratch->transform);
+    if (output->x > 2560.0f)
+        return;
+    if (output->x < 1536.0f)
+        return;
+    if (output->y > 2560.0f)
+        return;
+    if (output->y < 1536.0f)
+        return;
+    if (output->z < 0.0f)
+        return;
+    xglFontDebugPrintf((int)((output->x - 2048.0f + 256.0f) * 0.5f),
+                       (int)((output->y - 2048.0f + 224.0f) * 0.5f), label);
+}
 
 
-INCLUDE_ASM("asm/main/nonmatchings/db_light_write", drawVector4);
+void drawVector4(const Vector3 *vector, Matrix4 *matrix, int color_index)
+{
+    StudioCamera *camera;
+    DebugLineScratch *scratch = (DebugLineScratch *)0x70000000;
+    Vector4 *position;
+    unsigned int (*write)[4];
+    int vertex_index;
+    const unsigned char *colour;
+
+    color_index *= 2;
+    camera = xglStudioGetActiveCamera();
+    *(Matrix4Block *)scratch->transform.world = *(Matrix4Block *)camera->viewMatrix;
+    scratch->transform.screen_offset = camera->screenOffset;
+    scratch->transform.screen_scale = camera->screenScale;
+    scratch->input[0].w = 1.0f;
+    scratch->input[0].x = 0.0f;
+    scratch->input[0].y = 0.0f;
+    scratch->input[0].z = 0.0f;
+    scratch->transform.local = matrix;
+    scratch->input[1].x = vector->x;
+    scratch->input[1].y = vector->y;
+    scratch->input[1].z = vector->z;
+    scratch->input[1].w = 1.0f;
+    transformVector(scratch->output, scratch->input, 2, &scratch->transform);
+    position = scratch->output;
+    write = (unsigned int (*)[4])scratch;
+    (*write)[0] = 0x8002;
+    (*write)[1] = 0x2004c000;
+    (*write)[2] = 0xffffff51;
+    (*write)[3] = 0;
+    write++;
+    colour = &col[color_index * 4];
+    for (vertex_index = 0; vertex_index < 2; vertex_index++) {
+        (*write)[0] = colour[0];
+        (*write)[1] = colour[1];
+        (*write)[2] = colour[2];
+        (*write)[3] = colour[3];
+        colour += 4;
+        write++;
+        (*write)[0] = (unsigned int)(position->x * 16.0f);
+        (*write)[1] = (unsigned int)(position->y * 16.0f);
+        (*write)[2] = (unsigned int)(4294967296.0f - position->z);
+        (*write)[3] = 0;
+        position++;
+        write++;
+    }
+    xglPrimAddGifTagDirect(0, (const void *)0x70000000, 5);
+}
 
 float ball2point(const Vector4 *cursor_position,
                  const Vector4 *actor_position, float radius)
@@ -512,17 +935,708 @@ ActorHead *nextActor(register int startIndex)
     return 0;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/db_light_write", updateCursorMode1);
+void updateCursorMode1(void)
+{
+    const struct CursorPadKeyResult *keys =
+        (const struct CursorPadKeyResult *)(const void *)keyData;
+    StudioCamera *camera;
+    HomogeneousVector *cursor_position;
+    Vector4 direction;
+    Vector4 transformed;
+    Matrix4 camera_matrix;
+    float direction_length;
+    int submode;
 
-INCLUDE_ASM("asm/main/nonmatchings/db_light_write", updateCursorMode2);
+    xglStudioGetCamera(&camera, 0);
+    cursor_position = &cursor[1];
+    if (keys->pressed & 2) {
+        CursorState *cursor_base = (CursorState *)(cursor_position - 1);
+        cursor_base->submode++;
+        if (cursor_base->submode >= 3)
+            cursor_base->submode = 0;
+    }
 
-INCLUDE_ASM("asm/main/nonmatchings/db_light_write", updateCursorModePlane);
+    direction_length = 0.0f;
+    submode = ((CursorState *)cursor)->submode;
+    switch (submode) {
+    case 0:
+        direction.x = (float)keys->flags[0];
+        direction.y = (float)-keys->flags[1];
+        direction.z = 0.0f;
+        direction.w = 1.0f;
+        break;
+    case 1:
+        direction.x = (float)keys->flags[0];
+        direction.y = 0.0f;
+        direction.z = 0.0f;
+        direction.w = 1.0f;
+        break;
+    case 2:
+        direction.x = 0.0f;
+        direction.y = (float)-keys->flags[1];
+        direction.z = 0.0f;
+        direction.w = 1.0f;
+        break;
+    }
 
-INCLUDE_ASM("asm/main/nonmatchings/db_light_write", updateCursorMode0);
+    xglVectorLength(&direction_length, &direction);
+    if (direction_length > 40.0f) {
+        __asm__ __volatile__(
+            "lq $2,0(%0)\n\t"
+            "sq $2,0(%1)\n\t"
+            "lq $2,16(%0)\n\t"
+            "sq $2,16(%1)\n\t"
+            "lq $2,32(%0)\n\t"
+            "sq $2,32(%1)\n\t"
+            "lq $2,48(%0)\n\t"
+            "sq $2,48(%1)"
+            :
+            : "r" (camera->cameraToWorldMatrix), "r" (camera_matrix)
+            : "$2", "memory");
+        camera_matrix[3][0] = 0.0f;
+        camera_matrix[3][1] = 0.0f;
+        camera_matrix[3][2] = 0.0f;
+        xglVectorMulMat(&transformed, camera_matrix, &direction);
+        xglVectorNormal(&transformed, &transformed);
+        direction_length = D_004D7CBC;
+        cursor_position->x += transformed.x * direction_length;
+        cursor_position->y += transformed.y * direction_length;
+        cursor_position->z += transformed.z * direction_length;
+    }
+}
 
-INCLUDE_ASM("asm/main/nonmatchings/db_light_write", changeCameraMode);
+void updateCursorMode2(void)
+{
+    DbLightWritePadSecondPrefix *pad;
+    unsigned short keys;
+    CursorState *state;
+    StudioCamera *camera;
+    HomogeneousVector *cursor_position;
+    ActorHead *selected_actor;
+    ActorHead *candidate;
+    Vector4 *actor_position;
+    int count;
 
-INCLUDE_ASM("asm/main/nonmatchings/db_light_write", updateCursor);
+    selected_actor = 0;
+    pad = &PadData.second;
+    xglStudioGetCamera(&camera, 0);
+    cursor_position = &cursor[1];
+
+    if (pad->half_2a & 8) {
+        state = (CursorState *)(cursor_position - 1);
+        selected_actor = nextActor(state->actor_index);
+        if (selected_actor == 0) {
+            state->actor_index = 0;
+        } else {
+            state->actor_index = selected_actor->number + 1;
+        }
+    }
+    if (pad->half_2a & 2) {
+        state = (CursorState *)cursor;
+        selected_actor = prevActor(state->actor_index);
+        if (selected_actor == 0) {
+            state->actor_index = 63;
+        } else {
+            state->actor_index = selected_actor->number - 1;
+        }
+    }
+    if (selected_actor != 0) {
+        actor_position = &selected_actor->position;
+        cursor_position->x = actor_position->x;
+        cursor_position->y = actor_position->y;
+        cursor_position->z = actor_position->z;
+    }
+
+    if (((CursorState *)cursor)->attached_actor != 0) {
+        if (((CursorState *)cursor)->attach_state == 0) {
+            keys = pad->half_28;
+            actor_position = &((CursorState *)cursor)->attached_actor->rotation;
+            if (keys & 0x1000) {
+                ((CursorState *)cursor)->attach_offset.y += 1.0f / 30.0f;
+            }
+            if (keys & 0x4000) {
+                ((CursorState *)cursor)->attach_offset.y -= 1.0f / 30.0f;
+            }
+            if (keys & 0x2000) {
+                actor_position->y += 3.14159265f / 120.0f;
+            }
+            if (keys & 0x8000) {
+                actor_position->y -= 3.14159265f / 120.0f;
+            }
+        }
+    }
+
+    pad = (DbLightWritePadSecondPrefix *)&PadData;
+    candidate = ((CursorState *)cursor)->attached_actor;
+    if (candidate != 0) {
+        if (pad->half_2a & 0x10) {
+            selected_actor = candidate;
+            ((CursorState *)cursor)->attached_actor = 0;
+            selected_actor->velocity.x = 0.0f;
+            selected_actor->velocity.y = 0.0f;
+            selected_actor->velocity.z = 0.0f;
+        } else if (((CursorState *)cursor)->attach_state == 0) {
+            selected_actor = candidate;
+            actor_position = &selected_actor->position;
+            actor_position->x = cursor_position->x + ((CursorState *)cursor)->attach_offset.x;
+            actor_position->y = cursor_position->y + ((CursorState *)cursor)->attach_offset.y;
+            actor_position->z = cursor_position->z + ((CursorState *)cursor)->attach_offset.z;
+            if (mode_004DC5A8 == 0) {
+                ACT_updateSequence(selected_actor);
+            }
+        }
+    } else if (pad->half_2a & 0x10) {
+        float threshold;
+
+        ((CursorState *)cursor)->attach_offset.x = 0.0f;
+        ((CursorState *)cursor)->attach_offset.y = 0.0f;
+        ((CursorState *)cursor)->attach_offset.z = 0.0f;
+        threshold = ((CursorState *)cursor)->attach_offset.x;
+        selected_actor = actor;
+        for (count = 63; count >= 0; selected_actor++, count--) {
+            if (selected_actor->inUseId == 0) {
+                continue;
+            }
+            if (selected_actor->flags & 8) {
+                continue;
+            }
+            actor_position = &selected_actor->position;
+            if (threshold <= ball2point((const Vector4 *)cursor_position, actor_position, 0.5f)) {
+                ((CursorState *)cursor)->attached_actor = selected_actor;
+            }
+        }
+    }
+}
+
+void updateCursorModePlane(void)
+{
+    unsigned short *keys;
+    Vector4 stick;
+    Vector4 direction;
+    Matrix rotation;
+    StudioCamera *active_camera;
+    StudioCamera *camera;
+    float length;
+    float zero;
+    float height;
+    const char *height_format;
+    const char *missing_format;
+    HomogeneousVector *position;
+
+    keys = keyData;
+    xglStudioGetCamera(&camera, 0);
+    position = &cursor[1];
+    stick.x = (float)((signed char *)keys)[8];
+    zero = 0.0f;
+    stick.z = (float)((signed char *)keys)[9];
+    stick.w = 1.0f;
+    length = zero;
+    stick.y = zero;
+    xglVectorLength(&length, &stick);
+    if (length > 40.0f) {
+        /* Copy the origin-relative camera-to-world transform through one scratch
+         * register; remove translation below to transform a movement direction. */
+        __asm__ __volatile__(
+            "lq $2, 0(%1)\n"
+            "sq $2, 0(%0)\n"
+            "lq $2, 16(%1)\n"
+            "sq $2, 16(%0)\n"
+            "lq $2, 32(%1)\n"
+            "sq $2, 32(%0)\n"
+            "lq $2, 48(%1)\n"
+            "sq $2, 48(%0)\n"
+            :
+            : "r"(&rotation), "r"(camera->cameraToWorldMatrix)
+            : "$2", "memory");
+        rotation.elements[12] = zero;
+        rotation.elements[13] = zero;
+        rotation.elements[14] = zero;
+        xglVectorMulMat(&direction, (float (*)[4])rotation.elements, &stick);
+        xglVectorNormal(&stick, &stick);
+        xglVectorLength(&length, &stick);
+        length *= cursorSpeed[((CursorState *)cursor)->step];
+        xglVectorNormal(&direction, &direction);
+        switch (((CursorState *)cursor)->flag_04) {
+        case 0:
+            position->x += direction.x * length;
+            position->y += direction.y * length;
+            position->z += direction.z * length;
+            active_camera = camera;
+            active_camera->position.x += direction.x * length;
+            active_camera->position.y += direction.y * length;
+            active_camera->position.z += direction.z * length;
+            break;
+        case 1:
+            position->x += direction.x * length;
+            position->y += direction.y * length;
+            position->z += direction.z * length;
+            break;
+        case 2:
+            if (((CursorState *)cursor)->mode == 0) {
+                active_camera = camera;
+                active_camera->position.x += direction.x * length;
+                active_camera->position.y += direction.y * length;
+                active_camera->position.z += direction.z * length;
+            } else {
+                tcamera.translation[((CursorState *)cursor)->mode - 1] += direction.y * length;
+            }
+            break;
+        }
+    }
+    stick.x = (float)((signed char *)keys)[10];
+    stick.y = (float)-((signed char *)keys)[11];
+    stick.w = 1.0f;
+    length = 0.0f;
+    stick.z = 0.0f;
+    xglVectorLength(&length, &stick);
+    if (length > 40.0f) {
+        /* Copy the origin-relative camera-to-world transform through one scratch
+         * register; remove translation below to transform a movement direction. */
+        __asm__ __volatile__(
+            "lq $2, 0(%1)\n"
+            "sq $2, 0(%0)\n"
+            "lq $2, 16(%1)\n"
+            "sq $2, 16(%0)\n"
+            "lq $2, 32(%1)\n"
+            "sq $2, 32(%0)\n"
+            "lq $2, 48(%1)\n"
+            "sq $2, 48(%0)\n"
+            :
+            : "r"(&rotation), "r"(camera->cameraToWorldMatrix)
+            : "$2", "memory");
+        rotation.elements[12] = 0.0f;
+        rotation.elements[13] = 0.0f;
+        rotation.elements[14] = 0.0f;
+        xglVectorMulMat(&direction, (float (*)[4])rotation.elements, &stick);
+        xglVectorNormal(&stick, &stick);
+        xglVectorLength(&length, &stick);
+        length *= cursorSpeed[((CursorState *)cursor)->step];
+        xglVectorNormal(&direction, &direction);
+        switch (((CursorState *)cursor)->flag_04) {
+        case 0:
+            position->x += direction.x * length;
+            position->y += direction.y * length;
+            position->z += direction.z * length;
+            break;
+        case 1:
+            position->x += direction.x * length;
+            position->y += direction.y * length;
+            position->z += direction.z * length;
+            active_camera = camera;
+            active_camera->position.x += direction.x * length;
+            active_camera->position.y += direction.y * length;
+            active_camera->position.z += direction.z * length;
+            break;
+        case 2:
+            if (((CursorState *)cursor)->mode == 0) {
+                active_camera = camera;
+                active_camera->position.x += direction.x * length;
+                active_camera->position.y += direction.y * length;
+                active_camera->position.z += direction.z * length;
+            } else {
+                tcamera.translation[((CursorState *)cursor)->mode - 1] += direction.y * length;
+            }
+            break;
+        }
+    }
+    if (keys[0] & 0x2000) {
+        camera->rotation.z -= D_004D7CD0;
+    }
+    if (keys[0] & 0x8000) {
+        camera->rotation.z += D_004D7CD4;
+    }
+    length = cursorSpeed[((CursorState *)cursor)->step];
+    if (keys[0] & 4) {
+        position->y += length;
+        camera->position.y += length;
+    }
+    if ((unsigned short)(keys[0] & 1)) {
+        position->y -= length;
+        camera->position.y -= length;
+    }
+    if (keys[0] & 0x40) {
+        height = UnduGet(position->x, position->z);
+        if (height != -1000.0f) {
+            height_format = D_004C20B8;
+            position->y = height;
+            xglFontDebugPrintf(4, 0xC4, height_format, fptodp(height));
+        } else {
+            missing_format = D_004C20C8;
+            xglFontDebugPrintf(4, 0xC4, missing_format, fptodp(height));
+        }
+        if (((CursorState *)cursor)->flag_34 != 0) {
+            position->y -= ((CursorState *)cursor)->offset_44;
+        }
+    }
+}
+
+void updateCursorMode0(void)
+{
+    unsigned short *keys;
+    Vector4 stick;
+    Vector4 direction;
+    Matrix rotation;
+    StudioCamera *active_camera;
+    StudioCamera *camera;
+    float length;
+    float zero;
+    float height;
+    const char *height_format;
+    const char *missing_format;
+    HomogeneousVector *position;
+
+    keys = keyData;
+    xglStudioGetCamera(&camera, 0);
+    position = &cursor[1];
+    stick.x = (float)((signed char *)keys)[10];
+    zero = 0.0f;
+    stick.z = (float)((signed char *)keys)[11];
+    stick.w = 1.0f;
+    length = zero;
+    stick.y = zero;
+    xglVectorLength(&length, &stick);
+    if (length > 40.0f) {
+        /* Copy the origin-relative camera-to-world transform through one scratch
+         * register; remove translation below to transform a movement direction. */
+        __asm__ __volatile__(
+            "lq $2, 0(%1)\n"
+            "sq $2, 0(%0)\n"
+            "lq $2, 16(%1)\n"
+            "sq $2, 16(%0)\n"
+            "lq $2, 32(%1)\n"
+            "sq $2, 32(%0)\n"
+            "lq $2, 48(%1)\n"
+            "sq $2, 48(%0)\n"
+            :
+            : "r"(&rotation), "r"(camera->cameraToWorldMatrix)
+            : "$2", "memory");
+        rotation.elements[12] = zero;
+        rotation.elements[13] = zero;
+        rotation.elements[14] = zero;
+        xglVectorMulMat(&direction, (float (*)[4])rotation.elements, &stick);
+        xglVectorNormal(&stick, &stick);
+        xglVectorLength(&length, &stick);
+        length *= cursorSpeed[((CursorState *)cursor)->step];
+        xglVectorNormal(&direction, &direction);
+        switch (((CursorState *)cursor)->flag_04) {
+        case 0:
+            position->x += direction.x * length;
+            position->y += direction.y * length;
+            position->z += direction.z * length;
+            active_camera = camera;
+            active_camera->position.x += direction.x * length;
+            active_camera->position.y += direction.y * length;
+            active_camera->position.z += direction.z * length;
+            break;
+        case 1:
+            position->x += direction.x * length;
+            position->y += direction.y * length;
+            position->z += direction.z * length;
+            break;
+        case 2:
+            if (((CursorState *)cursor)->mode == 0) {
+                active_camera = camera;
+                active_camera->position.x += direction.x * length;
+                active_camera->position.y += direction.y * length;
+                active_camera->position.z += direction.z * length;
+            } else {
+                tcamera.translation[((CursorState *)cursor)->mode - 1] += direction.y * length;
+            }
+            break;
+        }
+    }
+    stick.x = (float)((signed char *)keys)[8];
+    stick.y = (float)-((signed char *)keys)[9];
+    stick.w = 1.0f;
+    length = 0.0f;
+    stick.z = 0.0f;
+    xglVectorLength(&length, &stick);
+    if (length > 40.0f) {
+        /* Copy the origin-relative camera-to-world transform through one scratch
+         * register; remove translation below to transform a movement direction. */
+        __asm__ __volatile__(
+            "lq $2, 0(%1)\n"
+            "sq $2, 0(%0)\n"
+            "lq $2, 16(%1)\n"
+            "sq $2, 16(%0)\n"
+            "lq $2, 32(%1)\n"
+            "sq $2, 32(%0)\n"
+            "lq $2, 48(%1)\n"
+            "sq $2, 48(%0)\n"
+            :
+            : "r"(&rotation), "r"(camera->cameraToWorldMatrix)
+            : "$2", "memory");
+        rotation.elements[12] = 0.0f;
+        rotation.elements[13] = 0.0f;
+        rotation.elements[14] = 0.0f;
+        xglVectorMulMat(&direction, (float (*)[4])rotation.elements, &stick);
+        xglVectorNormal(&stick, &stick);
+        xglVectorLength(&length, &stick);
+        length *= cursorSpeed[((CursorState *)cursor)->step];
+        xglVectorNormal(&direction, &direction);
+        switch (((CursorState *)cursor)->flag_04) {
+        case 0:
+            position->x += direction.x * length;
+            position->y += direction.y * length;
+            position->z += direction.z * length;
+            break;
+        case 1:
+            if (((CursorState *)cursor)->mode == 0) {
+                position->x += direction.x * length;
+                position->y += direction.y * length;
+                position->z += direction.z * length;
+                break;
+            }
+            position->x += direction.x * length;
+            position->y += direction.y * length;
+            position->z += direction.z * length;
+            active_camera = camera;
+            active_camera->position.x += direction.x * length;
+            active_camera->position.y += direction.y * length;
+            active_camera->position.z += direction.z * length;
+            break;
+        case 2:
+            if (((CursorState *)cursor)->mode == 0) {
+                active_camera = camera;
+                active_camera->position.x += direction.x * length;
+                active_camera->position.y += direction.y * length;
+                active_camera->position.z += direction.z * length;
+            } else {
+                tcamera.translation[((CursorState *)cursor)->mode - 1] += direction.y * length;
+            }
+            break;
+        }
+    }
+    if (keys[0] & 0x2000) {
+        camera->rotation.z -= D_004D7CD8;
+    }
+    if (keys[0] & 0x8000) {
+        camera->rotation.z += D_004D7CDC;
+    }
+    length = cursorSpeed[((CursorState *)cursor)->step];
+    if (keys[0] & 4) {
+        position->y += length;
+        camera->position.y += length;
+    }
+    if ((unsigned short)(keys[0] & 1)) {
+        position->y -= length;
+        camera->position.y -= length;
+    }
+    if (keys[0] & 0x40) {
+        height = UnduGet(position->x, position->z);
+        if (height != -1000.0f) {
+            height_format = D_004C20B8;
+            position->y = height;
+            xglFontDebugPrintf(4, 0xC4, height_format, fptodp(height));
+        } else {
+            missing_format = D_004C20C8;
+            xglFontDebugPrintf(4, 0xC4, missing_format, fptodp(height));
+        }
+        if (((CursorState *)cursor)->flag_34 != 0) {
+            position->y -= ((CursorState *)cursor)->offset_44;
+        }
+    }
+}
+
+void changeCameraMode(void)
+{
+    StudioCamera *camera;
+    Vector4 difference;
+    Vector4 *camera_position;
+    float distance;
+    CursorState *state;
+    int mode;
+
+    xglStudioGetCamera(&camera, 0);
+    state = (void *)cursor;
+    camera_position = &camera->position;
+    difference.x = state->position.x - camera_position->x;
+    difference.y = state->position.y - camera_position->y;
+    difference.z = state->position.z - camera_position->z;
+    xglVectorLength(&distance, &difference);
+    if (distance < 1.0f) {
+        distance = 1.0f;
+    }
+    mode = state->mode;
+    camera->rotation.z = 0.0f;
+    state->flag_04 = 0;
+    if (mode != 4) {
+        tcamera.mode1 = 20;
+        tcamera.view_mode = 1;
+        tcamera.view_constraint = &state->position;
+        tcamera.view_offset[1] = 0;
+        tcamera.view_offset[2] = 0;
+        tcamera.view_offset[0] = 0;
+    }
+    switch (mode) {
+    case 0:
+        ((CursorState *)cursor)->flag_04 = 2;
+        tcamera.mode0 = 16;
+        break;
+    case 2: {
+        float translationDistance = distance;
+        tcamera.mode0 = 20;
+        tcamera.unmodeled_40 = 1;
+        tcamera.translation_constraint = &cursor[1];
+        tcamera.translation[1] = translationDistance;
+        tcamera.translation[2] = 0.0f;
+        tcamera.translation[0] = 0.0f;
+        break;
+    }
+    case 3:
+        tcamera.mode0 = 20;
+        tcamera.translation_constraint = &cursor[1];
+        tcamera.translation[2] = -distance;
+        tcamera.translation[0] = 0.0f;
+        tcamera.translation[1] = 0.0f;
+        tcamera.unmodeled_40 = 1;
+        break;
+    case 1:
+        tcamera.mode0 = 20;
+        tcamera.translation_constraint = cursor + 1;
+        tcamera.translation[0] = -distance;
+        tcamera.translation[1] = 0.0f;
+        tcamera.translation[2] = 0.0f;
+        tcamera.unmodeled_40 = 1;
+        /* fall through */
+    case 4:
+        if (((CursorState *)cursor)->callback != 0) {
+            tcamera.mode0 = 16;
+            tcamera.mode1 = 16;
+        } else {
+            ((CursorState *)cursor)->mode = 0;
+            changeCameraMode();
+        }
+        break;
+    }
+}
+
+void updateCursor(int mode)
+{
+    unsigned short *keys;
+    int plane;
+    int selected;
+    StudioCamera *camera;
+    HomogeneousVector *position;
+    Vector4 *camera_position;
+    StudioCamera *reset_camera;
+    char text[0x100];
+    const char *position_format;
+    const char *camera_format;
+
+    keys = keyData;
+    switch (mode) {
+    case 0:
+        toolFlags = 0;
+        PAD_getKey(keys, 0, 0xF7FF);
+        break;
+    case 1:
+        toolFlags = 1;
+        PAD_getKey(keys, 0, 0x600);
+        break;
+    case 2:
+        toolFlags = 1;
+        PAD_getKey(keys, 0, 0x400);
+        break;
+    case 3:
+        toolFlags = 0;
+        PAD_getKey(keys, 0, 0x57BF);
+        break;
+    }
+    if ((keys[0] & 0xA0) != 0) {
+        if (cursorMode < 0) {
+            cursorMode = ((CursorState *)cursor)->mode;
+        }
+        if (keys[1] & 0x1000) {
+            cursorMode += 1;
+        }
+        if (keys[1] & 0x4000) {
+            cursorMode -= 1;
+        }
+        if (cursorMode < 0) {
+            cursorMode = 4;
+        }
+        if (cursorMode >= 5) {
+            cursorMode = 0;
+        }
+    } else {
+        if (cursorMode >= 0) {
+            ((CursorState *)cursor)->mode = cursorMode;
+            changeCameraMode();
+            cursorMode = -1;
+        }
+        if (keys[1] & 0x1000) {
+            ((CursorState *)cursor)->step += 1;
+        }
+        if (keys[1] & 0x4000) {
+            ((CursorState *)cursor)->step -= 1;
+        }
+        ((CursorState *)cursor)->step = ((CursorState *)cursor)->step & 7;
+    }
+    position = &cursor[1];
+    xglStudioGetCamera(&camera, 0);
+    if ((keys[1] & 0x200) != 0) {
+        position->x = 0.0f;
+        position->y = 0.0f;
+        position->z = 0.0f;
+    }
+    if (keys[1] & 0x400) {
+        reset_camera = camera;
+        reset_camera->position.y = 0.0f;
+        reset_camera->position.z = 4.0f;
+        reset_camera->position.x = 0.0f;
+    }
+    if (keys[1] & 8) {
+        ((CursorState *)cursor)->flag_04 -= 1;
+    }
+    if (keys[1] & 2) {
+        ((CursorState *)cursor)->flag_04 += 1;
+    }
+    plane = ((CursorState *)cursor)->flag_04;
+    if (plane < 0) {
+        ((CursorState *)cursor)->flag_04 = 2;
+        plane = 2;
+    }
+    if (!(plane < 3)) {
+        ((CursorState *)cursor)->flag_04 = 0;
+    }
+    if (((CursorState *)cursor)->mode != 4) {
+        switch (((CursorState *)cursor)->mode) {
+        case 0:
+        case 1:
+        case 3:
+            updateCursorMode0();
+            break;
+        case 2:
+            updateCursorModePlane();
+            break;
+        }
+        updateCursorMode2();
+        if (toolFlags == 0) {
+            camera_position = &camera->position;
+            position_format = D_004C2108;
+            sprintf(text, position_format, fptodp(position->x), fptodp(position->y),
+                    fptodp(position->z));
+            xglFontDebugPrintf(0xAA, 0xAA, text);
+            camera_format = D_004C2128;
+            sprintf(text, camera_format, fptodp(camera_position->x), fptodp(camera_position->y),
+                    fptodp(camera_position->z));
+            xglFontDebugPrintf(0xAA, 0xC6, text);
+        }
+    } else {
+        if (((CursorState *)cursor)->callback != 0) {
+            ((CursorState *)cursor)->callback(((CursorState *)cursor)->callback_argument);
+        }
+    }
+    selected = cursorMode;
+    if (selected < 0) {
+        selected = ((CursorState *)cursor)->mode;
+    }
+    if (toolFlags == 0) {
+        xglFontDebugPrintf(4, 0xB4, D_004C2148, cursorModeName[selected], ((CursorState *)cursor)->flag_04,
+                           ((CursorState *)cursor)->step + 1);
+    }
+}
 
 void drawCursor(void)
 {
@@ -667,7 +1781,188 @@ void initLight(void)
 
 INCLUDE_ASM("asm/main/nonmatchings/db_light_write", updateLight);
 
-INCLUDE_ASM("asm/main/nonmatchings/db_light_write", updateWind);
+void updateWind(WindRecord *wind)
+{
+    StudioCamera *camera;
+    DbLightWritePadSecondPrefix *pad;
+    char text[256];
+    char text_line[256];
+    WindMarker marker;
+    char text_wide[128];
+    char *wide_text;
+    unsigned short buttons;
+    int stick;
+    int selection;
+    int mode;
+    float step;
+    float angle;
+    float cos_angle;
+    float sin_angle;
+    float stick_x;
+    float stick_y;
+    const char *format1, *format2, *format3, *format4, *format5, *format6, *format7, *format8, *format9, *format10;
+    char *line;
+
+    pad = &PadData.second;
+    camera = xglStudioGetActiveCamera();
+    buttons = pad->half_2c;
+    if (buttons & 0x1000) {
+        selection = csr_1;
+        selection += 4;
+        selection %= 5;
+        csr_1 = selection;
+    }
+    if (buttons & 0x4000) {
+        selection = csr_1;
+        selection += 1;
+        selection %= 5;
+        csr_1 = selection;
+    }
+    selection = csr_1;
+    if ((pad->half_2a & 0x20) && selection < 3) {
+        wind->mode = csr_1;
+        selection = csr_1;
+    }
+    stick = pad->half_28;
+    buttons = stick;
+    step = (buttons & 0x80) ? 0.001f : 0.01f;
+
+    if (selection == 3) {
+        if (buttons & 0x8000) {
+            wind->offset_a -= step;
+        }
+        if (buttons & 0x2000) {
+            wind->offset_a += step;
+        }
+    }
+    if (selection == 4) {
+        float offset_clamp;
+
+        if (buttons & 0x8000) {
+            wind->offset_b -= step;
+        }
+        if (buttons & 0x2000) {
+            wind->offset_b += step;
+        }
+        offset_clamp = wind->offset_b;
+        if (offset_clamp > (3.14159265f * 2.0f)) {
+            wind->offset_b = (3.14159265f * 2.0f);
+            offset_clamp = (3.14159265f * 2.0f);
+        }
+        if (offset_clamp < (-3.14159265f * 2.0f)) {
+            wind->offset_b = (-3.14159265f * 2.0f);
+        }
+    }
+    if (buttons & 0x4) {
+        wind->w = wind->w + step * 0.1f;
+    }
+    if (buttons & 0x1) {
+        wind->w -= step * 0.1f;
+    }
+    if (wind->mode == 1) {
+        step *= 0.1f;
+    }
+    if (buttons & 0x8) {
+        wind->y += step * 5.0f;
+    }
+    if (buttons & 0x2) {
+        wind->y -= step * 5.0f;
+    }
+
+    angle = camera->angleVelocity.y;
+    cos_angle = xglCos(angle);
+    sin_angle = xglSin(angle);
+
+    stick_x = (float)pad->stick_x * step * 0.1f;
+    stick_y = (float)pad->stick_y * step * 0.1f;
+    wind->x = wind->x + (cos_angle * stick_x - sin_angle * stick_y);
+    wind->z = wind->z + (cos_angle * stick_y + sin_angle * stick_x);
+
+    if (pad->half_2a & 0x10) {
+        mode = wind->mode;
+        EXM_ResetWind();
+        wind->mode = mode;
+        if (mode == 1) {
+            wind->w = 1.0f;
+        }
+    }
+
+    xglFontDebugPrintf(0, 0, D_004DA558);
+    xglFontDebugPrintf(150, dispy_2 - 12, D_004DA560);
+    mode = wind->mode;
+    if (mode == 0) {
+        xglFontDebugPrintf(162, dispy_2, D_004C21C8);
+    } else {
+        xglFontDebugPrintf(162, dispy_2, D_004DA568);
+    }
+    if (mode == 1) {
+        xglFontDebugPrintf(162, dispy_2 + 12, D_004C21D8);
+    } else {
+        xglFontDebugPrintf(162, dispy_2 + 12, D_004C21F0);
+    }
+    if (mode == 2) {
+        xglFontDebugPrintf(162, dispy_2 + 24, D_004C2200);
+    } else {
+        xglFontDebugPrintf(162, dispy_2 + 24, D_004DA570);
+    }
+    xglFontDebugPrintf(150, dispy_2 + 36, D_004DA578);
+    format1 = D_004C2210;
+    sprintf(text, format1, fptodp(wind->offset_a));
+    xglFontDebugPrintf(162, dispy_2 + 48, text);
+    format2 = D_004C2220;
+    sprintf(text, format2, fptodp(wind->offset_b));
+    xglFontDebugPrintf(162, dispy_2 + 60, text);
+    xglFontDebugPrintf(170, dispy_2 + 72, D_004DA580);
+    format3 = D_004C2230;
+    line = text_line;
+    sprintf(line, format3, fptodp(wind->x));
+    xglFontDebugPrintf(182, dispy_2 + 80, line);
+    format4 = D_004C2240;
+    sprintf(line, format4, fptodp(wind->y));
+    xglFontDebugPrintf(182, dispy_2 + 88, line);
+    format5 = D_004C2250;
+    sprintf(line, format5, fptodp(wind->z));
+    xglFontDebugPrintf(182, dispy_2 + 96, line);
+    format6 = D_004C2260;
+    sprintf(line, format6, fptodp(wind->w));
+    xglFontDebugPrintf(182, dispy_2 + 104, line);
+    if (wind->mode == 1) {
+        marker.from.raw[0] = *(unsigned long long *)((char *)camera + 288);
+        marker.from.raw[1] = *(unsigned long long *)((char *)camera + 296);
+        marker.color[0] = 255;
+        marker.color[1] = 60;
+        marker.color[2] = 60;
+        marker.color[3] = 255;
+        marker.to.x = marker.from.vector.x + wind->x;
+        marker.to.y = marker.from.vector.y + wind->y;
+        marker.to.z = marker.from.vector.z + wind->z;
+        marker.from.vector.w = 0.05f;
+    }
+    if (csr_1 < 3) {
+        xglFontDebugPrintf(150, dispy_2 + csr_1 * 12, D_004DA588);
+    } else {
+        xglFontDebugPrintf(150, dispy_2 + csr_1 * 12 + 12, D_004DA588);
+    }
+    if (pad->half_2a & 0x100) {
+        wide_text = text_wide;
+        format7 = D_004C2270;
+        sprintf(wide_text, format7, fptodp(wind->offset_a), fptodp(wind->offset_b));
+        switch (wind->mode) {
+        case 1:
+            format8 = D_004C2290;
+            sprintf(wide_text, format8, fptodp(wind->x), fptodp(wind->y), fptodp(wind->z), fptodp(wind->w));
+            break;
+        case 2:
+            format9 = D_004C22C8;
+            sprintf(wide_text, format9, fptodp(wind->x), fptodp(wind->y), fptodp(wind->z), fptodp(wind->w));
+            break;
+        case 0:
+            format10 = D_004C22F8;
+            sprintf(wide_text, format10);
+            break;
+        }
+    }
+}
 
 void VW_setCursorMode(int mode)
 {

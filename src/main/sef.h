@@ -54,9 +54,19 @@ struct SchedulerState {
     Vector4 vectors[3]; /* +0x80 */
     unsigned char effects[32][0x30];
     int inUse;                       /* +0x6b0 */
-    unsigned char unmodeled_6b4[0x6e0 - 0x6b4];
-    int soundId;                     /* +0x6e0 */
-    unsigned char unmodeled_6e4[0xa8c - 0x6e4];
+    unsigned char unmodeled_6b4[0x6bc - 0x6b4];
+    struct SefActor *targetActor;   /* +0x6bc */
+    struct SefActor *sourceActor;   /* +0x6c0 */
+    struct SefModelMatrixContext *modelMatrixContext; /* +0x6c4 */
+    unsigned char unmodeled_6c8[0x6e0 - 0x6c8];
+    int soundId;                    /* +0x6e0 */
+    unsigned char unmodeled_6e4[0x9e6 - 0x6e4];
+    short scriptParameter;          /* +0x9e6 */
+    unsigned char unmodeled_9e8[0xa74 - 0x9e8];
+    unsigned short targetLightCount; /* +0xa74 */
+    unsigned short sourceLightCount; /* +0xa76 */
+    short effectNo;                  /* +0xa78 */
+    unsigned char unmodeled_a7a[0xa8c - 0xa7a];
     int flags;
     ScriptBinding scriptBinding;
     unsigned char unmodeled_a98[2];
@@ -131,5 +141,8 @@ static unsigned char _lineData[0x41000];
  * but relocations_equal only holds for the latter.
  */
 extern short D_0079411C[];
+
+#define offsetof(type, member) ((__SIZE_TYPE__) &(((type *)0)->member))
+
 
 #endif /* SRC_MAIN_SEF_H */

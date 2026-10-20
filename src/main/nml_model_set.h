@@ -45,9 +45,11 @@ extern int s_nMapAlphaEntry;
 extern int s_nMainCameraWarp;
 
 typedef struct NmlAlphaGroup {
-    unsigned char unmodeled_00[4];
+    short firstBlock;
+    short blockCount;
     float sortDistance;
-    unsigned char unmodeled_08[8];
+    u32 status;
+    unsigned char unmodeled_0c[4];
 } NmlAlphaGroup;
 
 extern NmlAlphaGroup s_aAlphaGroup[];
@@ -64,38 +66,7 @@ typedef struct NmlPartPixelAlpha {
     short partId;
 } NmlPartPixelAlpha;
 
-typedef union {
-    LayoutSlot slots[200];
-    struct {
-        Matrix4 lightDirection; /* +0x0 */
-        Matrix4 lightColor; /* +0x40 */
-        Matrix4 place; /* +0x80 */
-        Matrix4 inversePlace; /* +0xc0 */
-        Vector4 pointPosition[4]; /* +0x100 */
-        Vector4 pointColor[4]; /* +0x140 */
-        unsigned char unmodeled_180[0x1c0 - 0x180];
-        Vector4 fogColor; /* +0x1c0 */
-        Vector4 fogPara; /* +0x1d0 */
-        unsigned char unmodeled_1e0[0x200 - 0x1e0];
-        Vector4 multiplyColor; /* +0x200 */
-        unsigned char unmodeled_210[0x238 - 0x210];
-        int pixelAlpha;                     /* +0x238, full-width pixel-alpha word */
-        unsigned char unmodeled_23c[4];
-        const char *texture;                /* +0x240 */
-        int texfunc;                        /* +0x244 */
-        u64 alpha;                          /* +0x248 */
-        u32 render_status;                  /* +0x250 */
-        int parent; /* +0x254 */
-        unsigned char unmodeled_258[0x278 - 0x258];
-        int mapShadowPartCount; /* +0x278 */
-        int renderLevel; /* +0x27c */
-        unsigned char unmodeled_280[0x2b4 - 0x280];
-        int partPixelAlphaCount; /* +0x2b4 */
-        unsigned char unmodeled_2b8[0x2d0 - 0x2b8];
-        NmlPartPixelAlpha partPixelAlpha[4]; /* +0x2d0 */
-        unsigned short mapShadowParts[8];    /* +0x2e0 */
-    } fields;
-} LayoutStore;
+typedef union LayoutStore LayoutStore;
 
 /*
  * Partial view of one fade controller (the four global instances are
@@ -139,7 +110,8 @@ typedef struct {
     int frame;
     int duration;
     int skipRender;
-    unsigned char unmodeled_1c[8];
+    int unclassified_1c;
+    int unclassified_20;
     int dispose;
     int cancelFrames;
     int startDelay;
@@ -237,10 +209,20 @@ extern int s_inBackBuffer[];
 typedef struct NmlModelBlock {
     char name[0x20];
     u32 flags;
-    unsigned char unmodeled_024[0x2c - 0x24];
+    int baseOffset;
+    int textOffset;
     int partId; /* +0x2c */
     unsigned char unmodeled_030[0xc0 - 0x30];
     u32 materialFlags;
+    unsigned char unmodeled_0c4[0x3c];
+    Vector4 multiplyColor; /* +0x100 */
+    float translationX, translationY;
+    float translationStepX, translationStepY;
+    unsigned char unmodeled_120[0x4c];
+    signed char shapeMathParameter;
+    signed char shapeMode, shapeWeight;
+    unsigned char shapeFlags;
+    char materialName[32]; /* +0x170 */
 } NmlModelBlock;
 
 #define NML_BLOCK_HIDDEN 0x8u
@@ -267,5 +249,59 @@ typedef struct NmlParentBuffer {
 } NmlParentBuffer;
 typedef NmlParentBuffer NmlParentBuf;
 extern NmlParentBuffer s_aParentBuf[];
+
+/* Partial prefix of packets emitted by nmlFilterStealthMake. */
+typedef struct NmlStealthPacket {
+    unsigned char unmodeled_00[0x0c];
+    float distanceSquared;
+    unsigned char unmodeled_10[0x10];
+    float unclassified_20;
+} NmlStealthPacket;
+
+union LayoutStore {
+    LayoutSlot slots[200];
+    unsigned long long qwords[100];
+    struct {
+        Matrix4 lightDirection; /* +0x0 */
+        Matrix4 lightColor; /* +0x40 */
+        Matrix4 place; /* +0x80 */
+        Matrix4 inversePlace; /* +0xc0 */
+        Vector4 pointPosition[4]; /* +0x100 */
+        Vector4 pointColor[4]; /* +0x140 */
+        Matrix4 projectionMatrix; /* +0x180; saved by the circle and map projection paths */
+        Vector4 fogColor; /* +0x1c0 */
+        Vector4 fogPara; /* +0x1d0 */
+        unsigned char unmodeled_1e0[0x1f0 - 0x1e0];
+        Vector4 unmodeled_1f0; /* +0x1f0; copied as a projection input and passed to AlphaGroupSortEntry */
+        Vector4 multiplyColor; /* +0x200 */
+        unsigned char unmodeled_210[0x238 - 0x210];
+        int pixelAlpha;                     /* +0x238, full-width pixel-alpha word */
+        unsigned char unmodeled_23c[4];
+        const char *texture;                /* +0x240 */
+        int texfunc;                        /* +0x244 */
+        u64 alpha;                          /* +0x248 */
+        u32 render_status;                  /* +0x250 */
+        int parent; /* +0x254 */
+        Matrix4 *weightedMatrices; /* +0x258 */
+        unsigned char unmodeled_25c[0x26c - 0x25c];
+        float textureTransparency;
+        int texMapSize; /* +0x270 */
+        float texMapWeight; /* +0x274 */
+        int mapShadowPartCount; /* +0x278 */
+        int renderLevel; /* +0x27c */
+        NmlStealthPacket *stealthPackets[10]; /* +0x280 */
+        unsigned char unmodeled_2a8[0x2b4 - 0x2a8];
+        int partPixelAlphaCount; /* +0x2b4 */
+        unsigned char *clipMasks; /* +0x2b8 */
+        unsigned char unmodeled_2bc[4];
+        float circleShadowScale; /* +0x2c0 */
+        unsigned char unmodeled_2c4[4];
+        int stealthEntryCount; /* +0x2c8 */
+        unsigned char unmodeled_2cc[4];
+        NmlPartPixelAlpha partPixelAlpha[4]; /* +0x2d0 */
+        unsigned short mapShadowParts[8];    /* +0x2e0 */
+    } fields;
+};
+
 
 #endif /* SRC_MAIN_NML_MODEL_SET_H */

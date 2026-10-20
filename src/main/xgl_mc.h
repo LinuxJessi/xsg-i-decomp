@@ -7,10 +7,10 @@
 
 int xglMcGetState(void);
 
-extern void xglMcReset(void);
+void xglMcReset(void);
 
-extern void xglMcSetMapName(const unsigned char *primary_euc_name,
-                            const unsigned char *secondary_euc_name);
+void xglMcSetMapName(const unsigned char *primary_euc_name,
+                     const unsigned char *secondary_euc_name);
 
 void xglMcWriteMapName(char *buffer, int slot);
 

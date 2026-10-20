@@ -158,10 +158,6 @@ void eNumberMain(ENumberMainData *number);
 /* Callers pass a second argument, which this initializer does not read. */
 void eNumberSet(void *data, int unused);
 
-void eSpriteMain(ESpriteMainData *sprite);
-
-void eSpriteSet(ESprite *sprite, short spriteId);
-
 void eRibbonMain(ERibbonMainData *ribbon);
 
 void eRibbonSet(ERibbonSetData *ribbon, int style);

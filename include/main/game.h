@@ -11,4 +11,6 @@
 
 void GamePushSaveDataUser(void);
 
+void Game(void);
+
 #endif /* INCLUDE_MAIN_GAME_H */

@@ -39,7 +39,7 @@ void BSpline_Add(short frame, short count, short period,
 void Get_One_Step(float length, const Point4 *source,
                   const Point4 *destination, Point4 *output);
 
-extern float Get_Distance(const Point4 *first, const Point4 *second);
+float Get_Distance(const Point4 *first, const Point4 *second);
 
 float Get_Distance3D(const Point4 *first, const Point4 *second);
 
@@ -91,9 +91,8 @@ extern volatile const float kPiLimit;
 /* MARK: high wrap clamp (pos pi) */
 extern volatile const float kTwoPiWrapHi;
 
-extern void Get_MiddlePoint(const float *start, const float *following,
-                            short point_index, short point_count,
-                            float *result);
+void Get_MiddlePoint(const float *start, const float *following,
+                     short point_index, short point_count, float *result);
 
 float Get_Multi_Max_Under(float value, float step, float maximum);
 
@@ -134,7 +133,7 @@ extern void UnduParamInit(UnduParam *param);
    (config/symbols/main.txt); Undulate.c has no header of its own yet. */
 extern UnduParam UnduTest;
 
-void Get_HeightAttr(const Point4 *position, int mapIndex, int attrMask,
+float Get_HeightAttr(const Point4 *position, int mapIndex, int attrMask,
                     UnduParam *param);
 
 void Get_Height(const Point4 *position, int mapIndex, int attrMask);

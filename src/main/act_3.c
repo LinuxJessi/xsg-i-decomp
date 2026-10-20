@@ -265,11 +265,11 @@ typedef struct {
     Vector4 axial_offset;
     u8 unmodeled_40[0x10];
     Vector4 perpendicular;
-    Matrix4 model;
-    Matrix4 flatten;
-    Matrix4 translated_end;
-    Matrix4 first_world;
-    Matrix4 second_world;
+    Matrix model;
+    ActShadowMatrix flatten;
+    Matrix translated_end;
+    ActShadowMatrix first_world;
+    ActShadowMatrix second_world;
     Vector4 vertices[128];
     DropShadowSourceVertex source_vertices[128];
     u8 back_shadow_status[16];
@@ -389,7 +389,7 @@ typedef struct {
     u8 unmodeled_6f8[0xc];
     u16 motion;
     u8 unmodeled_706[0x11e];
-    ActShadowMatrixSet *shadow_matrices;
+    Matrix *shadow_matrices; /* +0x824; stride 0x40 */
     u8 unmodeled_828[0x1c0];
     float shadow_radius;
 } ActShadowActor;
@@ -580,7 +580,8 @@ static u8 TestEnv_3_00478D80[0x30] = {
 
 
 
-static const u8 D_004D1DA0[56] = {
+static const DrawDropCircleIndexTable D_004D1DA0 = {
+    {
     0x04, 0x00, 0x01, 0x06, 0x01, 0x06, 0x07, 0x02,
     0x07, 0x02, 0x03, 0x05, 0x0c, 0x09, 0x08, 0x0f,
     0x08, 0x0f, 0x0e, 0x0b, 0x0e, 0x0b, 0x0a, 0x0d,
@@ -588,6 +589,7 @@ static const u8 D_004D1DA0[56] = {
     0x01, 0x07, 0x09, 0x0f, 0x07, 0x03, 0x0f, 0x0b,
     0x03, 0x05, 0x0b, 0x0d, 0x05, 0x02, 0x0d, 0x0a,
     0x02, 0x06, 0x0a, 0x0e, 0x06, 0x00, 0x0e, 0x08,
+    }
 };
 
 typedef union {
@@ -607,8 +609,8 @@ typedef struct {
 } DropShadowContactRecord;
 
 
-static DropShadowContactRecord *DrawDropShadowSub(ActDropShadowSubMatrixActor *actor,
-                             ActDropShadowSubMatrixWorkspace *work, DropShadowContactRecord *contacts);
+static u8 *DrawDropShadowSub(ActShadowActor *actor,
+                            ActDropShadowWorkspace *work, u8 *contacts);
 
 typedef struct {
     u8 unmodeled_00[0x20];
@@ -630,11 +632,11 @@ typedef struct {
     ActShadowMatrixSet *shadow_matrices;
 } ActDrawShadowActor;
 
-static void DrawCircleShadow(void *actor);
+static void DrawCircleShadow(void *actor_pointer);
 
 static void DrawDropCircle(ActShadowActor *actor);
 
-static void DrawDropShadow(void *actor);
+static void DrawDropShadow(void *actor_pointer);
 
 extern ActShadowLight *xglStudioGetLight2(void);
 
@@ -655,6 +657,82 @@ extern ActShadowLight *xglStudioGetLight2(void);
 #define DROP_SHADOW_TEXTURE_V_ORIGIN 0x71f7
 
 #define DROP_SHADOW_TEXTURE_COORDINATE_SCALE (1.0f / 8192.0f)
+
+typedef struct {
+    float temporary[4];
+    Matrix transform;
+    Matrix model;
+    Vector4 vertices[16];
+    DropShadowPacketPoint projected[16];
+    int camera_index;
+    u8 unmodeled_294[0xc];
+    CircleShadowPacket packet;
+} CircleShadowMatrixScratchpad;
+
+extern void xglMatrixRotY(Matrix4 destination, Matrix4 source, float angle);
+
+extern u8 Head_1[80];
+
+extern u8 Tail_2[48];
+
+extern u8 rgbaw_0[16];
+
+extern const float D_004D85F8;
+
+extern void xglMatrixTrans(Matrix4 destination, const Matrix4 source,
+                            const float translation[4]);
+
+extern void xglVectorOuter(Vector4 *destination, const Vector4 *left,
+                            const Vector4 *right);
+
+extern void xglVectorScaleXYZ(float scale, Vector4 *destination,
+                               const Vector4 *source);
+
+extern void xglVectorMulMat(Vector4 *destination, const Matrix4 matrix,
+                             const Vector4 *source);
+
+typedef struct {
+    u8 unmodeled_000[0x86];
+    u16 kind;
+    u8 unmodeled_088[9];
+    u8 shadow_alpha;
+    u8 unmodeled_092[0xe];
+    Vector4 light_direction;
+    u8 unmodeled_0b0[0x774];
+    Matrix *shadow_matrices;
+} ActDropShadowSetupActor;
+
+typedef struct {
+    u8 unmodeled_00[0x60];
+    Matrix model;
+    Vector4 flatten[4];
+    u8 unmodeled_0e0[0x11d8];
+    u8 camera_index;
+} ActDropShadowSetupMatrixWorkspace;
+
+typedef struct {
+    u16 kind_mask;
+    u16 kind_value;
+    DropShadowContactRecord *contacts;
+} DropShadowContactDefinition;
+
+extern DropShadowHeadPacket Head_4_00478DB0;
+
+extern ActShadowEndPacket Tail_5;
+
+extern DropShadowContactDefinition DropShadowDefineTable[10];
+
+extern DropShadowHeadPacket Head_6_00478E30;
+
+extern u8 TestEnv_7[48];
+
+extern ActShadowEndPacket Tail_8;
+
+extern const DrawDropCircleIndexTable D_004D1DD8;
+
+extern const float D_004D8604;
+
+extern const float D_004D8608;
 
 static void Footstep(ActShadowActor *actor)
 {
@@ -720,7 +798,130 @@ static void Footstep(ActShadowActor *actor)
 }
 
 
-INCLUDE_ASM("asm/main/nonmatchings/act_3", DrawCircleShadow);
+typedef float ActShadowMatrixRow[4];
+
+static inline ActShadowMatrixRow *ActShadowMatrixRows(Matrix *matrix)
+{
+    return (ActShadowMatrixRow *)(void *)matrix->elements;
+}
+
+static inline const ActShadowMatrixRow *ActShadowMatrixConstRows(const Matrix *matrix)
+{
+    return (const ActShadowMatrixRow *)(const void *)matrix->elements;
+}
+
+static void DrawCircleShadow(void *actor_pointer)
+{
+    float zero_coordinate;
+    ActShadowActor *actor = actor_pointer;
+    CircleShadowMatrixScratchpad *scratchpad = (CircleShadowMatrixScratchpad *)0x70000000;
+    float radius;
+    float corner;
+    int camera_index;
+    int i;
+    int batch;
+    DropShadowPacketPoint *projected;
+    CircleShadowPoint *output;
+    u8 *flags;
+
+    xglMatrixUnit(ActShadowMatrixRows(&scratchpad->model));
+    scratchpad->model.elements[12] = actor->position[0];
+    scratchpad->model.elements[14] = actor->position[2];
+    if (actor->height_override == -1000.0f) {
+        scratchpad->model.elements[13] = actor->position[1] + 0.02f;
+    } else {
+        scratchpad->model.elements[13] = actor->height_override + 0.02f;
+    }
+    xglMatrixRotY(ActShadowMatrixRows(&scratchpad->transform),
+                  ActShadowMatrixRows(&scratchpad->model), actor->yaw);
+    for (camera_index = 0; camera_index < 8; camera_index++) {
+        if (xglStudioGetCamera2(camera_index)->active == 1) {
+            break;
+        }
+    }
+    radius = actor->shadow_radius;
+    corner = radius * 0.7f;
+    scratchpad->vertices[0].x = scratchpad->vertices[1].x =
+        scratchpad->vertices[5].x = scratchpad->vertices[14].x =
+        scratchpad->vertices[15].x = 0.0f;
+    scratchpad->vertices[6].x = scratchpad->vertices[7].x =
+        scratchpad->vertices[8].x = scratchpad->vertices[9].x =
+        scratchpad->vertices[13].x = -scratchpad->vertices[0].x;
+    scratchpad->vertices[2].x = scratchpad->vertices[4].x =
+        radius - (radius - corner);
+    scratchpad->vertices[10].x = scratchpad->vertices[12].x =
+        -scratchpad->vertices[2].x;
+    scratchpad->vertices[3].x = radius;
+    scratchpad->vertices[11].x = -radius;
+    scratchpad->vertices[1].y =
+        scratchpad->vertices[2].y = scratchpad->vertices[3].y =
+        scratchpad->vertices[4].y = scratchpad->vertices[5].y =
+        scratchpad->vertices[6].y = scratchpad->vertices[7].y =
+        scratchpad->vertices[8].y = scratchpad->vertices[9].y =
+        scratchpad->vertices[10].y = scratchpad->vertices[11].y =
+        scratchpad->vertices[12].y = scratchpad->vertices[13].y =
+        scratchpad->vertices[14].y = scratchpad->vertices[15].y =
+        scratchpad->vertices[0].x;
+    scratchpad->camera_index = camera_index;
+    zero_coordinate = scratchpad->vertices[0].x;
+    scratchpad->vertices[0].y = zero_coordinate;
+    scratchpad->vertices[3].z = scratchpad->vertices[7].z =
+        scratchpad->vertices[8].z = scratchpad->vertices[11].z =
+        scratchpad->vertices[15].z = zero_coordinate;
+    scratchpad->vertices[0].z = zero_coordinate;
+    scratchpad->vertices[2].z = scratchpad->vertices[12].z = corner;
+    scratchpad->vertices[4].z = scratchpad->vertices[10].z = -corner;
+    scratchpad->vertices[1].z = scratchpad->vertices[13].z =
+        scratchpad->vertices[14].z = radius;
+    scratchpad->vertices[5].z = scratchpad->vertices[6].z =
+        scratchpad->vertices[9].z = -radius;
+    scratchpad->vertices[0].w = scratchpad->vertices[1].w = scratchpad->vertices[2].w =
+        scratchpad->vertices[3].w = scratchpad->vertices[4].w =
+        scratchpad->vertices[5].w = scratchpad->vertices[6].w =
+        scratchpad->vertices[7].w = scratchpad->vertices[8].w =
+        scratchpad->vertices[9].w = scratchpad->vertices[10].w =
+        scratchpad->vertices[11].w = scratchpad->vertices[12].w =
+        scratchpad->vertices[13].w = scratchpad->vertices[14].w =
+        scratchpad->vertices[15].w = 1.0f;
+    xglRotTransPersN(scratchpad->projected, ActShadowMatrixConstRows(&scratchpad->transform),
+                    scratchpad->vertices, 16, camera_index);
+    {
+        DropShadowPacketPoint *clip = scratchpad->projected;
+        int clip_index;
+        for (clip_index = 0; clip_index < 16; clip_index++, clip++) {
+            if ((clip->x & 0xffff0000) ||
+                (clip->y & 0xffff0000) || (int)clip->z < 0) {
+                return;
+            }
+        }
+    }
+    nmlModelDirectSend(1, Head_1, 5);
+    flags = rgbaw_0;
+    scratchpad->packet.vif_command = 0x5100001100000000ULL;
+    scratchpad->packet.gif_control = 0x0026c00000008001ULL;
+    scratchpad->packet.gif_registers = 0x5151515151515151ULL;
+    scratchpad->packet.dma_tag = 0;
+    projected = scratchpad->projected;
+    for (batch = 0; batch < 2; batch++) {
+        output = scratchpad->packet.points;
+        for (i = 7; i >= 0; i--, output++, projected++, flags++) {
+            output->color[0] = 0;
+            output->color[1] = 0;
+            output->color[2] = 0;
+            if ((*flags & 1) == 0) {
+                output->color[3] = actor->shadow_alpha;
+            } else {
+                output->color[3] = 0;
+            }
+            output->point.x = projected->x;
+            output->point.y = projected->y;
+            output->point.z = projected->z;
+            output->point.w = (*flags & 2) ? 0x8000 : 0;
+        }
+        nmlModelDirectSend(1, (u8 *)&scratchpad->packet, 18);
+    }
+    nmlModelDirectSend(1, Tail_2, 3);
+}
 
 static void DrawZeldaShadowSub(ActShadowScratchpad *scratchpad,
                               ActShadowMatrix *matrix)
@@ -1047,13 +1248,422 @@ static void DrawDropShadowSubFront(ActDropShadowFrontState *shadow, int count)
 }
 
 
-INCLUDE_ASM("asm/main/nonmatchings/act_3", DrawDropShadowSub);
+static u8 *DrawDropShadowSub(ActShadowActor *actor,
+                            ActDropShadowWorkspace *work, u8 *contacts)
+{
+    float ground_height;
+    float length;
+    int segments;
+    int vertex_count;
+    int visible;
+    int i;
+    Matrix *translated_end;
+    Matrix *model;
+    Vector4 *perpendicular;
+    Vector4 *inner_offset;
+    Vector4 *axial_offset;
+    Matrix4 *first_world;
+    Vector4 *light_direction;
+    Matrix4 *second_world;
+    Vector4 *points = work->vertices;
+    DropShadowSourceVertex *projected;
+
+    if (actor->height_override == -1000.0f) {
+        ground_height = actor->position[1] - 0.5f;
+    } else {
+        ground_height = actor->height_override - 0.5f;
+    }
+    segments = 0;
+    if (contacts[0] != 255) {
+        float *first_position;
+        float *second_position;
+
+        first_world = &work->first_world.elements;
+        second_world = &work->second_world.elements;
+        light_direction = &actor->light_direction;
+        translated_end = &work->translated_end;
+        model = &work->model;
+        perpendicular = &work->perpendicular;
+        inner_offset = &work->inner_offset;
+        axial_offset = &work->axial_offset;
+        first_position = (*first_world)[3];
+        second_position = (*second_world)[3];
+        do {
+            Matrix *first = &actor->shadow_matrices[contacts[segments * 3]];
+            Matrix *second;
+            u8 *contact = &contacts[segments * 3];
+            u8 *next_contact = &contacts[(segments + 1) * 3];
+
+            if (next_contact[0] != 255) {
+                second = &actor->shadow_matrices[next_contact[0]];
+            } else {
+                work->temporary[0] = 0.0f;
+                work->temporary[1] = 0.0f;
+                work->temporary[2] = 0.0f;
+                work->temporary[(signed char)next_contact[2]] =
+                    I2F((signed char)next_contact[1]) * D_004D85F8;
+                work->temporary[3] = 1.0f;
+                xglMatrixTrans(ActShadowMatrixRows(translated_end),
+                                ActShadowMatrixConstRows(first), work->temporary);
+                second = translated_end;
+            }
+            xglMatrixMul(*first_world, ActShadowMatrixRows(model), ActShadowMatrixRows(first));
+            xglMatrixMul(*second_world, ActShadowMatrixRows(model), ActShadowMatrixRows(second));
+
+            /* Each VU block loads both complete vectors, changes XYZ, and retains
+               the VF2 input's W. VF2/VF3 and arithmetic flags are scratch here;
+               no incoming ACC/Q state is used and this compiler has no VF allocator. */
+            __asm__ __volatile__(
+                "lqc2 vf3,0(%1)\n\t"
+                "lqc2 vf2,0(%2)\n\t"
+                "vsub.xyz vf2,vf2,vf3\n\t"
+                "sqc2 vf2,0(%0)"
+                : : "r"(work->temporary), "r"(first_position),
+                    "r"(second_position) : "memory");
+            xglVectorOuter(perpendicular, (const Vector4 *)(const void *)work->temporary,
+                             light_direction);
+            xglVectorLength(&length, perpendicular);
+            xglVectorScaleXYZ(I2F((signed char)contact[1]) * D_004D85F8 / length,
+                                &work->outer_offset, perpendicular);
+            xglVectorScaleXYZ(I2F((signed char)contact[2]) * D_004D85F8 / length,
+                                inner_offset, perpendicular);
+            xglVectorLength(&length, (const Vector4 *)(const void *)work->temporary);
+            xglVectorScaleXYZ(I2F((signed char)contact[1]) * D_004D85F8 / length,
+                                axial_offset, (const Vector4 *)(const void *)work->temporary);
+
+            work->temporary[3] = ground_height;
+            work->temporary[0] = first_position[0];
+            work->temporary[1] = first_position[1];
+            work->temporary[2] = first_position[2];
+            __asm__ __volatile__(
+                "lqc2 vf3,0(%1)\n\t"
+                "lqc2 vf2,0(%2)\n\t"
+                "vadd.xyz vf2,vf2,vf3\n\t"
+                "sqc2 vf2,0(%0)"
+                : : "r"(&points[0]), "r"(&work->outer_offset),
+                    "r"(work->temporary) : "memory");
+            xglVectorMulMat(&points[8], (const float (*)[4])work->flatten.elements, &points[0]);
+            points[0].w = 1.0f;
+            points[8].w = 1.0f;
+            __asm__ __volatile__(
+                "lqc2 vf3,0(%1)\n\t"
+                "lqc2 vf2,0(%2)\n\t"
+                "vsub.xyz vf2,vf2,vf3\n\t"
+                "sqc2 vf2,0(%0)"
+                : : "r"(&points[1]), "r"(&work->outer_offset),
+                    "r"(work->temporary) : "memory");
+            xglVectorMulMat(&points[9], (const float (*)[4])work->flatten.elements, &points[1]);
+            points[1].w = 1.0f;
+            points[9].w = 1.0f;
+            __asm__ __volatile__(
+                "lqc2 vf3,0(%1)\n\t"
+                "lqc2 vf2,0(%2)\n\t"
+                "vsub.xyz vf2,vf2,vf3\n\t"
+                "sqc2 vf2,0(%0)"
+                : : "r"(&points[4]), "r"(axial_offset),
+                    "r"(work->temporary) : "memory");
+            xglVectorMulMat(&points[12], (const float (*)[4])work->flatten.elements, &points[4]);
+            points[4].w = 1.0f;
+            points[12].w = 1.0f;
+
+            work->temporary[0] = second_position[0];
+            work->temporary[1] = second_position[1];
+            work->temporary[2] = second_position[2];
+            __asm__ __volatile__(
+                "lqc2 vf3,0(%1)\n\t"
+                "lqc2 vf2,0(%2)\n\t"
+                "vadd.xyz vf2,vf2,vf3\n\t"
+                "sqc2 vf2,0(%0)"
+                : : "r"(&points[2]), "r"(&work->outer_offset),
+                    "r"(work->temporary) : "memory");
+            xglVectorMulMat(&points[10], (const float (*)[4])work->flatten.elements, &points[2]);
+            points[2].w = 1.0f;
+            points[10].w = 1.0f;
+            __asm__ __volatile__(
+                "lqc2 vf3,0(%1)\n\t"
+                "lqc2 vf2,0(%2)\n\t"
+                "vsub.xyz vf2,vf2,vf3\n\t"
+                "sqc2 vf2,0(%0)"
+                : : "r"(&points[3]), "r"(&work->outer_offset),
+                    "r"(work->temporary) : "memory");
+            xglVectorMulMat(&points[11], (const float (*)[4])work->flatten.elements, &points[3]);
+            points[3].w = 1.0f;
+            points[11].w = 1.0f;
+            __asm__ __volatile__(
+                "lqc2 vf3,0(%1)\n\t"
+                "lqc2 vf2,0(%2)\n\t"
+                "vadd.xyz vf2,vf2,vf3\n\t"
+                "sqc2 vf2,0(%0)"
+                : : "r"(&points[5]), "r"(axial_offset),
+                    "r"(work->temporary) : "memory");
+            xglVectorMulMat(&points[13], (const float (*)[4])work->flatten.elements, &points[5]);
+            points[5].w = 1.0f;
+            points[13].w = 1.0f;
+
+            work->temporary[0] =
+                (first_position[0] + second_position[0]) * 0.5f;
+            work->temporary[1] =
+                (first_position[1] + second_position[1]) * 0.5f;
+            work->temporary[2] =
+                (first_position[2] + second_position[2]) * 0.5f;
+            __asm__ __volatile__(
+                "lqc2 vf3,0(%1)\n\t"
+                "lqc2 vf2,0(%2)\n\t"
+                "vadd.xyz vf2,vf2,vf3\n\t"
+                "sqc2 vf2,0(%0)"
+                : : "r"(&points[6]), "r"(inner_offset),
+                    "r"(work->temporary) : "memory");
+            xglVectorMulMat(&points[14], (const float (*)[4])work->flatten.elements, &points[6]);
+            points[6].w = 1.0f;
+            points[14].w = 1.0f;
+            __asm__ __volatile__(
+                "lqc2 vf3,0(%1)\n\t"
+                "lqc2 vf2,0(%2)\n\t"
+                "vsub.xyz vf2,vf2,vf3\n\t"
+                "sqc2 vf2,0(%0)"
+                : : "r"(&points[7]), "r"(inner_offset),
+                    "r"(work->temporary) : "memory");
+            xglVectorMulMat(&points[15], (const float (*)[4])work->flatten.elements, &points[7]);
+            points[7].w = 1.0f;
+            points[15].w = 1.0f;
+            points += 16;
+            segments++;
+        } while (contacts[segments * 3] != 255);
+    }
+    vertex_count = segments * 16;
+    xglRotTransPersN(work->source_vertices, 0, work->vertices,
+                      vertex_count, work->camera_index);
+    visible = 0;
+    projected = work->source_vertices;
+    if (vertex_count > 0) {
+        int remaining = vertex_count;
+        do {
+            if ((projected->point.x & 0xffff0000) ||
+                (projected->point.y & 0xffff0000) || (int)projected->point.z < 0) {
+                projected->valid = 0;
+            } else {
+                visible = 1;
+            }
+            projected++;
+        } while (--remaining != 0);
+    }
+    if (!visible) {
+        return contacts + segments * 3 + 3;
+    }
+    work->alpha = actor->shadow_alpha;
+    work->packet.test_environment_control = 0x8001;
+    work->packet.test_environment_register = 71;
+    work->packet.render_state_register = sRender.shadow_state | 0x80000;
+    work->packet.shadow_context_register = 76;
+    work->packet.dma_tag.words.low = 0;
+    work->packet.dma_tag.words.high = 0;
+    work->packet.vif_nop = 0;
+    for (i = 0; i < segments; i++) {
+        DrawDropCircleIndexTable indices = D_004D1DA0;
+        if (DrawDropShadowSubChk(work, &indices.quad_indices[0][0], i * 16, 14)) {
+            DrawDropShadowSubBack((ActDropShadowState *)(void *)work, 14, 0);
+            nmlModelDirectSend(2, TestEnv_3_00478D80, 3);
+            DrawDropShadowSubFront((ActDropShadowFrontState *)(void *)work, 14);
+            DrawDropShadowSubBack((ActDropShadowState *)(void *)work, 14, 128);
+        }
+    }
+    return contacts + segments * 3 + 3;
+}
 
 
-INCLUDE_ASM("asm/main/nonmatchings/act_3", DrawDropShadow);
+static void DrawDropShadow(void *actor_pointer)
+{
+    ActDropShadowSetupActor *actor = actor_pointer;
+    ActDropShadowSetupMatrixWorkspace *work =
+        (ActDropShadowSetupMatrixWorkspace *)0x70000000;
+    DropShadowContactDefinition *entry;
+    DropShadowContactRecord *contacts;
+    u16 actor_kind;
+    int camera_index;
+
+    {
+        u64 alpha_descriptor = ((u64)actor->shadow_alpha << 32) | 100;
+        Head_4_00478DB0.set_shadow_alpha.data.value = alpha_descriptor;
+    }
+    {
+        int render_state_bits = 0x24020000 | (sRender.shadow_state << 5);
+        Head_4_00478DB0.set_render_state.data.value =
+            ((u64)0xc800 << 19) | render_state_bits;
+    }
+    nmlModelDirectSend(1, (u8 *)&Head_4_00478DB0, 5);
+    for (camera_index = 0; camera_index < 8; camera_index++) {
+        if (xglStudioGetCamera2(camera_index)->active == 1) {
+            break;
+        }
+    }
+    work->camera_index = camera_index;
+    {
+        Matrix *matrix = actor->shadow_matrices;
+        Matrix *destination = &work->model;
+        /* Match the original four aligned SDK copies through its scratch GPR. */
+        __asm__ __volatile__(
+            "lq $2,0(%1)\n\t"
+            "sq $2,0(%0)\n\t"
+            "lq $2,16(%1)\n\t"
+            "sq $2,16(%0)\n\t"
+            "lq $2,32(%1)\n\t"
+            "sq $2,32(%0)\n\t"
+            "lq $2,48(%1)\n\t"
+            "sq $2,48(%0)"
+            : : "r"(destination), "r"(matrix) : "$2", "memory");
+    }
+    {
+        float light_x = actor->light_direction.x;
+        float light_z = actor->light_direction.z;
+        work->flatten[0].x = 1.0f;
+        work->flatten[0].y = 0.0f;
+        work->flatten[0].z = 0.0f;
+        work->flatten[0].w = 0.0f;
+        work->flatten[1].x = -light_x;
+        work->flatten[1].y = 0.0f;
+        work->flatten[1].z = -light_z;
+        work->flatten[1].w = 0.0f;
+        work->flatten[2].x = 0.0f;
+        work->flatten[2].y = 0.0f;
+        work->flatten[2].z = 1.0f;
+        work->flatten[2].w = 0.0f;
+        work->flatten[3].x = light_x;
+        work->flatten[3].y = 1.0f;
+        work->flatten[3].z = light_z;
+        work->flatten[3].w = 0.0f;
+    }
+    actor_kind = actor->kind;
+    for (entry = DropShadowDefineTable; entry->contacts; entry++) {
+        if ((entry->kind_mask & actor_kind) == entry->kind_value) {
+            contacts = entry->contacts;
+            while (contacts->matrix_index != 255) {
+                /* Keep the separately authored partial workspace interface. */
+                contacts = (DropShadowContactRecord *)(void *)DrawDropShadowSub(
+                    (ActShadowActor *)(void *)actor, (ActDropShadowWorkspace *)(void *)work,
+                    (u8 *)(void *)contacts);
+            }
+            break;
+        }
+    }
+    {
+        u64 shadow_register = (u64)sRender.shadow_state | 0x80000;
+        Tail_5.set_shadow_register.data.value = shadow_register;
+    }
+    nmlModelDirectSend(1, (u8 *)&Tail_5, 3);
+}
 
 
-INCLUDE_ASM("asm/main/nonmatchings/act_3", DrawDropCircle);
+static void DrawDropCircle(ActShadowActor *actor)
+{
+    ActDropShadowWorkspace *work = (ActDropShadowWorkspace *)0x70000000;
+    const float *center = work->temporary;
+    Vector4 *vertices = work->vertices;
+    float radius;
+    float corner;
+    int camera_index;
+    int visible;
+    u32 clip_mask;
+    int i;
+    DropShadowSourceVertex *projected;
+
+    {
+        u8 shadow_alpha = actor->shadow_alpha;
+        u64 alpha_descriptor = ((u64)shadow_alpha << 32) | 100;
+        Head_6_00478E30.set_shadow_alpha.data.value = alpha_descriptor;
+    }
+    {
+        int render_state_bits = (sRender.shadow_state << 5) | 0x24020000;
+        u64 render_state_value = ((u64)0xc800 << 19) | render_state_bits;
+        Head_6_00478E30.set_render_state.data.value = render_state_value;
+    }
+    nmlModelDirectSend(1, (u8 *)&Head_6_00478E30, 5);
+    for (camera_index = 0; camera_index < 8; camera_index++) {
+        if (xglStudioGetCamera2(camera_index)->active == 1) {
+            break;
+        }
+    }
+    work->camera_index = camera_index;
+    work->temporary[0] = actor->position[0];
+    work->temporary[2] = actor->position[2];
+    if (actor->height_override == -1000.0f) {
+        work->temporary[1] = actor->position[1] + 0.02f;
+    } else {
+        work->temporary[1] = actor->height_override + 0.02f;
+    }
+    radius = actor->shadow_radius;
+    corner = radius * D_004D8604;
+    vertices[4].x = vertices[5].x = center[0];
+    vertices[0].x = vertices[2].x = center[0] + corner;
+    vertices[1].x = vertices[3].x = center[0] - corner;
+    vertices[6].x = center[0] + radius;
+    vertices[7].x = center[0] - radius;
+    vertices[0].y = vertices[1].y = vertices[2].y =
+        vertices[3].y = vertices[4].y = vertices[5].y =
+        vertices[6].y = vertices[7].y = work->temporary[1] + D_004D8608;
+    vertices[6].z = vertices[7].z = center[2];
+    vertices[0].z = vertices[1].z = center[2] + corner;
+    vertices[2].z = vertices[3].z = center[2] - corner;
+    vertices[4].z = center[2] + radius;
+    vertices[5].z = center[2] - radius;
+    vertices[0].w = vertices[1].w = vertices[2].w =
+        vertices[3].w = vertices[4].w = vertices[5].w =
+        vertices[6].w = vertices[7].w = 1.0f;
+    vertices[8].x = vertices[0].x;
+    vertices[8].z = vertices[0].z;
+    vertices[9].x = vertices[1].x;
+    vertices[9].z = vertices[1].z;
+    vertices[10].x = vertices[2].x;
+    vertices[10].z = vertices[2].z;
+    vertices[11].x = vertices[3].x;
+    vertices[11].z = vertices[3].z;
+    vertices[12].x = vertices[4].x;
+    vertices[12].z = vertices[4].z;
+    vertices[13].x = vertices[5].x;
+    vertices[13].z = vertices[5].z;
+    vertices[14].x = vertices[6].x;
+    vertices[14].z = vertices[6].z;
+    vertices[15].x = vertices[7].x;
+    vertices[15].z = vertices[7].z;
+    vertices[8].y = vertices[9].y = vertices[10].y =
+        vertices[11].y = vertices[12].y = vertices[13].y =
+        vertices[14].y = vertices[15].y = center[1] - 0.5f;
+    vertices[8].w = vertices[9].w = vertices[10].w =
+        vertices[11].w = vertices[12].w = vertices[13].w =
+        vertices[14].w = vertices[15].w = 1.0f;
+    xglRotTransPersN(work->source_vertices, 0, vertices, 16, work->camera_index);
+    projected = work->source_vertices;
+    visible = 0;
+    clip_mask = 0xffff0000;
+    for (i = 15; i >= 0; i--, projected++) {
+        if ((projected->point.x & clip_mask) ||
+            (projected->point.y & clip_mask) || (int)projected->point.z < 0) {
+            projected->valid = 0;
+        } else {
+            visible = 1;
+        }
+    }
+    if (visible) {
+        DrawDropCircleIndexTable indices;
+        work->alpha = actor->shadow_alpha;
+        work->packet.test_environment_control = 0x8001;
+        work->packet.test_environment_register = 71;
+        work->packet.render_state_register = sRender.shadow_state | 0x80000;
+        work->packet.shadow_context_register = 76;
+        indices = D_004D1DD8;
+        work->packet.dma_tag.words.low = 0;
+        work->packet.dma_tag.words.high = 0;
+        work->packet.vif_nop = 0;
+        if (DrawDropShadowSubChk(work, &indices.quad_indices[0][0], 0, 14)) {
+            /* Retain the immutable helper interfaces pending header composition. */
+            DrawDropShadowSubBack((void *)work, 14, 0);
+            nmlModelDirectSend(2, TestEnv_7, 3);
+            DrawDropShadowSubFront((void *)work, 14);
+            DrawDropShadowSubBack((void *)work, 14, 128);
+            Tail_8.set_shadow_register.data.value = (u64)sRender.shadow_state | 0x80000;
+            nmlModelDirectSend(1, (u8 *)&Tail_8, 3);
+        }
+    }
+}
 
 void ACT_DrawShadowBegin(void)
 {

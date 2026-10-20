@@ -3,6 +3,7 @@
 
 #include "shared.h"
 
+#include "main/enemy_1.h"
 #include "main/xgl_2.h"
 #include "main/xgl_studio.h"
 

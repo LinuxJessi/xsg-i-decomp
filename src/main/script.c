@@ -1,4 +1,8 @@
 #include "common.h"
+#include "init_class_db.h"
+#include "string_utf_get_hash.h"
+#include "map_2.h"
+#include "unit.h"
 
 #include "shared.h"
 #include "main/jni.h"
@@ -22,6 +26,16 @@ extern void xglFontDebugPrintf(int x, int y, const char *format, ...);
 
 extern SceneString *loadConstString(const char *bytes, int length);
 
+extern void *PLAY_getCurrent(void);
+extern void PLAY_setupDefault(void *play);
+extern void TCAMERA_init(void);
+extern void *newObject(SceneClass *scene_class);
+extern SceneClass *loadClass(SceneString *name, int initialize);
+extern void STAGE_instance(SceneVm *vm, SceneObject stage_object);
+extern void SCENE_instance(SceneVm *vm, SceneObject scene_object);
+extern void SCENE_start(SceneVm *vm, SceneObject scene_object, int mode,
+                        const char *method_name);
+
 extern SceneMethod *findMethod(SceneClass *scene_class, SceneString *name,
                                void *signature_or_type);
 
@@ -36,9 +50,9 @@ extern void JNI_catchException(void);
 
 extern int getScriptFlag(SceneObject object);
 
-extern void XTK_setWindowOwner(int owner);
+void XTK_setWindowOwner(int owner);
 
-extern void talkCancel(ScriptObserverTask *task);
+void talkCancel(ScriptObserverTask *task);
 
 extern void actTalkAfter(SceneObject object);
 
@@ -95,9 +109,9 @@ SceneThread *stageVM;
 
 SceneThread *evtVM[2];
 
-extern void createTalkTask(void *actor, const char *method_name);
+void createTalkTask(void *actor, const char *method_name);
 
-extern void sceneObserver2(ScriptSceneTask *task);
+void sceneObserver2(ScriptSceneTask *task);
 
 extern const char sig0_0[];
 
@@ -123,12 +137,11 @@ const char D_004C1D60[] = "setDirection2";
 
 /* EUC-JP text below means "event in progress". */
 
-/* JP: イベント実行中
- * EN: Event running */
+/* Event running. */
 const char func_observer_debug_text[16] =
     "\xa5\xa4\xa5\xd9\xa5\xf3\xa5\xc8\xbc\xc2\xb9\xd4\xc3\xe6";
 
-extern void funcObserver(ScriptObserverTask *task);
+void funcObserver(ScriptObserverTask *task);
 
 int getEmptyVM(ScriptObserverTask *observer);
 
@@ -206,7 +219,7 @@ typedef struct ScriptDbEntry {
     void *class_image;   /* +0x0: class database image read from the script file */
     void *motion_data;   /* +0x4: extra-motion pack read next to the script file (.fpk) */
     void *pdb;            /* +0x8: event data used for resource lookup */
-    int active;          /* +0xC: nonzero when this script slot is bound (zero test only) */
+    const char *active;   /* +0xC: first class name returned by JNI_searchClasses */
     SceneThread *thread; /* +0x10: the script's VM thread; its own object is at +0x10 */
     int class_slot;      /* +0x14: class database slot the image is loaded into */
     int skip_count;      /* +0x18: class-name skip count JNI_searchClasses reported */
@@ -274,11 +287,11 @@ extern ScriptGameLoopState GameLoopState;
  * do/while (0) statement-macro idiom; its loop notes are part of the
  * original's code generation. */
 
-extern int loadScriptCD(ScriptDbEntry *entry, const char *path);
+int loadScriptCD(ScriptDbEntry *entry, const char *path);
 
-extern int loadScriptCD2(ScriptDbEntry *entry, const char *path);
+int loadScriptCD2(ScriptDbEntry *entry, const char *path);
 
-extern void SCRIPT_load_DBG(const char *path);
+void SCRIPT_load_DBG(const char *path);
 
 static int PauseSkipCheck(void);
 
@@ -335,19 +348,175 @@ extern char *MapGetName(int map_no);
 
 extern void LoadMap2(int map_no, int entrance);
 
-extern ScriptDbEntry *SCRIPT_exec(void);
+ScriptDbEntry *SCRIPT_exec(void);
 
 static char *getStrIndex(char *string, unsigned int length, int ch);
 
 extern void TWIN_dispose(TComponent *window);
 
-extern void attrObserver(ScriptObserverTask *task);
+void attrObserver(ScriptObserverTask *task);
 
 extern int sceOpen(const char *path, int flags, ...);
 
 extern int sceClose(int descriptor);
 
 extern char *strrchr(const char *string, int ch);
+
+extern char D_004C1D70[];
+
+extern char D_004C1D80[];
+
+typedef struct ScriptEventDebugState {
+    int mode;
+    unsigned int flags;
+    int selected;
+} ScriptEventDebugState;
+
+extern ScriptEventDebugState evtDebug;
+
+extern unsigned char xglFontLoad(int font_id, int flags);
+
+extern const char *debugBasePath;
+
+const char *loadScript(ScriptDbEntry *entry, const char *path_base, const char *path);
+
+extern void GamePauseDispEvent(void);
+
+extern void PartyTimePauseEnd(void);
+
+extern void PartyTimePauseStart(void);
+
+extern void xglRenderCopyDisp2Draw(void);
+
+extern void xglSoundStreamMute(void);
+
+extern void xglSoundStreamStop(int stream);
+
+extern void xglSoundEffectNormalDirect(int effect_id);
+
+extern u32 xheap_info(u8 *heap_info);
+
+extern u32 heapUsed;
+
+extern unsigned char heapInfo[];
+
+extern unsigned char D_004C1EA0[];
+
+extern void drawBox2(Matrix4 *matrix, int color);
+
+extern void drawRect2(Matrix4 *matrix, int color);
+
+extern ScriptActorRecord *ACT_create(int resource_id, int flags);
+
+extern int ACT_initMotion(void *actor);
+
+extern int ACT_loadMotion(ScriptActorRecord *actor, int resource_id, int flags);
+
+extern void ACT_loadResource(ScriptActorRecord *actor, int resource_id);
+
+extern void ACT_matrixInit(void);
+
+extern void InitCfSystem(void);
+
+extern void UnduInit(unsigned char *state);
+
+extern void ACT_init(void);
+
+extern void nmlModelInit(void);
+
+extern void GameResourceReset(int mode);
+
+void sceneObserver(XglTaskPrefix *task_prefix);
+
+extern unsigned char D_004DA490[];
+
+extern void GameMovieStop(void);
+
+extern void GameDefocusSet(int a, int b, int c);
+
+extern void MapChange2(int map_no);
+
+extern int lightSave;
+
+extern int lightActFlags[];
+
+extern void initLight2(void);
+
+extern void initLight3(void);
+
+extern int updateLight(int mode);
+
+extern int DebugMenuResourceSizeAdd;
+
+extern char *MAP_getPath(void);
+
+extern void ACT_initExMotion(int, int, void *);
+
+extern const char *JNI_searchClasses(void *, const char *, int, int *);
+
+extern char D_004C1F60[];
+
+extern char D_004DA4B0[];
+
+extern char D_004DA4B8[];
+
+typedef union ScriptPathPrefix {
+    char bytes[16];
+    unsigned long long words[2];
+} ScriptPathPrefix;
+
+typedef union ScriptPathBuffer {
+    char bytes[0x100];
+    unsigned long long words[0x100 / 8];
+} ScriptPathBuffer;
+
+extern ScriptPathPrefix D_004C1F78;
+
+extern void *RES_loadFile(int, int, const char *, int);
+
+extern int sceRead(int descriptor, void *buffer, unsigned int size);
+
+extern int sceLseek(int descriptor, int offset, int whence);
+
+extern void DB_cmode(int mode);
+
+extern void RES_GetMdlFileName(char *path, int resource_id);
+
+extern SceneThread *JTHREAD_get(SceneObject object);
+
+extern char D_004C1F88[];
+
+extern char D_004C1FA8[];
+
+extern char D_004C1FC0[];
+
+extern char D_004C1FD0[];
+
+extern char D_004C1FF0[];
+
+extern char D_004C2010[];
+
+extern char D_004DA4C8[];
+
+extern char D_004DA4D0[];
+
+extern char D_004DA4D8[];
+
+extern char D_004DA4E0[];
+
+enum ScriptDebugWord {
+    SCRIPT_DEBUG_MODE,
+    SCRIPT_DEBUG_FLAGS,
+    SCRIPT_DEBUG_SELECTION
+};
+
+
+
+extern void JNI_initSystem(void *heap_base, int heap_size);
+
+extern char D_004C1F98[];
+
+extern char D_004DA4C0[];
 
 static void initJS(int state)
 {
@@ -1091,7 +1260,56 @@ int DB_lightSave(ScriptFileSelect *state);
 
 void DB_evtMonitor(ScriptMenuTask *task);
 
-INCLUDE_ASM("asm/main/nonmatchings/script", DB_light);
+static void DB_light(ScriptMenuTask *task)
+{
+    ScriptPadButtons *pad = (ScriptPadButtons *)PadData;
+    unsigned int state_flags;
+
+    state_flags = task->state_flags;
+    if (!(state_flags & 1)) {
+        int i;
+
+        task->state_flags = state_flags | 1;
+        if (pad->held & 0x80)
+            initLight3();
+        else
+            initLight2();
+
+        for (i = 0; i < 64; i++) {
+            int word = i >> 5;
+            int shift = i & 31;
+            if (actor[i].flags & 0x8000)
+                lightActFlags[word] |= 1U << shift;
+            else
+                lightActFlags[word] &= ~(1U << shift);
+            actor[i].flags &= ~0x8000;
+        }
+    }
+
+    if (lightSave != 0) {
+        int result = DB_lightSave(fileSelect);
+
+        lightSave = result != 0 ? 0 : lightSave;
+        pad->pressed = 0;
+    } else {
+        if (pad->pressed & 0x10)
+            lightSave = 1;
+        updateLight(0);
+    }
+
+    if (pad->pressed & 0x40) {
+        int i;
+
+        for (i = 0; i < 64; i++) {
+            if ((lightActFlags[i >> 5] >> (i & 31)) & 1)
+                actor[i].flags |= 0x8000;
+        }
+        task->owner->flags &= ~1;
+        task->owner->kind = task->owner->saved_kind;
+        TWSYS_setGRPStatus(0, 0);
+        xglTaskRemove(&task->task);
+    }
+}
 
 static void DB_vmSwitch(ScriptMenuTask *task)
 {
@@ -1246,10 +1464,10 @@ int DB_lightSave(ScriptFileSelect *state)
     if (lightFileNum >= 100)
         lightFileNum = 0;
     DB_reset(32, 160);
-    /* JP: ●ボタン：ロード
+    /* Circle button: load.
      * EN: Filled circle button: Load */
     DB_println("\xa1\xfc\xa5\xdc\xa5\xbf\xa5\xf3\xa1\xa7\xa5\xed\xa1\xbc\xa5\xc9");
-    /* JP: ■ボタン：セーブ
+    /* Square button: save.
      * EN: Filled square button: Save */
     DB_println("\xa2\xa3\xa5\xdc\xa5\xbf\xa5\xf3\xa1\xa7\xa5\xbb\xa1\xbc\xa5\xd6");
     DB_println("lgt%02d.rc", lightFileNum);
@@ -1471,9 +1689,76 @@ void SCRIPT_debugMenu(ScriptMenuTask *task)
 
 
 
-INCLUDE_ASM("asm/main/nonmatchings/script", loadScriptCD);
+int loadScriptCD(ScriptDbEntry *entry, const char *path)
+{
+    char full_path[0x100];
+    int result;
+    int resource_read_size;
+    const char *active;
+    int skip_count;
 
-INCLUDE_ASM("asm/main/nonmatchings/script", loadScriptCD2);
+    DebugMenuResourceSizeAdd = 0;
+    strcpy(full_path, MAP_getPath());
+    strcat(full_path, path);
+    result = xglCdReadFile(full_path, entry->class_image, 0, 1);
+    if (result < 0) {
+        entry->skip_count = (skip_count = 0);
+        entry->active = 0;
+    } else {
+        active = JNI_searchClasses(entry->class_image, D_004C1F60,
+                                   2, &skip_count);
+        replacePathExt(full_path, D_004DA4B0);
+        resource_read_size = xglCdReadFile(full_path, entry->motion_data, 0, 1);
+        if (resource_read_size < 0) {
+            ACT_initExMotion(0, 1, 0);
+        } else {
+            DebugMenuResourceSizeAdd += resource_read_size;
+            ACT_initExMotion(0, 1, entry->motion_data);
+        }
+
+        replacePathExt(full_path, D_004DA4B8);
+        resource_read_size = xglCdReadFile(full_path, entry->pdb, 0, 1);
+        if (resource_read_size >= 0)
+            DebugMenuResourceSizeAdd += resource_read_size;
+        result = skip_count;
+        entry->active = active;
+        entry->skip_count = result;
+    }
+    return result;
+}
+
+int loadScriptCD2(ScriptDbEntry *entry, const char *path)
+{
+    ScriptPathBuffer resource_path;
+    const char *base_name;
+    int read_size;
+    int skip_count;
+    const char *active;
+
+    DebugMenuResourceSizeAdd = 0;
+    strcpy(resource_path.bytes, path);
+    if ((read_size = xglCdReadFile(resource_path.bytes, entry->class_image, 0, 1)) < 0) {
+        entry->skip_count = (skip_count = 0);
+        entry->active = 0;
+        return read_size;
+    }
+    active = JNI_searchClasses(entry->class_image, D_004C1F60, 2, &skip_count);
+    base_name = strrchr(path, '\\');
+    if (base_name == 0)
+        base_name = strrchr(path, '/');
+    resource_path.words[0] = D_004C1F78.words[0];
+    resource_path.bytes[8] = D_004C1F78.bytes[8];
+    if (base_name != 0)
+        strcat(resource_path.bytes, base_name + 1);
+    replacePathExt(resource_path.bytes, D_004DA4B0);
+    entry->motion_data = RES_loadFile(-1, 5, resource_path.bytes, 0);
+    ACT_initExMotion(0, 1, entry->motion_data);
+    replacePathExt(resource_path.bytes, D_004DA4B8);
+    entry->pdb = RES_loadFile(-1, 5, resource_path.bytes, 0);
+    entry->active = active;
+    entry->skip_count = skip_count;
+    return (int)entry->pdb;
+}
 
 extern int sceOpen(const char *path, int flags, ...);
 
@@ -1481,9 +1766,276 @@ extern int sceOpen(const char *path, int flags, ...);
 extern int sceClose(int descriptor);
 
 
-INCLUDE_ASM("asm/main/nonmatchings/script", loadScript);
+const char *loadScript(ScriptDbEntry *entry, const char *path_base, const char *path)
+{
+    struct ScriptImageHeaderBytes {
+        unsigned char bytes[12];
+    };
+    union ScriptClassImageHeader {
+        struct {
+            unsigned int unmodeled_00[2];
+            unsigned int image_size;
+        } fields;
+        struct ScriptImageHeaderBytes raw;
+    };
+    char full_path[0x100];
+    union ScriptClassImageHeader header_storage;
+    int fd;
+    int resource_fd;
+    const char *result = 0;
+    int class_size;
+    int skip_count;
 
-INCLUDE_ASM("asm/main/nonmatchings/script", DB_evtMonitor);
+    DebugMenuResourceSizeAdd = 0;
+    if (path_base != 0) {
+        strcpy(full_path, path_base);
+        strcat(full_path, path);
+        fd = sceOpen(full_path, 1);
+        if (fd < 0)
+            return 0;
+        {
+            union ScriptClassImageHeader *header = &header_storage;
+
+            sceRead(fd, header, sizeof(*header));
+            {
+                union ScriptClassImageHeader *image_header = entry->class_image;
+                image_header->raw = header->raw;
+            }
+            class_size = (int)header->fields.image_size - sizeof(*header);
+            if (class_size != sceRead(fd, (unsigned char *)entry->class_image + sizeof(*header),
+                                     (unsigned int)class_size))
+                return 0;
+        }
+        sceClose(fd);
+        replacePathExt(full_path, D_004DA4B0);
+        resource_fd = sceOpen(full_path, 1);
+        if (resource_fd >= 0) {
+            int file_size = sceLseek(resource_fd, 0, 2);
+
+            sceLseek(resource_fd, 0, 0);
+            sceRead(resource_fd, entry->motion_data, (unsigned int)file_size);
+            sceClose(resource_fd);
+            ACT_initExMotion(0, 1, entry->motion_data);
+            DebugMenuResourceSizeAdd += file_size;
+        } else {
+            ACT_initExMotion(0, 1, 0);
+        }
+        replacePathExt(full_path, D_004DA4B8);
+        resource_fd = sceOpen(full_path, 1);
+        if (resource_fd >= 0) {
+            int file_size = sceLseek(resource_fd, 0, 2);
+
+            sceLseek(resource_fd, 0, 0);
+            sceRead(resource_fd, entry->pdb, (unsigned int)file_size);
+            sceClose(resource_fd);
+            DebugMenuResourceSizeAdd += file_size;
+        }
+    }
+
+    result = JNI_searchClasses(entry->class_image,
+                               D_004C1F60,
+                               2, &skip_count);
+    entry->active = result;
+    entry->skip_count = skip_count;
+    return result;
+}
+
+void DB_evtMonitor(ScriptMenuTask *task)
+{
+    char model_path[256];
+    ScriptEventDebugState *debug = &evtDebug;
+    ScriptPadButtons *pad;
+    SceneThread *thread;
+    int mode;
+    int selected;
+
+    DB_cmode(1);
+    if (!(vmDebugMask & 0x10)) {
+        debug->flags &= ~1;
+        xglTaskRemove(&task->task);
+        return;
+    }
+    if (!(task->state_flags & 1)) {
+        if (debug->flags & 1) {
+            xglTaskRemove(&task->task);
+            return;
+        }
+        task->state_flags |= 1;
+        debug->flags |= 1;
+    }
+    DB_reset(0, 0);
+    DB_println(D_004C1F88);
+    thread = scriptDB[currentScriptDB].thread;
+    {
+    SceneThread *debug_thread = ((thread));
+    if (debug_thread != 0 && debug_thread->object != 0) {
+        {
+        SceneClass *debug_class =
+            ((SceneObjectHeader *)((debug_thread->object)))->class_ref->scene_class;
+        SceneMethod *debug_method = ((debug_thread))->method;
+        if ((((debug_thread))->flags & 0x10) && debug_method != 0) {
+            DB_println(D_004DA4C0, debug_class->name->binary_name,
+                       ((ConstString *)debug_method->name)->bytes);
+            if (((debug_thread))->frame_depth > 0) {
+                int frame_index;
+                for (frame_index = (((0)));
+                     frame_index < ((debug_thread))->frame_depth;
+                     ++frame_index) {
+                    ScriptCallFrame *frame =
+                        &((debug_thread))->frames[frame_index];
+                    DB_println(D_004C1F98, frame->program_counter,
+                               ((ConstString *)frame->method->name)->bytes);
+                }
+            } else {
+                DB_println(D_004DA4C0, debug_class->name->binary_name,
+                           ((ConstString *)debug_method->name)->bytes);
+            }
+        }
+};
+    }
+};
+
+    mode = debug->mode;
+    switch (mode) {
+    case 0: {
+        ScriptActorRecord *actor_record;
+        const char *base_name;
+        float half_turn;
+        SceneObject object;
+
+        pad = (ScriptPadButtons *)PadData;
+        if (pad->pressed & 2)
+            debug->mode = 1;
+        if (pad->repeat & 0x8000)
+            --debug->selected;
+        if (pad->repeat & 0x2000)
+            ++debug->selected;
+        if (debug->selected < 0)
+            debug->selected = 63;
+        if (debug->selected >= 64)
+            debug->selected = 0;
+        selected = debug->selected;
+        actor_record = &actor[selected];
+        RES_GetMdlFileName(model_path, actor_record->in_use_id);
+        base_name = strrchr(model_path, '\\');
+        if (base_name == 0)
+            base_name = D_004DA4C8;
+        ++base_name;
+        DB_reset(0, 10);
+        DB_println(D_004C1FA8, debug->selected, actor_record->in_use_id,
+                   base_name);
+        half_turn = 3.1415927f;
+        DB_println(D_004C1FC0, actor_record->flags);
+        DB_println(D_004C1FD0, actor_record->position[0],
+                   actor_record->position[1], actor_record->position[2]);
+        DB_println(D_004C1FF0,
+                   actor_record->rotation[0] / half_turn * 180.0f,
+                   actor_record->rotation[1] / half_turn * 180.0f,
+                   actor_record->rotation[2] / half_turn * 180.0f);
+        object = actor_record->script_object;
+        if (object != 0) {
+            thread = JTHREAD_get(object);
+            if (thread != 0) {
+                object = thread->object;
+                if (object != 0) {
+                    {
+        SceneClass *debug_class =
+            ((SceneObjectHeader *)((object)))->class_ref->scene_class;
+        SceneMethod *debug_method = ((thread))->method;
+        if ((((thread))->flags & 0x10) && debug_method != 0) {
+            DB_println(D_004DA4C0, debug_class->name->binary_name,
+                       ((ConstString *)debug_method->name)->bytes);
+            if (((thread))->frame_depth > 0) {
+                int frame_index;
+                for (frame_index = ((mode));
+                     frame_index < ((thread))->frame_depth;
+                     ++frame_index) {
+                    ScriptCallFrame *frame =
+                        &((thread))->frames[frame_index];
+                    DB_println(D_004C1F98, frame->program_counter,
+                               ((ConstString *)frame->method->name)->bytes);
+                }
+            } else {
+                DB_println(D_004DA4C0, debug_class->name->binary_name,
+                           ((ConstString *)debug_method->name)->bytes);
+            }
+        }
+};
+                }
+            }
+        }
+        break;
+    }
+    default: {
+        MapUnitSlot *unit;
+        UnitSequenceEntry *sequence;
+        SceneObject object;
+        float half_turn;
+
+        pad = (ScriptPadButtons *)PadData;
+        if (pad->pressed & 2)
+            debug->mode = (mode + 1) & 1;
+        if (pad->repeat & 0x8000)
+            --debug->selected;
+        if (pad->repeat & 0x2000)
+            ++debug->selected;
+        if (debug->selected < 0)
+            debug->selected = 63;
+        if (debug->selected >= 64)
+            debug->selected = 0;
+        selected = debug->selected;
+        unit = &MapUnit[selected];
+        DB_reset(0, 10);
+        sequence = &unitSequence[unit->slot];
+        DB_println(D_004C2010, debug->selected, unit->serial);
+        DB_println(D_004C1FC0, unit->flags);
+        DB_println(D_004DA4D0);
+        if (sequence->state & 1)
+            DB_println(D_004DA4D8);
+        else
+            DB_println(D_004DA4E0);
+        half_turn = 3.1415927f;
+        DB_println(D_004C1FD0, unit->position[0], unit->position[1], unit->position[2]);
+        DB_println(D_004C1FF0, unit->rotation[0] / half_turn * 180.0f,
+                   unit->rotation[1] / half_turn * 180.0f,
+                   unit->rotation[2] / half_turn * 180.0f);
+        object = unit->sequence;
+        if (object != 0) {
+            thread = JTHREAD_get(object);
+            if (thread != 0) {
+                object = thread->object;
+                if (object != 0) {
+                    {
+        SceneClass *debug_class =
+            ((SceneObjectHeader *)((object)))->class_ref->scene_class;
+        SceneMethod *debug_method = ((thread))->method;
+        if ((((thread))->flags & 0x10) && debug_method != 0) {
+            DB_println(D_004DA4C0, debug_class->name->binary_name,
+                       ((ConstString *)debug_method->name)->bytes);
+            if (((thread))->frame_depth > 0) {
+                int frame_index;
+                for (frame_index = ((0));
+                     frame_index < ((thread))->frame_depth;
+                     ++frame_index) {
+                    ScriptCallFrame *frame =
+                        &((thread))->frames[frame_index];
+                    DB_println(D_004C1F98, frame->program_counter,
+                               ((ConstString *)frame->method->name)->bytes);
+                }
+            } else {
+                DB_println(D_004DA4C0, debug_class->name->binary_name,
+                           ((ConstString *)debug_method->name)->bytes);
+            }
+        }
+};
+                }
+            }
+        }
+        break;
+    }
+    }
+    DB_cmode(0);
+}
 
 
 
@@ -1498,23 +2050,6 @@ INCLUDE_ASM("asm/main/nonmatchings/script", DB_evtMonitor);
 
 INCLUDE_ASM("asm/main/nonmatchings/script", SCRIPT_exec);
 
-
-extern void *PLAY_getCurrent(void);
-
-extern void PLAY_setupDefault(void *play);
-
-extern void TCAMERA_init(void);
-
-extern void *newObject(SceneClass *scene_class);
-
-extern SceneClass *loadClass(SceneString *name, int initialize);
-
-extern void STAGE_instance(SceneVm *vm, SceneObject stage_object);
-
-extern void SCENE_instance(SceneVm *vm, SceneObject scene_object);
-
-extern void SCENE_start(SceneVm *vm, SceneObject scene_object, int mode,
-                        const char *method_name);
 
 ScriptDbEntry *SCRIPT_exec2(void)
 {
@@ -1630,7 +2165,7 @@ ScriptDbEntry *SCRIPT_exec2(void)
         task->thread = 0;
     }
     vm = defaultVM;
-    task->thread = (SceneObject)thread;
+    task->thread = thread;
     SCENE_instance(vm, object);
     SCENE_start(defaultVM, object, 8, "play");
     return entry;

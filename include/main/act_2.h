@@ -7,8 +7,6 @@ int ACT_jointGetAccessories(Actor *actor, unsigned int accessoryId);
 
 Actor *ACT_setArms(Actor *actor, Actor *parent, unsigned int accessoryId, int flags);
 
-void ACT_setModelWrapper(Actor *actor);
-
 void *ACT_animGetData(Actor *actor, unsigned int dataId);
 
 #endif /* INCLUDE_MAIN_ACT_2_H */

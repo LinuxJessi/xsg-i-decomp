@@ -30,7 +30,7 @@ typedef struct EnemySplineState {
 extern EnemySplineState enepc[];
 
 typedef struct Vector3 { float x, y, z; } Vector3;
-typedef struct Point4 { float x, y, z, w; } Point4;
+typedef Vector4 Point4;
 typedef struct ParabolaVec { float x, y, z, w; } ParabolaVec;
 typedef struct LayoutHeader LayoutHeader;
 typedef unsigned int GameLoopStateWords[];
@@ -60,7 +60,7 @@ extern const float D_004D81F0;
 extern unsigned short *DataSpline;
 extern float cosf(float angle);
 extern float atan2f(float y, float x);
-extern float Get_Distance(const Point4 *first, const Point4 *second);
+float Get_Distance(const Point4 *first, const Point4 *second);
 float Get_Decimal_Surplus_for_Radius(float angle);
 
 
@@ -73,7 +73,7 @@ extern int CheckPointLine(const Vector4 *first, const Vector4 *second,
 
 /* Check_Angle: defined below in this file, still assembler. */
 
-extern int Check_Angle(float angle, float rangeStart, float rangeEnd);
+int Check_Angle(float angle, float rangeStart, float rangeEnd);
 
 extern const float D_004D81B8;
 
@@ -83,12 +83,9 @@ extern const float D_004D81C0;
 
 extern const float D_004D81C4;
 
-extern int Check_Undu(const Point4 *start, const Point4 *end, int map_index,
-                      Point4 *destination, int query_mode,
-                      int excluded_units, int flags);
-
-extern int CrossPointUwamono(const Point4 *start, const Point4 *end,
-                             Point4 *intersection, float radius);
+int Check_Undu(const Point4 *start, const Point4 *end, int map_index,
+                Point4 *destination, int query_mode, int excluded_units,
+                int flags);
 
 /* MARK: provisional extern block. All eight words are _gp-relative .sdata
    witnesses at 0x004d81cc..0x004d81e8. They are not proven original
@@ -98,6 +95,25 @@ extern int CrossPointUwamono(const Point4 *start, const Point4 *end,
    subtracted to wrap the cursor down at/above the high clamp. */
 
 #include "get.h"
+
+extern const char D_004DB9A8[], D_004DB9B0[];
+
+extern void xglFontDebugPrintf(int x, int y, const char *format, ...);
+
+extern long EneTerritoryID[20];
+
+extern int HitCheckMapUnitPosSize(const Vector4 *position, float radius);
+
+int Check_Straight(const Point4 *start, const Point4 *end, short steps,
+                   unsigned long *destination, float radius, int map_index,
+                   int excluded_actors, int territory);
+
+extern int Check_Actor(const Vector4 *position, short number);
+
+int Check_CrossingOver(const Vector4 *first_start, const Vector4 *first_end,
+                       const Vector4 *second_start, const Vector4 *second_end);
+
+int Get_Attr(const Point4 *position, int mapIndex, int attrMask);
 
 float Get_Decimal_Surplus_for_Radius(float angle)
 {
@@ -116,7 +132,101 @@ float Get_Decimal_Surplus_for_Radius(float angle)
     return angle;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/get", Check_MoveSquare);
+int Check_MoveSquare(const Point4 *first, const Point4 *second,
+                     Point4 *destination, int map_index, float radius)
+{
+    Point4 first_intersection;
+    Point4 first_crossing;
+    Point4 second_intersection;
+    Point4 second_crossing;
+    Point4 third_intersection;
+    Point4 third_crossing;
+    Point4 fourth_intersection;
+    Point4 fourth_crossing;
+    Point4 first_corner;
+    Point4 second_corner;
+    int debug_color[4];
+    float first_x = first->x;
+    float second_x = second->x;
+    float second_y = second->y;
+    float second_z = second->z;
+    float first_z = first->z;
+    int crossed = 0;
+
+    debug_color[0] = 0;
+    debug_color[1] = 0;
+    debug_color[2] = 255;
+    debug_color[3] = 128;
+    first_corner.x = first_x;
+    first_corner.y = second_y;
+    first_corner.z = second_z;
+    second_corner.x = second_x;
+    second_corner.y = second_y;
+    second_corner.z = first_z;
+    {
+        float adjusted_x = (first_x - second_x) < 0.0f
+            ? first_x + -0.1f : first_x + 0.1f;
+        float z_delta = first_z - second_z;
+        first_corner.x = adjusted_x;
+        {
+            float corner_z = second_corner.z;
+            float adjusted_z = corner_z + (z_delta < 0.0f ? -0.1f : 0.1f);
+            second_corner.z = adjusted_z;
+        }
+    }
+    Check_Undu(second, &first_corner, map_index,
+               &first_intersection, 1, 0, 0);
+    Check_Undu(second, &second_corner, map_index,
+               &second_intersection, 1, 0, 0);
+    CrossPointUwamono(second, &first_intersection, radius, &first_crossing);
+    CrossPointUwamono(second, &second_intersection, radius, &second_crossing);
+    first_crossing.w = 0.1f;
+    second_crossing.w = 0.1f;
+    first_intersection = first_crossing;
+    second_intersection = second_crossing;
+
+    first_corner.x = second->x;
+    first_corner.y = first->y;
+    first_corner.z = first->z;
+    second_corner.x = first->x;
+    second_corner.y = first->y;
+    second_corner.z = second->z;
+    first_corner.x += (second->x - first->x) < 0.0f
+                                      ? -0.1f : 0.1f;
+    second_corner.z += (second->z - first->z) < 0.0f
+                                      ? -0.1f : 0.1f;
+    Check_Undu(first, &first_corner, map_index,
+               &third_intersection, 1, 0, 0);
+    Check_Undu(first, &second_corner, map_index,
+               &fourth_intersection, 1, 0, 0);
+    CrossPointUwamono(first, &third_intersection, radius, &third_crossing);
+    CrossPointUwamono(first, &fourth_intersection, radius, &fourth_crossing);
+    third_crossing.w = 0.1f;
+    fourth_crossing.w = 0.1f;
+    third_intersection = third_crossing;
+    fourth_intersection = fourth_crossing;
+
+    xglFontDebugPrintf(8, 0x64, D_004DB9A8);
+    if (Check_CrossingOver((const Vector4 *)second,
+                           (const Vector4 *)&first_intersection,
+                           (const Vector4 *)first,
+                           (const Vector4 *)&fourth_intersection) == 1) {
+        *destination = first_intersection;
+        destination->z = second->z;
+        crossed = 1;
+        xglFontDebugPrintf(8, 0x64, D_004DB9B0);
+    }
+    if (Check_CrossingOver((const Vector4 *)second,
+                           (const Vector4 *)&second_intersection,
+                           (const Vector4 *)first,
+                           (const Vector4 *)&third_intersection) == 1) {
+        *destination = second_intersection;
+        destination->x = second->x;
+        crossed = 1;
+        xglFontDebugPrintf(8, 0x64, D_004DB9B0);
+    }
+    return crossed;
+}
 
 void Get_Point_By_AngleLength(const Vector4 *source, Vector4 *destination,
                               float angle, float length)
@@ -176,9 +286,105 @@ void Get_MiddlePoint_Parabora(const ParabolaVec *first, const ParabolaVec *secon
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/get", Check_Wall);
+void Check_Wall(float distance_scale, float wall_parameter,
+                const float *position, signed char *blocked, int count_argument,
+                int map_index, u8 actor_number, int territory)
+{
+    short count = (short)count_argument;
+    short first = 0;
+    short end = count;
+    short index;
+    Point4 sample;
+    const float full_turn = 6.2831855f;
+    float angle;
 
-INCLUDE_ASM("asm/main/nonmatchings/get", Check_Octpus);
+    if (count <= 0) {
+        first = (int)xglSRand() % (count < 0 ? -(int)count : (int)count);
+        end = (short)(first + 1);
+        for (index = 0; index < (count < 0 ? -(int)count : (int)count); index++)
+            blocked[index] = 0;
+    }
+
+    sample.w = 0.0f;
+    index = first;
+    if (index < end) {
+        float direction_count = (float)count;
+        do {
+        float direction_index = (float)index;
+        angle = direction_index * full_turn;
+        angle /= direction_count;
+        sample.x = position[0] + sinf(angle) * distance_scale;
+        sample.y = position[1];
+        sample.z = position[2] + cosf(angle) * distance_scale;
+        blocked[index] = 0;
+        if (!Get_HeightAttr(&sample, map_index, 0, &UnduTest)) {
+            blocked[index] = 1;
+        } else if (HitCheckMapUnitPosSize((const Vector4 *)&sample,
+                                          wall_parameter) != -1) {
+            blocked[index] = 1;
+        } else if (territory != 0 &&
+                   UnduTest.attribute != EneTerritoryID[territory]) {
+            blocked[index] = 1;
+        }
+        index++;
+        } while (index < end);
+    }
+}
+
+void Check_Octpus(float length, float radius, const Point4 *origin,
+                  Point4 *destination, int count_argument, int map_index,
+                  int excluded_actors, int territory)
+{
+    short count = (short)count_argument;
+    Point4 sample;
+    Point4 checked[16];
+    float distance[16];
+    signed char used[16];
+    short ranked[16];
+    short iteration;
+
+    iteration = 0;
+    if (count > 0) {
+        float full_turn = 6.2831855f;
+        float direction_count = count;
+        do {
+        float angle = (float)iteration;
+        angle *= full_turn;
+        angle /= direction_count;
+        sample.x = origin->x + sinf(angle) * length;
+        sample.y = origin->y;
+        sample.z = origin->z + cosf(angle) * length;
+        sample.w = 0.0f;
+        Check_Straight(origin, &sample, 16,
+                       (unsigned long *)&checked[iteration], radius,
+                       map_index, excluded_actors, (short)territory);
+        distance[iteration] = Get_Distance(origin, &checked[iteration]);
+        used[iteration] = 0;
+        iteration++;
+        } while (iteration < count);
+    }
+    for (iteration = 0; iteration < count; iteration++) {
+        short direction;
+        short best = -1;
+        float farthest = -1.0f;
+        for (direction = 0; direction < count; direction++) {
+            if (farthest < distance[direction] && used[direction] == 0) {
+                farthest = distance[direction];
+                best = direction;
+            }
+        }
+        ranked[iteration] = best;
+        used[best] = 1;
+    }
+    for (iteration = 0; iteration < 4; iteration++) {
+        short first = xglSRand() % count;
+        short second = xglSRand() % count;
+        short temporary = ranked[first];
+        ranked[first] = ranked[second];
+        ranked[second] = temporary;
+    }
+    *destination = checked[ranked[0]];
+}
 
 INCLUDE_ASM("asm/main/nonmatchings/get", Get_WallSpace);
 
@@ -195,7 +401,43 @@ void Get_One_Step(float length, const Point4 *source,
     output->w = 1.0f;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/get", Check_Straight);
+int Check_Straight(const Point4 *start, const Point4 *end, short steps,
+                   unsigned long *destination, float radius, int map_index,
+                   int excluded_actors, int territory)
+{
+    Point4 current;
+    Point4 previous;
+    Point4 intersection;
+    short territory_index = (short)territory;
+    short step;
+    __builtin_memcpy(&previous, start, sizeof(previous));
+
+    if (Check_Undu(start, end, map_index, &intersection, 1, 0, 0x10) == 0) {
+        __builtin_memcpy(destination, &intersection, sizeof(intersection));
+        return 0;
+    }
+    step = 0;
+    if (steps >= 0) {
+        float step_count = (float)steps;
+        do {
+            current.x = start->x + (end->x - start->x) * (float)step / step_count;
+            current.y = start->y + (end->y - start->y) * (float)step / step_count;
+            current.z = start->z + (end->z - start->z) * (float)step / step_count;
+            if ((territory_index != 0 &&
+                 Get_Attr(&current, map_index, 0x10) !=
+                    EneTerritoryID[territory_index]) ||
+                HitCheckMapUnitPosSize((const Vector4 *)&current, radius) != -1 ||
+                Check_Actor((const Vector4 *)&current, (short)excluded_actors) == 1) {
+                __builtin_memcpy(destination, &previous, sizeof(previous));
+                return (short)(step - 1);
+            }
+            __builtin_memcpy(&previous, &current, sizeof(current));
+            step++;
+        } while (step <= steps);
+    }
+    __builtin_memcpy(destination, end, sizeof(*end));
+    return steps;
+}
 
 int Check_Straight_ID(const Point4 *start, const Point4 *end,
                       short count, Point4 *destination, int map_index)
@@ -337,7 +579,7 @@ int Check_InsideFan(float facing, float radius, float fan_width_degrees,
     if (D_004D81C4 < __builtin_fabsf(origin->y - target->y)) {
         return 0;
     }
-    return CrossPointUwamono(origin, target, &intersection, crossing_radius) != 1;
+    return CrossPointUwamono(origin, target, crossing_radius, &intersection) != 1;
 }
 
 int Check_InsideFan_Wooo(const Point4 *origin, const Point4 *target,
@@ -410,7 +652,7 @@ void Get_EnemyIDPos(const Point4 *origin, Point4 *destination)
             sample.z = origin->z + 2.0f * cosf(angle);
             sample.w = 1.0f;
             Check_Undu(&sample, origin, 772, &checked, 1, 0, 0);
-            CrossPointUwamono(&sample, origin, &intersection, 1.0f);
+            CrossPointUwamono(&sample, origin, 1.0f, &intersection);
             distance = Get_Distance(origin, &checked);
             if (distance != 0.0f && distance < nearest) {
                 nearest = distance;
@@ -437,7 +679,7 @@ float Get_Multi_Max_Under(float value, float step, float maximum)
     return value;
 }
 
-void Get_HeightAttr(const Point4 *position, int mapIndex, int attrMask,
+float Get_HeightAttr(const Point4 *position, int mapIndex, int attrMask,
                     UnduParam *param)
 {
     UnduParamInit(param);
@@ -448,7 +690,7 @@ void Get_HeightAttr(const Point4 *position, int mapIndex, int attrMask,
     } else {
         param->header = UnduDataGetHeader(mapIndex, 0x8000);
     }
-    UnduCheck(position, 0, param);
+    return UnduCheck(position, 0, param);
 }
 
 void Get_Height(const Point4 *position, int mapIndex, int attrMask)

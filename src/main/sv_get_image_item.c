@@ -1,4 +1,5 @@
 #include "common.h"
+#include "main/xgl_studio.h"
 
 #include "shared.h"
 
@@ -6,9 +7,13 @@
 
 #include "main/srs.h"
 
+void SGsInitEnv(void);
+
 typedef unsigned int Quadword __attribute__((mode(TI)));
 
+
 typedef struct Matrix { float elements[16]; } Matrix;
+
 
 typedef union SGsGifRecord {
     Quadword quad;
@@ -18,12 +23,14 @@ typedef union SGsGifRecord {
     float floatValue[4];
 } SGsGifRecord;
 
+
 typedef struct SGsPacket {
     int count;              /* 0x0 */
     int tagIndex;           /* 0x4 */
     int loopCount;          /* 0x8 */
-    SGsGifRecord *base;     /* 0xC, starts at the scratchpad (0x70000000) */
+    union SGsGifRecord *base;     /* 0xC, starts at the scratchpad (0x70000000) */
 } SGsPacket;
+
 
 extern SGsPacket _packet;
 
@@ -33,6 +40,7 @@ typedef struct SvModelPosition {
     int z;
     int alpha;
 } SvModelPosition;
+
 
 typedef struct SvModelDrawItem {
     Matrix4 orientation;
@@ -57,6 +65,7 @@ typedef struct SvModelDrawItem {
     unsigned char unmodeled_190[0x280 - 0x190];
 } SvModelDrawItem;
 
+
 extern Matrix _defMatLc;
 
 typedef struct SvParticleEffect {
@@ -74,6 +83,7 @@ typedef struct SvParticleEffect {
     unsigned short flags;
 } SvParticleEffect;
 
+
 typedef struct SvParticleDrawContext {
     Matrix4 *place;
     Vector4 *scale;
@@ -82,6 +92,7 @@ typedef struct SvParticleDrawContext {
     float scaleMultiplier;
     int drawVariant;
 } SvParticleDrawContext;
+
 
 extern Matrix4 _invView;
 
@@ -115,6 +126,7 @@ typedef struct SvImageItem {
     unsigned char unmodeled_00[0x24];
 } SvImageItem;
 
+
 /*
  * The single working image list: a 0x1C-byte header (untouched by this
  * allocation) followed by 0x100 SvImageItem entries (0x1C + 0x100*0x24 =
@@ -125,6 +137,7 @@ typedef struct SvImageList {
     unsigned char unmodeled_header[0x1C];
     SvImageItem items[0x100];
 } SvImageList;
+
 
 SvImageList _imageList = {0};
 
@@ -138,6 +151,7 @@ typedef struct SvImageMapperItem {
     unsigned char unmodeled_04[0x24 - 4];
 } SvImageMapperItem;
 
+
 /*
  * The image-mapper table has a 0x1C-byte header followed by 0x100 entries
  * of 0x24 bytes. These entry fields are evidenced by the lookup routines:
@@ -150,8 +164,11 @@ typedef struct SvTypeListEntry {
     unsigned char unmodeled_04[4];
     int used;
     short resourceKind;
-    unsigned char type;
-    unsigned char unmodeled_0F[3];
+    union {
+        unsigned short typeFlags; /* +0x0e */
+        struct { unsigned char type; unsigned char unmodeled_0f; };
+    };
+    unsigned char unmodeled_10[2];
     unsigned short basePointer;
     unsigned short bitsPerPixel;
     unsigned short bufferWidthPixels;
@@ -162,10 +179,11 @@ typedef struct SvTypeListEntry {
     const char *name;
 } SvTypeListEntry;
 
+
 typedef struct SvTypeList {
     int total;
     int size;
-    unsigned char unmodeled_08[4];
+    int capacity;
     int savedSize;
     short width;
     short height;
@@ -174,9 +192,11 @@ typedef struct SvTypeList {
     SvTypeListEntry entries[0x100];
 } SvTypeList;
 
+
 typedef struct SvReferenceImageSlot {
     unsigned int words[2];
 } SvReferenceImageSlot;
+
 
 /* _imageMapper's symbol-table size is 40 mapper records followed by these
  * forty two-word reference-image slots. */
@@ -185,6 +205,7 @@ typedef struct SvImageMapperStorage {
     SvTypeList typeLists[40];
     SvReferenceImageSlot referenceImages[40];
 } SvImageMapperStorage;
+
 
 /* Forty 0x241C-byte mapper records followed by forty reference-image slots. */
 
@@ -208,6 +229,7 @@ typedef struct ClutUploadRequest {
     unsigned short destAddress;     /* 0x12, GS local CLUT destination */
     unsigned short format;          /* 0x14, 8 => 256-entry CLUT, else 16-entry */
 } ClutUploadRequest;
+
 
 /*
  * Parameter roles as the SDK body (main 0x0020b208) packs them: GS
@@ -254,7 +276,8 @@ typedef struct SvScriptSlot {
     void *dataPtr;                        /* 0x20 */
 } SvScriptSlot;
 
-static void svAnalyzeChunk(SvTypeList *typeList, void *chunk);
+
+static void svAnalyzeChunk(SvTypeList *typeList, void *chunkFile);
 
 static SvTypeList *svGetTypeList(int type);
 
@@ -273,6 +296,7 @@ typedef struct SGsPacketReset {
     int loopCount;             /* 0x8 */
     void *base;               /* 0xC, starts at the scratchpad (0x70000000) */
 } SGsPacketReset;
+
 
 extern void sceVif1PkCnt(XglPacket *packet, int count);
 
@@ -302,7 +326,7 @@ static void sefInitClipViewVolume(void *view);
 
 static void sefDrawSchedulerEffect(int schedulerIndex);
 
-extern void SGsSetZTestEnv(int enable);
+void SGsSetZTestEnv(int enable);
 
 extern char *srsAnalyzeEftNo(int effectId, int *charId,
                             int *effectCategory);
@@ -318,13 +342,21 @@ extern char *srsAnalyzeEftNo(int effectId, int *charId,
 
 typedef struct SchedulerRecord {
     unsigned char unmodeled_000[0x6b0];
-    int inUse;                            /* +0x6b0 */
-    unsigned char unmodeled_6b4[0xa78 - 0x6b4];
-    short effectId;                       /* +0xa78 */
-    unsigned char unmodeled_a7a[0xa8c - 0xa7a];
-    int flags;                            /* +0xa8c */
-    unsigned char unmodeled_a90[0xab0 - 0xa90];
+    int inUse;
+    unsigned char unmodeled_6b4[8];
+    int transformFlagA;
+    unsigned char unmodeled_6c0[4];
+    int transformFlagB;
+    unsigned char unmodeled_6c8[0xa78 - 0x6c8];
+    short effectId;
+    unsigned char unmodeled_a7a[0xa88 - 0xa7a];
+    float scaleMultiplier;
+    int flags;
+    unsigned char unmodeled_a90[0xa9a - 0xa90];
+    signed char active;
+    unsigned char unmodeled_a9b[0x15];
 } SchedulerRecord;
+
 
 /* sef.c (main/tu211) returns unsigned char *; this prototype
  * preserves that return type across the call. */
@@ -369,6 +401,7 @@ typedef struct SvImageParameter {
     float height;
 } SvImageParameter;
 
+
 extern const char D_004DBA50[];
 
 extern const char D_004DBA58[];
@@ -379,6 +412,18 @@ extern const char D_004DBA58[];
  */
 
 #include "sv_get_image_item.h"
+
+extern int siz_0[40];
+
+extern int top_1[40];
+
+extern char *srsGetEsdData(int effectId);
+
+extern int sefSearchMapperIndex(int effectId);
+
+unsigned int strlen(const char *string);
+
+int strncmp(const char *left, const char *right, unsigned int length);
 
 void *svGetImageItem(int index) {
     return &_imageList.items[index];
@@ -639,9 +684,56 @@ INCLUDE_ASM("asm/main/nonmatchings/sv_get_image_item", svAddImage);
 
 INCLUDE_ASM("asm/main/nonmatchings/sv_get_image_item", svAddClut);
 
-INCLUDE_ASM("asm/main/nonmatchings/sv_get_image_item", svAddModel);
+typedef struct SvResourceChunk {
+    unsigned int byteSize;
+    unsigned char unmodeled_04[4];
+    short kind;
+    unsigned short typeFlags;
+    char payload[0x34];
+} SvResourceChunk;
+static int svAddModel(SvTypeList *typeList, SvResourceChunk *chunk)
+{
+    SvTypeListEntry *entry;
+    unsigned short typeFlags;
+    int index;
 
-INCLUDE_ASM("asm/main/nonmatchings/sv_get_image_item", svAddScript);
+    index = svImageListAlloc((int)typeList);
+    if (index < 0) {
+        return -1;
+    }
+    entry = &typeList->entries[index];
+    entry->resourceKind = 6;
+    entry->name = &chunk->payload[8];
+    typeFlags = chunk->typeFlags | 0x2000;
+    entry->data = &chunk->payload[sizeof(chunk->payload)];
+    entry->typeFlags = typeFlags;
+    entry->used = 1;
+    entry->height = 0;
+    entry->width = 0;
+    return index;
+}
+
+static int svAddScript(SvTypeList *typeList, SvResourceChunk *chunk)
+{
+    SvTypeListEntry *entry;
+    unsigned short typeFlags;
+    int index;
+
+    index = svImageListAlloc((int)typeList);
+    if (index < 0) {
+        return -1;
+    }
+    entry = &typeList->entries[index];
+    entry->resourceKind = 5;
+    entry->name = &chunk->payload[8];
+    typeFlags = chunk->typeFlags;
+    entry->data = &chunk->payload[sizeof(chunk->payload)];
+    entry->typeFlags = typeFlags;
+    entry->used = 1;
+    entry->height = 0;
+    entry->width = 0;
+    return index;
+}
 
 static int svAddScript2(int typeListAddr, void *script)
 {
@@ -670,21 +762,17 @@ static int svAddScript2(int typeListAddr, void *script)
   return index;
 }
 
-typedef struct SvResourceChunk {
-    unsigned int byteSize;
-    unsigned char unmodeled_04[4];
-    short kind;
-    unsigned char unmodeled_0A[54];
-} SvResourceChunk;
+
 
 typedef struct SvResourceChunkFile {
-    SvResourceChunk *firstChunk;
+    struct SvResourceChunk *firstChunk;
 } SvResourceChunkFile;
+
 
 static int svAddImage(SvTypeList *typeList, void *chunk);
 static int svAddClut(SvTypeList *typeList, void *chunk);
-static int svAddModel(SvTypeList *typeList, void *chunk);
-static int svAddScript(SvTypeList *typeList, void *chunk);
+static int svAddModel(SvTypeList *typeList, SvResourceChunk *chunk);
+static int svAddScript(SvTypeList *typeList, SvResourceChunk *chunk);
 
 static void svAnalyzeChunk(SvTypeList *typeList, void *chunkFile)
 {
@@ -728,7 +816,24 @@ static void svAnalyzeChunk(SvTypeList *typeList, void *chunkFile)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/sv_get_image_item", svInitImageMapper);
+void svInitImageMapper(void)
+{
+    int index;
+
+    memset(&_imageMapper, 0, sizeof(_imageMapper));
+    for (index = 0; index < 40; index++) {
+        int initialTop = top_1[index];
+        int initialCapacity;
+
+        initialCapacity = siz_0[index];
+        _imageMapper.typeLists[index].size = initialTop;
+        _imageMapper.typeLists[index].capacity = initialCapacity;
+        _imageMapper.typeLists[index].savedSize = initialTop;
+        _imageMapper.typeLists[index].entryCount = 0;
+        _imageMapper.typeLists[index].width = 0;
+        _imageMapper.typeLists[index].height = 0;
+    }
+}
 
 static void svInitRefImage(void)
 {
@@ -838,7 +943,35 @@ int svFileLoadScript(int cfId, int effectNo)
 }
 
 
-INCLUDE_ASM("asm/main/nonmatchings/sv_get_image_item", svGetScript);
+SvTypeListEntry *svGetScript(int effectId)
+{
+    const char *resourceName = srsGetEsdData(effectId);
+    int mapperIndex;
+    SvTypeList *typeList;
+    int index;
+
+    if (resourceName == 0) {
+        return 0;
+    }
+    mapperIndex = sefSearchMapperIndex(effectId);
+    typeList = &_imageMapper.typeLists[mapperIndex];
+    if (mapperIndex == 14) {
+        if (typeList->entries[0].used != 0 &&
+            typeList->entries[0].resourceKind != 0) {
+            return typeList->entries;
+        }
+    }
+    for (index = 0; index < 256; index++) {
+        if (typeList->entries[index].used != 0 &&
+            typeList->entries[index].resourceKind == 5 &&
+            typeList->entries[index].name != (const char *)-1) {
+            if (strncmp(resourceName, typeList->entries[index].name, strlen(resourceName)) == 0) {
+                return &typeList->entries[index];
+            }
+        }
+    }
+    return 0;
+}
 
 void SGsSendPacket(SGsPacketReset *packet)
 {
@@ -997,7 +1130,70 @@ static void sefInitClipViewVolume(void *view) {
     __asm__ __volatile__("lqc2 vf12, 0(%0)\n\tlqc2 vf13, 16(%0)\n\tlqc2 vf14, 32(%0)\n\tlqc2 vf15, 48(%0)\n\tlqc2 vf16, 64(%0)\n\tlqc2 vf17, 80(%0)\n\tlqc2 vf18, 96(%0)\n\tlqc2 vf19, 112(%0)\n\tnop" :  : "r"(view) : "memory");
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/sv_get_image_item", sefClipViewVolumeA);
+int sefClipViewVolumeA(void *scheduler)
+{
+    int outside;
+
+    __asm__ __volatile__(
+        "lqc2 vf20, 0(%1)\n\t"
+        "vaddw.x vf2, vf0, vf20w\n\t"
+        "qmfc2 $4, vf2\n\t"
+        "mtc1 $4, $f1\n\t"
+        "vmulax.xyzw ACC, vf16, vf20x\n\t"
+        "vmadday.xyzw ACC, vf17, vf20y\n\t"
+        "vmaddaz.xyzw ACC, vf18, vf20z\n\t"
+        "vmaddw.xyzw vf9, vf19, vf0w\n\t"
+        "qmfc2 $4, vf9\n\t"
+        "mtc1 $4, $f0\n\t"
+        "c.lt.s $f0, $f1\n\t"
+        "bc1f 1f\n\t"
+        "nop\n\t"
+        "vmr32.xyzw vf9, vf9\n\t"
+        "qmfc2 $4, vf9\n\t"
+        "mtc1 $4, $f0\n\t"
+        "c.lt.s $f0, $f1\n\t"
+        "bc1f 1f\n\t"
+        "nop\n\t"
+        "vmr32.xyzw vf9, vf9\n\t"
+        "qmfc2 $4, vf9\n\t"
+        "mtc1 $4, $f0\n\t"
+        "c.lt.s $f0, $f1\n\t"
+        "bc1f 1f\n\t"
+        "nop\n\t"
+        "vmulax.xyzw ACC, vf12, vf20x\n\t"
+        "vmadday.xyzw ACC, vf13, vf20y\n\t"
+        "vmaddaz.xyzw ACC, vf14, vf20z\n\t"
+        "vmaddw.xyzw vf9, vf15, vf0w\n\t"
+        "qmfc2 $4, vf9\n\t"
+        "mtc1 $4, $f0\n\t"
+        "c.lt.s $f0, $f1\n\t"
+        "bc1f 1f\n\t"
+        "nop\n\t"
+        "vmr32.xyzw vf9, vf9\n\t"
+        "qmfc2 $4, vf9\n\t"
+        "mtc1 $4, $f0\n\t"
+        "c.lt.s $f0, $f1\n\t"
+        "bc1f 1f\n\t"
+        "nop\n\t"
+        "vmr32.xyzw vf9, vf9\n\t"
+        "qmfc2 $4, vf9\n\t"
+        "mtc1 $4, $f0\n\t"
+        "c.lt.s $f0, $f1\n\t"
+        "bc1f 1f\n\t"
+        "nop\n\t"
+        "sub $4, $4, $4\n\t"
+        "j 2f\n\t"
+        "nop\n\t"
+        "1:\n\t"
+        "sub $4, $4, $4\n\t"
+        "addi $4, $4, 1\n\t"
+        "2:\n\t"
+        "move %0, $4"
+        : "=r"(outside)
+        : "r"(scheduler)
+        : "$4", "$f0", "$f1", "memory");
+    return outside;
+}
 
 int sefClipViewVolume(void *scheduler, void *effect)
 {
@@ -1268,7 +1464,99 @@ static void svDrawMissile(int category)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/sv_get_image_item", svDrawSchedulerParticle);
+static void svDrawSchedulerParticle(void)
+{
+    int drawMode = _draw3D;
+    int resourceType;
+    int loadedTextureCount;
+    int effectCount;
+
+    SGsInitEnv();
+    if (_imageMapper.typeLists[SRS_RES_IMAGE].entryCount > 0) {
+        if (svLoadImageList(&_imageMapper.typeLists[SRS_RES_IMAGE]) > 0) {
+            SGsTexFlush();
+        }
+        svDrawSchedulerBlk(SRS_RES_IMAGE, 0);
+    }
+    svDrawMissile(SRS_RES_IMAGE);
+
+    if (drawMode != 1 ||
+        (int)_imageMapper.referenceImages[SRS_RES_BATTLE_IMAGE].words[1] > 0 ||
+        (int)_imageMapper.referenceImages[SRS_RES_WEAPON].words[1] > 0) {
+        loadedTextureCount = 0;
+        for (resourceType = SRS_RES_WEAPON;
+             resourceType <= SRS_RES_WEAPON + 8;
+             resourceType++) {
+            if (_imageMapper.typeLists[resourceType].entryCount > 0) {
+                loadedTextureCount +=
+                    svLoadImageList(&_imageMapper.typeLists[resourceType]);
+            }
+        }
+        if (loadedTextureCount > 0) {
+            SGsTexFlush();
+        }
+        svDrawSchedulerBlk(SRS_RES_WEAPON, 0);
+        svDrawAlters(SRS_RES_WEAPON);
+    }
+    svDrawMissile(SRS_RES_WEAPON);
+
+    if (drawMode != 1 ||
+        (int)_imageMapper.referenceImages[SRS_RES_BATTLE_IMAGE].words[1] > 0 ||
+        (int)_imageMapper.referenceImages[SRS_RES_COMBO].words[1] > 0) {
+        loadedTextureCount = 0;
+        for (resourceType = SRS_RES_COMBO;
+             resourceType <= SRS_RES_COMBO + 2;
+             resourceType++) {
+            if (_imageMapper.typeLists[resourceType].entryCount > 0) {
+                loadedTextureCount +=
+                    svLoadImageList(&_imageMapper.typeLists[resourceType]);
+            }
+        }
+        if (loadedTextureCount > 0) {
+            SGsTexFlush();
+        }
+        svDrawSchedulerBlk(SRS_RES_COMBO, 0);
+        svDrawAlters(SRS_RES_COMBO);
+    }
+    svDrawMissile(SRS_RES_COMBO);
+
+    if ((drawMode != 1 ||
+         (int)_imageMapper.referenceImages[SRS_RES_BATTLE_IMAGE].words[1] > 0) &&
+        _imageMapper.typeLists[SRS_RES_BATTLE_IMAGE].entryCount > 0) {
+        if (svLoadImageList(
+                &_imageMapper.typeLists[SRS_RES_BATTLE_IMAGE]) > 0) {
+            SGsTexFlush();
+        }
+        svDrawSchedulerBlk(SRS_RES_BATTLE_IMAGE, 0);
+    }
+    svDrawAlters(SRS_RES_BATTLE_IMAGE);
+    svDrawMissile(SRS_RES_BATTLE_IMAGE);
+
+    if (_imageMapper.typeLists[SRS_RES_CF_IMAGE].entryCount > 0) {
+        if (svLoadImageList(&_imageMapper.typeLists[SRS_RES_CF_IMAGE]) > 0) {
+            SGsTexFlush();
+        }
+        svDrawSchedulerBlk(SRS_RES_CF_IMAGE, 0);
+    }
+
+    for (resourceType = SRS_RES_EFFECT;
+         resourceType < SRS_RES_COUNT;
+         resourceType++) {
+        if (_imageMapper.typeLists[resourceType].entryCount > 0 &&
+            (drawMode != 1 ||
+             (int)_imageMapper.referenceImages[resourceType].words[1] > 0)) {
+            if (svLoadImageList(
+                    &_imageMapper.typeLists[resourceType]) > 0) {
+                SGsTexFlush();
+            }
+            effectCount = _srsMemRes.no[resourceType];
+            if (effectCount > 0) {
+                svDrawSchedulerBlk(SRS_RES_EFFECT, effectCount);
+            }
+        }
+    }
+    SGsRestoreEnv();
+}
 
 void svDrawScheduler2D(void)
 {
@@ -1287,7 +1575,6 @@ void svDrawScheduler(void)
     svDrawSchedulerParticle();
 }
 
-void SGsInitEnv(void);
 void SGsRestoreEnv(void);
 extern void MEfObjExec1st(void);
 

@@ -1,4 +1,6 @@
 #include "common.h"
+#include "shared.h"
+#include "sdv.h"
 
 extern void RES_GetMdlFileName(char *destination, int modelId);
 
@@ -196,7 +198,8 @@ typedef struct PartEquipData PartEquipData;
  */
 
 struct PartEquipData {
-    unsigned char unmodeled_00[6];
+    unsigned char price[4];
+    unsigned char unmodeled_04[2];
     unsigned short equipMask; /* +0x6 */
     unsigned char unmodeled_08[2];
     unsigned short category; /* +0xa */
@@ -241,7 +244,9 @@ extern UnitOrgWeapons *func_A191C0(int chrNo);
  */
 
 typedef struct {
-    unsigned char unmodeled_000[0x8 - 0x0];
+    unsigned char unmodeled_000[2];
+    unsigned char price[4];
+    unsigned char unmodeled_006[2];
     unsigned short characterEquipMask; /* +0x8 */
     unsigned char unmodeled_00a[0xc - 0xa];
     unsigned short categoryMask; /* +0xc */
@@ -300,7 +305,7 @@ extern MenuTextEntry *func_A2C968(unsigned int itemId);
 
 extern char *dataEvtItmNameGet(unsigned int itemId);
 
-extern char *MenuCharNameGet(unsigned int charId);
+char *MenuCharNameGet(unsigned int charId);
 
 int dataItmBoxChk(int id);
 
@@ -356,6 +361,31 @@ static MenuTextEntry dumm_9 = {
 static MenuTextEntry dumm2_10 = {0, 0, 0};
 
 extern const int D_004C5418[8];
+
+struct MenuPriceRecord {
+    unsigned char price[4];
+};
+
+struct MenuBulletPriceRecord {
+    unsigned char unmodeled_00[6];
+    unsigned char price[4]; /* +0x6 */
+    unsigned char unmodeled_0a[2];
+    short weaponId;
+};
+
+extern struct MenuPriceRecord *func_A1A4E8(int itemId);
+
+extern struct MenuBulletPriceRecord *func_A1A428(int bulletId);
+
+extern struct MenuPriceRecord *func_A1A598(int frameId);
+
+extern struct MenuPriceRecord *func_A1A5E8(int engineId);
+
+extern const int D_004C5388[3];
+
+extern void *memset(void *destination, int value, unsigned int bytes);
+
+extern int PartyAllPartyGet(int *party, int selection);
 
 unsigned char *MenuSaveDataGet(void)
 {
@@ -871,7 +901,94 @@ int MenuBoxDec(unsigned int index)
     return result;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_1", MenuBoxMoneyGet);
+int MenuBoxMoneyGet(int index, int priceMode)
+{
+    float rate[5];
+    int priceValues[3];
+    int agwsPrices[12];
+    int itemId = index & 0xffff;
+    int price = 0;
+    int category = (unsigned int)index >> 16;
+    int rateIndex;
+    short weaponId;
+
+    if (itemId == 0) {
+        return 0;
+    }
+    if (priceMode == 0) {
+        const unsigned char *discountLevel = &SaveData[0x102dc];
+        for (rateIndex = 0; rateIndex < 5; rateIndex++) {
+            rate[rateIndex] = 1.0f - discountLevel[rateIndex] * 0.1f;
+            if (rate[rateIndex] < 0.5f) {
+                rate[rateIndex] = 0.5f;
+            }
+        }
+    } else {
+        for (rateIndex = 4; rateIndex >= 0; rateIndex--) {
+            rate[rateIndex] = 1.0f;
+        }
+    }
+    if ((unsigned int)(category - 1) < 12U) {
+    switch (category) {
+    case 1:
+        {
+            int rawPrice = ((BattleItemPriceRecord *)func_A1A4E8(itemId))->price.value;
+            price = (int)(rawPrice * rate[0]);
+        }
+        break;
+    case 2:
+        if ((unsigned int)(itemId - 53) < 3U) {
+            __builtin_memcpy(priceValues, D_004C5388, sizeof(priceValues));
+            price = priceValues[itemId - 53];
+        }
+        break;
+    case 3:
+        price = ((BattleWeaponPriceRecord *)func_A1A3D8(itemId))->price.value;
+        if (func_A1A3D8(itemId)->categoryMask & 0x4000) {
+            price = (int)(price * rate[4]);
+        } else {
+            price = (int)(price * rate[2]);
+        }
+        break;
+    case 4:
+        price = ((BattleBulletPriceRecord *)func_A1A428(itemId))->price.value;
+        weaponId = func_A1A428(itemId)->weaponId;
+        if (weaponId != 0) {
+            if (func_A1A3D8(weaponId)->categoryMask & 0x4000) {
+                price = (int)(price * rate[4]);
+            } else {
+                price = (int)(price * rate[2]);
+            }
+        }
+        break;
+    case 5:
+        price = ((BattleAccessoryPriceRecord *)func_A1A548(itemId))->price.value;
+        if (itemId < 129) {
+            price = (int)(price * rate[4]);
+        } else {
+            price = (int)(price * rate[3]);
+        }
+        break;
+    case 11:
+        price = ((BattleFramePriceRecord *)func_A1A598(itemId))->price.value;
+        break;
+    case 12:
+        price = ((BattleEnginePriceRecord *)func_A1A5E8(itemId))->price.value;
+        break;
+    case 7:
+        memset(agwsPrices, 0, sizeof(agwsPrices));
+        agwsPrices[5] = 50000;
+        agwsPrices[9] = 80000;
+        agwsPrices[10] = 300000;
+        price = (int)(agwsPrices[itemId - 17] * rate[1]);
+        break;
+    }
+    }
+    if (priceMode == 1) {
+        price = (int)(price * 0.5f);
+    }
+    return price;
+}
 
 int MenuSkillEquipCheck(short charId, short skillId)
 {

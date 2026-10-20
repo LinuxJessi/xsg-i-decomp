@@ -1,3 +1,4 @@
+#include "main/e_battle_win_open.h"
 #ifndef MENU_AGWS_PARA_SET_H
 #define MENU_AGWS_PARA_SET_H
 
@@ -23,7 +24,7 @@ typedef struct AgwsInfoWindow {
     unsigned char state;
     unsigned char unmodeled_11[3];
     void (*callback)(void *window, void *contents);
-    AgwsInfoContents *callbackArg;
+    struct AgwsInfoContents *callbackArg;
     unsigned char unmodeled_1c[0x194 - 0x1C];
 } AgwsInfoWindow;
 
@@ -64,11 +65,19 @@ typedef struct AgwsMenuWork {
     signed char weaponChange;
     unsigned char unmodeled_23[0x26 - 0x23];
     short weaponId;
-    unsigned char unmodeled_28[0x2E - 0x28];
-    unsigned char weaponHandKind;
-    unsigned char unmodeled_2f[0x30 - 0x2F];
+    unsigned short ammoId; /* +0x28 */
+    unsigned short accessoryId; /* +0x2a */
+    short pilotId; /* +0x2c */
+    short weaponHandKind; /* +0x2e */
     unsigned char flags;
-    unsigned char unmodeled_31[0x51 - 0x31];
+    unsigned char unmodeled_31[3];
+    unsigned char commandState;
+    unsigned char unmodeled_35[0x40 - 0x35];
+    unsigned char transitionTicks;
+    signed char selectedAgws;
+    signed char menuSelection;
+    unsigned char unmodeled_43[0x50 - 0x43];
+    signed char listKind;
     signed char reserveCursor;
     signed char listSelect;
     unsigned char unmodeled_53[0x54 - 0x53];
@@ -81,12 +90,17 @@ typedef struct AgwsMenuWork {
     signed char nameRow;
     unsigned char unmodeled_5b[0x64 - 0x5B];
     short chrNo;
-    unsigned char unmodeled_66[0x80 - 0x66];
+    short agwsCount;
+    unsigned char unmodeled_68[0x70 - 0x68];
+    unsigned char pendingState;
+    unsigned char unmodeled_71[0x80 - 0x71];
 } AgwsMenuWork;
 
 typedef struct WeaponWaglData {
     unsigned char unmodeled_00[0x12];
     short wagl;
+    unsigned char unmodeled_14[0x1A - 0x14];
+    short defaultAmmoId; /* +0x1a */
 } WeaponWaglData;
 
 typedef struct AgwsUnitOrg {
@@ -158,7 +172,7 @@ typedef struct AgwsListSPWindow {
     unsigned char columns;
     unsigned char rows;
     unsigned char unmodeled_16[0x1C - 0x16];
-    AgwsListRow *items;
+    struct AgwsListRow *items;
 } AgwsListSPWindow;
 
 typedef struct AgwsListTag {
@@ -263,9 +277,9 @@ typedef struct AgwsModelUnit {
     unsigned char active;
     unsigned char unmodeled_12[1];
     unsigned char state;
-    AgwsModelOrg *org;
+    struct AgwsModelOrg *org;
     unsigned char unmodeled_18[0x20 - 0x18];
-    AgwsModelActor *actor;
+    struct AgwsModelActor *actor;
 } AgwsModelUnit;
 
 typedef union AgwsModelPositions {
@@ -405,16 +419,16 @@ void MenuSortSet(int listIndex, int type, int order);
 int MenuBulletCheck(int weaponId, int ammoId);
 int MenuAccessoryEquipCheck(int chrNo, int accessoryId, int slot);
 int MenuWeaponEquipPosCheck(int chrNo, int weaponId, int position, int hand);
-void WindowSPItemChange(AgwsListSPWindow *window);
-void WindowSPSetSelect(AgwsListSPWindow *window, unsigned char *savedSelection);
+
+
 void xglCameraInit(StudioCamera *camera);
 void MoveSlide(short *current, short *target, float rate);
 void eSpriteSet(void *sprite, short spriteId);
 void eSpriteMain(void *sprite);
-void WindowDXSet(void *window);
-void WindowDXMain(void *window);
+
+
 int MenuSortGet(int listIndex, int index);
-int MenuFaceEpidGet(short sortEntry, int kind);
+
 void eNumberSet(void *number, int mode);
 void eNumberMain(void *number);
 void eTagFontSet(void *tag, const char *text);
@@ -445,8 +459,8 @@ typedef union AgwsSelectCallbackStorage {
 } AgwsSelectCallbackStorage;
 
 typedef union AgwsSelectContextStorage {
-    AgwsSelectContents *contents;
-    unsigned char bytes[sizeof(AgwsSelectContents *)];
+    struct AgwsSelectContents *contents;
+    unsigned char bytes[sizeof(struct AgwsSelectContents *)];
 } AgwsSelectContextStorage;
 
 typedef struct AgwsSelectWindow {

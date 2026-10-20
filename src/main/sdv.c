@@ -69,7 +69,7 @@ long long moneyBox = 0;
 
 unsigned char orgData[33][0x180] = {{0}};
 
-unsigned char batDatBuf[0x10000] = {0};
+BattleDataStorage batDatBuf = {0};
 
 unsigned char thinkBuf[0x4000] = {0};
 
@@ -1077,7 +1077,133 @@ void sdvDrawSpecial(SdvSpecial *special)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/sdv", sdvScheduleAlter);
+void sdvScheduleAlter(SdvSequence *sequence, SdvAlterRequest *request)
+{
+    struct SdvAlterImagePair {
+        short primary_index;
+        short secondary_index;
+    };
+    struct SdvAlterEvent {
+        unsigned short unmodeled_00;
+        short life;
+        unsigned short mode;
+        unsigned short blend;
+        short rgba[4];
+        short selector[2];
+        short max_samples;
+        unsigned short shrink;
+        unsigned short image_frames;
+        short length;
+        struct SdvAlterImagePair images[2];
+    };
+    struct SdvAlterImageItem {
+        unsigned int texture_word;
+        unsigned char unmodeled_04[14];
+        unsigned short buffer_pointer;
+        unsigned short format;
+        unsigned short buffer_width;
+        unsigned char unmodeled_18[4];
+        unsigned short width_log2;
+        unsigned short height_log2;
+    };
+    extern int sefSearchMapperIndex(int effect_no);
+    extern void *svGetImageListItem(int mapper_index, unsigned int image_index);
+    struct SdvAlterEvent *event;
+    short *image_index;
+    struct SdvAlterImageItem *primary;
+    struct SdvAlterImageItem *secondary;
+    SdvAlterParameters parameters;
+    unsigned char character_id;
+    int event_index;
+    int category;
+    int mapper_index;
+    int psm_default;
+    int psm_indexed;
+    int psm;
+    unsigned long long image_base_bits;
+    unsigned long long image_alpha_bits;
+    unsigned long long descriptor_format;
+    unsigned long long descriptor_image;
+    unsigned long long descriptor_dimensions;
+    unsigned long long descriptor_base;
+    int remaining_pairs;
+    short primary_index;
+    short secondary_index;
+
+    if (sequence == 0)
+        return;
+    if (sequence->event_address == 0)
+        return;
+
+    event_index = sdvExecSeqTbl(sequence);
+    if ((unsigned int)event_index >= 0x400)
+        return;
+
+    event = (struct SdvAlterEvent *)(sequence->event_address
+        + event_index * sequence->stride * 2);
+    memset(&parameters, 0, sizeof(parameters));
+    parameters.request = *request;
+    parameters.life = event->life;
+    parameters.selector[0] = event->selector[0];
+    parameters.selector[1] = event->selector[1];
+    parameters.max_samples = event->max_samples < 0x81
+        ? event->max_samples : 0x80;
+    parameters.shrink = event->shrink;
+    parameters.mode = event->mode;
+    parameters.blend = event->blend;
+    parameters.rgba.word[0] = event->rgba[0];
+    parameters.rgba.word[1] = event->rgba[1];
+    parameters.rgba.word[2] = event->rgba[2];
+    parameters.rgba.word[3] = event->rgba[3];
+    parameters.image_frames = event->image_frames;
+    parameters.length = (float)event->length;
+    parameters.category = 0xE;
+
+    srsAnalyzeEftNo(request->effect_no, &character_id, &category);
+    if (category == 0)
+        category = 0xE;
+
+    psm_default = 20;
+    psm_indexed = 19;
+    image_base_bits = (unsigned long long)0x8000 << 46;
+    image_alpha_bits = (unsigned long long)0x8000 << 19;
+    mapper_index = sefSearchMapperIndex(request->effect_no);
+    image_index = &event->images[0].secondary_index;
+    for (remaining_pairs = 1; remaining_pairs >= 0; remaining_pairs--) {
+        primary_index = image_index[-1];
+        secondary_index = image_index[0];
+        if (primary_index >= 0 && secondary_index >= 0) {
+            primary = svGetImageListItem(mapper_index,
+                primary_index);
+            secondary = svGetImageListItem(mapper_index,
+                secondary_index);
+            if (primary != 0 && secondary != 0) {
+                unsigned short image_category;
+
+                psm = primary->format == 8 ? psm_indexed : psm_default;
+                descriptor_dimensions =
+                    ((unsigned long long)primary->width_log2 << 26)
+                    | image_alpha_bits;
+                descriptor_format = ((unsigned long long)psm << 20)
+                    | ((unsigned long long)(primary->buffer_width >> 6) << 14);
+                descriptor_base = (unsigned long long)primary->buffer_pointer
+                    | image_base_bits;
+                descriptor_image = ((unsigned long long)primary->height_log2 << 30)
+                    | ((unsigned long long)secondary->buffer_pointer << 37);
+                image_category = category;
+                descriptor_format |= descriptor_image;
+                descriptor_base |= descriptor_dimensions;
+                parameters.tex0[parameters.image_count] =
+                    descriptor_base | descriptor_format;
+                parameters.image_count++;
+                parameters.category = image_category;
+            }
+        }
+        image_index += 2;
+    }
+
+    sdvCreateAlter(&parameters);
+}
 
 
 void sdvInitAlter(SdvAlter *alter)

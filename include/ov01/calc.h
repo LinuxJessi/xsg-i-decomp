@@ -8,7 +8,7 @@ enum CalcTechniqueCount { CALC_NORMAL_TECHNIQUE_COUNT = 6 };
 typedef struct CalcUnitParam CalcUnitParam;
 
 struct CalcUnitParam {
-    unsigned char unmodeled_00[0x02];
+    short maxHp;                /* +0x00: calcIdol2Chk's threshold base */
     short maxEp;                /* +0x02: calcEp's clamp ceiling */
     unsigned char unmodeled_04[0x0C - 0x04];
     unsigned char hitStat;      /* +0x0C: calcHitParaGet's own signed view */
@@ -25,7 +25,9 @@ struct CalcUnitParam {
     */
     short coliMove;             /* +0x10: term used when this unit moves */
     short coliTarget;           /* +0x12: term used when it is approached */
-    unsigned char unmodeled_14[0x1C - 0x14];
+    unsigned char unmodeled_14[0x16 - 0x14];
+    signed char counterRate;    /* +0x16: calcCounter's base counter chance */
+    unsigned char unmodeled_17[0x1C - 0x17];
     u16 flags;               /* +0x1C */
     unsigned char unmodeled_1e[0x24 - 0x1E];
     u16 statProtect[1];      /* +0x24: calcStatProtectGet/Set's group word */
@@ -34,11 +36,16 @@ struct CalcUnitParam {
     u16 currentEp;           /* +0x36: calcPara2OrgSub's copy source */
     short charaId;           /* +0x38 */
     signed char dblActKind;     /* +0x3A: calcDblActChk */
-    unsigned char unmodeled_3b[0x3E - 0x3B];
+    signed char bcLimit;        /* +0x3B: calcBc's own clamp ceiling */
+    signed char bcValue;        /* +0x3C: calcBc's own running counter */
+    unsigned char unmodeled_3d[0x3E - 0x3D];
     short turnBias;             /* +0x3E: calcWct/calcTurnEnd */
     short waitCount;            /* +0x40: calcTurnEnd/calcWctDec */
     short waitCountBase;        /* +0x42: calcTurnEnd */
-    unsigned char unmodeled_44[0x50 - 0x44];
+    short posId;                /* +0x44: calcLineChk/calcMoveChk/calcA2Chk's
+                                 * `lh $x,0x44($2)`, fed to dataPosLineGet
+                                 * (src/ov01/data_unit_org_get.c). */
+    unsigned char unmodeled_46[0x50 - 0x46];
     CalcUnitParam *linkedUnit;   /* +0x50: menuStatChrIdGet reads its charaId */
     unsigned char unmodeled_54[0x5E - 0x54];
     short weaponId[3];       /* +0x5E: per-slot weapon ids */
@@ -46,9 +53,20 @@ struct CalcUnitParam {
     unsigned char unmodeled_6a[0x70 - 0x6A];
     short wpnSlotValue[3];   /* +0x70: calcDblActChk, per weapon slot */
     short normalTechniqueId[CALC_NORMAL_TECHNIQUE_COUNT]; /* +0x76 */
-    unsigned char unmodeled_82[0xAC - 0x82];
+    short slotTechniqueId[2];   /* +0x82: calcSlotAChk's own pair, right
+                                 * after normalTechniqueId. */
+    unsigned char unmodeled_86[0xA6 - 0x86];
+    short skillId[3];            /* +0xA6: calcSkillEquChk's `lh $3,0x6($2)`,
+                                  * mirroring CalcCharParaData's skillId at
+                                  * the same offset. */
     u16 statActiveMask[8];   /* +0xAC: calcStatTurn's per-category bit set */
-    unsigned char unmodeled_bc[0xCC - 0xBC];
+    /*
+     * +0xBC: calcStatReset (this TU, 0x00a17918) clears this per-category
+     * word (AND ~mask) instead of statActiveMask when its fourth argument
+     * is nonzero; every known caller passes 0 there, so only the clear
+     * itself is evidenced.
+     */
+    u16 statAltMask[8];      /* +0xBC */
     unsigned char statTurnCount[8][16]; /* +0xCC: calcStatTurn's countdown grid */
     u16 etherDisableFlags;   /* +0x14C: calcEtherDisableGet/Set's bit set */
     unsigned char unmodeled_14e[0x15C - 0x14E];

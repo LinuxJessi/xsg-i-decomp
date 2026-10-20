@@ -15,10 +15,11 @@ typedef struct McRequestState {
     } status;
 } McRequestState;
 
-/* Fields beyond this partial view remain in the complete retail workspace. */
-typedef union McRequestStorage {
+/* State and its 0x60-byte full-path buffer share the original workspace. */
+typedef struct McRequestStorage {
     McRequestState state;
-    unsigned char bytes[0x20];
+    unsigned char unmodeled_08[0x20 - 0x08];
+    unsigned char fullPath[0x60];
 } McRequestStorage;
 static McRequestStorage mw;
 
@@ -26,7 +27,6 @@ static unsigned char queue_top;
 static unsigned char queue_end;
 
 static unsigned char D_0093E120[17 * 2];
-extern unsigned char D_0093E0C0[];
 extern unsigned char base_0_00491770[];
 extern unsigned char n_1[];
 extern unsigned char n_2[];
@@ -43,7 +43,109 @@ int sceMcGetInfo(int port, int slot, int *type, int *free, int *format);
 
 /* The caller's request parameters: file slot, name, data and size. */
 
-INCLUDE_ASM("asm/main/nonmatchings/xgl_mc", xglMcRequest);
+typedef union McRequestPath {
+    int empty;
+    unsigned char bytes[108];
+} McRequestPath;
+
+typedef struct McRequestArguments {
+    int slot;
+    const unsigned char *path;
+    void *buffer;
+    int size;
+} McRequestArguments;
+
+typedef struct McRequestEntry {
+    short card;
+    short operation;
+    int *result;
+    int slot;
+    int buffer;
+    int size;
+    McRequestPath path;
+} McRequestEntry;
+
+extern McRequestEntry queue[8];
+
+int sceMcGetDir(int port, int slot, unsigned char *entries, int mode,
+                int max_entries, int reserved);
+
+int sceMcMkdir(int port, int slot, unsigned char *path);
+
+int sceMcFormat(int port, int slot);
+
+int sceMcUnformat(int port, int slot);
+
+static void execute(McRequestEntry *request);
+
+static int create_sub2(int result);
+
+unsigned char *xglMcSetFullPath(int card, int selector);
+
+void xglMcWriteMapName(char *buffer, int slot);
+
+int xglMcRequest(int card, int operation, const McRequestArguments *arguments,
+                 int *result)
+{
+    int entry_index = queue_end;
+    McRequestEntry *entry;
+    int copied;
+    signed char *destination;
+    const unsigned char *source;
+    const unsigned char *path;
+
+    *result = 0;
+    entry = &queue[entry_index];
+    entry->card = card;
+    entry->result = result;
+    entry->operation = operation;
+    switch (operation)
+    {
+    case 1:
+    case 9:
+    case 10:
+        break;
+    case 2:
+    case 4:
+    case 6:
+    case 8:
+        entry->slot = arguments->slot;
+        entry->buffer = (int)arguments->buffer;
+        entry->size = arguments->size;
+        break;
+    case 3:
+    case 5:
+    case 7:
+        entry->slot = arguments->slot;
+        entry->buffer = (int)arguments->buffer;
+        entry->size = arguments->size;
+        path = arguments->path;
+        if (path == 0)
+        {
+            entry->path.empty = 0;
+        }
+        else
+        {
+            source = path;
+            destination = (signed char *)entry->path.bytes;
+            copied = 0;
+            if ((*destination = *source) != 0)
+            {
+                do
+                {
+                    copied++;
+                    source++;
+                    destination++;
+                    if (copied >= 108)
+                        break;
+                } while ((*destination = *source) != 0);
+            }
+        }
+        break;
+    }
+    queue_end = (entry_index + 1) & 7;
+    return 0;
+}
 
 int xglMcGetState(void)
 {
@@ -195,7 +297,7 @@ unsigned char *xglMcSetFullPath(int card, int selector)
     const unsigned char *source;
     const signed char *prefix_end;
 
-    dest = (signed char *)D_0093E0C0;
+    dest = (signed char *)mw.fullPath;
     source = base_0_00491770;
     while ((*dest = *source) != 0)
     {
@@ -219,7 +321,7 @@ unsigned char *xglMcSetFullPath(int card, int selector)
     {
     case 0:
         prefix_end = dest;
-        for (source = D_0093E0C0; source != (const unsigned char *)prefix_end; source++)
+        for (source = mw.fullPath; source != (const unsigned char *)prefix_end; source++)
         {
             *dest = *source;
             dest++;
@@ -260,10 +362,89 @@ unsigned char *xglMcSetFullPath(int card, int selector)
         }
         break;
     }
-    return D_0093E0C0;
+    return mw.fullPath;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/xgl_mc", execute);
+static void execute(McRequestEntry *request)
+{
+    int command = request->operation;
+
+    switch (command)
+    {
+    case 1:
+        sceMcGetInfo(request->card, 0, 0, request->result, 0);
+        return;
+    case 2:
+        if (request->slot == -1)
+        {
+            xglMcSetFullPath(-1, -1);
+            sceMcGetDir(request->card, 0, mw.fullPath, 0, 100,
+                        (request->buffer + 0xA3) & ~0x3F);
+            mw.state.phase = 6;
+            return;
+        }
+        xglMcSetFullPath(request->slot, 0);
+        sceMcOpen(request->card, 0, (const char *)mw.fullPath, 1);
+        mw.state.phase = 2;
+        return;
+    case 3:
+        xglMcSetFullPath(0, (int)&request->path.empty);
+        sceMcOpen(request->card, 0, (const char *)mw.fullPath, 1);
+        mw.state.phase = 2;
+        return;
+    case 5:
+    case 7:
+        xglMcSetFullPath(0, (int)&request->path.empty);
+        if (request->operation == 7)
+        {
+            sceMcOpen(request->card, 0, (const char *)mw.fullPath, 0x202);
+            mw.state.phase = 3;
+        }
+        else
+        {
+            sceMcOpen(request->card, 0, (const char *)mw.fullPath, 1);
+            mw.state.phase = 4;
+        }
+        mw.state.unmodeled_01[0] = 0;
+        return;
+    case 8:
+        xglMcSetFullPath(request->slot, -1);
+        sceMcMkdir(request->card, 0, mw.fullPath);
+        mw.state.unmodeled_01[0] = 0;
+        mw.state.phase = 5;
+        return;
+    case 6:
+        xglMcSetFullPath(request->slot, 0);
+        sceMcOpen(request->card, 0, (const char *)mw.fullPath, 0x202);
+        mw.state.unmodeled_01[0] = 0;
+        mw.state.phase = 3;
+        return;
+    case 4:
+        xglMcSetFullPath(request->slot, 0);
+        sceMcOpen(request->card, 0, (const char *)mw.fullPath, 1);
+        mw.state.unmodeled_01[0] = 0;
+        mw.state.phase = 4;
+        return;
+    case 9:
+        sceMcFormat(request->card, 0);
+        return;
+    case 10:
+        if (1)
+        {
+            sceMcUnformat(request->card, 0);
+        }
+        if (request)
+        {
+            return;
+        }
+        else
+        {
+            return;
+        }
+    default:
+        return;
+    }
+}
 
 INCLUDE_ASM("asm/main/nonmatchings/xgl_mc", create_sub2);
 

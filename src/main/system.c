@@ -35,6 +35,17 @@ struct SystemArrayCopyArguments {
 };
 extern void *memcpy(void *destination, const void *source, unsigned int size);
 
+#define SYSTEM_MARK_SUSPENDED(thread, flagsValue) do { \
+    (thread)->flags = (flagsValue); \
+} while (0)
+
+#define SYSTEM_COMMIT_WAIT_STATE(thread, targetValue, kind, frameValue, flagsValue) do { \
+    (thread)->wait_target = (targetValue); \
+    (thread)->wait_kind = (kind); \
+    (thread)->resume_frames = (frameValue); \
+    SYSTEM_MARK_SUSPENDED(thread, flagsValue); \
+} while (0)
+
 void *Java_xeno_vm_System_arraycopy__Ljava_lang_Object_ILjava_lang_Object_II(
     void *thread, void *argument_block)
 {
@@ -117,9 +128,125 @@ static const char *getStrIndex(const char *start, int length, int character)
     return 0;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/system", Java_xeno_vm_System_println__Ljava_lang_String_);
+void Java_xeno_vm_System_println__Ljava_lang_String_(
+    struct JThread *thread, SceneString **arguments, unsigned int *result)
+{
+    const SceneString *string = *arguments;
+    const struct SceneStringStorage *storage = string->storage;
+    const char *text = storage->bytes;
+    int remaining = storage->length;
+    const char *end = text + remaining;
+    int openingBracket = '[';
 
-INCLUDE_ASM("asm/main/nonmatchings/system", System_waitFor);
+    for (;;) {
+        const char *slash;
+        const char *substitution;
+        const char *closing;
+
+        slash = getStrIndex(text, remaining, '/');
+        if (slash == 0) {
+            return;
+        }
+        substitution = slash + 2;
+        if (slash[1] != openingBracket) {
+            continue;
+        }
+        {
+            int segmentLength = slash - text;
+
+            (void)strncpy(tmpString, text, segmentLength);
+            remaining -= segmentLength;
+            tmpString[segmentLength] = 0;
+            closing = getStrIndex(substitution, remaining, ']');
+            text = closing;
+            if (closing == 0) {
+                return;
+            }
+            segmentLength = closing - slash - 2;
+
+            (void)strncpy(tmpString, substitution, segmentLength);
+            if (tmpString[0] == '$') {
+                ++text;
+            } else {
+                if (tmpString[0] == '#') {
+                    int registerIndex = PARSE_int(tmpString + 1,
+                                                  segmentLength - 1, 10);
+                    unsigned int registerBits = JNI_getRegister(registerIndex);
+                    float registerValue;
+                    char formattedValue[16];
+
+                __builtin_memcpy(&registerValue, &registerBits,
+                                 sizeof(registerValue));
+                    sprintf(formattedValue, D_004DC090,
+                            (double)registerValue);
+                }
+                ++text;
+            }
+            remaining -= segmentLength;
+            if (text < end) {
+                continue;
+            }
+            return;
+        }
+    }
+}
+
+static void System_waitFor(JThread *vmThread, void *wait_target, int wait_kind,
+                           int wait_parameter)
+{
+    struct JThreadNode *thread = (struct JThreadNode *)vmThread;
+    SceneClass *waitClass;
+    struct JThreadNode *targetThread;
+
+    if (JNI_isInstanceOf(wait_target, classJava_xeno_Chr) == 1) {
+        waitClass = classJava_xeno_Chr;
+    } else if (JNI_isInstanceOf(wait_target, classJava_xeno_Stage) == 1) {
+        waitClass = classJava_xeno_Stage;
+    } else if (JNI_isInstanceOf(wait_target, classJava_xeno_util_Menu) == 1) {
+        int suspendedKind = 3;
+        unsigned int suspendedFlags = thread->flags | 4;
+        unsigned short resumeFrames = thread->frame_depth;
+        SYSTEM_COMMIT_WAIT_STATE(thread, wait_target, suspendedKind, resumeFrames, suspendedFlags);
+        return;
+    } else if (JNI_isInstanceOf(wait_target, classJava_xeno_util_Window) == 1) {
+        int suspendedKind = 3;
+        unsigned int suspendedFlags = thread->flags | 4;
+        unsigned short resumeFrames = thread->frame_depth;
+        SYSTEM_COMMIT_WAIT_STATE(thread, wait_target, suspendedKind, resumeFrames, suspendedFlags);
+        return;
+    } else {
+        waitClass = 0;
+    }
+
+    if (waitClass != 0) {
+        targetThread = JTHREAD_get(wait_target);
+
+        switch (wait_kind) {
+        case 0:
+            {
+            unsigned int suspendedFlags;
+            unsigned short resumeFrames;
+            if (targetThread == thread) {
+                break;
+            }
+            suspendedFlags = thread->flags | 4;
+            resumeFrames = thread->frame_depth;
+            SYSTEM_COMMIT_WAIT_STATE(thread, targetThread, 2, resumeFrames, suspendedFlags);
+            break;
+            }
+        case 5:
+            {
+                unsigned int suspendedFlags = thread->flags | 4;
+                thread->wait_parameter = wait_parameter;
+                thread->wait_kind = wait_kind;
+                thread->resume_frames = thread->frame_depth;
+                SYSTEM_MARK_SUSPENDED(thread, suspendedFlags);
+                thread->wait_target = targetThread;
+                break;
+            }
+        }
+    }
+}
 
 /*
  * The script VM's per-thread context, recovered as `JThread` in
@@ -127,7 +254,7 @@ INCLUDE_ASM("asm/main/nonmatchings/system", System_waitFor);
  * (thread, arguments, result) as the sibling natives elsewhere in this
  * TU map show.
  */
-extern void System_waitFor(JThread *thread, void *wait_target, int wait_kind,
+static void System_waitFor(JThread *vmThread, void *wait_target, int wait_kind,
                            int wait_parameter);
 
 void Java_xeno_vm_System_waitFor__Ljava_lang_Object_(JThread *thread, void *arguments,

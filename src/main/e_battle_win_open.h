@@ -192,7 +192,7 @@ typedef struct WindowSPCursor {
     signed char rows;
     unsigned char unmodeled_16[2];
     int buttons;
-    BattleWinItem *items;
+    struct BattleWinItem *items;
     signed char visible_top;
     signed char visible_bottom;
     signed char visible_cols;
@@ -273,7 +273,7 @@ struct BattleWindow {
     unsigned char unmodeled_00;
     unsigned char mode;              /* +0x0001 */
     unsigned char unmodeled_02[2];
-    BattleWinCommand *commands;      /* +0x0004 */
+    struct BattleWinCommand *commands;      /* +0x0004 */
     WindowSPCursor list;             /* +0x0008 */
     WindowDX window;                 /* +0x1740 */
     BattleWinMessage message;        /* +0x18D4 */

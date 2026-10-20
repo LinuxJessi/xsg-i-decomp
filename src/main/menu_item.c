@@ -1,4 +1,5 @@
 #include "common.h"
+#include "main/open_close_main.h"
 
 #include "shared.h"
 #include "main/menu_1.h"
@@ -25,13 +26,16 @@ typedef struct MenuItemPasWindow {
     int color;
     short width;
     short height;
-    u8 unmodeled_0c[0x10 - 0x0C];
+    const char *tag_id;
     signed char state;
-    u8 unmodeled_11[0x14 - 0x11];
+    u8 ribbon_initialized; /* +0x11 */
+    u8 unmodeled_12[0x14 - 0x12];
     void (*callback)(WindowDX *window, void *work);
     void *callbackArg;
     u8 unmodeled_1c[0x194 - 0x1C];
 } MenuItemPasWindow;
+
+
 
 typedef struct MenuItemInfoText {
     unsigned short x;
@@ -40,6 +44,8 @@ typedef struct MenuItemInfoText {
     const char *message;
     unsigned char unmodeled_10[0x1B0 - 0x10];
 } MenuItemInfoText;
+
+
 
 typedef struct MenuItemInfoWork {
     unsigned char state;
@@ -52,11 +58,15 @@ typedef struct MenuItemInfoWork {
     char buffer[128];
 } MenuItemInfoWork;
 
+
+
 typedef struct MenuItemInfoLabels {
     const char *sortMethods[3];
     const char *sortPrefix;
     const char *cancel;
 } MenuItemInfoLabels;
+
+
 
 extern const MenuItemInfoLabels D_004C4ED0;
 
@@ -64,6 +74,8 @@ typedef struct MenuItemInfoHelpLabels {
     const char *unavailable;
     const char *restricted;
 } MenuItemInfoHelpLabels;
+
+
 
 extern const MenuItemInfoHelpLabels D_004DAAC8[];
 
@@ -73,6 +85,8 @@ typedef struct MenuItemInfoPad {
     unsigned char unmodeled_2C[8];
     unsigned short activity;
 } MenuItemInfoPad;
+
+
 
 extern const unsigned char D_004DAAD0[];
 
@@ -91,10 +105,14 @@ typedef struct {
     u16 attributes;
 } MenuItemUseData;
 
+
+
 typedef struct {
     u8 unmodeled_00[0x10];
     u64 flags;
 } MenuItemLoopState;
+
+
 
 extern MenuItemUseData *func_A1A4E8(s16 itemId);
 
@@ -107,8 +125,10 @@ typedef struct MenuItemListRow {
     u8 unmodeled_0a[2];
 } MenuItemListRow;
 
+
+
 typedef struct MenuItemWindowSP {
-    u8 unmodeled_00;
+    u8 state;
     u8 rowCount;
     u8 unmodeled_02[2];
     short x;
@@ -120,13 +140,22 @@ typedef struct MenuItemWindowSP {
     signed char columns;
     signed char rows;
     u8 unmodeled_16[6];
-    MenuItemListRow *items;
+    struct MenuItemListRow *items;
 } MenuItemWindowSP;
 
+
+
 typedef struct MenuItemListWork {
-    u8 unmodeled_00[0x0C];
+    u8 state;
+    u8 visible;
+    u8 unmodeled_02;
+    u8 motion;
+    int activeTab;
+    int color;
     MenuItemWindowSP window;
 } MenuItemListWork;
+
+
 
 typedef struct MenuItemMessage {
     u8 active;
@@ -137,12 +166,16 @@ typedef struct MenuItemMessage {
     int color;
 } MenuItemMessage;
 
+
+
 typedef struct MenuItemExWork {
     u8 state;
     u8 unmodeled_01[3];
     int color;
     MenuItemMessage message;
 } MenuItemExWork;
+
+
 
 
 typedef struct MenuItemPasMessage {
@@ -155,6 +188,8 @@ typedef struct MenuItemPasMessage {
     u8 unmodeled_0c[0x44 - 0x0C];
 } MenuItemPasMessage;
 
+
+
 typedef struct MenuItemPasBox {
     short x;
     short y;
@@ -162,6 +197,8 @@ typedef struct MenuItemPasBox {
     short width;
     short height;
 } MenuItemPasBox;
+
+
 
 typedef struct MenuItemPasWork {
     u8 state;
@@ -175,27 +212,39 @@ typedef struct MenuItemPasWork {
     u8 callbackWork[1];
 } MenuItemPasWork;
 
+
+
 typedef struct MenuItemWorkData {
     u8 unmodeled_00[3];
     u8 mode;
     u8 unmodeled_04[0x20 - 0x04];
     u8 flags;
-    unsigned char unmodeled_021[0x22 - 0x21];
-    u8 busy; /* +0x22 */
-    unsigned char unmodeled_023[0x30 - 0x23];
+    u8 nextMode;
+    u8 busy;
+    u8 partyCount;
+    signed char selectionMode;
+    u8 unmodeled_25[0x2E - 0x25];
+    short selectedItem;
     signed char listTab;
-    signed char sortAbility;
-    signed char sortNormal;
-    signed char sortCategory[3];
-    u8 unmodeled_36[0x1A];
+    signed char sortChoices[8]; /* +0x31 */
+    u8 unmodeled_39[0x40 - 0x39];
+    signed char tabChangeDirection;
+    signed char scrollDir;
+    u8 unmodeled_42[0x50 - 0x42];
     int selectDir;
     u8 unmodeled_54[0x62 - 0x54];
     signed char agwsMode;
     signed char selectedAgws;
     signed char agwsCount;
-    u8 unmodeled_65[0x72 - 0x65]; /* +0x65 */
+    u8 unmodeled_65[0x70 - 0x65];
+    signed char selectedParty;
+    u8 unmodeled_71; /* +0x65 */
     signed char sortSelection; /* +0x72 */
+    u8 unmodeled_73;
+    u8 segmentSelection; /* +0x74 */
 } MenuItemWorkData;
+
+
 
 extern MenuItemPasWork *MenuItemPas;
 
@@ -258,6 +307,445 @@ extern void eMessageSet(void *message, const char *text);
 extern void eMessageMain(void *message);
 
 extern int xglFlagsGet(int flag, int mode);
+
+typedef struct MenuItemSeparator {
+    short x;
+    short y;
+    int color;
+    char red;
+    char green;
+    char blue;
+    char alpha;
+} MenuItemSeparator;
+
+
+
+typedef struct MenuItemLineWork {
+    unsigned char state;
+    unsigned char unmodeled_01[2];
+    unsigned char alpha;
+    int color;
+    MenuItemSeparator separators[6];
+} MenuItemLineWork;
+
+
+
+typedef struct MenuItemLineStartX {
+    int x[5];
+} MenuItemLineStartX;
+
+
+
+extern MenuItemLineStartX D_004C4F38;
+
+
+
+
+
+typedef struct MenuItemStatusContext {
+    signed char characterId;
+    u8 mode;
+    short alternateId;
+    short x;
+    short y;
+    short initialControls[2];
+    u8 unmodeled_0c[12];
+    int firstTextStyle;
+    u8 unmodeled_1c[0x840 - 0x1C];
+} MenuItemStatusContext;
+
+
+
+typedef struct MenuItemStatusCursor {
+    u8 state;
+    u8 unmodeled_01[3];
+    short x;
+    short y;
+    int work;
+    u8 unmodeled_0c[0x24 - 0x0C];
+} MenuItemStatusCursor;
+
+
+
+typedef struct MenuItemPartyStatusWork {
+    u8 state;
+    unsigned char visibleCount;
+    signed char scrollStart;
+    u8 scrollTick;
+    u8 selectionRow;
+    u8 unmodeled_05[3];
+    int style;
+    MenuItemPasWindow windows[8];
+    MenuItemStatusContext contexts[8];
+    MenuItemStatusCursor cursors[3];
+    /* Two backgrounds, two outlines, then the clipping rectangle. */
+    MenuItemPasBox boxes[5];
+} MenuItemPartyStatusWork;
+
+
+
+extern short MenuItemParty[];
+
+extern char *MenuTagTextGet(int index);
+
+extern int PartyAttackerCheck(int characterId);
+
+
+
+extern void WindowSPSet(MenuItemWindowSP *window);
+
+extern void WindowSPMain(MenuItemWindowSP *window);
+
+extern char msg00_1_0036D698[10];
+
+typedef struct MenuItemSpriteIds {
+    short ids[10];
+} MenuItemSpriteIds;
+
+
+
+extern const MenuItemSpriteIds D_004C4FC0;
+
+typedef struct MenuItemIconSprite {
+    u8 state;
+    u8 unmodeled_01[3];
+    short x;
+    short y;
+    int style;
+    signed char red;
+    signed char green;
+    signed char blue;
+    unsigned char alpha;
+    u8 unmodeled_10[0x28 - 0x10];
+} MenuItemIconSprite;
+
+
+
+typedef struct MenuItemIconWork {
+    u8 state;
+    u8 unmodeled_01;
+    u8 slide;
+    u8 pulsePhase;
+    u8 pulse;
+    u8 pulseDirection;
+    signed char displacement[10];
+    int style;
+    MenuItemIconSprite sprites[10];
+} MenuItemIconWork;
+
+
+
+extern void eSpriteSet(void *sprite, short spriteId);
+
+extern void eSpriteMain(void *sprite);
+
+extern float xglCos(float angle);
+
+extern const float D_004D7E08;
+
+extern const float D_004D7E0C;
+
+extern char *msg00_4_0036D6B8[];
+
+extern int MenuSortGet(int list, int index);
+
+typedef struct MenuItemSelectContent {
+    u8 unmodeled_00[2];
+    unsigned short mode;
+    int selection;
+    const char *text;
+    u8 unmodeled_0c[0xBF0 - 0x0C];
+} MenuItemSelectContent;
+
+
+
+typedef struct MenuItemSelectWindow MenuItemSelectWindow;
+
+
+
+struct MenuItemSelectWindow {
+    short x;
+    short y;
+    int color;
+    short width;
+    short height;
+    const char *title;
+    signed char state;
+    u8 ribbonInitialized;
+    u8 unmodeled_12[2];
+    void (*callback)(MenuItemSelectWindow *, struct MenuItemSelectContent *);
+    struct MenuItemSelectContent *callbackArg;
+    u8 unmodeled_1c[0x194 - 0x1C];
+};
+
+
+
+typedef struct MenuItemSelectSprite {
+    u8 state;
+    u8 unmodeled_01[3];
+    short x;
+    short y;
+    int color;
+} MenuItemSelectSprite;
+
+
+
+typedef struct MenuItemSelectWork {
+    u8 state;
+    u8 unmodeled_01;
+    u8 unmodeled_02;
+    u8 unmodeled_03;
+    int color;
+    MenuItemSelectWindow window;
+    u8 unmodeled_19c[0x330 - 0x19C];
+    MenuItemSelectContent content;
+    MenuItemSelectSprite sprite;
+} MenuItemSelectWork;
+
+
+
+typedef struct MenuItemSegmentNumber {
+    unsigned short x;
+    unsigned short y;
+    int work;
+    u8 unmodeled_08[6];
+    u8 format;
+    u8 digitCount;
+    u8 unmodeled_10[4];
+    int value;
+    u8 unmodeled_18[140 - 24];
+} MenuItemSegmentNumber;
+
+
+
+typedef struct MenuItemSegmentRow {
+    u8 pulse;
+    signed char pulseDirection;
+    u8 unmodeled_02[2];
+    u8 flags;
+    u8 unmodeled_05;
+    u8 emphasis;
+    signed char emphasisDirection;
+    MenuItemIconSprite sprites[5];
+    MenuItemSegmentNumber number;
+} MenuItemSegmentRow;
+
+
+
+typedef struct MenuItemSegmentMessage {
+    u8 unmodeled_00;
+    u8 mode;
+    u8 unmodeled_02[2];
+    short x;
+    short y;
+    int work;
+    u8 unmodeled_0c[12];
+    const char *text;
+    u8 unmodeled_1c[68 - 28];
+} MenuItemSegmentMessage;
+
+
+
+typedef struct MenuItemSegmentPoint {
+    short x;
+    short y;
+    int work;
+    signed char red;
+    signed char green;
+    signed char blue;
+    signed char alpha;
+} MenuItemSegmentPoint;
+
+
+
+typedef struct MenuItemSegmentRibbon {
+    short x;
+    short y;
+    int work;
+    short width;
+    short height;
+    u8 mode;
+    u8 progress;
+    u8 visible;
+    u8 style;
+    MenuItemSegmentPoint points[6];
+    u8 unmodeled_58[24];
+    MenuItemSegmentPoint render[6][4];
+} MenuItemSegmentRibbon;
+
+
+
+typedef struct MenuItemSegmentOutline {
+    u8 pulse;
+    signed char pulseDirection;
+    u8 unmodeled_02[2];
+    MenuItemSegmentPoint points[12];
+} MenuItemSegmentOutline;
+
+
+
+typedef struct MenuItemSegmentWork {
+    u8 state;
+    u8 visible;
+    short x;
+    short y;
+    u8 unmodeled_06[2];
+    int work;
+    int selected;
+    MenuItemPasWindow windows[2];
+    MenuItemIconSprite labels[2];
+    MenuItemSegmentMessage text[2];
+    MenuItemSegmentRow rows[18];
+    u8 unmodeled_1c88[4];
+    unsigned short ownedParts;
+    unsigned short selectedParts;
+    MenuItemIconSprite mapSprites[19];
+    MenuItemSegmentRibbon ribbon;
+    MenuItemSegmentOutline outlines[2];
+    int texture;
+} MenuItemSegmentWork;
+
+
+
+extern void xglSoundEffectNormalID(int sound, int channel);
+
+typedef struct MenuItemAgwsCursor {
+    u8 mode;
+    u8 unmodeled_01[3];
+    short x;
+    short y;
+    int work;
+} MenuItemAgwsCursor;
+
+typedef struct MenuItemAgwsNumber {
+    unsigned short x;
+    unsigned short y;
+    int work;
+    u8 unmodeled_08[6];
+    u8 format;
+    u8 digitCount;
+    u8 unmodeled_10[4];
+    int value;
+    u8 unmodeled_18[0x90 - 0x18];
+} MenuItemAgwsNumber;
+
+typedef struct MenuItemAgwsTag {
+    u8 unmodeled_00[4];
+    short x;
+    short y;
+    int work;
+    signed char color[4];
+    struct {
+        short x;
+        short y;
+        int work;
+        signed char color[4];
+        const char *text;
+    } render;
+} MenuItemAgwsTag;
+
+typedef struct MenuItemAgwsRow {
+    MenuItemPasWindow window;
+    MenuItemPasMessage name;
+    MenuItemAgwsTag hpLabel;
+    MenuItemAgwsNumber hpNumber;
+} MenuItemAgwsRow;
+
+typedef struct MenuItemAgwsStatusWork {
+    u8 state;
+    u8 unmodeled_01[3];
+    int color;
+    MenuItemAgwsRow rows[6];
+    MenuItemAgwsCursor cursor;
+} MenuItemAgwsStatusWork;
+
+typedef struct MenuItemArena {
+    MenuItemPasWork pas;
+    u8 unmodeled_0414[0x480 - 0x414];
+    MenuItemInfoWork info;
+    MenuItemPartyStatusWork status;
+    u8 unmodeled_57a4[0x57B0 - 0x57A4];
+    MenuItemAgwsStatusWork agws;
+    u8 unmodeled_66f4[0x670C - 0x66F4];
+    MenuItemListWork list;
+    u8 unmodeled_6738[0x7E50 - 0x6738];
+    MenuItemIconWork icon;
+    u8 unmodeled_7ff4[0x8044 - 0x7FF4];
+    MenuItemSelectWork select;
+    u8 unmodeled_8f70[0x8FB4 - 0x8F70];
+    MenuItemExWork ex;
+    u8 unmodeled_8fc8[0x9640 - 0x8FC8];
+    MenuItemLineWork line;
+    MenuItemSegmentWork segment;
+} MenuItemArena;
+
+
+
+extern void *MainMenuWorkEnd;
+
+extern void MenuWorkEndCheck(void *end);
+
+typedef struct MenuItemCharacterPoints {
+    u8 unmodeled_00[0x0C];
+    int points;
+    int etherPoints;
+    int skillPoints;
+} MenuItemCharacterPoints;
+
+
+
+extern unsigned char *MenuSaveDataGet(void);
+
+extern int PartyAllPartyGet(int *characters, int mode);
+
+extern int PartyAgwsGet(int *characters);
+
+extern int MenuScenarioNo;
+
+
+
+
+
+
+
+extern int MenuSelectMove(int selection, int count, int wrap);
+
+extern int MenuBoxDec(int itemId);
+
+extern int MenuBoxChk(int itemId);
+
+extern int MenuCharHpCheck(int character);
+
+extern int MenuCharEpCheck(int character);
+
+extern MenuItemCharacterPoints *func_A19210(int character);
+
+extern int func_00A114C0(int character, int itemId);
+
+extern void ChangeTopLevel(int level);
+
+extern void xglFontDebugPrintf(int x, int y, const char *format, ...);
+
+extern const char D_004DAB00[];
+
+extern const char D_004DAB08[];
+
+extern void MenuPasWindow(void);
+
+
+
+
+
+
+
+
+
+
+extern char *strcpy(char *destination, const char *source);
+
+extern char *strcat(char *destination, const char *source);
+
+
 
 int MenuItemUseCheck(s16 itemId)
 {
@@ -471,65 +959,287 @@ void MenuItemInfoMain(void)
 }
 
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_item", MenuItemLineMain);
+void MenuItemLineMain(void)
+{
+    MenuItemLineWork *line = MenuItemLine;
+    int i;
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_item", MenuItemStatusMain);
+    switch (line->state) {
+    case 0:
+        line->color = 0xFFFFF0;
+    {
+        MenuItemLineStartX initialX = D_004C4F38;
 
-typedef struct MenuItemAgwsTag {
-    u8 unmodeled_00[4];
-    short x;
-    short y;
-    int work;
-    signed char color[4];
+        for (i = 0; i < 5; i++) {
+            line->separators[i].blue = 96;
+            line->separators[i].green = 96;
+            line->separators[i].red = 96;
+            line->separators[i].alpha = -128;
+            line->separators[i].y = 48;
+            line->separators[i].x = initialX.x[i];
+            line->separators[i].color = line->color;
+        }
+        line->separators[5].color = 0;
+        line->state = 2;
+        line->alpha = 0;
+    }
+        /* fall through */
+    case 2: {
     struct {
-        short x;
-        short y;
-        int work;
-        signed char color[4];
-        const char *text;
-    } render;
-} MenuItemAgwsTag;
+        short targetY[8];
+        short centerLength;
+    } slide;
+    MenuItemWorkData *menu;
+    int tabY;
+    int firstTargetY;
 
-typedef struct MenuItemAgwsNumber {
-    unsigned short x;
-    unsigned short y;
-    int work;
-    u8 unmodeled_08[6];
-    u8 format;
-    u8 digitCount;
-    u8 unmodeled_10[4];
-    int value;
-    u8 unmodeled_18[0x90 - 0x18];
-} MenuItemAgwsNumber;
+    i = 3;
+    do {
+        slide.targetY[i] = 0;
+    } while (--i >= 0);
+    menu = &MenuWork;
+    tabY = menu->listTab * 22;
+    firstTargetY = tabY + 302;
+    slide.targetY[0] = firstTargetY;
+    slide.targetY[1] = tabY + 306;
+    slide.targetY[2] = tabY + 310;
+    slide.centerLength = 48;
+    slide.targetY[3] = 512;
+    if (firstTargetY == line->separators[1].x) {
+        slide.centerLength = 40;
+    }
 
-typedef struct MenuItemAgwsRow {
-    MenuItemPasWindow window;
-    MenuItemPasMessage name;
-    MenuItemAgwsTag hpLabel;
-    MenuItemAgwsNumber hpNumber;
-} MenuItemAgwsRow;
+    switch (menu->mode) {
+    case 0x20:
+    case 0x22:
+    case 0x30:
+    case 0x40:
+    case 0x80:
+        if (line->alpha != 120) {
+            line->alpha += 8;
+        }
+        break;
+    default:
+        if (line->alpha != 0) {
+            line->alpha -= 8;
+        }
+        break;
+    }
 
-typedef struct MenuItemAgwsCursor {
-    u8 mode;
-    u8 unmodeled_01[3];
-    short x;
-    short y;
-    int work;
-} MenuItemAgwsCursor;
+    for (i = 1; i < 5; i++) {
+        MoveSlide(&line->separators[i].x, &slide.targetY[i - 1], 3.0f);
+        line->separators[i].alpha = line->alpha;
+    }
+    line->separators[0].alpha = line->alpha;
+    MoveSlide(&line->separators[2].y, &slide.centerLength, 8.0f);
+    endPrintExtFunc(line->color, 0, line->separators);
+        break;
+    }
+    }
+}
 
-typedef struct MenuItemAgwsStatusWork {
-    u8 state;
-    u8 unmodeled_01[3];
-    int color;
-    MenuItemAgwsRow rows[6];
-    MenuItemAgwsCursor cursor;
-} MenuItemAgwsStatusWork;
+void MenuItemStatusMain(void)
+{
+    MenuItemPartyStatusWork *status = MenuItemStatus;
+    short targetX[8];
+    short targetY[8];
+    int i;
+
+    switch (status->state) {
+    case 0: {
+        status->style = 0xF000F0;
+        i = 0;
+        if (MenuWork.partyCount != 0) {
+            short *party = MenuItemParty;
+
+            do {
+                WindowDXSet((WindowDX *)&status->windows[i]);
+                status->windows[i].callback = (void (*)(WindowDX *, void *))MenuStatusDisp;
+                status->windows[i].x = -272;
+                status->windows[i].width = 240;
+                status->windows[i].height = 82;
+                status->windows[i].y = 64 + i * 104;
+                status->windows[i].callbackArg = &status->contexts[i];
+                status->windows[i].color = status->style;
+                if (PartyAttackerCheck(*party)) {
+                    status->windows[i].tag_id = MenuTagTextGet(1);
+                } else {
+                    status->windows[i].tag_id = MenuTagTextGet(2);
+                }
+                status->windows[i].ribbon_initialized = 1;
+                status->contexts[i].characterId = *party;
+                status->contexts[i].x = 0;
+                status->contexts[i].y = 0;
+                status->contexts[i].mode = 0;
+                status->contexts[i].initialControls[0] = 0;
+                status->contexts[i].initialControls[1] = 31;
+                status->windows[i].state = 1;
+                WindowDXMain((WindowDX *)&status->windows[i]);
+                status->windows[i].state = 3;
+                party++;
+            } while (++i < MenuWork.partyCount);
+        }
+        for (i = 0; i < 3; i++) {
+            eCursolSet((ECursol *)(void *)(&status->cursors[i]), i);
+            status->cursors[i].state = 32;
+            status->cursors[i].work = status->style + 16;
+        }
+        status->boxes[0].x = 0;
+        status->boxes[0].width = 256;
+        status->boxes[0].y = 0;
+        status->boxes[0].height = 48;
+        status->boxes[1].x = 0;
+        status->boxes[1].width = 256;
+        status->boxes[1].y = 354;
+        status->boxes[1].height = 158;
+        for (i = 0; i < 2; i++) {
+            status->boxes[i].color = 0xFFFFFF;
+            status->boxes[i + 2].color = 0;
+        }
+        status->scrollTick = 0;
+        status->scrollStart = 0;
+        status->selectionRow = 0;
+        status->visibleCount = MenuWork.partyCount;
+        if (status->visibleCount >= 4) {
+            status->visibleCount = 3;
+        }
+        status->state = 2;
+    }
+        /* fall through */
+    case 2:
+        break;
+    default:
+        return;
+    }
+
+    for (i = 0; i < MenuWork.partyCount; i++) {
+        targetX[i] = -272;
+        targetY[i] = 64 + (i - status->scrollStart) * 104;
+    }
+    switch (MenuWork.mode) {
+    case 32:
+        if (MenuWork.flags & 1) {
+            status->cursors[0].state = 0;
+        }
+        if (MenuWork.listTab == 0 && MenuWork.agwsMode == 0) {
+            for (i = 0; i < MenuWork.partyCount; i++) {
+                targetX[i] = 16;
+            }
+        }
+        break;
+    case 34:
+        if (MenuWork.flags & 1) {
+            status->cursors[0].state = 32;
+        }
+        if (MenuWork.agwsMode == 0) {
+            for (i = 0; i < MenuWork.partyCount; i++) {
+                targetX[i] = 16;
+            }
+            if (MenuWork.selectionMode == 1) {
+                if (MenuWork.partyCount >= 4) {
+                    if (MenuWork.scrollDir == -1) {
+                        if (status->scrollTick == 0) {
+                            if (status->scrollStart != 0) {
+                                status->scrollStart--;
+                            }
+                        } else {
+                            status->scrollTick--;
+                        }
+                        MenuWork.scrollDir = 2;
+                    } else if (MenuWork.scrollDir == 1) {
+                        if (status->scrollTick == 2) {
+                            if (status->scrollStart != MenuWork.partyCount - 3) {
+                                status->scrollStart++;
+                            }
+                        } else {
+                            status->scrollTick++;
+                        }
+                        MenuWork.scrollDir = 2;
+                    }
+                    for (i = 0; i < MenuWork.partyCount; i++) {
+                        targetY[i] = 64 + (i - status->scrollStart) * 104;
+                    }
+                }
+            } else {
+                int rowCount = MenuWork.partyCount;
+
+                if (rowCount >= 4) {
+                    rowCount = 3;
+                }
+                if (status->selectionRow == rowCount - 1) {
+                    status->selectionRow = 0;
+                } else {
+                    status->selectionRow++;
+                }
+            }
+        }
+        break;
+    }
+
+    for (i = 0; i < 2; i++) {
+        endPrintExtFunc(status->style, 12, &status->boxes[i]);
+    }
+    status->boxes[4].x = 0;
+    status->boxes[4].width = 256;
+    status->boxes[4].y = 64;
+    status->boxes[4].height = 272;
+    endPrintExtFunc(status->style, 101, &status->boxes[4]);
+    for (i = 0; i < MenuWork.partyCount; i++) {
+        MoveSlide(&status->windows[i].x, &targetX[i], 3.0f);
+        MoveSlide(&status->windows[i].y, &targetY[i], 3.0f);
+        if (status->windows[i].y == targetY[i]) {
+            MenuWork.scrollDir = 0;
+        }
+        WindowDXMain((WindowDX *)&status->windows[i]);
+    }
+    if (MenuWork.selectionMode == 1) {
+        status->cursors[0].x = status->windows[MenuWork.selectedParty].x + 3;
+        status->cursors[0].y = status->windows[MenuWork.selectedParty].y + status->windows[MenuWork.selectedParty].height / 2 - 4;
+        eCursolMain((ECursolMainData *)(void *)(&status->cursors[0]));
+        if (MenuWork.partyCount >= 4 && status->cursors[0].state != 0) {
+            if (status->scrollStart != 0) {
+                status->cursors[1].x = 240;
+                status->cursors[1].y = 50;
+                eCursolMain((ECursolMainData *)(void *)(&status->cursors[1]));
+            }
+            if (status->scrollStart != MenuWork.partyCount - 3) {
+                status->cursors[2].x = 240;
+                status->cursors[2].y = 338;
+                eCursolMain((ECursolMainData *)(void *)(&status->cursors[2]));
+            }
+        }
+    } else if (MenuWork.selectionMode == 2) {
+        status->cursors[0].x = status->windows[MenuWork.selectedParty].x + 3;
+        status->cursors[0].y = status->selectionRow * 104 + status->windows[MenuWork.selectedParty].height / 2 + 60;
+        eCursolMain((ECursolMainData *)(void *)(&status->cursors[0]));
+    }
+    for (i = 0; i < 2; i++) {
+        status->boxes[i + 2].x = status->boxes[i].x;
+        status->boxes[i + 2].width = status->boxes[i].width;
+        status->boxes[i + 2].y = status->boxes[i].y;
+        status->boxes[i + 2].height = status->boxes[i].height;
+        endPrintExtFunc(status->style, 12, &status->boxes[i + 2]);
+    }
+    endPrintExtFunc(status->style, 102, 0);
+}
+
+
+
+
+
+
+
+
+
+
 
 typedef struct MenuItemHpParameters {
     short maxHp;
     u8 unmodeled_02[0x34 - 0x02];
     short hp;
 } MenuItemHpParameters;
+
+
 
 extern short MenuItemAgws[];
 extern const char D_004DAAE0[];
@@ -538,8 +1248,8 @@ extern void eTagFontSet(void *tag, const char *text);
 extern void eTagFontMain(void *tag);
 extern void eNumberSet(void *number, int mode);
 extern void eNumberMain(void *number);
-extern void eCursolSet(void *cursor, int mode);
-extern void eCursolMain(void *cursor);
+
+
 extern MenuItemHpParameters *func_00A11108(int character, int *attack, int *defense);
 
 void MenuItemStatusAgwsMain(void)
@@ -574,7 +1284,7 @@ void MenuItemStatusAgwsMain(void)
             status->rows[i].hpNumber.format = 12;
             status->rows[i].hpNumber.digitCount = 4;
         }
-        eCursolSet(&status->cursor, 0);
+        eCursolSet((ECursol *)(void *)(&status->cursor), 0);
         status->cursor.mode = 32;
         status->state = 2;
         status->cursor.work = status->color + 4;
@@ -628,7 +1338,7 @@ void MenuItemStatusAgwsMain(void)
     if (MenuWork.agwsCount != 0) {
         status->cursor.x = status->rows[MenuWork.selectedAgws].window.x + 3;
         status->cursor.y = status->rows[MenuWork.selectedAgws].window.y + 19;
-        eCursolMain(&status->cursor);
+        eCursolMain((ECursolMainData *)(void *)(&status->cursor));
     }
 }
 
@@ -642,7 +1352,7 @@ void MenuItemListMake00(void)
 
     MenuSortSet(0, 1, 0);
     MenuSortChange(0, 0);
-    MenuSortChange(0, MenuWork.sortAbility);
+    MenuSortChange(0, MenuWork.sortChoices[0]);
     MenuListMake(0, 0);
     count = MenuSortCheck(0);
     for (i = 0; i < count; i++) {
@@ -743,7 +1453,7 @@ void MenuItemListMake01(int category)
         break;
     }
     MenuSortChange(0, 0);
-    MenuSortChange(0, MenuWork.sortCategory[category]);
+    MenuSortChange(0, MenuWork.sortChoices[category + 2]);
     MenuListMake(0, 0);
     work = MenuItemList;
     work->window.rowCount = 7;
@@ -763,7 +1473,7 @@ void MenuItemListMake02(void)
 
     MenuSortSet(0, 2, 0);
     MenuSortChange(0, 0);
-    MenuSortChange(0, MenuWork.sortNormal);
+    MenuSortChange(0, MenuWork.sortChoices[1]);
     MenuListMake(0, 0);
 
     list = MenuItemList;
@@ -779,14 +1489,291 @@ void MenuItemListMake02(void)
     WindowSPSetSelect((WindowSPCursor *)&MenuItemList->window, &MenuKeepSelect[5]);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_item", MenuItemListMain);
+void MenuItemListMain(void)
+{
+    MenuItemListWork *list = MenuItemList;
+    short targetX;
+    int i;
+
+    switch (list->state) {
+    case 0:
+        list->window.x = 528;
+        list->window.color = list->color = 0xFFFFF0;
+        list->window.title = msg00_1_0036D698;
+        list->window.y = 64;
+        list->window.rowCount = 7;
+        list->window.rows = 11;
+        list->window.height = 270;
+        list->window.items = 0;
+        WindowSPSet(&list->window);
+        list->visible = 1;
+        list->activeTab = -1;
+        list->state = 2;
+        list->motion = 0;
+        /* fall through */
+    case 2:
+        break;
+    default:
+        return;
+    }
+
+    if (MenuWork.mode == 0xF0)
+        list->motion = 99;
+
+    switch (list->motion) {
+    case 0:
+        list->motion = 1;
+        /* fall through */
+    case 1:
+        list->window.x = 528;
+        switch (MenuWork.listTab) {
+        case 0:
+            MenuItemListMake00();
+            break;
+        case 1:
+            MenuItemListMake02();
+            break;
+        default:
+            MenuItemListMake01(MenuWork.listTab - 2);
+            break;
+        }
+        list->window.state = 17;
+        WindowSPMain(&list->window);
+        list->motion = 2;
+        /* fall through */
+    case 2:
+        if (list->activeTab != MenuWork.listTab) {
+            list->activeTab = MenuWork.listTab;
+            list->motion = 1;
+        }
+        if (MenuWork.listTab == 0)
+            targetX = 272;
+        else if (MenuWork.mode == 0x30)
+            targetX = 528;
+        else
+            targetX = 24;
+        switch (MenuWork.mode) {
+        case 0x22:
+            list->motion = 3;
+            break;
+        case 0x80:
+            list->motion = 4;
+            break;
+        }
+        break;
+    case 3:
+        if (MenuWork.mode != 0x22)
+            list->motion = 2;
+        targetX = 272;
+        break;
+    case 4:
+        if (PadData.pressed & 0x20) {
+            switch (MenuWork.listTab) {
+            case 0:
+                MenuItemListMake00();
+                break;
+            case 1:
+                MenuItemListMake02();
+                break;
+            default:
+                MenuItemListMake01(MenuWork.listTab - 2);
+                break;
+            }
+        }
+        if (MenuWork.mode != 0x80)
+            list->motion = 2;
+        targetX = 272;
+        break;
+    case 99:
+        targetX = 528;
+        break;
+    default:
+        break;
+    }
+    for (i = 0; i < 1; i++) {
+        short *currentX = &list[i].window.x;
+        short slideEnd = 528;
+
+        MoveSlide(currentX, &targetX, 3.0f);
+        if (*currentX != slideEnd)
+            WindowSPMain(&list[i].window);
+    }
+}
 
 INCLUDE_ASM("asm/main/nonmatchings/menu_item", MenuItemSelectMain);
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_item", MenuItemIconMain);
+void MenuItemIconMain(void)
+{
+    MenuItemIconWork *icon = MenuItemIcon;
+    signed char *tabBounce;
+    signed char *tabBounceIterator;
+    int i;
+
+    if (MenuWork.mode == 0) {
+        return;
+    }
+    switch (icon->state) {
+    case 0: {
+        MenuItemSpriteIds spriteIds = D_004C4FC0;
+        signed char *bounce;
+
+        icon->style = 0xFFFFF0;
+        for (i = 0; i < 10; i++) {
+            eSpriteSet(&icon->sprites[i], spriteIds.ids[i]);
+            icon->sprites[i].style = icon->style;
+        }
+        for (i = 0; i < 2; i++) {
+            icon->sprites[i].red = icon->sprites[i].green = icon->sprites[i].blue = -128;
+        }
+        for (; i < 10; i++) {
+            icon->sprites[i].red = icon->sprites[i].green = icon->sprites[i].blue = -128;
+        }
+        icon->pulseDirection = 1;
+        tabBounce = &icon->displacement[2];
+        icon->slide = 16;
+        icon->pulse = 0;
+        icon->pulsePhase = 0;
+        icon->displacement[0] = 0;
+        icon->displacement[1] = 0;
+        bounce = tabBounce + 7;
+        for (i = 7; i >= 0; i--) {
+            *bounce-- = 0;
+        }
+        icon->state = 2;
+        break;
+    }
+    case 2:
+        tabBounce = &icon->displacement[2];
+        break;
+    default:
+        return;
+    }
+
+    switch (MenuWork.mode) {
+    case 240:
+        icon->pulseDirection = 0;
+        /* fall through */
+    case 255:
+        if (icon->slide != 15) {
+            icon->slide++;
+        }
+        break;
+    default:
+        if (icon->slide != 0) {
+            icon->slide--;
+        }
+        break;
+    }
+    if (MenuWork.mode == 32 && MenuWork.tabChangeDirection != 0) {
+        if (MenuWork.tabChangeDirection < 0) {
+            icon->displacement[0] = -6;
+        } else {
+            icon->displacement[1] = 6;
+        }
+        MenuWork.tabChangeDirection = 0;
+    }
+    if (icon->displacement[0] != 0) {
+        icon->displacement[0]++;
+    }
+    if (icon->displacement[1] != 0) {
+        icon->displacement[1]--;
+    }
+    if (icon->pulsePhase & 1) {
+        if (icon->pulse >= 11) {
+            icon->pulseDirection = -icon->pulseDirection;
+        }
+        icon->pulse += icon->pulseDirection;
+    }
+    icon->pulsePhase++;
+
+    for (i = 0; i < 2; i++) {
+        float cosine;
+        int slideOffset;
+
+        icon->sprites[i].x = 264 + i * 208 + icon->displacement[i];
+        cosine = xglCos(i * D_004D7E08);
+        slideOffset = -2 * icon->slide;
+        icon->sprites[i].y = 13;
+        icon->sprites[i].x += cosine * slideOffset;
+        icon->sprites[i].alpha = 128.0f - (icon->slide / 15.0f) * 128.0f;
+        if (MenuWork.mode == 48) {
+            icon->sprites[i].red = icon->sprites[i].green = icon->sprites[i].blue = 64;
+        } else {
+            icon->sprites[i].red = icon->sprites[i].green = icon->sprites[i].blue = -128;
+        }
+    }
+    tabBounceIterator = tabBounce;
+    for (i = 2; i < 10; i++) {
+        int tab = i - 2;
+        float cosine;
+        int slideOffset;
+
+        icon->sprites[i].x = 296 + tab * 22;
+        cosine = xglCos(tab * D_004D7E0C);
+        slideOffset = -2 * icon->slide;
+        icon->sprites[i].y = 12;
+        icon->sprites[i].x += cosine * slideOffset;
+        icon->sprites[i].y += *tabBounceIterator;
+        if (icon->slide == 0 && MenuWork.listTab == tab) {
+            if (*tabBounceIterator != 6) {
+                (*tabBounceIterator)++;
+            }
+        } else if (*tabBounceIterator != 0) {
+            (*tabBounceIterator)--;
+        }
+        icon->sprites[i].alpha = 128.0f - (icon->slide / 15.0f) * 128.0f;
+        tabBounceIterator++;
+    }
+    for (i = 0; i < 10; i++) {
+        eSpriteMain(&icon->sprites[i]);
+    }
+}
 
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_item", MenuItemExMain);
+void MenuItemExMain(void)
+{
+    MenuItemExWork *ex = MenuItemEx;
+    MenuItemMessage *message = &ex->message;
+    int *messageColor = &ex->message.color;
+    short targetX;
+    char *textColor;
+    int i;
+
+    switch (ex->state) {
+    case 0: {
+        int initialX = 544;
+        int initialY = 345;
+        int messageMode = 32;
+
+        ex->color = 0xFFFFF8;
+        eMessageSet(message, (const char *)msg00_4_0036D6B8[0]);
+        ex->message.x = initialX;
+        {
+            int messageColorValue = ex->color;
+            ex->message.y = initialY;
+            *messageColor = messageColorValue;
+            ex->message.mode = messageMode;
+            ex->state = 2;
+        }
+    }
+        /* fall through */
+    case 2:
+        targetX = 544;
+        if (MenuWork.mode == 32) {
+            targetX = 400;
+            textColor = msg00_4_0036D6B8[0] + 1;
+            if (MenuWork.selectDir >= 0) {
+                textColor[0] = textColor[1] = textColor[2] = -128;
+            } else {
+                textColor[0] = textColor[1] = textColor[2] = 64;
+            }
+        }
+        for (i = 0; i < 1; i++) {
+            MoveSlide(&ex[i].message.x, &targetX, 3.0f);
+            eMessageMain(&ex[i].message);
+        }
+    }
+}
 
 int subRoboPartsCheck(int part)
 {
@@ -837,4 +1824,427 @@ int subRoboPartsCheck(int part)
 
 INCLUDE_ASM("asm/main/nonmatchings/menu_item", MenuItemSegmentMain);
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_item", MenuItem);
+int MenuItem(void)
+{
+    MenuItemWorkData *menu;
+    MenuItemUseData *item;
+    int characters[8];
+    int i;
+    int memberIndex;
+
+    if (MenuWork.mode == 0) {
+        MenuItemArena *arena = MainMenuWorkEnd;
+        unsigned char *cursor = MainMenuWorkEnd;
+        void *allocation;
+        MenuItemPasWork *pas;
+        MenuItemInfoWork *info;
+        MenuItemPartyStatusWork *status;
+        MenuItemAgwsStatusWork *agws;
+        MenuItemListWork *list;
+        MenuItemIconWork *icon;
+        MenuItemSelectWork *select;
+        MenuItemExWork *ex;
+        MenuItemLineWork *line;
+        MenuItemSegmentWork *segment;
+        int remaining = 7;
+        unsigned char *savedSelection;
+
+        allocation = cursor;
+        pas = allocation;
+        MenuItemPas = pas;
+        cursor += sizeof(arena->pas) + sizeof(arena->unmodeled_0414);
+        pas->state = 0;
+        allocation = cursor;
+        info = allocation;
+        MenuItemInfo = info;
+        cursor += sizeof(arena->info);
+        info->state = 0;
+        allocation = cursor;
+        status = allocation;
+        MenuItemStatus = status;
+        cursor += sizeof(arena->status) + sizeof(arena->unmodeled_57a4);
+        status->state = 0;
+        allocation = cursor;
+        agws = allocation;
+        MenuItemStatusAgws = agws;
+        cursor += sizeof(arena->agws) + sizeof(arena->unmodeled_66f4);
+        agws->state = 0;
+        allocation = cursor;
+        list = allocation;
+        MenuItemList = list;
+        cursor += sizeof(arena->list) + sizeof(arena->unmodeled_6738);
+        list->state = 0;
+        allocation = cursor;
+        icon = allocation;
+        MenuItemIcon = icon;
+        cursor += sizeof(arena->icon) + sizeof(arena->unmodeled_7ff4);
+        icon->state = 0;
+        allocation = cursor;
+        select = allocation;
+        MenuItemSelect = select;
+        cursor += sizeof(arena->select) + sizeof(arena->unmodeled_8f70);
+        select->state = 0;
+        allocation = cursor;
+        ex = allocation;
+        MenuItemEx = ex;
+        cursor += sizeof(arena->ex) + sizeof(arena->unmodeled_8fc8);
+        ex->state = 0;
+        allocation = cursor;
+        line = allocation;
+        MenuItemLine = line;
+        cursor += sizeof(arena->line);
+        line->state = 0;
+        MenuItemSegment = cursor;
+        segment = (MenuItemSegmentWork *)cursor;
+        cursor += sizeof(arena->segment);
+        segment->state = 0;
+        MenuWorkEndCheck(segment + 1);
+
+        MenuWork.nextMode = 0x20;
+        MenuWork.busy = 12;
+        MenuWork.partyCount = 0;
+        MenuWork.flags = 0;
+        savedSelection = MenuKeepSelect;
+        do {
+            unsigned char *entry = savedSelection;
+
+            savedSelection += 5;
+            remaining--;
+            memset(entry, 0, 5U);
+        } while (remaining >= 0);
+        for (i = 0; i < 8; i++) {
+            unsigned char choice = MenuSaveDataGet()[i];
+
+            MenuWork.sortChoices[i] = choice;
+        }
+        MenuWork.partyCount = PartyAllPartyGet(characters, 0);
+        for (memberIndex = 0; memberIndex < MenuWork.partyCount; memberIndex++) {
+            MenuItemParty[memberIndex] = (unsigned short)characters[memberIndex];
+        }
+        if ((unsigned int)MenuScenarioNo - 0x90U < 9U) {
+            MenuWork.agwsCount = 3;
+            MenuItemAgws[0] = 18;
+            MenuItemAgws[1] = 19;
+            MenuItemAgws[2] = 20;
+        } else {
+            int agwsCount = PartyAgwsGet(characters);
+
+            MenuWork.agwsCount = agwsCount;
+            for (memberIndex = 0; memberIndex < (signed char)agwsCount; memberIndex++) {
+                MenuItemAgws[memberIndex] = (unsigned short)characters[memberIndex];
+            }
+        }
+    }
+
+    if (MenuWork.mode != MenuWork.nextMode) {
+        MenuWork.mode = MenuWork.nextMode;
+        MenuWork.flags |= 1;
+    } else {
+        MenuWork.flags &= 0xFE;
+    }
+    menu = &MenuWork;
+    if (MenuWork.busy != 0) {
+        MenuWork.busy--;
+    }
+
+    switch (MenuWork.mode) {
+    case 0x40:
+        return menu->selectedItem;
+
+    case 0x20:
+        if ((menu->flags & 1) == 0) {
+            if (menu->busy == 0) {
+                menu->selectDir = WindowSPSelect((WindowSPCursor *)&MenuItemList->window, PadData.activity);
+                WindowSPKeepSelect((WindowSPCursor *)&MenuItemList->window, &MenuKeepSelect[menu->listTab * 5]);
+                menu->tabChangeDirection = 0;
+                if (PadData.activity == 4) {
+                    menu->tabChangeDirection = -1;
+                }
+                if (PadData.activity == 8) {
+                    menu->tabChangeDirection = 1;
+                }
+                if (menu->tabChangeDirection != 0) {
+                    WindowSPKeepSelectCheck(&MenuKeepSelect[menu->listTab * 5]);
+                    menu->listTab += menu->tabChangeDirection;
+                    if (menu->listTab < 0) {
+                        menu->listTab = 7;
+                    }
+                    if (menu->listTab >= 8) {
+                        menu->listTab = 0;
+                    }
+                    xglSoundEffectNormalID(1, 0);
+                    menu->busy = 12;
+                }
+                if (PadData.activity == 0x10) {
+                    if (MenuWork.selectDir >= 0) {
+                        xglSoundEffectNormalID(1, 0);
+                        MenuWork.nextMode = 0x80;
+                    } else {
+                        xglSoundEffectNormalID(5, 0);
+                    }
+                }
+                if (MenuWork.selectDir >= 0) {
+                    MenuWork.selectedItem = MenuSortGet(0, MenuWork.selectDir);
+                    MenuWork.selectionMode = MenuItemUseCheck(MenuWork.selectedItem);
+                    if (PadData.pressed == 0x20) {
+                        switch (MenuWork.listTab) {
+                        case 0:
+                            switch (MenuWork.selectionMode) {
+                            case 1:
+                            case 2:
+                                xglSoundEffectNormalID(1, 0);
+                                MenuWork.nextMode = 0x22;
+                                MenuWork.agwsMode = 0;
+                                break;
+                            case 10:
+                                if (MenuWork.agwsCount != 0) {
+                                    xglSoundEffectNormalID(1, 0);
+                                    MenuWork.nextMode = 0x22;
+                                    MenuWork.agwsMode = 1;
+                                    MenuWork.busy = 8;
+                                } else {
+                                    xglSoundEffectNormalID(5, 0);
+                                }
+                                break;
+                            default:
+                                xglSoundEffectNormalID(5, 0);
+                                break;
+                            }
+                            break;
+                        case 1:
+                            if ((unsigned int)((unsigned short)MenuWork.selectedItem - 11) < 5U) {
+                                if (MenuWork.selectedItem == 11) {
+                                    MenuWork.nextMode = 0x30;
+                                    xglSoundEffectNormalID(1, 0);
+                                } else if ((unsigned int)GameLoopState.flags & 0x400000) {
+                                    MenuWork.nextMode = 0x40;
+                                    xglSoundEffectNormalID(1, 0);
+                                } else {
+                                    xglSoundEffectNormalID(5, 0);
+                                }
+                            }
+                            break;
+                        }
+                    }
+                }
+                if (PadData.pressed & 0x40) {
+                    xglSoundEffectNormalID(2, 0);
+                    MenuWork.nextMode = 0xF0;
+                }
+            } else {
+                menu->selectDir = WindowSPSelect((WindowSPCursor *)&MenuItemList->window, 0);
+            }
+        }
+        break;
+
+    case 0x22:
+        if (menu->busy == 0) {
+            if (menu->agwsMode != 0) {
+                int selection = MenuSelectMove(menu->selectedAgws, menu->agwsCount, 0);
+                unsigned short pressed = PadData.pressed;
+
+                menu->selectedAgws = selection;
+                if (pressed == 0x20) {
+                    int itemKey = MenuSortGet(0, menu->selectDir);
+                    short itemId = itemKey;
+
+                    menu->flags |= 4;
+                    func_A1A4E8(itemId);
+                    if (MenuCharHpCheck(MenuItemAgws[menu->selectedAgws]) != 0) {
+                        xglSoundEffectNormalID(5, 0);
+                        break;
+                    }
+                    MenuBoxDec(itemKey);
+                    if (MenuBoxChk(itemKey) == 0) {
+                        WindowSPKeepSelect((WindowSPCursor *)&MenuItemList->window, &MenuKeepSelect[menu->listTab * 5]);
+                        MenuItemListMake00();
+                        menu->nextMode = pressed;
+                    }
+                    func_00A114C0(MenuItemAgws[menu->selectedAgws], itemId);
+                    xglSoundEffectNormalID(1, 0);
+                    MenuItemListMake00_1();
+                }
+                if (PadData.pressed == 0x40) {
+                    MenuItemListMake00();
+                    xglSoundEffectNormalID(2, 0);
+                    MenuWork.nextMode = 0x20;
+                }
+            } else if (menu->scrollDir == 0) {
+                signed char selectionMode = menu->selectionMode;
+
+                if (selectionMode == 1 && menu->partyCount >= 2) {
+                    if (PadData.activity == 0x1000) {
+                        menu->scrollDir = -1;
+                    }
+                    if (PadData.activity == 0x4000) {
+                        menu->scrollDir = selectionMode;
+                    }
+                    if (menu->scrollDir != 0) {
+                        if (menu->scrollDir == -1) {
+                            if (menu->selectedParty != 0) {
+                                menu->selectedParty--;
+                                xglSoundEffectNormalID(3, 0);
+                            }
+                        } else {
+                            if (menu->selectedParty != menu->partyCount - 1) {
+                                menu->selectedParty++;
+                                xglSoundEffectNormalID(3, 0);
+                            }
+                        }
+                    }
+                }
+                if (PadData.pressed == 0x40) {
+                    MenuItemListMake00();
+                    xglSoundEffectNormalID(2, 0);
+                    MenuWork.nextMode = 0x20;
+                }
+                if (PadData.pressed == 0x20) {
+                    int itemKey = MenuSortGet(0, MenuWork.selectDir);
+                    short itemId = itemKey;
+
+                    MenuWork.flags |= 4;
+                    item = func_A1A4E8(itemId);
+                    if (itemId == MENU_ITEM_SPECIAL_ID) {
+                        if (MenuCharHpCheck(-1) != 0 && MenuCharEpCheck(-1) != 0) {
+                            xglSoundEffectNormalID(5, 0);
+                            break;
+                        }
+                    } else {
+                        unsigned short attributes;
+                        MenuItemCharacterPoints *points = func_A19210(MenuItemParty[MenuWork.selectedParty]);
+
+                        attributes = item->attributes;
+                        if (attributes & 1) {
+                            if (MenuWork.selectionMode == 1) {
+                                if (MenuCharHpCheck(MenuItemParty[MenuWork.selectedParty]) != 0) {
+                                    xglSoundEffectNormalID(5, 0);
+                                    break;
+                                }
+                            } else {
+                                if (MenuCharHpCheck(-1) != 0) {
+                                    xglSoundEffectNormalID(5, 0);
+                                    break;
+                                }
+                            }
+                        } else if (attributes & 2) {
+                            if (MenuWork.selectionMode == 1) {
+                                if (MenuCharEpCheck(MenuItemParty[MenuWork.selectedParty]) != 0) {
+                                    xglSoundEffectNormalID(5, 0);
+                                    break;
+                                }
+                            } else {
+                                if (MenuCharEpCheck(-1) != 0) {
+                                    xglSoundEffectNormalID(5, 0);
+                                    break;
+                                }
+                            }
+                        } else if (attributes & 0x800) {
+                            if (points->points >= 9999) {
+                                xglSoundEffectNormalID(5, 0);
+                                break;
+                            }
+                        } else if (attributes & 0x400) {
+                            if (points->etherPoints >= 9999) {
+                                xglSoundEffectNormalID(5, 0);
+                                break;
+                            }
+                        } else if (attributes & 0x200) {
+                            if (points->skillPoints >= 9999) {
+                                xglSoundEffectNormalID(5, 0);
+                                break;
+                            }
+                        }
+                    }
+                    MenuBoxDec(itemKey);
+                    if (MenuBoxChk(itemKey) == 0) {
+                        WindowSPKeepSelect((WindowSPCursor *)&MenuItemList->window, &MenuKeepSelect[MenuWork.listTab * 5]);
+                        MenuItemListMake00();
+                        MenuWork.nextMode = 0x20;
+                    }
+                    func_00A114C0(MenuItemParty[MenuWork.selectedParty], itemId);
+                    xglSoundEffectNormalID(1, 0);
+                    MenuItemListMake00_1();
+                }
+            }
+        }
+        break;
+
+    case 0x30:
+        if (menu->flags & 1) {
+            menu->segmentSelection = 0;
+            menu->busy = 12;
+        }
+        if (menu->busy == 0 && (PadData.pressed & 0x40)) {
+            xglSoundEffectNormalID(2, 0);
+            menu->nextMode = 0x20;
+            menu->busy = 12;
+        }
+        break;
+
+    case 0x80: {
+        if (MenuWork.flags & 1) {
+            signed char initialTab;
+            unsigned char initialChoice;
+
+            initialTab = MenuWork.listTab;
+            initialChoice = menu->sortChoices[initialTab];
+            MenuWork.busy = 8;
+            MenuWork.sortSelection = (signed char)initialChoice / 2;
+        }
+        if (MenuWork.busy == 0) {
+            int selection = MenuSelectMove(MenuWork.sortSelection, 4, 0);
+            int pressed = PadData.pressed;
+
+            MenuWork.sortSelection = selection;
+            if (pressed == 0x20) {
+                if (MenuWork.sortSelection != 3) {
+                    unsigned char *saved;
+
+                    *(menu->sortChoices + menu->listTab) = MenuWork.sortSelection * 2;
+                    saved = MenuSaveDataGet();
+                    saved[menu->listTab] = menu->sortChoices[menu->listTab];
+                    MenuWork.flags |= 4;
+                    xglSoundEffectNormalID(15, 0);
+                } else {
+                    MenuWork.nextMode = pressed;
+                    xglSoundEffectNormalID(2, 0);
+                }
+            }
+            if (PadData.pressed == 0x40) {
+                MenuWork.nextMode = 0x20;
+                MenuWork.busy = 12;
+                xglSoundEffectNormalID(2, 0);
+            }
+        }
+        break;
+    }
+
+    case 0xF0:
+        if (menu->flags & 1) {
+            menu->busy = 16;
+        }
+        if (menu->busy == 0) {
+            menu->nextMode = 0xFF;
+        }
+        break;
+
+    case 0xFF:
+        ChangeTopLevel(0);
+        break;
+    }
+
+    MenuItemPasMain();
+    MenuItemInfoMain();
+    MenuItemStatusMain();
+    MenuItemStatusAgwsMain();
+    MenuItemListMain();
+    MenuItemIconMain();
+    MenuItemSelectMain();
+    MenuItemExMain();
+    MenuItemLineMain();
+    MenuItemSegmentMain();
+    xglFontDebugPrintf(0, 0x40, D_004DAB00);
+    xglFontDebugPrintf(0, 0x48, D_004DAB08, MenuWork.selectDir);
+    xglFontDebugPrintf(0, 0x50, D_004DAB08, MenuWork.selectionMode);
+    return 0;
+}

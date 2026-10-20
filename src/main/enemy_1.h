@@ -36,6 +36,7 @@ typedef struct EnemyParams {
     short light_level;
 } EnemyParams;
 
+
 typedef struct EnemyPreset {
     float route_step_length;
     float chase_distance;
@@ -63,22 +64,34 @@ typedef struct EnemyPreset {
     unsigned char unmodeled_44[0xc];
 } EnemyPreset;
 
+
 typedef struct EnemyUndulation {
     unsigned char unmodeled_00[8];
     short attr_mask;
 } EnemyUndulation;
+
 
 typedef union EnemyVector4 {
     Vector4 vector;
     unsigned long long words[2];
 } EnemyVector4;
 
+
+typedef struct EnemyEffect {
+    unsigned char unmodeled_00[160];
+    float scale_x;
+    float scale_y;
+    float scale_z;
+    unsigned char unmodeled_ac[1724 - 172];
+    struct EnemyActor *owner;
+} EnemyEffect;
 typedef struct EnemyActor {
     u32 flags;
     unsigned char unmodeled_04[0x0c];
     union {
         Vector4 position;
         EnemyVector4 position_pair;
+        float position_f[4];
     };
     unsigned char unmodeled_20[0x34];
     float angle;
@@ -125,19 +138,14 @@ typedef struct EnemyActor {
     unsigned char unmodeled_a34[0x3c];
 } EnemyActor;
 
-typedef struct EnemyEffect {
-    unsigned char unmodeled_00[160];
-    float scale_x;
-    float scale_y;
-    float scale_z;
-    unsigned char unmodeled_ac[1724 - 172];
-    EnemyActor *owner;
-} EnemyEffect;
+
+
 
 typedef union EnemyWorkState40 {
     short alert_level;
     short spline_parameter;
 } EnemyWorkState40;
+
 
 typedef struct EnemyEscapeTarget {
     union {
@@ -151,6 +159,7 @@ typedef struct EnemyEscapeTarget {
     short scale_frame_count;
 } EnemyEscapeTarget;
 
+
 typedef struct EnemyWorkEntry {
     float locator_distance;
     short initial_motion_id;
@@ -158,15 +167,25 @@ typedef struct EnemyWorkEntry {
     short locator_end_frame;
     short wall_attribute;
     float value_0c;
-    float goback_x;
-    unsigned char unmodeled_014[4];
-    float goback_z;
-    unsigned char unmodeled_01c[4];
+    union {
+        struct {
+            float goback_x;
+            unsigned char unmodeled_014[4];
+            float goback_z;
+            unsigned char unmodeled_01c[4];
+        };
+        float goback[4];
+    };
     Vector4 step_limit;
-    float drift_x;
-    float fall_speed;
-    float drift_z;
-    unsigned char unmodeled_03c[4];
+    union {
+        struct {
+            float drift_x;
+            float fall_speed;
+            float drift_z;
+            unsigned char unmodeled_03c[4];
+        };
+        float drift[4];
+    };
     EnemyWorkState40 state_40;
     short fast_point_count;
     unsigned short hit_count;
@@ -189,7 +208,10 @@ typedef struct EnemyWorkEntry {
     short mark;
     short mark_timer;
     unsigned char unmodeled_078[8];
-    Vector4 spline_points[256];
+    union {
+        Vector4 spline_points[256];
+        float spline_coordinates[256][4];
+    };
     short spline_point_count;
     unsigned char unmodeled_1082[0xe];
     Vector4 route_points[256];
@@ -224,6 +246,7 @@ typedef struct EnemyWorkEntry {
     unsigned char unmodeled_38ae[2];
 } EnemyWorkEntry;
 
+
 typedef struct EnemyMarkSet {
     void *none;
     void *exclamation;
@@ -231,9 +254,11 @@ typedef struct EnemyMarkSet {
     void *sphere;
 } EnemyMarkSet;
 
+
 typedef struct EnemyMapUnit {
     unsigned char unmodeled_000[0x300];
 } EnemyMapUnit;
+
 
 extern EnemyMapUnit MapUnit[64];
 extern long EneTerritoryID[20];
@@ -242,11 +267,12 @@ extern EnemyActor actor[64];
 extern EnemyWorkEntry enepc[16];
 typedef struct EnemyGameLoopState {
     unsigned char unmodeled_00[4];
-    EnemyActor *player;
+    struct EnemyActor *player;
     unsigned char unmodeled_08[0x29f8c];
     short encount_reset;
     unsigned char unmodeled_29f96[0x9a];
 } EnemyGameLoopState;
+
 
 extern EnemyGameLoopState GameLoopState;
 extern unsigned short CoolDown_0;
@@ -262,13 +288,13 @@ extern void *AdrsEnemySphere;
 float Get_Angle(const Vector4 *from, const Vector4 *to);
 float sinf(float x);
 float cosf(float x);
-int TM_Check_Move(EnemyActor *actor);
+int TM_Check_Move(EnemyActor *self);
 void Set_Spline_By_Route(EnemyActor *actor, int route);
 void Set_Spline_By_Random();
 void BSpline_Init(Vector4 *points, const Vector4 *origin, float angle);
 int Get_Rnd(int low, int high);
-int CrossPointUwamono(float radius, const Vector4 *from, const Vector4 *to,
-                      Vector4 *point);
+int CrossPointUwamono(const Vector4 *position, const Vector4 *previous,
+                      float radius, Vector4 *result);
 int Check_MoveSquare(float radius, const Vector4 *to, const Vector4 *from,
                      Vector4 *square, int map_index);
 void xglFontDebugPrintf(int x, int y, const char *format, ...);
@@ -316,6 +342,7 @@ typedef struct EnemyResourceRecord {
     void *motion;
     unsigned char unmodeled_04[0xc];
 } EnemyResourceRecord;
+
 extern EnemyResourceRecord GameResource[128];
 extern const char D_004CAB00[];
 void Homing_Add(unsigned char number, float x, float y, float z, short value);
@@ -332,6 +359,7 @@ typedef struct EnemyPadView {
     unsigned short held;
     unsigned short pressed;
 } EnemyPadView;
+
 
 extern EnemyPadView PadData;
 extern short DebugActor;
@@ -376,20 +404,54 @@ void Move_BeltConveyer(EnemyActor *actor);
 float Get_Cursol_by_Reduce_Speed_Angle_Loop(float current, float target,
                                             float speed);
 struct EnemyUndulationHeader *UnduDataGetHeader(int map_index, int unit_index);
-void Disp_EnemyMark();
-void Enemy_Init(EnemyActor *actor);
+void Disp_EnemyMark(EnemyActor *actor);
+void Enemy_Init(EnemyActor *self);
 void Enemy_Pause(EnemyActor *actor);
 void Enemy_Threat(EnemyActor *actor);
-void Enemy_Route(EnemyActor *actor);
+void Enemy_Route(EnemyActor *self);
 void Enemy_Found(EnemyActor *actor);
-void Enemy_Chase(EnemyActor *actor);
-void Enemy_Tentacle(EnemyActor *actor);
+void Enemy_Chase(EnemyActor *self);
+void Enemy_Tentacle(EnemyActor *self);
 void Enemy_Stiff(EnemyActor *actor);
 void Enemy_Unique(EnemyActor *actor);
 void Enemy_Damage_Explosion(EnemyActor *actor);
 void Enemy_Damage_Electric(EnemyActor *actor);
 void Enemy_Damage_Seal(EnemyActor *actor);
 void Enemy_Escape(EnemyActor *actor);
-void Enemy_Route_Chase(EnemyActor *actor);
+void Enemy_Route_Chase(EnemyActor *self);
+
+extern float D_004D801C;
+
+extern float D_004D8020;
+
+extern float D_004D8024;
+
+extern const float D_004D8028;
+
+extern float D_004D802C;
+
+extern float D_004D8030;
+
+void GetBSplineLoopDummy(short parameter, short point_count, int stride,
+                         Vector4 *points, Vector4 *result, EnemyActor *actor);
+
+void Check_Wall(float scale, float radius, const Vector4 *origin,
+                signed char directions[16], int status_count, int map_index,
+                unsigned char number, int territory);
+
+short Check_Straight(float radius, const Vector4 *from, const Vector4 *to,
+                    int mask, Vector4 *hit, int map_index, int number,
+                    int territory);
+
+void BSpline_Add(short parameter, short point_count, short stride,
+                 Vector4 *points, const Vector4 *point, short offset);
+
+extern const float D_004D8064;
+
+void Get_One_Step(float length, const Vector4 *source,
+                  const Vector4 *destination, float *output);
+
+float atan2f(float y, float x);
+
 
 #endif

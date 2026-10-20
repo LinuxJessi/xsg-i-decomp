@@ -844,7 +844,7 @@ def asm_data_only(text):
 # Admission (tools/match.py)
 # ---------------------------------------------------------------------------
 
-def admission(cls, tu_class=None):
+def admission(cls, tu_class=None, *, unit=None, tu_id=None, function=None):
     """The admission for a function of class `cls` inside a TU of class `tu_class`.
 
     `tu_class` matters for exactly one pair. A `hardware` function is admitted
@@ -866,6 +866,12 @@ def admission(cls, tu_class=None):
     if cls == 'ordinary':
         return match.ordinary_c
     if cls == 'hardware':
+        # User decision 2026-10-18: compose the existing MMI and COP2 guards
+        # only for these two original NML identities, not for hardware generally.
+        if (unit, tu_id, function) in {
+                ('main', 'main/tu106', '_WeightToGlobalVec'),
+                ('main', 'main/tu108', '_WeightToGlobalPlaceVec')}:
+            return match.mmi_cop2_native_ti_c if tu_class == 'native-ti' else match.mmi_cop2_c
         return match.hardware_native_ti_c if tu_class == 'native-ti' else match.hardware_c
     if cls == 'runtime-verbatim':
         return match.runtime_verbatim_c
@@ -891,6 +897,8 @@ def admission(cls, tu_class=None):
     if cls == 'ee-vu-clip':
         # Original hand-written VU0 lane-test block with its set/clear join as the whole body
         # (user decision 2026-10-11 on main/tu109, docs/ee-hand-asm.md).
+        if (unit, tu_id, function) == ('main', 'main/tu210', 'sefClipViewVolumeA'):
+            return match.sef_vu_clip_native_ti_c if tu_class == 'native-ti' else match.sef_vu_clip_c
         return match.vu_clip_native_ti_c if tu_class == 'native-ti' else match.vu_clip_c
     if cls == 'ee-assert-break':
         # The assert macros' bare debugger trap, spelled only as DEBUG_BREAK() of
@@ -1015,6 +1023,188 @@ def emitted_c_category(cls, source_statements, emitted_blocks):
     """Report admitted inlined helper ASM as ASM, never pure C coverage."""
     return ('exact_c_with_asm' if cls in INLINE_ASM_CLASSES
             and (source_statements or emitted_blocks) else 'exact_c')
+
+
+# Source transport, not another ASM class. These two exact definitions implement
+# already-admitted MMI operations in the two original JNT consumers. A name alone
+# never qualifies: source, complete use, actual emission and absence of an
+# out-of-line object must all be proven before free-text admission can omit it.
+_JNT_MMI_HELPERS = {
+    'jntCopyMatrix': ('71eed05bd729c11448457ede54d258ce16698949055dfe0e8ce4d3c7457e140e', (0, 16, 32, 48)),
+    'jntCopyMatrixRow': ('87cafe1229e938bbb3ee1df1914ec5f318a62677a3447774f53c5f01669d61ad', (0,)),
+}
+_JNT_MMI_CONSUMERS = {
+    'JNT_interpolate': (0x00313350, 1076, {'jntCopyMatrix': 4, 'jntCopyMatrixRow': 1}),
+    'JNT_resetMatrix': (0x003148a8, 396, {'jntCopyMatrix': 2}),
+}
+
+
+def verified_jnt_mmi_helpers(unit, tu_id, tu_rel, tu, pre, asm, obj, classes,
+                             tu_class, original_functions, original_sha256):
+    """Return only fully proven JNT helper transports; never change compiled text.
+
+    The closed token pins include signatures, static/inline, templates, operand
+    expressions and clobbers. Both raw and cpp source must expose the same direct
+    statement calls. All consumers, not merely this audit's claims, are checked.
+    Unknown helpers stay in ordinary/native-TI free text as before.
+    """
+    names = set(_JNT_MMI_HELPERS)
+    if ((unit, tu_id) != ('main', 'main/tu261') or
+            not any(b.name in names for b in tu.blocks)):
+        return set(), None
+
+    def require_transport(condition, detail):
+        if not condition:
+            raise AuditError('JNT MMI helper transport: ' + detail)
+
+    def token_pin(text):
+        return hashlib.sha256('\0'.join(tu_edit.c_tokens(text)).encode()).hexdigest()
+
+    require_transport(tu_class in ('ordinary', 'native-ti'), 'unsupported TU source class')
+    require_transport(tu_rel == '../../src/main/jnt.c' and original_sha256 ==
+                      '412d448de31505c03ad474cc63d500b3b4f8c48d49d32bd24c89fe5b21af0fb2',
+                      'original revision or defining TU source path differs')
+    cpp = tu_edit.parse(pre.text)
+    sources = []
+    helper_evidence = {}
+    expected_calls = {n: collections.Counter(spec[2]) for n, spec in _JNT_MMI_CONSUMERS.items()}
+    for label, source in (('raw', tu), ('cpp', cpp)):
+        lexical = tu_edit.lexical(source.text)
+        require_transport('\\' not in lexical and not any(
+            escape in lexical for escape in ('??', '%:', '<%', '%>', '<:', ':>')),
+            label + ' source has an executable escape/alternative punctuator')
+        helper_blocks = {}
+        for name, (digest, _offsets) in _JNT_MMI_HELPERS.items():
+            found = [b for b in source.blocks if b.name == name]
+            require_transport(len(found) == 1, label + ': helper definition is absent/ambiguous: ' + name)
+            block = found[0]
+            text = source.block_text(block)
+            require_transport(block.state == 'c' and block.role == 'helper' and block.static
+                              and not block.conditional and token_pin(text) == digest,
+                              label + ': helper signature/body tokens differ: ' + name)
+            require_transport('register' not in tu_edit.c_tokens(text),
+                              label + ': register storage/binding is forbidden: ' + name)
+            require_transport(admission('ee-mmi', tu_class)(text) == 1,
+                              label + ': helper is not exactly one admitted MMI statement: ' + name)
+            helper_blocks[name] = block
+            if label == 'cpp':
+                raw = tu.by_name[name]
+                where, line = pre.attribute(block.core_start)
+                require_transport(where == tu_rel and
+                                  tu_edit.line_of(tu.text, raw.core_start) <= line <=
+                                  tu_edit.line_of(tu.text, raw.end),
+                                  'cpp helper definition is not the audited TU source: ' + name)
+            else:
+                helper_evidence[name] = dict(token_sha256=digest,
+                    source_sha256=hashlib.sha256(text.encode('utf-8', 'surrogateescape')).hexdigest(),
+                    lines=[tu_edit.line_of(tu.text, block.core_start), tu_edit.line_of(tu.text, block.end)])
+
+        calls = {n: collections.Counter() for n in expected_calls}
+        sites = []
+        for match in re.finditer(r'\b(?:jntCopyMatrix|jntCopyMatrixRow)\b', lexical):
+            name, offset = match.group(), match.start()
+            if any(b.core_start <= offset < b.core_end for b in helper_blocks.values()):
+                continue  # The complete pinned definitions were independently admitted above.
+            owners = [b for b in source.blocks if b.core_start <= offset < b.core_end]
+            require_transport(len(owners) == 1, label + ': helper reference outside a mapped consumer')
+            caller = owners[0]
+            require_transport(caller.state == 'c' and caller.name in expected_calls
+                              and not caller.conditional and classes.get(caller.name, tu_class) == 'ee-mmi',
+                              label + ': helper consumer is not a declared mapped ee-mmi function: ' + caller.name)
+            raw = tu.by_name.get(caller.name)
+            require_transport(raw is not None and raw.role == 'function' and raw.key == caller.name,
+                              label + ': consumer is not an original mapped function: ' + caller.name)
+            opening = lexical.find('{', caller.core_start, caller.core_end)
+            before = lexical[opening + 1:offset].rstrip()
+            after = lexical[match.end():caller.core_end].lstrip()
+            require_transport(offset > opening and (not before or before[-1] in ';{}')
+                              and after.startswith('('),
+                              label + ': helper use is not a direct statement call: ' + name)
+            depth, closing = 0, None
+            for index, char in enumerate(after):
+                depth += (char == '(') - (char == ')')
+                if depth == 0:
+                    closing = index
+                    break
+            require_transport(closing is not None and after[closing + 1:].lstrip().startswith(';'),
+                              label + ': helper call has an unsupported expression/indirect use: ' + name)
+            calls[caller.name][name] += 1
+            sites.append(dict(helper=name, consumer=caller.name, line=tu_edit.line_of(source.text, offset)))
+        require_transport(calls == expected_calls, label + ': complete direct-call multiplicity differs')
+        sources.append(sites)
+
+    for name, (va, size, _calls) in _JNT_MMI_CONSUMERS.items():
+        raw, expanded = tu.by_name.get(name), cpp.by_name.get(name)
+        require_transport(raw is not None and expanded is not None and
+                          tu_edit.c_tokens(tu.block_text(raw)) == tu_edit.c_tokens(cpp.block_text(expanded)),
+                          'raw/cpp consumer tokens differ: ' + name)
+        require_transport(not {'register', '__attribute', '__attribute__'} &
+                          set(tu_edit.c_tokens(tu.block_text(raw))),
+                          'consumer register storage/binding or attribute is forbidden: ' + name)
+        where, line = pre.attribute(expanded.core_start)
+        require_transport(where == tu_rel and tu_edit.line_of(tu.text, raw.core_start) <= line <=
+                          tu_edit.line_of(tu.text, raw.end), 'cpp consumer ownership differs: ' + name)
+        original = [s for s in original_functions if s['name'] == name]
+        require_transport(len(original) == 1 and int(original[0]['va'], 16) == va
+                          and original[0]['size'] == size and original[0]['binding'] == 1
+                          and original[0]['type'] == STT_FUNC,
+                          'original consumer identity differs: ' + name)
+        emitted = [s for s in obj.functions() if s['name'] == name]
+        require_transport(len(emitted) == 1 and emitted[0]['size'] == size
+                          and emitted[0]['binding'] == 1 and emitted[0]['section'] in TEXT_SECTIONS,
+                          'emitted consumer identity differs: ' + name)
+        require_transport(emitted[0]['value'] == va - 0x0030ec08,
+                          'emitted consumer is not at its original TU offset: ' + name)
+
+    # This is additional evidence, not an allow-list entry in any existing
+    # emitted-helper/extra-function/object-symbol gate. Those gates stay intact.
+    require_transport(not any(any(h in s['name'] for h in names) for s in obj.symbols),
+                      'object retains a helper/clone/alias symbol')
+    require_transport(not any(any(h in r['name'] for h in names) for r in asm.regions),
+                      'compiler emits a standalone helper/clone region')
+    require_transport(not any(any(h in row[3] for h in names) for row in obj.relocations()),
+                      'object relocation refers to a helper/clone/alias')
+
+    def emitted_shape(app):
+        lines = [text.strip() for _line, text in app['lines'] if text.strip()]
+        for name, (_digest, offsets) in _JNT_MMI_HELPERS.items():
+            if len(lines) != len(offsets) * 2:
+                continue
+            bases = {}
+            for index, (op, offset) in enumerate(
+                    entry for offset in offsets for entry in (('lq', offset), ('sq', offset))):
+                match = re.fullmatch(r'(lq|sq)\s+\$2,\s*(\d+)\(\$([0-9]+|sp)\)', lines[index])
+                if (not match or match[1] != op or int(match[2]) != offset or match[3] == '2'
+                        or (match[3] != 'sp' and not 0 <= int(match[3]) <= 31)
+                        or (op in bases and bases[op] != match[3])):
+                    break
+                bases[op] = match[3]
+            else:
+                return name
+        return None
+
+    for region in asm.regions:
+        if region['name'] not in expected_calls:
+            require_transport(not any(emitted_shape(app) in names for app in region['app']),
+                              'copy APP escapes the registered consumers: ' + region['name'])
+    emission = {}
+    for name, expected in expected_calls.items():
+        regions = [r for r in asm.regions if r['name'] == name]
+        require_transport(len(regions) == 1 and regions[0]['file'] == tu_rel
+                          and regions[0]['section'] in TEXT_SECTIONS and not regions[0]['includes'],
+                          'consumer compiler region ownership differs: ' + name)
+        blocks = regions[0]['app']
+        shapes = collections.Counter(emitted_shape(app) for app in blocks)
+        require_transport(shapes == expected, 'emitted APP template/multiplicity differs: ' + name)
+        emission[name] = dict(helpers=dict(shapes), app_lines=[app['line'] for app in blocks],
+                             category=emitted_c_category('ee-mmi', 0, len(blocks)))
+    return names, dict(schema='jnt-inline-mmi-transport/1', helpers=helper_evidence,
+                       raw_calls=sources[0], preprocessed_calls=sources[1], consumers=emission,
+                       source_sha256=hashlib.sha256(tu.text.encode('utf-8', 'surrogateescape')).hexdigest(),
+                       preprocessed_sha256=hashlib.sha256(pre.text.encode()).hexdigest(),
+                       object_sha256=hashlib.sha256(obj.data).hexdigest(),
+                       original_sha256=original_sha256,
+                       grants_helper_credit=False, grants_exactness=False)
 
 
 def published_source_classes(tu_id):
@@ -1481,9 +1671,48 @@ def compile_tu(contract, tu_rel, unit_dir, out_dir, asm_cwd=None, asm_includes=(
                                          '-o', f'{stem}.o', assembled], unit_dir))
     log, messages = [], []
     for name, argv, cwd in steps:
+        replay = None
+        if name == 'cc1' and allocation:
+            # This compiler can schedule identical preprocessed bytes differently
+            # when their input/output path spellings change. Replay the native
+            # build's actual relative paths, not an audit-specific filename.
+            # The workspace is private: never overwrite the object being audited.
+            try:
+                raw_relative = Path(allocation['raw_object']).resolve().relative_to(
+                    Path(unit_dir).resolve())
+            except ValueError as exc:
+                raise AuditError('native compiler output is outside its build directory') from exc
+            workspace = Path(out_dir) / 'cc1-cwd'
+            if workspace.exists():
+                raise AuditError('native compiler replay workspace must be fresh')
+            relative_i = Path(str(raw_relative) + '.i')
+            relative_s = Path(str(raw_relative) + '.s')
+            staged_i = workspace / relative_i
+            staged_i.parent.mkdir(parents=True)
+            input_sha256 = sha256_file(f'{stem}.i')
+            shutil.copy2(f'{stem}.i', staged_i)
+            if sha256_file(staged_i) != input_sha256:
+                raise AuditError('native compiler replay changed its preprocessed input')
+            argv = [driver, f'-B{cc}/', *contract['driver_flags'], '-S', *flags,
+                    str(relative_i), '-o', str(relative_s)]
+            cwd = workspace
+            replay = dict(workspace=rel(workspace), input_relative=str(relative_i),
+                          output_relative=str(relative_s), input_sha256=input_sha256)
         rc, out = run(argv, cwd)
-        log.append(dict(step=name, argv=[rel(a) if str(a).startswith('/') else str(a) for a in argv],
-                        cwd=rel(cwd), rc=rc, output=out[-2000:]))
+        if replay is not None and rc == 0:
+            generated_s = workspace / relative_s
+            if not generated_s.is_file():
+                raise AuditError('native compiler replay did not emit its assembly')
+            output_sha256 = sha256_file(generated_s)
+            shutil.copy2(generated_s, f'{stem}.s')
+            if sha256_file(f'{stem}.s') != output_sha256:
+                raise AuditError('native compiler replay changed its emitted assembly')
+            replay['output_sha256'] = output_sha256
+        entry = dict(step=name, argv=[rel(a) if str(a).startswith('/') else str(a) for a in argv],
+                     cwd=rel(cwd), rc=rc, output=out[-2000:])
+        if replay is not None:
+            entry['compiler_replay'] = replay
+        log.append(entry)
         if rc:
             raise AuditError(f'{name} failed ({rc}): {out[-400:]}')
         if out.strip():
@@ -4928,7 +5157,18 @@ def _audit_body(args, result, checks, unit_dir, tu_c, tu_rel, contract, source_c
                       if i.end <= prelude_end and i.kind != 'rodata')
     free = ''.join(admission_items.get(i.start, tu_text[i.start:i.end]) + '\n' for i in tu.free_items()
                    if i.start >= prelude_end and i.kind != 'rodata')
-    free += ''.join(tu.block_text(b) + '\n' for b in tu.blocks if b.role == 'helper')
+    transported_helpers = set()
+    try:
+        transported_helpers, transport = verified_jnt_mmi_helpers(
+            args.unit, args.tu_id, tu_rel, tu, pre, asm, obj, classes, source_class, pool,
+            orig_info['sha256'])
+        if transport is not None:
+            result['inline_mmi_helper_transport'] = transport
+            checks.add('inline_mmi_helper_transport', True, helpers=sorted(transported_helpers))
+    except (AuditError, ValueError) as e:
+        checks.add('inline_mmi_helper_transport', False, reason=str(e))
+    free += ''.join(tu.block_text(b) + '\n' for b in tu.blocks
+                    if b.role == 'helper' and b.name not in transported_helpers)
     try:
         admission(source_class)(prelude + free, Path(tu_rel), header_set)
         checks.add('free_text_admitted', True)
@@ -5442,7 +5682,12 @@ def audit_c(b, tu, prelude, tu_rel, header_set, regions, scaffold_names, obj_fun
     text = prelude + tu.block_text(b) + '\n'
     composed = cls in INLINE_ASM_CLASSES and tu_class == 'native-ti'
     try:
-        count = admission(cls, tu_class)(text, Path(tu_rel), header_set)
+        from tools import unaligned_scalar
+        trial_types = unaligned_scalar.declarations(tu.block_text(b))
+        if trial_types and (unit, tu_id, b.key) not in unaligned_scalar.TRIAL_FUNCTIONS:
+            raise ValueError('aligned(1) scalar trial is not authorized for this function identity')
+        count = admission(cls, tu_class, unit=unit, tu_id=tu_id, function=b.key)(
+            text, Path(tu_rel), header_set)
     except ValueError as e:
         elig.append(f'{cls + "+native-ti" if composed else cls} admission refused: {e}')
     if cls == 'runtime-verbatim' and not elig:
@@ -5452,6 +5697,8 @@ def audit_c(b, tu, prelude, tu_rel, header_set, regions, scaffold_names, obj_fun
         except (ValueError, OSError) as e:
             elig.append(f'runtime-verbatim provenance: {e}')
     elig_notes = []
+    if unaligned_scalar.declarations(tu.block_text(b)):
+        elig_notes.append('GNU aligned(1) scalar trial: original-byte, extent and effective-type review required')
     if cls == 'hardware' and count and asm_contract is None:
         # Optional review documentation (user direction 2026-09-27): noted, never
         # a reason.  The hardware admission above stays the enforced guard.

@@ -48,7 +48,7 @@ typedef struct ActorAnimSlot {
     float forwardLimit;
     unsigned short currentDataId;
     unsigned short nextDataId;
-    unsigned char unmodeled_018[0x1a - 0x18];
+    unsigned short channelMask; /* +0x18 */
     unsigned short bufferIndex; /* +0x1a */
     unsigned char unmodeled_01c[0x22 - 0x1c];
     unsigned short animQueuedFlags;
@@ -61,7 +61,7 @@ typedef struct ActorAnimSlot {
  */
 typedef struct ActorAnimationState {
     ActorAnimSlot slot;
-    unsigned char unmodeled_024[0x28 - 0x24];
+    float blendDuration; /* +0x24 */
     float blendEndFrame; /* +0x28 */
     void *animData;
     void *animUserData;
@@ -154,7 +154,8 @@ typedef struct Actor {
     Vector4 rotation;
     ActorScale scale;
     Vector4 globalPosition;
-    unsigned char unmodeled_80[2];
+    unsigned char enemyIndex;
+    unsigned char unmodeled_81[1];
     unsigned char faceKind;
     unsigned char humanKind;
     unsigned char unmodeled_84[2];
@@ -164,23 +165,30 @@ typedef struct Actor {
     unsigned char shadowSize;
     unsigned char unmodeled_092[0x510 - 0x92];
     ActorCalculatedLight light;
-    unsigned char unmodeled_600[0x670 - 0x600];
+    Vector4 cleared600[2];
+    unsigned char unmodeled_620[0x670 - 0x620];
     float shadowClipScale;
     unsigned char unmodeled_674[2];
     unsigned short windowId;
     unsigned char unmodeled_678[8];
     unsigned short mapShadowPartIds[8];
     int mapShadowPartCount;
-    unsigned char unmodeled_694[4];
+    unsigned char unmodeled_694[2];
+    short pauseCounter;
     int attachmentCount;
     int attachmentIndex;
     ActorAttachment attachments[8];
     signed char attachmentUsed[8];
     unsigned char unmodeled_6e8[0x6f0 - 0x6e8];
     ActorAnimationState animation;
-    unsigned char unmodeled_754[0x790 - 0x754];
-    unsigned char jointProducer[0x7f8 - 0x790];
-    ActorAccessoryJointTable *accessoryJoints;
+    int transitionFrames; /* +0x754 */
+    int holdFrames; /* +0x758 */
+    unsigned char unmodeled_75c[4];
+    Vector4 rootTranslation; /* +0x760 */
+    unsigned char unmodeled_770[0x790 - 0x770];
+    unsigned char jointProducer[0x7f4 - 0x790];
+    int jointStatus; /* +0x7f4 */
+    struct ActorAccessoryJointTable *accessoryJoints;
     int moveElementId;
     int shapeCount;
     unsigned char shapeBindingStorage[0x824 - 0x804];
@@ -204,8 +212,8 @@ typedef struct Actor {
 } Actor;
 
 /* ACT_setVisible's third argument is forwarded to both MDL tail calls. */
-extern void ACT_setVisible(Actor *actor, int part, int visible);
-extern void ACT_updateMotionSub(Actor *actor, int pause);
+void ACT_setVisible(Actor *actor, int part, int visible);
+static void ACT_updateMotionSub(Actor *actor, int pause);
 
 int ACT_jointGetMoveElementID(Actor *actor);
 

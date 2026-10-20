@@ -16,9 +16,13 @@ typedef struct GameOrgRecord {
     u8 unmodeled_00[0x180];
 } GameOrgRecord;
 
+
+
 typedef struct GamePlayerRecord {
     u8 unmodeled_00[0xa8];
 } GamePlayerRecord;
+
+
 
 typedef struct GameUserSave {
     u8 unmodeled_0000[0x101b0];
@@ -44,6 +48,8 @@ typedef struct GameUserSave {
     u64 user_longs[2];
 } GameUserSave;
 
+
+
 extern GameOrgRecord orgData[33];
 
 extern GamePlayerRecord plChaData[16];
@@ -65,6 +71,8 @@ typedef union GameVector8 {
     u64 pair[2];
 } GameVector8;
 
+
+
 typedef struct GameMapUnit {
     u32 flags;
     u8 unmodeled_04[0x10 - 0x04];
@@ -84,6 +92,8 @@ typedef struct GameMapUnit {
     u8 unmodeled_1a5[0x300 - 0x1a5];
 } GameMapUnit;
 
+
+
 typedef struct GameClearEnvironment {
     u8 unmodeled_00[0x20];
     u32 red;
@@ -91,6 +101,8 @@ typedef struct GameClearEnvironment {
     u32 blue;
     u32 alpha;
 } GameClearEnvironment;
+
+
 
 typedef struct GameTestEnvironment {
     u8 unmodeled_00[0x30];
@@ -100,6 +112,8 @@ typedef struct GameTestEnvironment {
     u32 alpha;
     u8 unmodeled_40[0x60 - 0x40];
 } GameTestEnvironment;
+
+
 
 extern GameClearEnvironment ClearEnv;
 
@@ -118,6 +132,8 @@ typedef struct GameSequenceSlot {
     u8 unmodeled_34[0x260 - 0x34];
 } GameSequenceSlot;
 
+
+
 extern GameSequenceSlot actSequence[64];
 
 /* GameDebugMenu accesses the first two bytes at GameLoopState+0x29f50.
@@ -131,6 +147,8 @@ typedef union GameDebugMenuStorage {
         u8 unmodeled_02[14];
     } fields;
 } GameDebugMenuStorage;
+
+
 
 /*
  * PARTIAL ACCESSED VIEW of GameLoopState (0x2a030-byte object at 0x338680).
@@ -164,13 +182,28 @@ typedef struct NmlModel {
     int blockOffsets[1];
 } NmlModel;
 
+
+
 /* Only the loaded data pointer at +4 is used by the original here.
  * No complete resource-handle extent or unknown prefix field is claimed. */
 typedef struct GameResourceModelPrefix {
     unsigned char unmodeled_00[4];
-    NmlModel *data;
+    struct NmlModel *data;
 } GameResourceModelPrefix;
 
+
+
+struct Actor {
+    u8 unmodeled_00[0x86];
+    short resourceKind;
+    u8 unmodeled_88[0x824 - 0x88];
+    void *jointMatrices;
+};
+
+typedef struct ActorUndulation {
+    u8 unmodeled_00[8];
+    s16 attr_mask;
+} ActorUndulation;
 typedef struct ActorHead {
     u32 flags;
     void (*update)(void *actor); /* +0x4 */
@@ -185,7 +218,15 @@ typedef struct ActorHead {
     unsigned char unmodeled_083[0x84 - 0x83];
     short state84; /* +0x84 */
     short inUseId;
-    u8 unmodeled_88[0x4e8 - 0x88];
+    u8 unmodeled_88[0x4c8 - 0x88];
+    union {
+        ActorUndulation undulation;
+        struct {
+            u8 unmodeled_undulation_00[8];
+            u16 status_flags;
+        };
+    };
+    u8 unmodeled_4d2[0x4e8 - 0x4d2];
     u64 attribute_flags;
     u8 unmodeled_4f0[0x6f0 - 0x4f0];
     u32 motion_flags;
@@ -202,11 +243,19 @@ typedef struct ActorHead {
     void *valueRecords;
     u8 unmodeled_834[0x8fc - 0x834];
     struct Actor *parent;
-    unsigned char unmodeled_900[0x9f4 - 0x900];
+    unsigned char unmodeled_900[0x9e4 - 0x900];
+    float target_angle;
+    u8 unmodeled_9e8[0x9ec - 0x9e8];
+    short lookat_timer;
+    short lookat_target;
+    short value_9f0;
+    u8 unmodeled_9f2[0x9f4 - 0x9f2];
     int talk_message; /* +0x9f4 */
     int touch_message;
     u8 unmodeled_9fc[0xA70 - 0x9fc];
 } ActorHead;
+
+
 
 
 /* Accurate defining-owner proposals; normal owner transport is pending.
@@ -229,13 +278,15 @@ typedef struct MapUnitSlot {
     s16 shop_id;
     u8 unmodeled_1a4[0x300 - 0x1a4];
 } MapUnitSlot;
+
+
 extern MapUnitSlot MapUnit[64];
 
-typedef struct ActorUndulation {
-    u8 unmodeled_00[8];
-    s16 attr_mask;
-} ActorUndulation;
+
+
 typedef struct PlayerEffect PlayerEffect;
+
+
 struct LookAtPlayerActor {
     u32 flags;
     void (*update)(struct LookAtPlayerActor *actor);
@@ -281,20 +332,17 @@ struct LookAtPlayerActor {
     s16 effect_slot;
     u8 unmodeled_a34[0xa70 - 0xa34];
 };
+
+
 /* Partial defining-owner prefix, from act_2.h. Only these two genuine
  * parent fields are accessed; no complete Actor extent is claimed here. */
-struct Actor {
-    u8 unmodeled_00[0x86];
-    short resourceKind;
-    u8 unmodeled_88[0x824 - 0x88];
-    void *jointMatrices;
-};
+
 extern void ACT_setMotion2(struct Actor *actor, int motion, unsigned int flags);
 extern void ACT_updateMotion(struct Actor *actor);
 extern int xglCdSync(void);
 #include "main/xgl_thread.h"
 extern void GameResourceLoad(int scene_id);
-extern void GameStateRestore(void);
+void GameStateRestore(void);
 extern void sefPopEffect(void);
 extern void UnlockMapUnit(void);
 extern void ClearUwamonoEffect(MapUnitSlot *unit);
@@ -305,16 +353,20 @@ typedef struct GameLightParallel {
     Quadword direction;
 } GameLightParallel;
 
+
+
 typedef struct GameLightSet {
     Quadword ambient_intensity;
     GameLightParallel parallel[3];
     Quadword matrices[8];
 } GameLightSet;
 
+
+
 typedef struct GameLoopStateLayout {
-    u8 _unmodeled_00[4];
+    u8 *saved_work_end;
     struct LookAtPlayerActor *controlled_actor;
-    u8 _unmodeled_08[4];
+    XglTaskScheduler *scheduler;
     u16 kind;
     u16 kindDetail;
     union {
@@ -325,7 +377,10 @@ typedef struct GameLoopStateLayout {
         u64 flags_wide; /* +0x10, original GameDrawSync/GameExecute 64-bit flags */
     };
     u32 current_event_id;
-    u32 cleared_1c;
+    union {
+        u32 cleared_1c;
+        u32 event_sub_id;
+    };
     u32 shoot_control;
     u8 _unmodeled_24[4];
     GameModeCameraCallback camera_callback;
@@ -339,13 +394,22 @@ typedef struct GameLoopStateLayout {
     u16 map_number; /* +0x50 */
     unsigned char unmodeled_052[0x54 - 0x52];
     GameResourceModelPrefix *model;
-    unsigned char unmodeled_058[0x60 - 0x58];
+    int state58;
+    int state5c;
     float params[8]; /* +0x60 */
-    unsigned char unmodeled_080[0xb8 - 0x80];
+    float vector80[4];
+    float vector90[4];
+    float vectorA0[4];
+    int stateB0;
+    u8 _unmodeled_b4[4];
     int frame_countdown; /* +0xb8 */
     unsigned char unmodeled_0bc[0xc1 - 0xbc];
     u8 move_mode;
-    u8 _unmodeled_c2[0xe0 - 0xc2];
+    u8 _unmodeled_c2[6];
+    short stateC8;
+    u8 _unmodeled_ca[6];
+    u8 stateD0;
+    u8 _unmodeled_d1[0xe0 - 0xd1];
     u16 restoreKind;
     u16 restoreKindDetail;
     u8 _unmodeled_e4[0x164 - 0xe4];
@@ -368,11 +432,17 @@ typedef struct GameLoopStateLayout {
     u8 _unmodeled_29f48[8];
     GameDebugMenuStorage debug_menu;
     u16 saved_kind;
-    unsigned char unmodeled_29f62[0x2a018 - 0x29f62];
+    unsigned char unmodeled_29f62[0x29f97 - 0x29f62];
+    u8 battle_flags;
+    unsigned char unmodeled_29f98[0x29f9c - 0x29f98];
+    ActorHead *battle_enemy;
+    unsigned char unmodeled_29fa0[0x2a018 - 0x29fa0];
     u32 user_word; /* +0x2a018 */
     unsigned char unmodeled_2a01c[0x2a020 - 0x2a01c];
     u64 user_longs[2]; /* +0x2a020 */
 } GameLoopStateLayout;
+
+
 
 GameLoopStateLayout GameLoopState = {0};
 
@@ -437,16 +507,25 @@ extern void xglSoundSendEffect(void *swd, void *sed, int bank);
 extern void After_Talk(SceneObject object);
 
 typedef struct EnemyWorkPostTalk {
-    u8 unmodeled_00[0x37b4];
+    u8 unmodeled_00[0x4e];
+    u16 stiff_timer;
+    short effect_timer[2];
+    u8 unmodeled_54[0x37b4 - 0x54];
     u32 post_talk_flags;
-    u8 unmodeled_37b8[0x38b0 - 0x37b8];
+    int enemy_id;
+    u8 unmodeled_37bc[0x3830 - 0x37bc];
+    short encount_lock;
+    u8 unmodeled_3832[0x38b0 - 0x3832];
 } EnemyWorkPostTalk;
+
+
 
 extern EnemyWorkPostTalk enepc[16];
 
 #define ACTOR_NUMBER_OFFSET 0x80
 
-extern void GameStateRestoreCameraLight(void);
+
+void GameStateRestoreCameraLight(void);
 
 extern void GameStateRestoreKoware(void);
 
@@ -457,7 +536,10 @@ typedef struct GameActorAttributeView {
     u64 attribute_flags;
 } GameActorAttributeView;
 
+
+
 #define ACTOR_SCRIPT_FLAGS_OFFSET 0x124
+
 
 /*
  * The engine's actor record (`actor`, 64-entry array at main 0x0043c1e0,
@@ -472,7 +554,9 @@ typedef struct GameActorAttributeView {
 
 #define ACTOR_COUNT 64
 
+
 #define ACTOR_IN_USE_ID_OFFSET 0x86
+
 
 
 extern ActorHead actor[ACTOR_COUNT];
@@ -488,6 +572,239 @@ void ACT_DrawShadowEnd(void);
 #include "main/control_entry.h"
 
 #include "main/xgl_sound.h"
+
+extern void sefPushEffect(void);
+
+typedef struct NmlModelBlockPrefix {
+    u8 unmodeled_00[0x20];
+    u32 flags;
+    u8 unmodeled_24[8];
+    int part_index;
+} NmlModelBlockPrefix;
+
+
+
+extern void ACT_setModelWrapper(ActorHead *actor, int enabled);
+
+extern void ACT_setHumanHand(ActorHead *actor, int hand);
+
+typedef struct GamePartyData {
+    u8 unmodeled_00[0x2c];
+    u16 leader_battle_id;
+} GamePartyData;
+
+
+
+extern void xglFontLoad(int font, int mode);
+
+extern void Vibration_Stop(void);
+
+extern void xglPadRead(void);
+
+extern void UwamonoBgmFadeOut(void);
+
+extern void ACT_init(void);
+
+extern void MAP_initUnit(void);
+
+extern void GameCameraReset(void);
+
+extern void XTK_setWindowOwner(int owner);
+
+extern void ResetShootSys(void);
+
+extern void sefInitEffectCf(void);
+
+extern void xglLightSetDefault(void *light);
+
+extern void Player_System_Init(struct LookAtPlayerActor *player_actor);
+
+extern void xglRenderCopyDisp2Draw(void);
+
+extern GameLightSet GameIdLight[16];
+
+extern SchedulerState *saveEffe;
+
+extern SchedulerState *shopEffe;
+
+extern SchedulerState *evsEffe;
+
+extern SchedulerState *retEffe;
+
+extern float CheckDist3D(const Vector4 *a, const Vector4 *b);
+
+static inline Vector4 *GameSymbolPosition(int index)
+{
+    MapUnitSlot *unit = &MapUnit[index];
+    return &unit->position;
+}
+
+static inline s16 *GameSymbolKindAddress(int index)
+{
+    return (s16 *)((u8 *)&MapUnit[0].symbol_kind + index * sizeof(MapUnitSlot));
+}
+
+extern const char D_004BE2C0[];
+
+extern const char D_004D8A68[];
+
+extern const char D_004BE2D0[];
+
+typedef struct GameRadarParams {
+    int x;
+    int y;
+    int color;
+    u8 red;
+    u8 green;
+    u8 blue;
+    u8 alpha;
+} GameRadarParams;
+
+
+
+extern short NowTester;
+
+extern signed char FLAG_FRAME_60;
+
+extern int prevTouch;
+
+extern void *const stageVM;
+
+extern void SCRIPT_incCfTime(void);
+
+extern int WIN_checkActiveWindow(void);
+
+extern int SCRIPT_sceneChangeTimeGet(void);
+
+extern int SCRIPT_talkIgnoreGet(void);
+
+extern void nmlModelSendMenuStart(void);
+
+extern void nmlModelSendMenuEnd(void);
+
+extern void xglCullingIgnoreOff(void);
+
+extern void MainMenu(void);
+
+extern void nmlModelSendSignalStartBattle(void);
+
+extern void func_A22668(void);
+
+extern int func_00A0B5F0(void);
+
+extern void WindowTexLoad(int first, int second);
+
+extern void CallMethod_I(const char *name, int argument);
+
+extern int Enemy_After_Battle(int result);
+
+extern void Actor_LookAt_Init(ActorHead *actors);
+
+extern void Actor_LookAt(ActorHead *actor);
+
+extern void Actor_LookAt_Release(ActorHead *actor, int flag);
+
+extern void ACT_updateSequence(ActorHead *actor);
+
+extern void GameIdLightSet(ActorHead *actor, void *query);
+
+extern void GameCfPlayerMove(void);
+
+extern void SCRIPT_execEntered(int attribute);
+
+extern void SCRIPT_execTouchto(int touch);
+
+extern float Get_Angle(const Vector4 *from, const Vector4 *to);
+
+extern float Get_Cursol_by_Reduce_Speed_Angle_Loop(float current, float target, float speed);
+
+extern void GameRadarDraw(GameRadarParams *params);
+
+extern void MSG_init(void);
+
+extern void TWSYS_init(void);
+
+extern void xglSoundStreamStop(int stream);
+
+extern short pause_check;
+
+extern void nmlModelSetFadeInCancel(int frames);
+
+extern void nmlModelSetEffectWrite(int enabled);
+
+extern void Enemy_SystemInit(void);
+
+extern void InitUwamonoSys(void);
+
+extern void xglRenderClearDepth(void);
+
+extern void xglRenderGlobalFadeInit(void);
+
+extern void xglRenderClearOff(void);
+
+extern void xglStudioChange(int studio);
+
+extern void GameResourceInit(int first, int second);
+
+extern void MapInit(void);
+
+extern void SCRIPT_sceneChangeTimeInit(void);
+
+extern void SCRIPT_sceneChangeTimeDec(void);
+
+extern void SCRIPT_clrEventActiveFlag(void);
+
+extern void SCRIPT_talkIgnoreClr(void);
+
+extern void GameDefocusSet(int first, int second, int third);
+
+extern void GameBgDrawType0(void);
+
+extern void func_A22628(void);
+
+extern void *xglTaskInitial(void *manager, int capacity, int flags);
+
+extern u8 *SCRIPT_init(u8 *work);
+
+extern void GameRadarInit(void);
+
+extern void GameCfPlayerMoveInit(void);
+
+extern ActorHead *ACT_create(int kind, int flag);
+
+extern void Java_xeno_util_Runtime_jump_sub(int event_id, int mode);
+
+extern void nmlModelSendPauseSignal(int paused);
+
+extern void Disp_Homing(void);
+
+extern void GameMovieStop(void);
+
+extern void xglCdReset(void);
+
+extern void xglCullingMapInit(void);
+
+extern void xglStudioMainCameraInit(void);
+
+extern void nmlModelConstruct(void);
+
+extern void GameOver(void);
+
+extern void sefDeleteEffectCf(SchedulerState *effect);
+
+extern int shopNo;
+
+extern void PartyTimePauseStart(void);
+
+extern void xglCullingIgnore(void);
+
+extern void Java_xeno_util_Runtime_jumpCF__II(void *vm, void *arguments, void *result);
+
+extern u8 *WorkEnd;
+
+static ActorHead *checkTouch(ActorHead *player);
+
+void checkTalkPoint(void);
 
 static void GameCFSoundPurgeSub(void)
 {
@@ -589,7 +906,34 @@ void GameCFSoundMenuReload(void)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/game", Game_Data_Push);
+void Game_Data_Push(void)
+{
+    short actor_index;
+    short index;
+    NmlModel *model;
+    NmlModelBlockPrefix *block;
+    int *block_offsets;
+
+    for (actor_index = 0; actor_index < ACTOR_COUNT; actor_index++) {
+        GameLoopState.saved_actors[actor_index] = actor[actor_index];
+    }
+    GameCFSoundPurge();
+    GameStateSave();
+    sefPushEffect();
+    for (index = 0; index < 32; index++) {
+        GameLoopState.hidden_parts[index] = 0;
+    }
+    model = (NmlModel *)GameLoopState.model->data;
+    block_offsets = model->blockOffsets;
+    for (index = 0; index < model->blockCount; index++) {
+        block = (NmlModelBlockPrefix *)((u8 *)model + block_offsets[index]);
+        if ((block->flags & 8) != 0) {
+            int part_index = block->part_index;
+            int word_index = part_index / 32;
+            GameLoopState.hidden_parts[word_index] |= 1 << part_index;
+        }
+    }
+}
 
 void Game_Data_Pop(void)
 {
@@ -693,7 +1037,56 @@ void MenuGameDataPush(void)
     GameStateSave();
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/game", MenuGameDataPop);
+void MenuGameDataPop(void)
+{
+    short i;
+    int id_changed;
+    GamePartyData *party;
+    ActorHead *target;
+    void *matrices;
+    void *restored_buffer;
+
+    GameStateRestore();
+    for (i = 0; i < ACTOR_COUNT; i++) {
+        id_changed = 0;
+        party = (GamePartyData *)PartyDataGet();
+        if ((struct LookAtPlayerActor *)&actor[i] == GameLoopState.controlled_actor) {
+            if (GameLoopState.saved_actors[i].inUseId != 0 &&
+                GameLoopState.saved_actors[i].inUseId != party->leader_battle_id) {
+                GameLoopState.saved_actors[i].inUseId = party->leader_battle_id;
+                id_changed = 1;
+            }
+        }
+        actor[i] = GameLoopState.saved_actors[i];
+        if (actor[i].inUseId != 0) {
+            if (id_changed) {
+                target = &actor[i];
+                ACT_setModelWrapper(target, 0);
+                ACT_setHumanHand(target, 0);
+                ACT_setMotion2((struct Actor *)target, 0, 8);
+                ACT_updateMotion((struct Actor *)target);
+                matrices = target->jointMatrices;
+                target->jointMatrices = target->previousJointMatrices;
+                target->previousJointMatrices = matrices;
+                matrices = target->staticValueRecords;
+                target->staticValueRecords = target->valueRecords;
+                target->valueRecords = matrices;
+                target->matrix_buffer_toggle = (target->matrix_buffer_toggle + 1) & 1;
+                ACT_setMotion2((struct Actor *)target, 0, 8);
+                ACT_updateMotion((struct Actor *)target);
+                restored_buffer = target->jointMatrices;
+                target->jointMatrices = target->previousJointMatrices;
+                target->previousJointMatrices = restored_buffer;
+                restored_buffer = target->staticValueRecords;
+                target->staticValueRecords = target->valueRecords;
+                target->valueRecords = restored_buffer;
+                target->matrix_buffer_toggle = (target->matrix_buffer_toggle + 1) & 1;
+            } else {
+                ACT_updateMotion((struct Actor *)&actor[i]);
+            }
+        }
+    }
+}
 
 void GameStateSaveCameraLight(void)
 {
@@ -846,7 +1239,65 @@ void GamePopSaveDataUser(void)
     xglHddActivate(SaveData[0x40] ^ 1);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/game", InitCfSystem);
+void InitCfSystem(void)
+{
+    u32 flags;
+    int *vm_flag;
+    int i;
+    float range;
+
+    if (!(GameLoopState.current_event_id & 0xf0000000)) {
+        xglFontLoad(1, 0);
+    } else {
+        xglFontLoad(0, 0);
+    }
+    Vibration_Stop();
+    xglPadRead();
+    SoundWork.packet_count = 0u;
+    memset(SoundWork.packet_buffer, 0, sizeof(SoundWork.packet_buffer));
+    EnemySound_StopAll(1u);
+    UwamonoBgmFadeOut();
+    ACT_init();
+    MAP_initUnit();
+    GameCameraReset();
+    range = 3.0f;
+    GameLoopState.shoot_control = GameLoopState.shoot_control | 0xfu;
+    flags = GameLoopState.flags;
+    flags &= ~0x10000u;
+    flags &= ~0x20000u;
+    flags &= ~0x4000u;
+    flags &= ~0x8000u;
+    flags &= ~0x40000u;
+    flags &= ~0x400000u;
+    flags &= ~0x800000u;
+    flags &= ~0x20000000u;
+    flags &= ~0x40000000u;
+    flags &= ~0x1000u;
+    flags &= ~0x2000u;
+    flags &= ~0x100000u;
+    flags &= ~1u;
+    GameLoopState.base_flags = flags;
+    GameLoopState.shoot_range = range;
+    GameLoopState.flags = flags | 0x80000u;
+    vm_flag = &UseVMFlag;
+    *vm_flag = 0;
+    XTK_setWindowOwner(0u);
+    ResetShootSys();
+    sefInitEffectCf();
+    saveEffe = (void *)0;
+    shopEffe = (void *)0;
+    evsEffe = (void *)0;
+    retEffe = (void *)0;
+    xglLightSetDefault(xglStudioGetLight2());
+    Player_System_Init(GameLoopState.controlled_actor);
+    for (i = 0; i < 16; i++) {
+        xglLightSetDefault(&GameIdLight[i]);
+    }
+    for (i = 0; i < 32; i++) {
+        GameLoopState.hidden_parts[i] = 0;
+    }
+    xglRenderCopyDisp2Draw();
+}
 
 static int checkAttr(GameActorAttributeView *actor)
 {
@@ -928,7 +1379,57 @@ static ActorHead *checkTalk(ActorHead *player)
     return best_actor;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/game", checkTouch);
+static ActorHead *checkTouch(ActorHead *player)
+{
+    int index;
+    float best_distance;
+    float limit;
+    ActorHead *best_actor;
+    ActorHead *target;
+    Vector4 origin;
+    u32 flags;
+
+    best_actor = 0;
+    origin.x = player->position.x;
+    origin.y = player->position.y;
+    origin.z = player->position.z;
+    origin.w = 0.25f;
+    best_distance = 65535.0f;
+    flags = GameLoopState.flags;
+    if (flags & 0x400) {
+        return 0;
+    }
+    if (flags & 0x1000) {
+        return 0;
+    }
+    if (flags & 0x2000) {
+        return 0;
+    }
+    for (index = 0; index < ACTOR_COUNT; index++) {
+        target = actor + index;
+        if (!(__builtin_fabsf(target->position.y - player->position.y) > 2.0f)
+            && target->touch_message != 0 && (getScriptFlag((SceneObject)target) & 0x20000)
+            && target->inUseId != 0 && target->number != player->number) {
+            float delta_x;
+            float delta_z;
+            float distance;
+            float reach_margin;
+
+            reach_margin = 0.48999998f;
+            delta_x = target->position.x - origin.x;
+            delta_z = target->position.z - origin.z;
+            distance = delta_x * delta_x;
+            distance += delta_z * delta_z;
+            distance = __builtin_fabsf(distance);
+            limit = __builtin_fabsf(origin.w + reach_margin);
+            if (distance < limit && distance < best_distance) {
+                best_distance = distance;
+                best_actor = target;
+            }
+        }
+    }
+    return best_actor;
+}
 
 int checkItemBoxDir(ActorHead *actor, GameMapUnit *unit)
 {
@@ -1000,7 +1501,107 @@ static GameMapUnit *checkItemBox(ActorHead *actor)
 
 
 
-INCLUDE_ASM("asm/main/nonmatchings/game", CheckGameSymbol);
+void CheckGameSymbol(struct LookAtPlayerActor *player)
+{
+    int save_unit;
+    int shop_unit;
+    int event_unit;
+    int return_unit;
+    int index;
+    s16 *symbol_kind;
+    MapUnitSlot *unit;
+
+    save_unit = -1;
+    shop_unit = -1;
+    event_unit = -1;
+    return_unit = -1;
+    for (index = 0; index < 64; index++) {
+        unit = &MapUnit[index];
+        if (unit->serial == -1 || (unit->flags & 0x10000) == 0)
+            continue;
+        {
+            symbol_kind = GameSymbolKindAddress(index);
+            if ((unit->flags & 0x20000000) &&
+                CheckDist3D(&player->position, &MapUnit[index].position) < 0.7f)
+                save_unit = index;
+            if ((MapUnit[index].flags & 0x40000000) &&
+                CheckDist3D(&player->position, &MapUnit[index].position) < 0.7f)
+                shop_unit = index;
+            if (*symbol_kind == 8 &&
+                CheckDist3D(&player->position, GameSymbolPosition(index)) < 0.7f)
+                event_unit = index;
+            if (*symbol_kind == 9 &&
+                CheckDist3D(&player->position, GameSymbolPosition(index)) < 0.7f)
+                return_unit = index;
+        }
+    }
+
+    if (save_unit != -1) {
+        MapUnitSlot *save_symbol = &MapUnit[save_unit];
+        if ((GameLoopState.flags & 0x20000000) == 0) {
+            if (saveEffe != 0)
+                sefDeleteEffectCf(saveEffe);
+            saveEffe = sefCreateEffectCf(0x2d8, &save_symbol->position, 0);
+            xglSoundEffectNormalID(12, 0);
+        }
+        GameLoopState.flags |= 0x20000000;
+    } else {
+        GameLoopState.flags &= ~0x20000000;
+        if (saveEffe != 0) {
+            sefDeleteEffectCf(saveEffe);
+            saveEffe = 0;
+        }
+    }
+    if (shop_unit != -1) {
+        MapUnitSlot *shop_symbol = &MapUnit[shop_unit];
+        shopNo = shop_symbol->shop_id;
+        if ((GameLoopState.flags & 0x40000000) == 0) {
+            if (shopEffe != 0)
+                sefDeleteEffectCf(shopEffe);
+            shopEffe = sefCreateEffectCf(0x2d9, &shop_symbol->position, 0);
+            xglSoundEffectNormalID(12, 0);
+        }
+        GameLoopState.flags |= 0x40000000;
+    } else {
+        GameLoopState.flags &= ~0x40000000;
+        if (shopEffe != 0) {
+            sefDeleteEffectCf(shopEffe);
+            shopEffe = 0;
+        }
+    }
+    if (event_unit != -1) {
+        MapUnitSlot *event_symbol = &MapUnit[event_unit];
+        if ((GameLoopState.flags & 0x400000) == 0) {
+            if (evsEffe != 0)
+                sefDeleteEffectCf(evsEffe);
+            evsEffe = sefCreateEffectCf(0x2d8, &event_symbol->position, 0);
+            xglSoundEffectNormalID(12, 0);
+        }
+        GameLoopState.flags |= 0x400000;
+    } else {
+        GameLoopState.flags &= ~0x400000;
+        if (evsEffe != 0) {
+            sefDeleteEffectCf(evsEffe);
+            evsEffe = 0;
+        }
+    }
+    if (return_unit != -1) {
+        MapUnitSlot *return_symbol = &MapUnit[return_unit];
+        if ((GameLoopState.flags & 0x800000) == 0) {
+            if (retEffe != 0)
+                sefDeleteEffectCf(retEffe);
+            retEffe = sefCreateEffectCf(0x2d9, &return_symbol->position, 0);
+            xglSoundEffectNormalID(12, 0);
+        }
+        GameLoopState.flags |= 0x800000;
+    } else {
+        GameLoopState.flags &= ~0x800000;
+        if (retEffe != 0) {
+            sefDeleteEffectCf(retEffe);
+            retEffe = 0;
+        }
+    }
+}
 
 /* The RTPS producer writes integer screen xyz and float reciprocal w.
  * Its frozen Vector4 output prototype remains an explicit nominal
@@ -1011,6 +1612,8 @@ typedef struct GameProjectedPoint {
     int z;
     float w;
 } GameProjectedPoint;
+
+
 
 static void GameDispTag(void)
 {
@@ -1312,7 +1915,270 @@ static int GameModeEvtDebug(void)
     return 0;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/game", GameModeCfMain);
+int GameModeCfMain(void)
+{
+    VMSlot umn_arguments[2];
+    VMSlot drill_arguments[2];
+    ActorHead *player;
+    ActorHead *window_owner;
+    EnemyWorkPostTalk *encounter_enemy;
+    int battle_result;
+    int attribute;
+    int touch;
+    short i;
+    short index;
+    int countdown;
+    u32 flags;
+    u16 previous_kind;
+
+    GameLoopState.flags &= ~1;
+    SCRIPT_incCfTime();
+    if (PadData.pressed & 0x810) {
+        const u64 *button_words;
+        u64 held_buttons;
+
+        button_words = (const u64 *)&PadData.held;
+        __builtin_memcpy(&held_buttons, button_words, sizeof(held_buttons));
+        if ((held_buttons & 0x0800010C) == 0x0800010C) {
+            GameLoopState.flags |= 0x80000000;
+            return 1;
+        }
+        if (!(GameLoopState.flags_wide & 0x238000) && WIN_checkActiveWindow() == 0
+            && SCRIPT_sceneChangeTimeGet() == 0 && !(GameLoopState.flags & 0x100000)
+            && GameLoopState.controlled_actor != 0
+            && (encounter_enemy = &enepc[GameLoopState.controlled_actor->number])->encount_lock == 0
+            && xglCdSync() == 0 && SCRIPT_talkIgnoreGet() == 0 && GameLoopState.status == 0) {
+            if (PadData.pressed & 0x800) {
+                GameLoopState.status = 0x10;
+                xglSoundEffectNormalDirect(4);
+                previous_kind = GameLoopState.kind;
+                GameLoopState.flags |= 1;
+                GameLoopState.kind = 1;
+                GameLoopState.saved_kind = previous_kind;
+                GameLoopState.debug_menu.storage = 0;
+                PartyTimePauseStart();
+                return 0;
+            }
+            else if (PadData.pressed & 0x10) {
+                GameLoopState.status = 0x20;
+                GameStateSaveCameraLight();
+                nmlModelSendMenuStart();
+                xglCullingIgnore();
+                MainMenu();
+                xglCullingIgnoreOff();
+                nmlModelSendMenuEnd();
+                GameStateRestoreCameraLight();
+                if (GameLoopState.flags & 0x10000000) {
+                    return 1;
+                }
+                if (UmnSimulationNo) {
+                    const u64 *position_tail;
+                    const u64 *position_words;
+                    u32 event_id;
+
+                    event_id = GameLoopState.current_event_id;
+                    GameLoopState.user_word = event_id;
+                    position_words = (const u64 *)&GameLoopState.controlled_actor->position;
+                    GameLoopState.user_longs[0] = *position_words;
+                    position_tail = (const u64 *)
+                        ((const unsigned char *)position_words + sizeof(u64));
+                    GameLoopState.user_longs[1] = *position_tail;
+                    umn_arguments[0].i = UmnSimulationNo & 0xFFFF;
+                    umn_arguments[1].i = (u32)UmnSimulationNo >> 16;
+                    Java_xeno_util_Runtime_jumpCF__II(stageVM, umn_arguments, 0);
+                    return 0;
+                }
+                if (MenuDrillCall != 0) {
+                    const u64 *position_tail;
+                    const u64 *position_words;
+                    u32 event_id;
+
+                    event_id = GameLoopState.current_event_id;
+                    GameLoopState.user_word = event_id;
+                    position_words = (const u64 *)&GameLoopState.controlled_actor->position;
+                    GameLoopState.user_longs[0] = *position_words;
+                    position_tail = (const u64 *)
+                        ((const unsigned char *)position_words + sizeof(u64));
+                    GameLoopState.user_longs[1] = *position_tail;
+                    drill_arguments[0].i = 0xA0;
+                    drill_arguments[1].i = 1;
+                    Java_xeno_util_Runtime_jumpCF__II(stageVM, drill_arguments, 0);
+                    return 0;
+                }
+            }
+        }
+    }
+    GameLoopState.flags = GameLoopState.flags & ~0x200000;
+    if (GameLoopState.event_sub_id != 0) {
+        const char *always_method;
+        EnemyWorkPostTalk *battle_enemies;
+
+        Game_Data_Push();
+        GameLoopState.kind = 5;
+        nmlModelSendSignalStartBattle();
+        xglSoundStreamStop(0);
+        Vibration_Stop();
+        PadData.second_actuator[0] = 0;
+        PadData.actuator[0] = 0;
+        func_A22668();
+        GameLoopState.frame_countdown = 0;
+        GameLoopState.flags |= 0x40;
+        MSG_init();
+        TWSYS_init();
+        Vibration_Stop();
+        GameLoopState.model = 0;
+        if (GameLoopState.flags & 0x10000000) {
+            return 1;
+        }
+        battle_result = func_00A0B5F0();
+        if (battle_result == 2 && !(GameLoopState.battle_flags & 0x40)) {
+            xglFontLoad(1, 0);
+            WindowTexLoad(0, 0);
+            GameLoopState.flags |= 0x88000000;
+            return 1;
+        }
+        Game_Data_Pop();
+        xglFontLoad(1, 0);
+        WindowTexLoad(0, 0);
+        always_method = D_004BE2C0;
+        battle_enemies = enepc;
+        CallMethod_I(always_method,
+            battle_enemies[((ActorHead *)GameLoopState.battle_enemy)->number].enemy_id);
+        switch (battle_result) {
+        case 1:
+            Enemy_After_Battle(1);
+            CallMethod_I(D_004D8A68,
+                battle_enemies[((ActorHead *)GameLoopState.battle_enemy)->number].enemy_id);
+            break;
+        case 3:
+            Enemy_After_Battle(3);
+            CallMethod_I(D_004BE2D0,
+                battle_enemies[((ActorHead *)GameLoopState.battle_enemy)->number].enemy_id);
+            break;
+        default:
+            Enemy_After_Battle(1);
+            break;
+        }
+        if (GameLoopState.kind == 3) {
+            return 0;
+        }
+        ((ActorHead *)GameLoopState.controlled_actor)->value_9f0 = 0x4B;
+        Actor_LookAt_Init(actor);
+        MAP_updateUnit();
+        return 0;
+    }
+    if (FLAG_FRAME_60 != 0) {
+        if ((PadData.held & 1) && (PadData.pressed & 4)) {
+            for (i = 1; i < ACTOR_COUNT; i++) {
+                index = (NowTester + i) % ACTOR_COUNT;
+                if (actor[index].inUseId > 0) {
+                    NowTester = index;
+                    GameLoopState.controlled_actor =
+                        (struct LookAtPlayerActor *)(void *)&actor[NowTester];
+                    break;
+                }
+            }
+        }
+    }
+    if ((GameLoopState.flags_wide & 0x0001000000010000ULL) == 0x0001000000000000ULL) {
+        u32 previous_flags;
+        u16 previous_status;
+        float restored_facing;
+
+        player = (ActorHead *)(void *)GameLoopState.controlled_actor;
+        actSequenceClear((struct ActorHead *)player);
+        previous_flags = GameLoopState.flags;
+        previous_status = player->undulation.attr_mask;
+        restored_facing = player->rotation.y;
+        GameLoopState.flags = previous_flags & ~0x4000;
+        player->undulation.attr_mask = previous_status | 0x1000;
+        player->target_angle = restored_facing;
+    }
+    if ((GameLoopState.flags_wide & 0x0001000000010000ULL) == 0x10000) {
+        ActorHead *motion_player;
+
+        motion_player = (ActorHead *)(void *)GameLoopState.controlled_actor;
+        motion_player->undulation.attr_mask |= 0x1000;
+        ACT_setMotion2((struct Actor *)motion_player, 0, 9);
+    }
+    flags = GameLoopState.flags;
+    player = (ActorHead *)(void *)GameLoopState.controlled_actor;
+    GameLoopState.base_flags = flags;
+    if (!(flags & 0x20000)) {
+        if (!(flags & 0x10000)) {
+            GameCfPlayerMove();
+            if (!(GameLoopState.flags & 0x8000)) {
+                checkTalkPoint();
+            }
+        } else {
+            if (player->lookat_timer == 2) {
+                Actor_LookAt(player);
+            } else {
+                Actor_LookAt_Release(player, 0);
+            }
+            ACT_updateSequence(player);
+            GameIdLightSet(player, 0);
+        }
+    } else {
+        GameIdLightSet(player, 0);
+    }
+    attribute = checkAttr((GameActorAttributeView *)GameLoopState.controlled_actor);
+    if (attribute != 0) {
+        SCRIPT_execEntered(attribute - 1);
+    }
+    window_owner = (ActorHead *)XTK_getWindowOwner();
+    if (window_owner != 0) {
+        if (getScriptFlag((SceneObject)window_owner) & 2) {
+            window_owner->target_angle = Get_Angle(&window_owner->position, &GameLoopState.controlled_actor->position);
+            window_owner->rotation.y = Get_Cursol_by_Reduce_Speed_Angle_Loop(window_owner->rotation.y, window_owner->target_angle, 6.0f);
+        }
+    }
+    touch = (int)checkTouch((ActorHead *)(void *)GameLoopState.controlled_actor);
+    if (touch != 0) {
+        if (touch != prevTouch) {
+            prevTouch = touch;
+            SCRIPT_execTouchto(touch);
+        }
+    } else {
+        prevTouch = 0;
+    }
+    CheckGameSymbol(GameLoopState.controlled_actor);
+    TWSYS_update();
+    JTHREAD_cntl();
+    TCAMERA_update();
+    if (xglStudioGetCamera2(0)->state == 4 && GameLoopState.camera_callback != 0) {
+        GameLoopState.camera_callback();
+    }
+    if ((GameLoopState.flags_wide & 0x60000) == 0) {
+        ACT_update();
+    } else {
+        for (countdown = 15u; countdown > -1; countdown--) {
+            int first_countdown = enepc[15 - countdown].stiff_timer;
+            int second_countdown = (u16)enepc[15 - countdown].effect_timer[0] - 1;
+            first_countdown -= 1;
+            enepc[15 - countdown].effect_timer[0] = second_countdown;
+            enepc[15 - countdown].stiff_timer = first_countdown;
+            if ((short)first_countdown < 0) {
+                enepc[15 - countdown].stiff_timer = 0;
+            }
+            if (enepc[15 - countdown].effect_timer[0] < 0) {
+                enepc[15 - countdown].effect_timer[0] = 0;
+            }
+        }
+        ACT_pauseUpdate();
+    }
+    MAP_updateUnit();
+    {
+    GameRadarParams radar;
+    radar.x = 0x160;
+    radar.color = 0xFFFF00;
+    radar.y = 0x120;
+    radar.red = radar.green = radar.blue = 0x80;
+    radar.alpha = 0x60;
+    GameRadarDraw(&radar);
+    }
+    return 0;
+}
 
 void checkTalkPoint(void)
 {
@@ -1426,4 +2292,155 @@ int GameModeDebugMenu(void)
     return 0;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/game", Game);
+void Game(void)
+{
+    int i;
+    ActorHead *player;
+    float zero = 0.0f;
+    float one = 1.0f;
+    void *work_end = (void *)WorkEnd;
+    short *pause_flag = &pause_check;
+
+    GameLoopState.map_number = (s16)-1;
+    GameLoopState.saved_work_end = work_end;
+    GameLoopState.frame_hook = (void *)0;
+    GameLoopState.model = 0;
+    GameLoopState.stateB0 = 0;
+    GameLoopState.vector80[3] = one;
+    GameLoopState.vector80[2] = one;
+    GameLoopState.vector80[1] = one;
+    GameLoopState.vector90[2] = zero;
+    GameLoopState.vector90[1] = zero;
+    GameLoopState.vector90[0] = zero;
+    GameLoopState.vector90[3] = 30.0f;
+    GameLoopState.vectorA0[2] = zero;
+    GameLoopState.vectorA0[1] = zero;
+    GameLoopState.state5c = 0;
+    GameLoopState.state58 = 0;
+    GameLoopState.frame_countdown = 0;
+    GameLoopState.camera_callback = 0;
+    GameLoopState.clear_callback = 0;
+    GameLoopState.map_draw_callback = 0;
+    *pause_flag = 0;
+    GameLoopState.kind = 0;
+    GameLoopState.stateC8 = 0;
+    GameLoopState.actor_draw_callback = 0;
+    GameLoopState.vector80[0] = one;
+    GameLoopState.vectorA0[0] = zero;
+    GameLoopState.vectorA0[3] = 30.0f;
+    GameLoopState.stateD0 = -2;
+    GameLoopState.flags = 0x302;
+    nmlModelSetFadeInCancel(30u);
+    nmlModelSetEffectWrite(1);
+    Enemy_SystemInit();
+    InitUwamonoSys();
+    xglRenderClearDepth();
+    xglRenderGlobalFadeInit();
+    xglRenderClearOff();
+    xglStudioChange(0);
+    xglLightSetDefault((GameLightSet *)xglStudioGetLight2());
+    GameCameraReset();
+    GameCFSoundReload();
+    GameResourceInit(0x1000000, 0x1000000);
+    MSG_init();
+    TWSYS_init();
+    MapInit();
+    MAP_initUnit();
+    SCRIPT_sceneChangeTimeInit();
+    SCRIPT_clrEventActiveFlag();
+    SCRIPT_talkIgnoreClr();
+    ACT_init();
+    for (i = 0; i < 64; i++) {
+        actor[i].update = 0;
+    }
+    GameDefocusSet(-1, 0, 0);
+    GameBgDrawType0();
+    func_A22628();
+    sefInitEffectCf();
+    GameLoopState.scheduler = (XglTaskScheduler *)WorkEnd;
+    WorkEnd = xglTaskInitial(WorkEnd, 64, 0);
+    WorkEnd = SCRIPT_init(WorkEnd);
+    GameRadarInit();
+    GameCfPlayerMoveInit();
+    GameLoopState.controlled_actor = (struct LookAtPlayerActor *)ACT_create(0, 1);
+    Player_System_Init(GameLoopState.controlled_actor);
+    GameLoopState.status = 0x10;
+    if (GameLoopState.kindDetail != 0) {
+        Quadword *position_dst;
+
+        player = (ActorHead *)GameLoopState.controlled_actor;
+        GamePopSaveDataUser();
+        position_dst = (Quadword *)&player->position;
+        Java_xeno_util_Runtime_jump_sub(GameLoopState.current_event_id, -1);
+        __asm__ __volatile__(
+            "lq $2, 0(%1)\n"
+            "sq $2, 0(%0)\n"
+            :
+            : "r" (position_dst), "r" (&GameLoopState.saved_actor_position)
+            : "$2", "memory");
+        GameLoopState.move_mode |= 0xa0;
+    } else {
+        Java_xeno_util_Runtime_jump_sub(GameLoopState.current_event_id, -1);
+    }
+    while (1) {
+        if (GameLoopState.frame_hook != 0) {
+            GameLoopState.frame_hook(2);
+        }
+        nmlModelSendPauseSignal(GameLoopState.flags & 1);
+        SCRIPT_sceneChangeTimeDec();
+        Disp_Homing();
+        if (GameLoopState.status != 0) {
+            GameLoopState.status--;
+        }
+        switch (GameLoopState.kind) {
+        case 0:
+            GameLoopState.kind = 2;
+            break;
+        case 1:
+            GameModePause();
+            break;
+        case 2:
+            GameModeCfMain();
+            break;
+        case 3:
+            GameModeCfEvent();
+            break;
+        case 6:
+            GameModeEvtDebug();
+            break;
+        case 7:
+            GameModeEvtTools();
+            break;
+        case 8:
+            GameModeDebugMenu();
+            break;
+        }
+        if (GameLoopState.flags & 0x90000000) {
+            break;
+        }
+        xglTaskExecute(GameLoopState.scheduler);
+        GameDrawSync();
+    }
+    xglSoundStreamStop(0);
+    GameMovieStop();
+    GameDefocusSet(-1, 0, 0);
+    sefInitEffectCf();
+    xglCdReset();
+    xglCullingMapInit();
+    GameCFSoundPurge();
+    nmlModelSendPauseSignal(0);
+    SCRIPT_sceneChangeTimeInit();
+    SCRIPT_clrEventActiveFlag();
+    SCRIPT_talkIgnoreClr();
+    xglRenderGlobalFadeInit();
+    xglStudioMainCameraInit();
+    nmlModelConstruct();
+    xglRenderClearOff();
+    WorkEnd = GameLoopState.saved_work_end;
+    if (GameLoopState.flags & 0x8000000) {
+        GameOver();
+    }
+    GameLoopState.kind = 0;
+    xglSleep();
+    xglSleep();
+}

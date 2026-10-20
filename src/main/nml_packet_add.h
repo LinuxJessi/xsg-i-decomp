@@ -5,6 +5,8 @@
 #ifndef SRC_MAIN_NML_PACKET_ADD_H
 #define SRC_MAIN_NML_PACKET_ADD_H
 
+#include "main/xgl_2.h"
+
 #include "shared.h"
 
 #include "main/ssd_init.h"
@@ -19,21 +21,31 @@ typedef union GsTag {
     u32 words[2];
 } GsTag;
 
+
 typedef struct NmlMaterialRenderState NmlMaterialRenderState;
+
 
 typedef struct NmlModelRenderState NmlModelRenderState;
 
+
 typedef unsigned int NmlScreenQuadword __attribute__((mode(TI)));
 
+
 typedef struct NmlModelResource {
-    unsigned char unmodeled_000[0x6c];
+    unsigned char unmodeled_000[0x40];
+    u32 matrix_base_index;
+    unsigned char unmodeled_044[0x1c];
+    u32 geometry_block_table_offset;
+    unsigned char unmodeled_064[0x08];
     u32 texture_reference;
 } NmlModelResource;
+
 
 typedef struct NmlTextureResourceSet {
     int count;
     unsigned char unmodeled_04[0x2c];
 } NmlTextureResourceSet;
+
 
 typedef struct NmlTextureResourceEntry {
     short width;
@@ -49,6 +61,7 @@ typedef struct NmlTextureResourceEntry {
     unsigned char unmodeled_18[0x28];
 } NmlTextureResourceEntry;
 
+
 /*
  * The two objects the nml packet builders render from, recovered as bounded
  * partial views: only the members a recovered function reads are modeled, and
@@ -62,7 +75,9 @@ typedef struct NmlTextureResourceEntry {
  * it returns in NmlModelRenderState::proreal (main 0x00233028-0x00233030).
  */
 typedef struct NmlProRealParam {
-    unsigned char unmodeled_000[0x11c];
+    unsigned char unmodeled_000[0xc0];
+    u32 block_material_data[16];
+    unsigned char unmodeled_100[0x1c];
     /*
      * +0x11c: nmlModelSetProreal clears it (main 0x0022f9dc) and the two
      * projection entries set it to 1 immediately after calling that function,
@@ -72,15 +87,23 @@ typedef struct NmlProRealParam {
      * slot of the "Pro" microcode family instead of the plain one.
      */
     u32 projection_entry;
-    unsigned char unmodeled_120[0xa0];
+    unsigned char unmodeled_120[0x20];
+    unsigned char unmodeled_140[0x20];
+    unsigned char unmodeled_160[0x60];
     void *texture;
 } NmlProRealParam;
+
 
 /*
  * One material of the model being rendered.  Its bytes come from the model
  * resource - no engine function writes either word - so the bits below are
  * evidenced by their readers only, and none of them is named.
  */
+typedef union NmlBlockMaterialParameter {
+    u32 words[20];
+    float lanes[20];
+    NmlScreenQuadword quadwords[5];
+} NmlBlockMaterialParameter;
 struct NmlMaterialRenderState {
     /*
      * +0x00: the material name.  add_exec_prog searches it with strstr for
@@ -98,24 +121,53 @@ struct NmlMaterialRenderState {
      * suppresses its extended pair.
      */
     u32 render_flags;
-    unsigned char unmodeled_024[0x9c];
+    unsigned char unmodeled_024[0x08];
+    u32 geometry_block_index;
+    unsigned char unmodeled_030[0x02];
+    u16 secondary_geometry_block_index;
+    unsigned char unmodeled_034[0x7c];
+    NmlScreenQuadword gif_tag;
     /*
      * +0xc0: the material's blend and lighting flags.  add_exec_prog reads it
      * with lw (main 0x002387e8) and so does nmlPacketAddReflRot (main
      * 0x00239a40), which is why the member is a u32.  nmlPacketAddTransMicrocode
-     * reads the same address with ld (main 0x00236d40): that 64-bit read spans
-     * +0xc0..+0xc7 and nothing evidences what +0xc4 holds, so it keeps an
-     * explicit cast in its own source instead of inventing a member here.
+     * reads the same address with ld (main 0x00236d40), spanning +0xc0..+0xc7.
+     * AddBlockMaterial reads the alpha scale at +0xc4 as a float.
      */
-    u32 material_flags;
+    union {
+        u64 material_flags_qword;
+        struct {
+            u32 material_flags;
+            float block_material_alpha_scale;
+        };
+    };
+    u32 unmodeled_c8;
+    u32 alpha_tag;
+    union {
+        NmlBlockMaterialParameter block_material_parameters;
+        struct {
+            unsigned char unmodeled_d0[0x2c];
+            float reflect_alpha; /* +0xfc */
+            unsigned char unmodeled_100[0x20];
+        };
+    };
+    struct {
+        u32 buffer;
+        u32 width;
+    } texture_parameters[6];
+    unsigned char unmodeled_150[0x1f];
+    signed char alpha_mode;
 };
+
 
 /*
  * The model layout the engine renders from: the single s_inLayout (main
  * 0x004a91e0, 0x320 bytes) plus the per-entry copies in s_apModelLayout.
  */
 struct NmlModelRenderState {
-    unsigned char unmodeled_000[0x70];
+    unsigned char unmodeled_000[0x3c];
+    float block_material_alpha;
+    unsigned char unmodeled_040[0x30];
     NmlScreenQuadword screen_translation;
     NmlScreenQuadword screen_scale;
     unsigned char unmodeled_090[0x130];
@@ -123,7 +175,13 @@ struct NmlModelRenderState {
     u32 fog_color[4];
     /* +0x1d0: the fog-distance parcel sent after fog_color. */
     u32 fog_parameters[4];
-    unsigned char unmodeled_1e0[0x60];
+    unsigned char unmodeled_1e0[0x40];
+    float material_alpha_scale;
+    float reflect_alpha;
+    float default_block_alpha;
+    float alpha_limit;
+    union { u32 alpha_options; float alpha_options_value; };
+    unsigned char unmodeled_234[0x0c];
     void *texture;
     unsigned char unmodeled_244[0x0c];
     /*
@@ -144,13 +202,14 @@ struct NmlModelRenderState {
      * nmlModelRenderDrop 0x80000 (0x00234d58).
      */
     u32 render_status;
-    NmlModelResource *resource;
-    unsigned char unmodeled_258[0x08];
+    struct NmlModelResource *resource;
+    const struct NmlBlockVectorBlock *geometry_blocks;
+    unsigned char unmodeled_25c[4];
     /*
      * +0x260: this layout's own proreal block, the packet address nmlModelEntry
      * stores after copying s_inProReal (main 0x00233030).
      */
-    NmlProRealParam *proreal;
+    struct NmlProRealParam *proreal;
     /*
      * +0x264: another layout's proreal block, borrowed for the length of one
      * render.  nmlModelRenderProreal stores the entry's own +0x260 here (main
@@ -158,8 +217,12 @@ struct NmlModelRenderState {
      * nmlModelEntry clears it as well (main 0x00233034).  add_exec_prog reads
      * it in preference to `proreal` whenever it is set.
      */
-    NmlProRealParam *proreal_override;
-    unsigned char unmodeled_268[0x48];
+    struct NmlProRealParam *proreal_override;
+    unsigned char unmodeled_268[8];
+    int block_alpha_multiplier;
+    unsigned char unmodeled_274[8];
+    int block_alpha_view;
+    unsigned char unmodeled_280[0x30];
     /*
      * +0x2b0: the render-level word nmlModelSetRenderLevel ORs its whole
      * argument into (main 0x0022e97c).  nmlModelSetSpecularOff sets bit 1
@@ -169,12 +232,18 @@ struct NmlModelRenderState {
      * own, so they stay literals.
      */
     u32 render_level;
-    unsigned char unmodeled_2b4[0x3c];
+    unsigned char unmodeled_2b4[8];
+    float special_block_alpha;
+    unsigned char unmodeled_2c0[0x30];
     /* +0x2f0: one fog intensity multiplier for each viewport. */
     float fog_intensity[4];
+    float block_alpha_by_view[4];
+    unsigned char unmodeled_310[0x10];
 };
 
+
 typedef void *NmlPacket;
+
 
 extern const char lenz_name[];
 
@@ -189,9 +258,9 @@ extern char *strstr(const char *haystack, const char *needle);
 
 extern void sceVif1PkAddCode(NmlPacket packet, u32 code);
 
-extern void nmlPacketAddTransData(NmlMaterialRenderState *material);
+void nmlPacketAddTransData(NmlMaterialRenderState *material);
 
-extern void nmlPacketAddWaitMicrocode(void);
+void nmlPacketAddWaitMicrocode(void);
 
 
 void nmlPacketSetCurrent(void);
@@ -217,5 +286,26 @@ void nmlPacketAddTransMicrocode(const NmlMaterialRenderState *material,
                                 const NmlModelRenderState *model);
 
 void nmlPacketAddFog(NmlModelRenderState *model, int viewport_index);
+
+
+
+typedef struct NmlBlockVectorBlock {
+    Vector4 vectors[4];
+} NmlBlockVectorBlock;
+
+
+typedef struct NmlPixelTestEntry {
+    short reference;
+    short geometry_block_index;
+} NmlPixelTestEntry;
+
+
+typedef union NmlPartsReferenceScratch {
+    u64 halves[2];
+    Vector4 vector;
+    float components[4];
+} NmlPartsReferenceScratch;
+
+
 
 #endif /* SRC_MAIN_NML_PACKET_ADD_H */

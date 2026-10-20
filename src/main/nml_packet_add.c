@@ -237,6 +237,87 @@ typedef struct NmlZbufRenderState {
 
 extern NmlZbufRenderState sRender;
 
+extern const u8 NewVu1EnvGsKick[];
+
+extern const u8 NewVu1GsKick[];
+
+extern const u8 NewVu1ProGsKick[];
+
+extern const u8 NewVu1AddEnvGsKick[];
+
+extern const u8 NewVu1AddGsKick[];
+
+extern const u8 NewVu1TexEnvGsKick[];
+
+extern const u8 NewVu1DropGsKick[];
+
+extern const u8 NewVu1EnvGsKickWide[];
+
+extern const u8 NewVu1GsKickWide[];
+
+extern const u8 NewVu1ProGsKickWide[];
+
+extern const u8 NewVu1AddEnvGsKickWide[];
+
+extern const u8 NewVu1AddGsKickWide[];
+
+extern const u8 NewVu1TexEnvGsKickWide[];
+
+extern const u8 NewVu1DropGsKickWide[];
+
+typedef union NmlReflectionPacketTag {
+    u32 words[4];
+    u64 halves[2];
+} NmlReflectionPacketTag;
+
+extern const u8 D_004B19F0[];
+
+extern const u8 D_004B54B0[];
+
+extern const u8 D_004B9710[];
+
+extern const u8 D_004B6F80[];
+
+extern const u8 D_004B0A50[];
+
+extern const u8 D_004BD4A0[];
+
+extern const u8 s_aNormalTbl[];
+
+extern const u32 D_004B0A40[];
+
+extern const u32 D_004B19E0[];
+
+extern const u32 D_004B54A0[];
+
+extern const u32 D_004B6F70[];
+
+extern const u32 D_004B9700[];
+
+extern const u32 D_004BD490[];
+
+extern const float D_004D8958;
+
+extern const float D_004D895C;
+
+extern const float D_004D8960;
+
+extern const float D_004D8964;
+
+extern const float D_004D8968;
+
+extern const float D_004D896C;
+
+extern int s_nLightPara;
+
+static inline void nmlPacketSelectLighting(NmlModelRenderState *model,
+                                           const u32 *material_flags)
+{
+    s_pLightLayout = model;
+    s_nLightPara = 0x20000 & *material_flags;
+}
+
+
 static void _CurMatrixSet(const Matrix4 matrix)
 {
     __asm__ __volatile__(
@@ -443,11 +524,169 @@ static void _CurSetMatrix(const Matrix4 matrix)
     );
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_packet_add", nmlPacketAddGsFlush);
+void nmlPacketAddGsFlush(void)
+{
+    XglPacket *packet;
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_packet_add", nmlPacketAddGsFlushWide);
+    packet = xglPacketGetCurrent();
+    s_pPacket.sdk = packet;
+    if (g_nGsEntry > 0) {
+        g_aGsTag[0].words[1] = 0x10000000;
+        g_aGsTag[1].words[0] = 0xE;
+        g_aGsTag[0].words[0] = g_nGsEntry + 0x8000;
+        g_aGsTag[1].words[1] = 0;
+        sceVif1PkCnt(s_pPacket.sdk, 0);
+        sceVif1PkOpenUpkCode(s_pPacket.sdk, 0x3D5, 0x6C, 1, 1);
+        sceVif1PkAddUpkData128N(s_pPacket.sdk, g_aGsTag, g_nGsEntry + 1);
+        sceVif1PkCloseUpkCode(s_pPacket.sdk);
+        switch (s_nProgType) {
+        case 7:
+            sceVif1PkAddCode(s_pPacket.sdk,
+                             ((u32)NewVu1DropGsKick >> 3) | VIF_CODE_MSCAL);
+            break;
+        case 1:
+            sceVif1PkAddCode(s_pPacket.sdk,
+                             ((u32)NewVu1EnvGsKick >> 3) | VIF_CODE_MSCAL);
+            break;
+        case 2:
+            sceVif1PkAddCode(s_pPacket.sdk,
+                             ((u32)NewVu1GsKick >> 3) | VIF_CODE_MSCAL);
+            break;
+        case 3:
+            sceVif1PkAddCode(s_pPacket.sdk,
+                             ((u32)NewVu1ProGsKick >> 3) | VIF_CODE_MSCAL);
+            break;
+        case 4:
+            sceVif1PkAddCode(s_pPacket.sdk,
+                             ((u32)NewVu1AddEnvGsKick >> 3) | VIF_CODE_MSCAL);
+            break;
+        case 5:
+            sceVif1PkAddCode(s_pPacket.sdk,
+                             ((u32)NewVu1AddGsKick >> 3) | VIF_CODE_MSCAL);
+            break;
+        case 6:
+            sceVif1PkAddCode(s_pPacket.sdk,
+                             ((u32)NewVu1TexEnvGsKick >> 3) | VIF_CODE_MSCAL);
+            break;
+        }
+        sceVif1PkAddCode(s_pPacket.sdk, 0x17000000);
+        nmlPacketAddWaitMicrocode();
+    }
+    g_nGsEntry = 0;
+}
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_packet_add", nmlPacketAddReflectParam);
+void nmlPacketAddGsFlushWide(void)
+{
+    XglPacket *packet = xglPacketGetCurrent();
+
+    s_pPacket.sdk = packet;
+    if (g_nGsEntry > 0) {
+        g_aGsTag[0].words[1] = 0x10000000;
+        g_aGsTag[1].words[0] = 0xE;
+        g_aGsTag[0].words[0] = g_nGsEntry + 0x8000;
+        g_aGsTag[1].words[1] = 0;
+        sceVif1PkCnt(s_pPacket.sdk, 0);
+        nmlPacketAddWaitMicrocode();
+        sceVif1PkOpenUpkCode(s_pPacket.sdk, 0x2DC, 0x6C, 1, 1);
+        sceVif1PkAddUpkData128N(s_pPacket.sdk, g_aGsTag, g_nGsEntry + 1);
+        sceVif1PkCloseUpkCode(s_pPacket.sdk);
+        switch (s_nProgType) {
+        case 7:
+            sceVif1PkAddCode(s_pPacket.sdk,
+                             ((u32)NewVu1DropGsKickWide >> 3) | VIF_CODE_MSCAL);
+            break;
+        case 1:
+            sceVif1PkAddCode(s_pPacket.sdk,
+                             ((u32)NewVu1EnvGsKickWide >> 3) | VIF_CODE_MSCAL);
+            break;
+        case 2:
+            sceVif1PkAddCode(s_pPacket.sdk,
+                             ((u32)NewVu1GsKickWide >> 3) | VIF_CODE_MSCAL);
+            break;
+        case 3:
+            sceVif1PkAddCode(s_pPacket.sdk,
+                             ((u32)NewVu1ProGsKickWide >> 3) | VIF_CODE_MSCAL);
+            break;
+        case 4:
+            sceVif1PkAddCode(s_pPacket.sdk,
+                             ((u32)NewVu1AddEnvGsKickWide >> 3) | VIF_CODE_MSCAL);
+            break;
+        case 5:
+            sceVif1PkAddCode(s_pPacket.sdk,
+                             ((u32)NewVu1AddGsKickWide >> 3) | VIF_CODE_MSCAL);
+            break;
+        case 6:
+            sceVif1PkAddCode(s_pPacket.sdk,
+                             ((u32)NewVu1TexEnvGsKickWide >> 3) | VIF_CODE_MSCAL);
+            break;
+        }
+        sceVif1PkAddCode(s_pPacket.sdk, 0x17000000);
+        nmlPacketAddWaitMicrocode();
+    }
+    g_nGsEntry = 0;
+}
+
+void nmlPacketAddReflectParam(const NmlMaterialRenderState *material,
+                              const NmlModelRenderState *model)
+{
+    NmlCurrentPacket *current_packet = &s_pPacket;
+    NmlReflectionPacketTag tags[5];
+    float reflection_alpha;
+
+    s_pPacket.sdk = xglPacketGetCurrent();
+    reflection_alpha = model->reflect_alpha;
+    if ((model->render_status & 0x100000) &&
+        (strstr(material->name, eye_name) != 0))
+        reflection_alpha = 2.0f;
+    sceVif1PkCnt(current_packet->sdk, 0);
+
+    tags[0].words[0] = 0x8004;
+    tags[0].words[1] = 0x10000000;
+    tags[0].words[2] = 0xE;
+    tags[0].words[3] = 0;
+    tags[1].halves[0] = 0;
+    tags[1].halves[1] = 0x3F;
+    tags[2].words[0] = material->texture_parameters[0].buffer +
+                       (sRender.texture_buffer_base << 5);
+    tags[2].words[1] = material->texture_parameters[0].width +
+                       (sRender.texture_buffer_base << 10);
+    tags[2].halves[1] = 6;
+    tags[3].words[0] = material->texture_parameters[1].buffer;
+    tags[3].words[1] = material->texture_parameters[1].width;
+    tags[3].halves[1] = 0x14;
+    tags[4].words[0] = material->texture_parameters[2].buffer;
+    tags[4].words[1] = material->texture_parameters[2].width;
+    tags[4].halves[1] = 8;
+    sceVif1PkOpenUpkCode(current_packet->sdk, 0x3D5, 0x6C, 1, 1);
+    sceVif1PkAddUpkData128N(current_packet->sdk, tags, 5);
+    sceVif1PkCloseUpkCode(current_packet->sdk);
+
+    tags[2].words[0] = material->texture_parameters[3].buffer +
+                       (sRender.texture_buffer_base << 5);
+    tags[2].words[1] = material->texture_parameters[3].width +
+                       (sRender.texture_buffer_base << 10);
+    tags[3].words[0] = material->texture_parameters[4].buffer;
+    tags[3].words[1] = material->texture_parameters[4].width;
+    tags[4].words[0] = material->texture_parameters[5].buffer;
+    tags[4].words[1] = material->texture_parameters[5].width;
+    sceVif1PkOpenUpkCode(current_packet->sdk, 0x3DA, 0x6C, 1, 1);
+    sceVif1PkAddUpkData128N(current_packet->sdk, tags, 5);
+    sceVif1PkCloseUpkCode(current_packet->sdk);
+
+    {
+        u32 alpha[4];
+
+        alpha[0] = (int)(material->reflect_alpha * 128.0f);
+        if (reflection_alpha < 2.0f)
+            alpha[0] = (int)(reflection_alpha * 128.0f);
+        alpha[1] = alpha[0];
+        alpha[2] = alpha[0];
+        alpha[3] = alpha[0];
+        sceVif1PkOpenUpkCode(current_packet->sdk, 0x3F1, 0x6C, 1, 1);
+        sceVif1PkAddUpkData128N(current_packet->sdk, alpha, 1);
+        sceVif1PkCloseUpkCode(current_packet->sdk);
+    }
+}
 
 void nmlPacketAddTransMicrocodeInit(void)
 {
@@ -490,7 +729,107 @@ void nmlPacketAddTransMicrocodeInit(void)
         s_inLc0[3].lanes[2] = s_inLc0[3].lanes[3] = 1.0f;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_packet_add", nmlPacketAddTransMicrocode);
+void nmlPacketAddTransMicrocode(const NmlMaterialRenderState *material,
+                                const NmlModelRenderState *model)
+{
+    NmlCurrentPacket selected;
+    u32 status;
+    int program_type;
+
+    selected.sdk = xglPacketGetCurrent();
+    s_pPacket = selected;
+    status = model->render_status;
+    program_type = 2;
+    if (status & 0x8000) {
+        program_type = 6;
+    } else if (status & 0x800) {
+        program_type = 3;
+    } else if (status & 0x80000) {
+        program_type = 7;
+    } else {
+        if (status & 0x02001000) {
+            program_type = 5;
+            if (material->render_flags & 1) {
+                program_type = 4;
+            } else if ((material->material_flags_qword & 0x10010) == 0x10) {
+                program_type = 2;
+            }
+        } else {
+            program_type = (material->render_flags & 1) ? 1 : 2;
+        }
+    }
+
+    switch (program_type) {
+    case 3:
+        if (s_nProgType == 3)
+            return;
+        selected = s_pPacket;
+        sceVif1PkRef(selected.sdk, D_004B54B0, D_004B54A0[0], 0, 0, 0);
+        s_nProgType = 3;
+        selected = s_pPacket;
+        sceVif1PkCnt(selected.sdk, 0);
+        selected = s_pPacket;
+        sceVif1PkOpenUpkCode(selected.sdk, 0x350, 0x6C, 1, 1);
+        selected = s_pPacket;
+        sceVif1PkAddUpkData128N(selected.sdk, s_aNormalTbl, 0x72);
+        selected = s_pPacket;
+        sceVif1PkCloseUpkCode(selected.sdk);
+        return;
+    case 4:
+        if (s_nProgType == 4)
+            return;
+        selected = s_pPacket;
+        sceVif1PkRef(selected.sdk, D_004B9710, D_004B9700[0], 0, 0, 0);
+        s_nProgType = 4;
+        return;
+    case 5:
+        if (s_nProgType == 5)
+            return;
+        selected = s_pPacket;
+        sceVif1PkRef(selected.sdk, D_004B6F80, D_004B6F70[0], 0, 0, 0);
+        s_nProgType = 5;
+        selected = s_pPacket;
+        sceVif1PkCnt(selected.sdk, 0);
+        selected = s_pPacket;
+        sceVif1PkOpenUpkCode(selected.sdk, 0x350, 0x6C, 1, 1);
+        selected = s_pPacket;
+        sceVif1PkAddUpkData128N(selected.sdk, s_aNormalTbl, 0x72);
+        selected = s_pPacket;
+        sceVif1PkCloseUpkCode(selected.sdk);
+        return;
+    case 6:
+        if (s_nProgType == 6)
+            return;
+        selected = s_pPacket;
+        sceVif1PkRef(selected.sdk, D_004B0A50, D_004B0A40[0], 0, 0, 0);
+        s_nProgType = 6;
+        return;
+    case 7:
+        if (s_nProgType == 7)
+            return;
+        selected = s_pPacket;
+        sceVif1PkRef(selected.sdk, D_004BD4A0, D_004BD490[0], 0, 0, 0);
+        s_nProgType = 7;
+        return;
+    case 1:
+        if (s_nProgType == 1)
+            return;
+        selected = s_pPacket;
+        sceVif1PkRef(selected.sdk, D_004B19F0, D_004B19E0[0], 0, 0, 0);
+        s_nProgType = 1;
+        return;
+    case 2:
+        if (s_nProgType == 2)
+            return;
+        selected = s_pPacket;
+        sceVif1PkRef(selected.sdk, D_004AE5B0, D_004AE5A0[0], 0, 0, 0);
+        s_nProgType = 2;
+        return;
+    default:
+        return;
+    }
+
+}
 
 void nmlPacketAddScreen(NmlModelRenderState *model)
 {
@@ -564,7 +903,142 @@ void nmlPacketAddWaitMicrocode(void)
     sceVif1PkAddCode(selected.sdk, VIF_CODE_FLUSH);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_packet_add", nmlPacketAddBlockMaterial);
+void nmlPacketAddBlockMaterial(NmlMaterialRenderState *material,
+                               NmlModelRenderState *model,
+                               int use_base_alpha, int view_index)
+{
+    NmlCurrentPacket selected;
+    NmlPacketData128 material_tag;
+    NmlPacketData128 alpha_options;
+    NmlPacketData128 *material_tag_data;
+    const NmlProRealParam *proreal;
+    float material_alpha;
+    float vector_length;
+
+    proreal = model->proreal;
+    if (model->proreal_override != 0)
+        proreal = model->proreal_override;
+    selected.sdk = xglPacketGetCurrent();
+    s_pPacket = selected;
+    sceVif1PkCnt(selected.sdk, 0);
+
+    material->block_material_parameters.lanes[3] =
+        material->block_material_alpha_scale * model->material_alpha_scale;
+    {
+        union {
+            float value;
+            u32 bits;
+        } vector_scale;
+
+        vector_scale.value =
+            model->geometry_blocks[material->geometry_block_index]
+                .vectors[1].w;
+        if (vector_scale.bits & 1) {
+            material->block_material_parameters.lanes[3] *=
+                vector_scale.value;
+        }
+    }
+    if (use_base_alpha) {
+        material->block_material_parameters.lanes[3] =
+            material->block_material_alpha_scale;
+    }
+
+    selected = s_pPacket;
+    sceVif1PkOpenUpkCode(selected.sdk, 0x3C8, 0x6C, 1, 1);
+    selected = s_pPacket;
+    sceVif1PkAddUpkData128N(selected.sdk,
+                            &material->block_material_parameters, 5);
+    selected = s_pPacket;
+    sceVif1PkCloseUpkCode(selected.sdk);
+
+    material_alpha = model->default_block_alpha;
+    material_tag_data = &material_tag;
+    if (view_index != model->block_alpha_view)
+        material_alpha = model->block_alpha_by_view[view_index];
+    if ((model->render_status & 0x100000) &&
+        ((strstr(material->name, lenz_name) != 0) ||
+         (strstr(material->name, eye_name) != 0)))
+        material_alpha = model->special_block_alpha;
+
+    material_tag_data->words[0] = material->alpha_tag;
+    material_tag.lanes[1] = material_alpha;
+    material_tag_data->words[2] = 0;
+    if ((D_004D8958 < model->alpha_limit) ||
+        (model->alpha_limit < D_004D895C))
+        material_tag_data->words[2] = 1;
+
+    xglVectorLength(&vector_length,
+                    &model->geometry_blocks[material->geometry_block_index].vectors[0]);
+    if ((D_004D8960 < vector_length) || (vector_length < D_004D8964))
+        material_tag_data->words[2] = 1;
+
+    if (material->render_flags & 1) {
+        const Vector4 *previous_block =
+            &model->geometry_blocks[material->secondary_geometry_block_index - 1]
+                 .vectors[0];
+
+        xglVectorLength(&vector_length, previous_block);
+        if ((D_004D8968 < vector_length) || (vector_length < D_004D896C))
+            material_tag_data->words[2] = 1;
+    }
+
+    material_tag_data->words[3] = (int)material->alpha_mode;
+    selected = s_pPacket;
+    sceVif1PkOpenUpkCode(selected.sdk, 0x3F0, 0x6C, 1, 1);
+    selected = s_pPacket;
+    sceVif1PkAddUpkData128N(selected.sdk, &material_tag, 1);
+    selected = s_pPacket;
+    sceVif1PkCloseUpkCode(selected.sdk);
+
+    alpha_options.words[2] = 0;
+    if (model->alpha_options & 1)
+        alpha_options.lanes[2] = model->alpha_options_value;
+    selected = s_pPacket;
+    sceVif1PkOpenUpkCode(selected.sdk, 0x3F9, 0x6C, 1, 1);
+    selected = s_pPacket;
+    sceVif1PkAddUpkData128N(selected.sdk, &alpha_options, 1);
+    selected = s_pPacket;
+    sceVif1PkCloseUpkCode(selected.sdk);
+
+    if (model->render_status & 0x800) {
+        selected = s_pPacket;
+        sceVif1PkOpenUpkCode(selected.sdk, 0x3C9, 0x6C, 1, 1);
+        selected = s_pPacket;
+        sceVif1PkAddUpkData128N(selected.sdk, proreal->unmodeled_140, 1);
+        selected = s_pPacket;
+        sceVif1PkCloseUpkCode(selected.sdk);
+    }
+
+    nmlPacketSelectLighting(model, &material->material_flags);
+    selected = s_pPacket;
+    sceVif1PkCnt(selected.sdk, 0);
+    selected = s_pPacket;
+    sceVif1PkOpenUpkCode(selected.sdk, 0x3D1, 0x6C, 1, 1);
+    if (model->render_status & 0x800) {
+        selected = s_pPacket;
+        sceVif1PkAddUpkData128N(selected.sdk, proreal->block_material_data, 4);
+    } else if (model->render_status & 0x80000) {
+        model->block_material_alpha = (float)(0x80 - (int)(
+            model->block_alpha_multiplier * model->material_alpha_scale *
+            model->fog_intensity[view_index]));
+        selected = s_pPacket;
+        sceVif1PkAddUpkData128N(selected.sdk, model, 4);
+    } else {
+        selected = s_pPacket;
+        sceVif1PkAddUpkData128N(selected.sdk, model, 4);
+    }
+    selected = s_pPacket;
+    sceVif1PkCloseUpkCode(selected.sdk);
+
+    if (material->material_flags & 0x20000) {
+        selected = s_pPacket;
+        sceVif1PkOpenUpkCode(selected.sdk, 0x3D1, 0x6C, 1, 1);
+        selected = s_pPacket;
+        sceVif1PkAddUpkData128N(selected.sdk, s_inLc0, 4);
+        selected = s_pPacket;
+        sceVif1PkCloseUpkCode(selected.sdk);
+    }
+}
 
 INCLUDE_ASM("asm/main/nonmatchings/nml_packet_add", nmlPacketMakeCircleTexture);
 
@@ -680,7 +1154,7 @@ void nmlPacketClrModelCache(void)
 }
 
 extern void xglPacketTextureTrans(void *texture);
-void nmlPacketTextureTrans(NmlModelRenderState *model);
+static void nmlPacketTextureTrans(NmlModelRenderState *model);
 
 int nmlPacketAddTexture(NmlModelRenderState *model)
 {
@@ -1122,7 +1596,44 @@ u8 *nmlPacketSetAttributeAlloc16N(u32 count)
     return current->cursor.bytes;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_packet_add", nmlPacketAddGifTag);
+void nmlPacketAddGifTag(NmlMaterialRenderState *material,
+                        NmlModelRenderState *model, int count)
+{
+    NmlPacketData128 giftag;
+    NmlCurrentPacket *current_packet = &s_pPacket;
+    u32 flags = model->render_status;
+    u32 end_of_packet = (flags & 0x01000002) != 0;
+
+    if (flags & 0x2000)
+        end_of_packet = 0;
+
+    current_packet->sdk = xglPacketGetCurrent();
+    sceVif1PkCnt(current_packet->sdk, 0);
+    giftag.quad = material->gif_tag;
+    giftag.words[1] |= (count << 21) | (end_of_packet << 20);
+    if (material->material_flags & 1) {
+        giftag.words[1] |= 0x00080000;
+    } else {
+        giftag.words[1] &= ~0x00080000;
+    }
+    if (model->render_status & 0x8000) {
+        giftag.words[1] &= ~((count << 21) | 0x00080000);
+    }
+    if (model->render_status & 0x800) {
+        giftag.words[1] |= 0x00080000;
+    }
+    sceVif1PkOpenUpkCode(current_packet->sdk, 0x3F3, 0x6C, 1, 1);
+    sceVif1PkAddUpkData128(current_packet->sdk, giftag.quad);
+    sceVif1PkCloseUpkCode(current_packet->sdk);
+    giftag.words[1] = (giftag.words[1] & ~0x00080000) | 0x01200000;
+    sceVif1PkOpenUpkCode(current_packet->sdk, 0x3F4, 0x6C, 1, 1);
+    sceVif1PkAddUpkData128(current_packet->sdk, giftag.quad);
+    sceVif1PkCloseUpkCode(current_packet->sdk);
+    giftag.words[1] = (giftag.words[1] | 0x00080000) & 0xFEFFFFFF;
+    sceVif1PkOpenUpkCode(current_packet->sdk, 0x3F2, 0x6C, 1, 1);
+    sceVif1PkAddUpkData128(current_packet->sdk, giftag.quad);
+    sceVif1PkCloseUpkCode(current_packet->sdk);
+}
 
 void nmlPacketAddGifTagStandard(int eop, int count)
 {

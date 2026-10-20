@@ -44,15 +44,26 @@ void VW_setCursorFunc(CursorCallback callback, void *argument);
  * 0xa70-byte stride; fuller evidence in src/main/near_dir.h,
  * src/main/enemy_2.h and src/main/set_motion.h). prevActor only reads
  * +0x00 flags (bit 0x8, hidden) and +0x86, the in-use id ACT_create writes
- * and ACT_update skips a slot on when it is zero; the offsets between them
- * are not evidenced by this TU and stay unmodeled.
+ * and ACT_update skips a slot on when it is zero. updateCursorMode2 also
+ * uses position xyz at +0x10, velocity xyz at +0x30, rotation.y at +0x54,
+ * and the byte number ACT_create writes at +0x80. The vector extents and
+ * names agree with the owner view in include/main/act_1.h. Other spans
+ * remain unmodeled; neither cursor writes the vectors' fourth lanes.
  */
 #define ACTOR_COUNT 64
 #define ACTOR_IN_USE_ID_OFFSET 0x86
 
 typedef struct {
     u32 flags;
-    u8 unmodeled_04[ACTOR_IN_USE_ID_OFFSET - 0x04];
+    u8 unmodeled_04[0x10 - 0x04];
+    Vector4 position;
+    u8 unmodeled_20[0x30 - 0x20];
+    Vector4 velocity;
+    u8 unmodeled_40[0x50 - 0x40];
+    Vector4 rotation;
+    u8 unmodeled_60[0x80 - 0x60];
+    u8 number;
+    u8 unmodeled_81[ACTOR_IN_USE_ID_OFFSET - 0x81];
     short inUseId;
     u8 unmodeled_88[0xA70 - (ACTOR_IN_USE_ID_OFFSET + 2)];
 } ActorHead;
@@ -82,5 +93,14 @@ void MAP_updateUnit(void);
 void PLAY_ctrl(void);
 void TCAMERA_update(void);
 extern int mode_004DC5A8;
+
+struct CursorPadKeyResult {
+    u16 held;
+    u16 pressed;
+    u16 repeat;
+    u16 other_buttons;
+    signed char flags[8];
+};
+
 
 #endif /* SRC_MAIN_DB_LIGHT_WRITE_H */

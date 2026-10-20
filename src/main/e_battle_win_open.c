@@ -45,6 +45,50 @@ const char D_004DA9F8[8] = "slot 2";
 
 const char D_004DAA00[8] = "slot 1";
 
+extern const char D_004C39D0[];
+
+extern const char D_004DA9D8[];
+
+extern const char *msg00_1_0036D600[];
+
+extern const char *msg01_2_0036D610[];
+
+extern unsigned short msg03_3[3];
+
+typedef struct BattleWinConditionLabelTable {
+    const unsigned short *rows[10];
+} BattleWinConditionLabelTable;
+
+extern const BattleWinConditionLabelTable D_004C39A8;
+
+const char **func_A2C5F8(int id);
+
+const char **func_A2C698(int id);
+
+const char **func_A2C6E8(int id);
+
+const char **func_A2C738(int id);
+
+typedef struct BattleWinAnalysisParams {
+    int x;
+    int y;
+    int style;
+    const char *name;
+    short display_value_low;
+    short display_value_high;
+    unsigned short condition_flags;
+    unsigned char unmodeled_16[2];
+    int tech_points;
+    int ether_points;
+    int skill_points;
+    int experience;
+    long money;
+    unsigned short item;
+    unsigned short rare_item;
+    const char *item_text;
+    const char *rare_item_text;
+} BattleWinAnalysisParams;
+
 INCLUDE_ASM("asm/main/nonmatchings/e_battle_win_open", eBattleWinOpen);
 
 void eBattleWinClose(void *window)
@@ -164,7 +208,250 @@ void eBattleWinClose2(void)
     BW2->window.state = 0;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/e_battle_win_open", eBattleWinOpen3);
+void eBattleWinOpen3(void *data)
+{
+    const BattleWinAnalysisParams *param = data;
+    BattleWinConditionLabelTable condition_labels = D_004C39A8;
+    unsigned char code_ids[2];
+    unsigned char code_kinds[2];
+    unsigned char rare_category;
+    unsigned char item_category;
+    int experience_value;
+    const char *text;
+    int display_index;
+    int points_digit_count;
+    int entry_index;
+    BattleWindow3 **analysis_window_slot;
+    const unsigned int *database_mode = &BW3BattleOrDataBase;
+
+    WindowDXSet(&BW3->window);
+    analysis_window_slot = &BW3;
+    {
+        BattleWindow3 *window = (*analysis_window_slot);
+        unsigned int x = (unsigned short)param->x;
+        const char *tag = D_004C39D0;
+        unsigned int y = (unsigned short)param->y;
+        int depth = param->style;
+        unsigned int mode = *database_mode;
+
+        window->window.x = x;
+        window->window.y = y;
+        window->window.style = depth;
+        window->window.width = 326;
+        window->window.height = 54;
+        window->window.tag_id = tag;
+        switch (mode) {
+        case 0:
+            window->window.ribbon_initialized = 1;
+            window = (*analysis_window_slot);
+            break;
+        default:
+            break;
+        }
+        eMessageSet(&window->messages[0], param->name);
+    }
+    {
+        BattleWindow3 *message_window = (*analysis_window_slot);
+
+        unsigned short x = message_window->window.x;
+        unsigned short y = message_window->window.y;
+        int depth = message_window->window.style;
+
+        message_window->messages[0].mode = 32;
+        message_window->messages[0].y = y + 3;
+        message_window->messages[0].extent = depth + 2;
+        message_window->messages[0].x = x + 3;
+    }
+    eMessageSet(&(*analysis_window_slot)->messages[1], msg00_1_0036D600[0]);
+    {
+        BattleWindow3 *message_window = (*analysis_window_slot);
+
+        unsigned short x = message_window->window.x;
+        unsigned short y = message_window->window.y;
+        int depth = message_window->window.style;
+
+        x += 23;
+        y += 27;
+        message_window->messages[1].x = x;
+        message_window->messages[1].y = y;
+        message_window->messages[1].extent = depth + 2;
+        message_window->messages[1].mode = 32;
+        display_index = 0;
+    }
+    {
+        unsigned char *condition_text = (unsigned char *)msg03_3;
+        int clear_index;
+
+        for (clear_index = sizeof(msg03_3) - 1; clear_index >= 0; clear_index--) {
+            condition_text[clear_index] = 0;
+        }
+    }
+    {
+        int condition_index;
+
+        for (condition_index = 0; condition_index < 10; condition_index++) {
+            if ((param->condition_flags >> condition_index) & 1) {
+                msg03_3[display_index] = condition_labels.rows[condition_index][0];
+                if (display_index == 1) {
+                    break;
+                }
+                display_index++;
+            }
+        }
+    }
+    eMessageSet(&(*analysis_window_slot)->messages[2], (const char *)msg03_3);
+    {
+        BattleWindow3 *message_window = (*analysis_window_slot);
+        unsigned short x = message_window->window.x;
+        unsigned short y = message_window->window.y;
+        int depth = message_window->window.style;
+
+        message_window->messages[2].mode = 32;
+        message_window->messages[2].y = y + 27;
+        message_window->messages[2].extent = depth + 2;
+        message_window->messages[2].x = x + 123;
+    }
+    eTagFontSet(&(*analysis_window_slot)->tag_font, D_004DA9D8);
+    (*analysis_window_slot)->tag_font.x = (*analysis_window_slot)->window.x + 191;
+    (*analysis_window_slot)->tag_font.y = (*analysis_window_slot)->window.y + 16;
+    (*analysis_window_slot)->tag_font.style = (*analysis_window_slot)->window.style + 2;
+    eNumberSet(&(*analysis_window_slot)->number, 0);
+    {
+        BattleWindow3 *number_window = (*analysis_window_slot);
+        int depth = number_window->window.style;
+        unsigned short x = number_window->window.x;
+        unsigned short y = number_window->window.y;
+
+        number_window->number.option = 3;
+        number_window->number.style = depth + 2;
+        number_window->number.y = y + 16;
+        number_window->number.x = x + 250;
+    }
+    (*analysis_window_slot)->number.places = 5;
+    (*analysis_window_slot)->number.value =
+        ((unsigned int)param->display_value_high << 16) +
+        param->display_value_low;
+    WindowDXSet(&(*analysis_window_slot)->window2);
+    {
+        BattleWindow3 *window = (*analysis_window_slot);
+        unsigned short y = param->y;
+        unsigned short x = param->x;
+        int depth = param->style;
+        unsigned int mode = *database_mode;
+
+        y += 54;
+        window->window2.x = x;
+        window->window2.y = y;
+        window->window2.style = depth;
+        window->window2.width = 326;
+        window->window2.height = 126;
+        if (mode == 0) {
+            window->window2.ribbon_initialized = 1;
+            window = (*analysis_window_slot);
+        }
+        entry_index = 0;
+        do {
+            eTagFontSet(&window->tag_fonts[entry_index], msg01_2_0036D610[entry_index]);
+            window = (*analysis_window_slot);
+            window->tag_fonts[entry_index].x = window->window2.x + (entry_index / 3) * 120 + 54;
+            window->tag_fonts[entry_index].y = window->window2.y + (entry_index % 3) * 24 + 7;
+            window->tag_fonts[entry_index].style = window->window2.style + 2;
+            entry_index++;
+        } while (entry_index < 5);
+        entry_index = 0;
+initialize_next_number:
+        eNumberSet(&window->numbers[entry_index], 0);
+        points_digit_count = 4;
+        BW3->numbers[entry_index].x = BW3->window2.x + (entry_index / 3) * 120 + 58;
+        BW3->numbers[entry_index].y = BW3->window2.y + (entry_index % 3) * 24 + 7;
+        BW3->numbers[entry_index].style = BW3->window2.style + 2;
+        BW3->numbers[entry_index].option = 0;
+        if (entry_index < 3) {
+            BW3->numbers[entry_index].places = points_digit_count;
+        } else {
+            BW3->numbers[entry_index].places = 10;
+        }
+        entry_index++;
+        window = BW3;
+        if (entry_index < 5) {
+            goto initialize_next_number;
+        }
+        {
+            int tech_value = param->tech_points;
+
+            rare_category = param->rare_item >> 8;
+            (*analysis_window_slot)->numbers[0].value = tech_value;
+        }
+        item_category = param->item >> 8;
+        (*analysis_window_slot)->numbers[1].value = param->ether_points;
+        (*analysis_window_slot)->numbers[2].value = param->skill_points;
+        experience_value = param->experience;
+        (*analysis_window_slot)->numbers[4].value = param->money;
+        (*analysis_window_slot)->numbers[3].value = experience_value;
+        code_ids[0] = param->rare_item & 0xff;
+        code_ids[1] = param->item;
+        code_kinds[0] = rare_category;
+        code_kinds[1] = item_category;
+        entry_index = 0;
+        do {
+            BattleWindow3 *message_window;
+
+            text = msg00_1_0036D600[entry_index + 1];
+            eMessageSet(&(*analysis_window_slot)->messages2[entry_index], text);
+            message_window = (*analysis_window_slot);
+            message_window->messages2[entry_index].x = message_window->window2.x + entry_index * 40 + 3;
+            message_window->messages2[entry_index].y = message_window->window2.y + entry_index * 24 + 75;
+            message_window->messages2[entry_index].extent = message_window->window2.style + 2;
+            message_window->messages2[entry_index].mode = 32;
+            entry_index++;
+        } while (entry_index < 2);
+    }
+    entry_index = 0;
+    do {
+        if (*database_mode == 0) {
+            unsigned char *catalog_id = &code_ids[entry_index];
+
+            if (*catalog_id != 0) {
+                switch (code_kinds[entry_index]) {
+                case 0:
+                    text = *func_A2C5F8(*catalog_id);
+                    break;
+                case 1:
+                    text = *func_A2C6E8(*catalog_id);
+                    break;
+                case 2:
+                    text = *func_A2C738(*catalog_id);
+                    break;
+                case 3:
+                    text = *func_A2C698(*catalog_id);
+                    break;
+                default:
+                    text = 0;
+                    break;
+                }
+            } else {
+                text = 0;
+            }
+        } else if (entry_index == 0) {
+            text = param->rare_item_text;
+        } else {
+            text = param->item_text;
+        }
+        eMessageSet(&(*analysis_window_slot)->messages2[entry_index + 2], text);
+        {
+            BattleWindow3 *message_window = (*analysis_window_slot);
+
+            message_window->messages2[entry_index + 2].x = message_window->window2.x + 143;
+            message_window->messages2[entry_index + 2].y = message_window->window2.y + entry_index * 24 + 75;
+            message_window->messages2[entry_index + 2].extent = message_window->window2.style + 2;
+            message_window->messages2[entry_index + 2].mode = 32;
+        }
+        entry_index++;
+    } while (entry_index < 2);
+    (*analysis_window_slot)->window.state = 1;
+    (*analysis_window_slot)->window2.state = 1;
+    (*analysis_window_slot)->active = 1;
+}
 
 int eBattleWinMain3(void)
 {

@@ -185,7 +185,126 @@ void MenuSkillPasMain(void)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_skill", MenuSkillInfoMain);
+void MenuSkillInfoMain(void)
+{
+    SkillScreenState **workSlot = &MenuSkillInfo;
+    char *characterHelp[] = {
+        "Select a character.",
+        " cannot be selected."
+    };
+    char *commandHelp[] = {
+        "Extract skills from accessories.",
+        "Allocate skills.",
+        "Cancel."
+    };
+    char *skillHelp[] = {
+        "Skill: ",
+        "\nEffect: ",
+        " has been extracted. \x1F"
+    };
+    char *learnHelp[] = {
+        "Skill has already been extracted.",
+        "Skill cannot be extracted from the selected item."
+    };
+    MenuSkillInfoWork *work = (MenuSkillInfoWork *)*workSlot;
+    short target;
+
+    switch (work->state) {
+    case 0:
+        work->color = 0x00fffff0;
+        WindowDXSet(&work->window);
+        work->window.x = -16;
+        work->window.color = work->color;
+        work->window.y = 480;
+        work->window.width = 544;
+        work->window.height = 54;
+        work->window.callback = MenuInfoWindow;
+        work->window.callbackArg = &work->info;
+        work->info.x = 0;
+        work->info.y = 0;
+        work->info.text = 0;
+        work->window.state = 1;
+        WindowDXMain(&work->window);
+        work->window.state = 3;
+        work->selected = -1;
+        work->opened = 1;
+        work->reasonShown = 0;
+        memset(work->message, 0, sizeof(work->message));
+        work->state = 2;
+        /* fallthrough */
+    case 2:
+        break;
+    default:
+        return;
+    }
+    target = 386;
+    if (MenuWork.flags & MENU_FLAG_ENTER)
+        work->reasonShown = 0;
+    if (work->reasonShown == 0) {
+        if (PadData.pressed & PAD_CIRCLE)
+            work->reasonShown = 1;
+    } else if (PadData.repeat != 0) {
+        work->reasonShown = 0;
+    }
+    switch ((int)MenuWork.state) {
+    case SKILL_CHARACTER:
+        eMessageCpy(work->message, characterHelp[0]);
+        if (work->reasonShown != 0 && (signed char)MenuWork.char_denied != 0) {
+            eMessageCpy(work->message, MenuCharNameGet(MenuWork.characterNo));
+            eMessageCat(characterHelp[1]);
+        }
+        break;
+    case SKILL_COMMAND:
+        eMessageCpy(work->message, commandHelp[MenuWork.commandCursor]);
+        break;
+    case SKILL_LEARN:
+    case SKILL_CONFIRM:
+        if (MenuWork.flags & MENU_FLAG_ENTER)
+            work->selected = -1;
+        if (MenuWork.list_select < 0) {
+            eMessageCpy(work->message, D_004DB600);
+        } else if ((short)MenuSortGet(0, MenuWork.list_select) != 0) {
+            SkillRecord *skill = func_A1A548((short)MenuSortGet(0, MenuWork.list_select));
+
+            if (work->reasonShown == 0) {
+                eMessageCpy(work->message, skillHelp[0]);
+                if (skill->prerequisite != 0)
+                    eMessageCat(func_A2C648(skill->prerequisite)->text);
+                eMessageCat(skillHelp[1]);
+                if (skill->prerequisite != 0)
+                    eMessageCat(func_A2C648(skill->prerequisite)->description);
+            } else if ((signed char)MenuWork.list_accessory != 0) {
+                if (func_A1A548((signed char)MenuWork.list_accessory)->prerequisite == 0)
+                    eMessageCpy(work->message, learnHelp[1]);
+                else if (func_A19698(MenuWork.characterNo, skill->prerequisite) != 0)
+                    eMessageCpy(work->message, learnHelp[0]);
+            }
+        }
+        break;
+    case SKILL_EXTRACT:
+        if (MenuWork.flags & MENU_FLAG_ENTER) {
+            SkillRecord *skill = func_A1A548((short)MenuSortGet(0, MenuWork.list_select));
+
+            eMessageCpy(work->message, skillHelp[0]);
+            if (skill->prerequisite != 0)
+                eMessageCat(func_A2C648(skill->prerequisite)->text);
+            eMessageCat(skillHelp[2]);
+        }
+        break;
+    case SKILL_EQUIP:
+        if (MenuWork.list_select >= 0)
+            eMessageCpy(work->message, MenuTextGet(MenuSortGet(0, MenuWork.list_select))->description);
+        else
+            eMessageCpy(work->message, D_004DB600);
+        break;
+    default:
+        target = 512;
+        break;
+    }
+    work->info.text = work->message;
+    MoveSlide(&work->window.y, &target, 3.0f);
+    WindowDXMain(&work->window);
+}
 
 void MenuSkillStatusMain(void)
 {

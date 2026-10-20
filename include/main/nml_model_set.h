@@ -3,6 +3,8 @@
 
 #include "shared.h"
 
+void nmlModelDirectSend(int mode, const void *data, int count);
+
 void nmlModelSetSortOffset(float offset);
 
 void nmlModelSetGlobalPointLightCol(int index, const Vector4 *color);

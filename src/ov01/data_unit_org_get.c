@@ -45,29 +45,32 @@ PlCharacter *dataPlChaGet(int cid)
 /* Battle-data header offsets are byte offsets from the loaded block at
  * 0x00426F40. Public symbols name the offset words, not the block itself.
  * Other record contents remain opaque until a consumer evidences their fields. */
-#define BATTLE_DATA_FIELD_OFFSET(member) ((unsigned int)&((BattleDataHeader *)0)->member)
-
 typedef struct BattleDataHeader {
-    unsigned char unmodeled_00[8];
-    int unitInitOffset; /* +0x08 */
-    int techniqueOffset; /* +0x0C */
-    int normalInitOffset; /* +0x10 */
-    int specialInitOffset; /* +0x14 */
-    int etherInitOffset; /* +0x18 */
-    int weaponOffset; /* +0x1C */
-    int ethOffset; /* +0x20 */
-    int itmOffset; /* +0x24 */
-    int attOffset; /* +0x28 */
-    int accessoryOffset; /* +0x2C */
-    int skillOffset; /* +0x30 */
-    int gainOffset; /* +0x34 */
-    int experienceOffset; /* +0x38 */
-    int parameterOffset; /* +0x3C */
-    int specialTableOffset; /* +0x40 */
-    int defaultEquipmentOffset; /* +0x44 */
-    int frameOffset; /* +0x48 */
-    int engOffset; /* +0x4C */
+    unsigned int sectionCount;
+    unsigned int byteSize;
+    int unitInitOffset;
+    int techniqueOffset;
+    int normalInitOffset;
+    int specialInitOffset;
+    int etherInitOffset;
+    int weaponOffset;
+    int ethOffset;
+    int itmOffset;
+    int attOffset;
+    int accessoryOffset;
+    int skillOffset;
+    int gainOffset;
+    int experienceOffset;
+    int parameterOffset;
+    int specialTableOffset;
+    int defaultEquipmentOffset;
+    int frameOffset;
+    int engOffset;
 } BattleDataHeader;
+
+extern unsigned char batDatBuf[0x10000];
+
+#define BATTLE_DATA_FIELD_OFFSET(member) ((unsigned int)&((BattleDataHeader *)0)->member)
 
 typedef struct NormalInitRecord { unsigned char opaque[0x0C]; } NormalInitRecord;
 typedef struct SpecialInitRecord { unsigned char opaque[0x0C]; } SpecialInitRecord;
@@ -1286,7 +1289,6 @@ INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataXtxLoad);
 extern int dataFileLoad(const char *name, void *dst);
 
 static const char D_00A46008[32];
-extern unsigned char batDatBuf[0x10000];
 
 void dataBatDatLoad(void)
 {

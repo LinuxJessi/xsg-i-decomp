@@ -1,4 +1,12 @@
 #include "common.h"
+#include "main/menu_top_command_check.h"
+#include "main/e_battle_win_open.h"
+
+void WindowSPSet(WindowSPCursor *cursor);
+void WindowSPMain(WindowSPCursor *cursor);
+void WindowSPSelectJump(WindowSPCursor *cursor, int selection);
+
+#include "main/menu_1.h"
 
 /*
  * The retail ELF names these ov01 data-table accessors (still assembler in
@@ -15,12 +23,14 @@ typedef struct EtherStatus {
     short pointCost;      /* +8 */
 } EtherStatus;
 
+
 typedef struct TecStatus {
     unsigned char unmodeled_00;
     signed char epCost;   /* +1 */
     unsigned char unmodeled_02[2];
     signed char type;     /* +4 */
 } TecStatus;
+
 
 extern EtherStatus *func_A1A488(int etherId);
 
@@ -41,12 +51,14 @@ typedef struct EtherUnitRecord {
     short etherId[12]; /* +0x8E */
 } EtherUnitRecord;
 
+
 typedef struct EtherCharRecord {
     unsigned char unmodeled_00[0x10];
     int points; /* +0x10 */
     unsigned char unmodeled_14[0x14];
     unsigned char etherMask[10]; /* +0x28 */
 } EtherCharRecord;
+
 
 typedef struct MenuEtherWork {
     unsigned char unmodeled_00[0x03];
@@ -75,10 +87,14 @@ typedef struct MenuEtherWork {
     signed char useType;            /* +0x47 */
     signed char targetCount;        /* +0x48 */
     unsigned char unmodeled_49[0x50 - 0x49];
-    int listSelect;                 /* +0x50 */
+    union {
+        int listSelect;             /* +0x50 */
+        unsigned char listSelectBytes[4];
+    };
     unsigned char unmodeled_54[0x60 - 0x54];
     unsigned char targetList[8];    /* +0x60 */
 } MenuEtherWork;
+
 
 extern MenuEtherWork MenuWork;
 
@@ -90,6 +106,7 @@ typedef struct EtherListRow {
     unsigned char unmodeled_0a[2];
 } EtherListRow;
 
+
 typedef struct MenuEtherPadData {
     unsigned char unmodeled_00[0x2A];
     unsigned short pressed; /* +0x2A */
@@ -97,9 +114,11 @@ typedef struct MenuEtherPadData {
     unsigned short repeat;  /* +0x34 */
 } MenuEtherPadData;
 
-typedef struct EtherTextEntry {
-    const char *name;
-} EtherTextEntry;
+
+extern MenuTextEntry *func_A2C5A8(unsigned int etherId);
+
+typedef MenuTextEntry EtherTextEntry;
+
 
 extern EtherUnitRecord *func_A191C0(int chrNo);
 
@@ -113,7 +132,7 @@ extern int *MenuSortAddrGet(int listIndex);
 
 int MenuSortCheck(int listIndex);
 
-extern EtherTextEntry *MenuTextGet(int index);
+
 
 int MenuEtherUseCheck(short etherId);
 
@@ -131,9 +150,11 @@ typedef struct EtherL1R1SpriteIdPair {
     short id[2];
 } EtherL1R1SpriteIdPair;
 
+
 typedef struct EtherL1R1SlideStep {
     signed char side[2];
 } EtherL1R1SlideStep;
+
 
 extern const EtherL1R1SpriteIdPair D_004DB2E8[];
 
@@ -144,23 +165,25 @@ const char D_004C8870[32] = "data\\endou\\ether\\etree.bin";
 const char D_004C7CD0[48] =
     "Choose a character.\0\0\0\0\0 cannot be chosen.\0\0\0\0\0";
 
-const char *D_004DB278[2] = { D_004C7CD0, D_004C7CD0 + 24 };
+typedef struct EtherInfoCharacterHelp { const char *text[2]; } EtherInfoCharacterHelp;
+
+extern EtherInfoCharacterHelp D_004DB278[];
 
 char D_004DB280[8] = "Cancel.";
 
-char D_004DB288[8] = ".";
+extern char D_004DB288[];
 
 char D_004DB290[8] = " to ";
 
-char D_004DB298[8] = { 0 };
+extern char D_004DB298[];
 
-char D_004DB2A0[8] = ".\n";
+extern char D_004DB2A0[];
 
-char D_004DB2A8[8] = ". \x1f";
+extern char D_004DB2A8[];
 
-char D_004DB2B0[8] = "of ";
+extern char D_004DB2B0[];
 
-char D_004DB2B8[8] = "?";
+extern char D_004DB2B8[];
 
 char D_004DB2C0[8] = "Yes\nNo";
 
@@ -172,7 +195,7 @@ char D_004DB2D8[8] = "\x01Wt";
 
 char D_004DB2E0[8] = "\x01" "E.Pts";
 
-char D_004DB2F8[8] = "Result";
+extern char D_004DB2F8[];
 
 const char D_004C8290[] = "Evolve\nTransfer\nCancel";
 
@@ -188,11 +211,10 @@ extern void eSpriteSet(void *sprite, short spriteId);
 
 extern void eSpriteMain(void *sprite);
 
-extern void WindowDXSet(void *window);
 
-extern void WindowDXMain(void *window);
 
-extern void MenuSelectWindow();
+
+
 
 extern void MenuPasWindow(void);
 
@@ -218,6 +240,14 @@ typedef struct EtherPasWindow {
     unsigned char unmodeled_1c[0x194 - 0x1C];
 } EtherPasWindow;
 
+
+typedef struct EtherMessageColor {
+    unsigned char red;
+    unsigned char green;
+    unsigned char blue;
+    unsigned char alpha;
+} EtherMessageColor;
+
 typedef struct EtherPasMessage {
     unsigned char unmodeled_00;
     unsigned char mode; /* +0x01 */
@@ -226,11 +256,12 @@ typedef struct EtherPasMessage {
     short y; /* +0x06 */
     int color; /* +0x08 */
     unsigned char unmodeled_0c[0x10 - 0x0C];
-    signed char glyphColor[4]; /* +0x10; first three bytes are RGB */
+    EtherMessageColor glyphColor; /* +0x10 */ /* +0x10; first three bytes are RGB */
     unsigned char unmodeled_14[0x18 - 0x14];
     const char *text; /* +0x18 */
     unsigned char unmodeled_1c[0x44 - 0x1C];
 } EtherPasMessage;
+
 
 typedef struct EtherPasBox {
     short x; /* +0x00 */
@@ -239,6 +270,7 @@ typedef struct EtherPasBox {
     short width; /* +0x08 */
     short height; /* +0x0A */
 } EtherPasBox;
+
 
 typedef struct EtherPasWork {
     unsigned char state; /* +0x000 */
@@ -249,6 +281,7 @@ typedef struct EtherPasWork {
     EtherPasBox box; /* +0x334 */
     unsigned char callbackWork[1]; /* +0x340 */
 } EtherPasWork;
+
 
 EtherPasWork *MenuEtherPas = 0;
 
@@ -277,6 +310,7 @@ typedef struct EtherMenuWindowDX {
     unsigned char unmodeled_a0[0x194 - 0xA0];
 } EtherMenuWindowDX;
 
+
 typedef struct EtherMenuList {
     unsigned char unmodeled_00[0x02];
     unsigned short hasPrompt; /* +0x02 */
@@ -286,6 +320,7 @@ typedef struct EtherMenuList {
     unsigned char unmodeled_10[0x5F8 - 0x10];
 } EtherMenuList;
 
+
 typedef struct EtherMenuScreen {
     unsigned char state; /* +0x000 */
     unsigned char unmodeled_01[3];
@@ -293,6 +328,7 @@ typedef struct EtherMenuScreen {
     EtherMenuWindowDX window[2]; /* +0x008 */
     EtherMenuList list[2]; /* +0x330 */
 } EtherMenuScreen;
+
 
 EtherMenuScreen *MenuEtherMenu = 0;
 
@@ -308,6 +344,7 @@ typedef struct EtherL1R1Sprite {
     unsigned char unmodeled_0c[0x28 - 0x0c];
 } EtherL1R1Sprite;
 
+
 typedef struct EtherL1R1Work {
     unsigned char state; /* +0x00 */
     unsigned char unmodeled_01;
@@ -315,6 +352,7 @@ typedef struct EtherL1R1Work {
     int spriteWork; /* +0x04: initial work value of both sprites */
     EtherL1R1Sprite sprite[2]; /* +0x08: L1, then R1 */
 } EtherL1R1Work;
+
 
 EtherL1R1Work *MenuEtherL1R1 = 0;
 
@@ -346,16 +384,19 @@ typedef struct EtherScreenWork {
     unsigned char state;
 } EtherScreenWork;
 
+
 typedef struct EtherListSPWindow {
     unsigned char unmodeled_00[0x26];
     unsigned char state;            /* +0x26 */
 } EtherListSPWindow;
+
 
 typedef struct EtherListWork {
     unsigned char state;
     unsigned char unmodeled_01[0x0C - 0x01];
     EtherListSPWindow window;       /* +0x0C */
 } EtherListWork;
+
 
 #define ETHER_DATA_SIZE    0x800
 
@@ -400,10 +441,12 @@ typedef struct EtherPartySlot {
     unsigned char unmodeled_02[0x02];
 } EtherPartySlot;
 
+
 typedef struct EtherPartyData {
     unsigned char unmodeled_00[0x30];
     EtherPartySlot attack_slots[3]; /* +0x30 */
 } EtherPartyData;
+
 
 void func_A194E0(int chrNo, int etherId);
 
@@ -439,9 +482,9 @@ void MenuEtherListMake00(void);
 
 void MenuEtherListMake01(void);
 
-void MenuEtherListMake02(int mode);
+void MenuEtherListMake02(int listIndex);
 
-void MenuEtherListMake03(int mode);
+void MenuEtherListMake03(int listIndex);
 
 int MenuEtherEquip(void);
 
@@ -475,15 +518,15 @@ void MenuSortSet(int listIndex, int type, int order);
 
 int MenuSortGet(int listIndex, int index);
 
-int WindowSPSelect(EtherListSPWindow *window, int pad);
 
-void WindowSPSelectJump(EtherListSPWindow *window, int index);
 
-void WindowSPKeepSelect(EtherListSPWindow *window, unsigned char *keep);
 
-void WindowSPKeepSelectCheck(unsigned char *keep);
 
-void WindowSPItemChange(EtherListSPWindow *window);
+
+
+
+
+
 
 void ChangeTopLevel(int level);
 
@@ -492,6 +535,351 @@ void ChangeTopLevel(int level);
  * work blocks after it and builds the party list; every later call advances
  * the MenuWork.state machine and runs the sub-screens.
  */
+
+
+
+
+typedef struct EtherInfoCommandHelp {
+    const char *text[5];
+} EtherInfoCommandHelp;
+
+
+typedef struct EtherInfoActionHelp {
+    const char *text[3];
+} EtherInfoActionHelp;
+
+
+typedef struct EtherInfoAcquireHelp {
+    const char *text[9];
+} EtherInfoAcquireHelp;
+
+
+typedef struct EtherInfoTransferHelp {
+    const char *text[7];
+} EtherInfoTransferHelp;
+
+
+
+
+typedef struct EtherInfoMessage {
+    short x;
+    short y;
+    unsigned char unmodeled_04[4];
+    int visible;
+    char *text;
+    unsigned char unmodeled_10[0x1B0 - 0x10];
+} EtherInfoMessage;
+
+
+typedef struct EtherInfoWindow {
+    short x;
+    short y;
+    int color;
+    short width;
+    short height;
+    const char *title;
+    unsigned char state;
+    unsigned char enabled;
+    unsigned char unmodeled_12[2];
+    void (*callback)(struct WindowDX *, void *);
+    void *callbackArg;
+    unsigned char unmodeled_1c[0x194 - 0x1C];
+} EtherInfoWindow;
+
+
+typedef struct EtherInfoWork {
+    unsigned char state;
+    unsigned char active;
+    signed char previous;
+    unsigned char helpHeld;
+    int work;
+    EtherInfoWindow window;
+    unsigned char unmodeled_19c[4];
+    EtherInfoMessage message;
+    char text[256];
+} EtherInfoWork;
+
+
+extern const EtherInfoCommandHelp D_004C7DC8;
+
+extern const EtherInfoActionHelp D_004C7E50;
+
+extern const EtherInfoAcquireHelp D_004C7F98;
+
+extern const EtherInfoTransferHelp D_004C8040;
+
+extern const char D_004C8060[];
+
+extern const char D_004C80A0[];
+
+
+
+extern char *MenuCharNameGet(unsigned int charId);
+
+extern void eMessageCpy(char *message, const char *text);
+
+extern void eMessageCat(const char *text);
+
+static inline EtherInfoWork *EtherInfoWorkGet(EtherScreenWork **slot) {
+    return (void *)*slot;
+}
+
+extern void eCursolMain(void *cursor);
+
+typedef struct EtherStatusPanelNumber {
+    short x;
+    short y;
+    int color;
+    unsigned char unmodeled_08[0x90 - 0x08];
+} EtherStatusPanelNumber;
+
+
+typedef struct EtherStatusPanelEarly {
+    signed char chrNo;
+    unsigned char enabled;
+    short guestChrNo;
+    short offsetX;
+    short offsetY;
+    unsigned char unmodeled_08[0x14 - 0x08];
+    EtherStatusPanelNumber number[6];
+    unsigned char unmodeled_374[0x840 - 0x374];
+} EtherStatusPanelEarly;
+
+
+typedef struct EtherStatusWindowEarly {
+    short x;
+    short y;
+    int color;
+    short width;
+    short height;
+    const char *title;
+    unsigned char state;
+    unsigned char enabled;
+    unsigned char unmodeled_12[2];
+    void *callback;
+    void *callbackArg;
+    unsigned char unmodeled_1c[0x9C - 0x1C];
+    char *renderTitle;
+    unsigned char unmodeled_a0[0x194 - 0xA0];
+} EtherStatusWindowEarly;
+
+
+typedef struct EtherStatusCursorEarly {
+    unsigned char state;
+    unsigned char unmodeled_01[3];
+    unsigned short x;
+    unsigned short y;
+    int work;
+    unsigned char unmodeled_0c[0x24 - 0x0C];
+} EtherStatusCursorEarly;
+
+
+typedef struct EtherStatusRecordHeaderEarly {
+    unsigned char state;
+    signed char active;
+    unsigned char unmodeled_02[2];
+    unsigned char verticalFirst;
+    unsigned char collapsed;
+    signed char resetByte;
+    signed char previousParty;
+    int color;
+} EtherStatusRecordHeaderEarly;
+
+
+typedef struct EtherPartyStatusWorkEarly {
+    EtherStatusRecordHeaderEarly header;
+    EtherStatusWindowEarly window[8];
+    EtherStatusPanelEarly panel[8];
+    EtherStatusCursorEarly cursor[2];
+} EtherPartyStatusWorkEarly;
+
+
+extern char *MenuTagTextGet(int index);
+
+
+
+extern void eCursolSet(void *cursor, int width);
+
+extern void eCursolModeChange(void *cursor, unsigned int mode);
+
+typedef struct EtherStatusPanel {
+    signed char chrNo;
+    signed char mode;
+    unsigned char unmodeled_02[2];
+    short x;
+    short y;
+    unsigned char unmodeled_08[0x14 - 0x08];
+    EtherStatusPanelNumber number[6];
+    unsigned char unmodeled_374[0x840 - 0x374];
+} EtherStatusPanel;
+
+
+typedef struct EtherStatusWindow {
+    short x;
+    short y;
+    int color;
+    short width;
+    short height;
+    const char *title;
+    unsigned char state;
+    unsigned char enabled;
+    unsigned char unmodeled_12[2];
+    void (*callback)(struct WindowDX *, void *);
+    struct EtherStatusPanel *callbackArg;
+    unsigned char unmodeled_1c[0x9C - 0x1C];
+    char *renderTitle;
+    unsigned char unmodeled_a0[0x194 - 0xA0];
+} EtherStatusWindow;
+
+
+typedef struct EtherTargetCursor {
+    unsigned char state;
+    unsigned char unmodeled_01[3];
+    unsigned short x;
+    unsigned short y;
+    int work;
+    unsigned char unmodeled_0c[0x24 - 0x0C];
+} EtherTargetCursor;
+
+
+typedef struct EtherTargetStatusWork {
+    unsigned char state;
+    unsigned char active;
+    unsigned char unmodeled_02;
+    unsigned char targetInitialized;
+    signed char visibleRow;
+    signed char scrollOffset;
+    signed char previousCursor;
+    unsigned char drawFrame;
+    signed char scrollLimit;
+    signed char listMode;
+    signed char multiCursor;
+    signed char visibleCount;
+    int color;
+    EtherStatusWindow window[8];
+    EtherStatusPanel panel[8];
+    EtherTargetCursor cursor[3];
+    EtherPasBox frame[2][2];
+    EtherPasBox scrollBar;
+    unsigned char unmodeled_4f58[0x4F64 - 0x4F58];
+} EtherTargetStatusWork;
+
+
+
+
+
+
+
+
+extern const char D_004C8670[16];
+
+extern const char D_004C8680[16];
+
+extern const char D_004C8690[16];
+
+extern const char D_004C86A0[16];
+
+typedef struct EtherMenuListWindow {
+    unsigned char state;
+    unsigned char itemType;
+    unsigned char unmodeled_02[2];
+    short x;
+    short y;
+    int work;
+    short width;
+    short height;
+    const char *title;
+    signed char active;
+    signed char lineCount;
+    unsigned char unmodeled_16[6];
+    struct EtherListRow *items;
+    unsigned char unmodeled_20[4];
+    signed char firstVisible;
+    unsigned char unmodeled_25;
+    signed char selectionMode;
+    unsigned char unmodeled_27[3];
+    short itemCount;
+    unsigned char unmodeled_2c[0x172C - 0x2C];
+} EtherMenuListWindow;
+
+
+typedef struct EtherMenuListHeader {
+    unsigned char state;
+    unsigned char unmodeled_01;
+    unsigned char configured;
+    unsigned char acquireLayout;
+    unsigned char showNumbers;
+    unsigned char unmodeled_05[3];
+    int work;
+} EtherMenuListHeader;
+
+
+typedef struct EtherMenuListEntry {
+    EtherMenuListHeader header;
+    EtherMenuListWindow window;
+} EtherMenuListEntry;
+
+
+typedef struct EtherDetailNumber {
+    short x;
+    short y;
+    int work;
+    unsigned char unmodeled_08[6];
+    unsigned char format;
+    unsigned char digits;
+    unsigned char unmodeled_10[4];
+    int value;
+    unsigned char unmodeled_18[0x90 - 0x18];
+} EtherDetailNumber;
+typedef struct EtherMenuListsWork {
+    EtherMenuListEntry window[2];
+    EtherMenuListHeader endHeader;
+    EtherL1R1Sprite sprite[8];
+    EtherDetailNumber number[8];
+} EtherMenuListsWork;
+
+
+typedef struct EtherListCursor {
+    unsigned char state;
+    unsigned char unmodeled_01[3];
+    unsigned short x;
+    unsigned short y;
+    int work;
+    unsigned char unmodeled_0c[0x24 - 0x0C];
+} EtherListCursor;
+
+
+typedef struct EtherResultWindowDX {
+    short x; /* +0x00 */
+    short y; /* +0x02 */
+    int color; /* +0x04 */
+    short width; /* +0x08 */
+    short height; /* +0x0A */
+    const char *title; /* +0x0C */
+    unsigned char state; /* +0x10: 1 while the frame opens, 3 once it is up */
+    unsigned char unmodeled_11[0x14 - 0x11];
+    void *select; /* +0x14 */
+    void *selectArg; /* +0x18 */
+    unsigned char unmodeled_1c[0x9C - 0x1C];
+    const char *renderTitle; /* +0x9C; active title after initialization */
+    unsigned char unmodeled_a0[0x194 - 0xA0];
+} EtherResultWindowDX;
+
+
+typedef struct EtherResultWork {
+    unsigned char state;
+    unsigned char unmodeled_01;
+    unsigned char rightPanel;
+    unsigned char unmodeled_03;
+    int work;
+    EtherResultWindowDX window;
+    EtherPasMessage messages[3];
+    EtherDetailNumber numbers[3];
+    EtherListCursor cursor;
+} EtherResultWork;
+
+
+extern const char D_004C8810[];
 
 unsigned char *MenuEtherDataGet(int etherId)
 {
@@ -613,7 +1001,7 @@ void MenuEtherPasMain(void) {
     switch (pas->state) {
     case 0:
         pas->kind = 0x00FFFFF0;
-        WindowDXSet(&pas->window);
+        WindowDXSet((WindowDX *)(void *)(&pas->window));
         pas->window.x = -288;
         pas->window.y = 8;
         pas->window.color = pas->kind;
@@ -622,7 +1010,7 @@ void MenuEtherPasMain(void) {
         pas->window.callback = MenuPasWindow;
         pas->window.callbackArg = pas->callbackWork;
         pas->window.state = 1;
-        WindowDXMain(&pas->window);
+        WindowDXMain((WindowDX *)(void *)(&pas->window));
         pas->window.state = 3;
         for (i = 0; i < 6; i++) {
             eMessageSet(&pas->messages[i], msg_0_0036DC00[i]);
@@ -674,7 +1062,7 @@ void MenuEtherPasMain(void) {
     }
 
     MoveSlide(&pas->window.x, &slideTarget, 3.0f);
-    WindowDXMain(&pas->window);
+    WindowDXMain((WindowDX *)(void *)(&pas->window));
     if (pas->window.state == 3) {
         pas->box.x = pas->window.x + 3;
         pas->box.y = pas->window.y + 3;
@@ -692,7 +1080,227 @@ void MenuEtherPasMain(void) {
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_ether", MenuEtherInfoMain);
+void MenuEtherInfoMain(void) {
+    EtherInfoWork *screen = EtherInfoWorkGet(&MenuEtherInfo);
+    const char *capHelp = D_004C8060;
+    EtherInfoCharacterHelp characterHelp = D_004DB278[0];
+    EtherInfoCommandHelp commandHelp = D_004C7DC8;
+    EtherInfoActionHelp actionHelp = D_004C7E50;
+    EtherInfoAcquireHelp acquireHelp = D_004C7F98;
+    EtherInfoTransferHelp transferHelp = D_004C8040;
+    short targetY;
+    EtherInfoWindow *window;
+    char *text;
+
+
+    switch (screen->state) {
+    case 0:
+        screen->work = 0x00FFFFF0;
+        window = &screen->window;
+        text = screen->text;
+        WindowDXSet((WindowDX *)(void *)(window));
+        screen->window.x = -16;
+        screen->window.y = 480;
+        screen->window.color = screen->work;
+        screen->window.width = 544;
+        screen->window.height = 54;
+        screen->window.callback =
+            (void (*)(struct WindowDX *, void *))MenuInfoWindow;
+        {
+            EtherInfoMessage *message = &screen->message;
+            message->x = 0;
+            screen->window.callbackArg = message;
+        }
+        screen->message.y = 0;
+        __builtin_memset(&screen->message.text, 0, sizeof(screen->message.text));
+        screen->window.state = 1;
+        WindowDXMain((WindowDX *)(void *)(window));
+        screen->window.state = 3;
+        screen->previous = -1;
+        screen->active = 1;
+        screen->helpHeld = 0;
+        memset(text, 0, 256);
+        screen->state = 2;
+        break;
+    case 2:
+        window = &screen->window;
+        text = screen->text;
+        break;
+    default:
+        return;
+    }
+
+    targetY = 386;
+    if ((unsigned char)(MenuWork.flags & 1)) {
+        screen->helpHeld = 0;
+    }
+    if (screen->helpHeld == 0) {
+        if (PadData.pressed & 0x20) {
+            screen->helpHeld = 1;
+        }
+    } else if (PadData.repeat != 0) {
+        screen->helpHeld = 0;
+    }
+
+    switch (MenuWork.state) {
+    case 16:
+        eMessageCpy(text, characterHelp.text[0]);
+        if (screen->helpHeld != 0 && MenuWork.charDenied != 0) {
+            eMessageCpy(text, MenuCharNameGet(MenuWork.chrNo));
+            eMessageCat(characterHelp.text[1]);
+        }
+        break;
+    case 32:
+        if (MenuWork.commandCursor == 0) {
+            eMessageCpy(text, commandHelp.text[0]);
+            eMessageCat(MenuTextGet((MenuWork.chrNo & 0xFFFF) + 0x60000)->name);
+            eMessageCat(commandHelp.text[4]);
+        } else {
+            eMessageCpy(text, commandHelp.text[MenuWork.commandCursor]);
+        }
+        break;
+    case 48:
+        if (MenuWork.listSelect < 0) {
+            eMessageCpy(text, D_004DB298);
+        } else {
+            eMessageCpy(text, MenuTextGet(MenuSortGet(0, MenuWork.listSelect))->auxiliary);
+            if (screen->helpHeld == 1) {
+                int status = MenuListGet(0)[MenuWork.listSelect].status;
+                if (status == 1) {
+                    eMessageCpy(text, acquireHelp.text[5]);
+                } else if (status == 2) {
+                    eMessageCpy(text, acquireHelp.text[7]);
+                }
+            }
+        }
+        break;
+    case 50:
+        if (MenuWork.listSelect < 0) {
+            eMessageCpy(text, D_004DB298);
+        } else {
+            eMessageCpy(text, MenuTextGet(MenuSortGet(0, MenuWork.listSelect))->auxiliary);
+        }
+        break;
+    case 80:
+        if (MenuWork.listSelect < 0) {
+            eMessageCpy(text, D_004DB298);
+        } else {
+            eMessageCpy(text, MenuTextGet(MenuSortGet(0, MenuWork.listSelect))->auxiliary);
+            if (screen->helpHeld == 1) {
+                EtherListRow *rows = MenuListGet(0);
+                if (rows[MenuWork.listSelect].flag == 1 &&
+                    rows[MenuWork.listSelect].status == 0) {
+                    eMessageCpy(text, capHelp);
+                }
+            }
+        }
+        break;
+    case 112:
+        if (MenuWork.listSelect >= 0) {
+            eMessageCpy(text, MenuTextGet(MenuSortGet(0, MenuWork.listSelect))->auxiliary);
+            if (screen->helpHeld == 1 &&
+                MenuWork.chrNo != MenuEtherWhoCheck(MenuWork.etherId) &&
+                MenuListGet(0)[MenuWork.listSelect].flag == 1) {
+                eMessageCpy(text, acquireHelp.text[6]);
+            }
+        } else {
+            eMessageCpy(text, D_004DB298);
+        }
+        break;
+    case 114:
+        eMessageCpy(text, actionHelp.text[MenuWork.menuCursor]);
+        if (screen->helpHeld == 1) {
+            short cost = func_A1A488(MenuWork.etherId)->pointCost;
+            int points = func_A19210(MenuWork.chrNo)->points;
+            if (MenuWork.menuCursor == 1) {
+                cost /= 2;
+            }
+            if (cost < points) {
+                if (MenuEtherJoutoCheck(MenuWork.etherId) == 0) {
+                    if (MenuWork.menuCursor == 0) {
+                        eMessageCpy(text, acquireHelp.text[3]);
+                    } else {
+                        eMessageCpy(text, acquireHelp.text[8]);
+                    }
+                } else if (MenuWork.slotCount == 0) {
+                    if (MenuWork.menuCursor == 0) {
+                        eMessageCpy(text, acquireHelp.text[3]);
+                    } else {
+                        eMessageCpy(text, acquireHelp.text[8]);
+                    }
+                }
+            } else {
+                eMessageCpy(text, acquireHelp.text[2]);
+            }
+        }
+        break;
+    case 116:
+        eMessageCpy(text, acquireHelp.text[0]);
+        eMessageCat(func_A2C5A8(MenuWork.slotEther)->name);
+        eMessageCat(D_004DB2A0);
+        eMessageCat(func_A2C5A8(MenuWork.slotEther)->auxiliary);
+        if (screen->helpHeld == 1 && func_A19578(MenuWork.chrNo, MenuWork.slotEther) != 0) {
+            eMessageCpy(text, acquireHelp.text[4]);
+            eMessageCat(func_A2C5A8(MenuWork.slotEther)->name);
+            eMessageCat(D_004DB288);
+        }
+        break;
+    case 118:
+    case 120:
+        if (MenuWork.state == 118) {
+            eMessageCpy(text, acquireHelp.text[0]);
+        } else {
+            eMessageCpy(text, acquireHelp.text[1]);
+        }
+        eMessageCat(func_A2C5A8(MenuWork.slotEther)->name);
+        if (MenuWork.state == 118) {
+            eMessageCat(D_004DB288);
+        } else {
+            eMessageCat(D_004DB2A8);
+        }
+        break;
+    case 130:
+        eMessageCpy(text, transferHelp.text[0]);
+        eMessageCat(func_A2C5A8(MenuWork.etherId)->name);
+        eMessageCat(D_004DB288);
+        if (screen->helpHeld == 1 && func_A19578(MenuWork.targetChrNo, MenuWork.etherId) != 0) {
+            eMessageCpy(text, transferHelp.text[5]);
+            eMessageCat(func_A2C5A8(MenuWork.etherId)->name);
+            eMessageCat(D_004DB288);
+        }
+        break;
+    case 132:
+    case 134:
+        {
+            short chrNo = MenuEtherParty[MenuWork.targetList[MenuWork.targetCursor]];
+            eMessageCpy(text, transferHelp.text[1]);
+            if (MenuWork.state == 132) {
+                eMessageCat(D_004DB298);
+            } else {
+                eMessageCat(D_004DB2B0);
+            }
+            eMessageCat(func_A2C5A8(MenuWork.etherId)->name);
+            if (MenuWork.state == 132) {
+                eMessageCat(transferHelp.text[2]);
+            } else {
+                eMessageCat(transferHelp.text[3]);
+            }
+            eMessageCat(MenuCharNameGet(chrNo));
+            if (MenuWork.state == 132) {
+                eMessageCat(D_004DB2B8);
+            } else {
+                eMessageCat(D_004C80A0);
+            }
+        }
+        break;
+    default:
+        targetY = 512;
+        break;
+    }
+    screen->message.text = text;
+    MoveSlide(&screen->window.y, &targetY, 3.0f);
+    WindowDXMain((WindowDX *)(void *)(window));
+}
 
 void MenuEtherMenuMain(void) {
     EtherMenuScreen *work = MenuEtherMenu;
@@ -702,7 +1310,7 @@ void MenuEtherMenuMain(void) {
     switch (work->state) {
     case 0:
         work->color = 0x00FFFFF0;
-        WindowDXSet(&work->window[0]);
+        WindowDXSet((WindowDX *)(void *)(&work->window[0]));
         work->window[0].x = 528;
         work->window[0].title = D_004DB2C8;
         work->window[0].color = work->color;
@@ -715,9 +1323,9 @@ void MenuEtherMenuMain(void) {
         work->window[0].select = MenuSelectWindow;
         work->list[0].cursor = 0;
         work->list[0].hasPrompt = 0;
-        WindowDXMain(&work->window[0]);
+        WindowDXMain((WindowDX *)(void *)(&work->window[0]));
         work->window[0].state = 3;
-        WindowDXSet(&work->window[1]);
+        WindowDXSet((WindowDX *)(void *)(&work->window[1]));
         work->window[1].x = 528;
         work->window[1].title = D_004DB2D0;
         work->window[1].y = 192;
@@ -731,7 +1339,7 @@ void MenuEtherMenuMain(void) {
         work->list[1].cursor = 0;
         work->list[1].cursor = 0;
         work->window[1].state = work->list[1].hasPrompt = 1;
-        WindowDXMain(&work->window[1]);
+        WindowDXMain((WindowDX *)(void *)(&work->window[1]));
         work->window[1].state = 3;
         work->state = 2;
 	    /* fallthrough */
@@ -780,7 +1388,7 @@ void MenuEtherMenuMain(void) {
         }
         for (i = 0; i < 2; i++) {
             MoveSlide(&work->window[i].x, &target[i], 3.0f);
-            WindowDXMain(&work->window[i]);
+            WindowDXMain((WindowDX *)(void *)(&work->window[i]));
         }
         break;
     }
@@ -794,6 +1402,7 @@ typedef struct EtherDetailRibbon {
     short height;
     unsigned char unmodeled_0c[0x70 - 0x0C];
 } EtherDetailRibbon;
+
 typedef struct EtherDetailFont {
     unsigned char unmodeled_00[4];
     short x;
@@ -801,22 +1410,14 @@ typedef struct EtherDetailFont {
     int work;
     unsigned char unmodeled_0c[0x20 - 0x0C];
 } EtherDetailFont;
-typedef struct EtherDetailNumber {
-    short x;
-    short y;
-    int work;
-    unsigned char unmodeled_08[6];
-    unsigned char format;
-    unsigned char digits;
-    unsigned char unmodeled_10[4];
-    int value;
-    unsigned char unmodeled_18[0x90 - 0x18];
-} EtherDetailNumber;
+
+
 typedef struct EtherDetailRow {
     EtherDetailRibbon ribbon;
     EtherDetailFont font;
     EtherDetailNumber number;
 } EtherDetailRow;
+
 typedef struct EtherDetailWork {
     unsigned char state;
     unsigned char unmodeled_01[3];
@@ -824,6 +1425,7 @@ typedef struct EtherDetailWork {
     EtherDetailRow rows[2];
     EtherPasMessage message;
 } EtherDetailWork;
+
 extern const char *msg00_3_0036DC28[];
 extern char *msg01_4_0036DC30[];
 void eRibbonSet(void *ribbon, int mode);
@@ -1033,14 +1635,845 @@ void MenuEtherL1R1Main(void) {
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_ether", MenuEtherStatusMain);
+void MenuEtherStatusMain(void) {
+    EtherPartyStatusWorkEarly *screen = (void *)MenuEtherStatus;
+    short targetX[8];
+    short targetY[8];
+    short targetWidth[8];
+    short targetHeight[8];
+    short targetPanelX[8];
+    int i;
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_ether", MenuEtherStatusMain2);
+    switch (screen->header.state) {
+    case 0:
+        screen->header.color = 0x00F00000;
+        {
+        for (i = 0; i < MenuWork.partyCount; i++) {
+            short chrNo = MenuEtherParty[i];
+            int windowX;
+            WindowDXSet((WindowDX *)(void *)(screen->window + i));
+            windowX = (i & 1) * 816 - 272;
+            screen->window[i].x = windowX;
+            screen->window[i].y = (i / 2) * 104 + 64;
+            screen->window[i].color = screen->header.color;
+            screen->window[i].width = 240;
+            screen->window[i].height = 82;
+            screen->window[i].enabled = 1;
+            if (PartyAttackerCheck(chrNo)) {
+                screen->window[i].title = MenuTagTextGet(1);
+            } else {
+                screen->window[i].title = MenuTagTextGet(2);
+            }
+            screen->window[i].callback = (void *)MenuStatusDisp;
+            screen->window[i].callbackArg = screen->panel + i;
+            screen->panel[i].offsetX = 0;
+            screen->panel[i].chrNo = chrNo;
+            screen->panel[i].enabled = 0;
+            screen->panel[i].offsetY = 0;
+            screen->window[i].state = 1;
+            WindowDXMain((WindowDX *)(void *)(&screen->window[i]));
+            screen->window[i].state = 3;
+        }
+        }
+        for (i = 0; i < 1; i++) {
+            eCursolSet(&screen->cursor[i], 0);
+            screen->cursor[i].state = 0;
+            screen->cursor[i].work = 0x00FFFFFF;
+        }
+        screen->header.active = 0;
+        screen->header.collapsed = 0;
+        screen->header.resetByte = 0;
+        screen->header.verticalFirst = 0;
+        {
+            unsigned char initialParty = MenuWork.partyCursor;
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_ether", MenuEtherListMain);
+            screen->header.state = 2;
+            screen->header.previousParty = initialParty;
+        }
+        /* fall through */
+    case 2:
+    for (i = 0; i < MenuWork.partyCount; i++) {
+        targetX[i] = (i & 1) * 816 - 272;
+        targetY[i] = (i / 2) * 104 + 64;
+        targetWidth[i] = 240;
+        targetHeight[i] = 82;
+        targetPanelX[i] = 0;
+    }
+
+    switch (MenuWork.state) {
+    case 16:
+        if ((unsigned char)(MenuWork.flags & 1)) {
+            screen->header.active = 1;
+            screen->cursor[0].state = 32;
+            screen->header.verticalFirst = 1;
+            if ((unsigned char)(screen->header.collapsed & 1)) {
+                if (i != MenuWork.partyCursor) {
+                    screen->window[i].y = 24;
+                    screen->window[i].x = (i & 1) * 816 - 272;
+                }
+                screen->header.collapsed &= 0xFE;
+            }
+        }
+        for (i = 0; i < MenuWork.partyCount; i++) {
+            targetX[i] = (i & 1) * 240 + 16;
+        }
+        break;
+    case 32:
+    case 48:
+    case 50:
+    case 80:
+    case 112:
+    case 114:
+    case 116:
+    case 118:
+    case 120:
+    case 128:
+    case 130:
+    case 132:
+    case 134:
+        if ((unsigned char)(MenuWork.flags & 1)) {
+            switch (MenuWork.state) {
+            case 32:
+                screen->cursor[0].state = 0;
+                screen->header.previousParty = MenuWork.partyCursor;
+                /* The character selection also refreshes the attacker tags. */
+            case 112:
+            case 114:
+                for (i = 0; i < MenuWork.partyCount; i++) {
+                    short chrNo = MenuEtherParty[i];
+                    PartyAttackerCheck(chrNo);
+                    if (PartyAttackerCheck(chrNo) != 0) {
+                        screen->window[i].renderTitle = MenuTagTextGet(1);
+                    } else {
+                        screen->window[i].renderTitle = MenuTagTextGet(2);
+                    }
+                }
+                break;
+            case 48:
+                for (i = 0; i < MenuWork.partyCount; i++) {
+                    screen->window[i].renderTitle = MenuTagTextGet(5);
+                }
+                break;
+            case 130:
+                for (i = 0; i < MenuWork.partyCount; i++) {
+                    screen->window[i].renderTitle = MenuTagTextGet(6);
+                }
+                break;
+            }
+        }
+        if (screen->header.previousParty != MenuWork.partyCursor) {
+            screen->window[MenuWork.partyCursor].x = 264;
+            screen->window[MenuWork.partyCursor].y = 32;
+            screen->header.previousParty = MenuWork.partyCursor;
+        }
+        if ((unsigned char)(screen->header.collapsed & 1)) {
+            for (i = 0; i < MenuWork.partyCount; i++) {
+                if (i == MenuWork.partyCursor) {
+                    targetX[i] = 264;
+                    targetY[i] = 32;
+                } else {
+                    targetX[i] = (i & 1) * 816 - 272;
+                    screen->window[i].x = targetX[i];
+                }
+            }
+        } else {
+            for (i = 0; i < MenuWork.partyCount; i++) {
+                if (i == MenuWork.partyCursor) {
+                    targetX[i] = 264;
+                    targetY[i] = 32;
+                }
+            }
+            if (targetY[MenuWork.partyCursor] == screen->window[MenuWork.partyCursor].y) {
+                screen->header.collapsed |= 1;
+            }
+        }
+        screen->header.active = 0;
+        screen->header.verticalFirst = 0;
+        break;
+    }
+
+    for (i = 0; i < MenuWork.partyCount; i++) {
+        if (screen->header.verticalFirst == 0) {
+            MoveSlide(&screen->window[i].width, &targetWidth[i], 3.0f);
+            MoveSlide(&screen->window[i].height, &targetHeight[i], 3.0f);
+            MoveSlide(&screen->panel[i].offsetX, &targetPanelX[i], 3.0f);
+            MoveSlide(&screen->window[i].x, &targetX[i], 3.0f);
+            if (screen->window[i].x == targetX[i]) {
+                MoveSlide(&screen->window[i].y, &targetY[i], 3.0f);
+            }
+        } else {
+            MoveSlide(&screen->window[i].y, &targetY[i], 3.0f);
+            if (screen->window[i].y == targetY[i]) {
+                MoveSlide(&screen->window[i].width, &targetWidth[i], 3.0f);
+                MoveSlide(&screen->panel[i].offsetX, &targetPanelX[i], 3.0f);
+                MoveSlide(&screen->window[i].x, &targetX[i], 3.0f);
+            }
+        }
+        if (i == MenuWork.partyCursor) {
+            screen->window[i].color = 0x00F07F00;
+        } else {
+            screen->window[i].color = 0x00F07E00;
+        }
+        WindowDXMain((WindowDX *)(void *)(&screen->window[i]));
+    }
+    screen->cursor[0].x = screen->window[MenuWork.partyCursor].x + 3;
+    {
+        signed char yParty = MenuWork.partyCursor;
+
+        screen->cursor[0].work = 0x00FFFFFF;
+        screen->cursor[0].y = screen->window[yParty].y + screen->window[yParty].height / 2 - 4;
+    }
+    eCursolMain(&screen->cursor[0]);
+        break;
+    }
+}
+
+void MenuEtherStatusMain2(void)
+{
+    EtherTargetStatusWork *screen = (void *)MenuEtherStatus2;
+    int i;
+
+    if (MenuWork.state == 255) {
+        return;
+    }
+    switch (screen->state) {
+    case 0:
+        screen->color = 0x00FFF000;
+        for (i = 0; i < MenuWork.partyCount; i++) {
+            WindowDXSet((WindowDX *)(void *)(&screen->window[i]));
+            screen->window[i].x = -272;
+            screen->window[i].width = 240;
+            screen->window[i].height = 82;
+            screen->window[i].color = screen->color;
+            screen->window[i].y = i * 104 + 64;
+            screen->window[i].enabled = 1;
+            screen->window[i].title = MenuTagTextGet(7);
+            screen->window[i].callback =
+                (void (*)(struct WindowDX *, void *))MenuStatusDisp;
+            screen->window[i].callbackArg = &screen->panel[i];
+            screen->panel[i].chrNo = MenuEtherParty[i];
+            screen->panel[i].x = 0;
+            screen->panel[i].y = 0;
+            screen->window[i].state = 1;
+            WindowDXMain((WindowDX *)(void *)(&screen->window[i]));
+            screen->window[i].state = 3;
+        }
+        for (i = 0; i < 3; i++) {
+            eCursolSet(&screen->cursor[i], i);
+            screen->cursor[i].state = 32;
+            screen->cursor[i].work = screen->color + 16;
+        }
+        for (i = 0; i < 2; i++) {
+            screen->frame[0][i].kind = 0x00FFFFFF;
+            screen->frame[1][i].kind = 0;
+        }
+        screen->scrollOffset = 0;
+        screen->visibleRow = 0;
+        {
+            unsigned char initialTargetCursor = MenuWork.targetCursor;
+
+            screen->state = 2;
+            screen->previousCursor = initialTargetCursor;
+        }
+        screen->targetInitialized = 0;
+        screen->drawFrame = 0;
+        screen->multiCursor = 0;
+        screen->listMode = 0;
+        screen->scrollLimit = 0;
+        screen->visibleCount = 0;
+        screen->active = 0;
+        break;
+    case 2:
+        break;
+    default:
+        return;
+    }
+
+    {
+        short targetX[8];
+        short targetY[8];
+
+        for (i = 0; i < 8; i++) {
+            targetX[i] = -272;
+            targetY[i] = i * 104 + 64;
+        }
+        switch (MenuWork.state) {
+        case 48:
+            screen->active = 1;
+            screen->drawFrame = 1;
+            screen->visibleCount = MenuWork.partyCount;
+            /* fall through */
+        case 50:
+            if (MenuWork.flags & 1) {
+                for (i = 0; i < MenuWork.partyCount; i++) {
+                    screen->panel[i].chrNo = MenuEtherParty[i];
+                    screen->window[i].renderTitle = MenuTagTextGet(7);
+                }
+                if (MenuWork.state == 48) {
+                    screen->cursor[0].state = 0;
+                } else {
+                    screen->cursor[0].state = 32;
+                }
+                {
+                    int viewportWidth = 256;
+                    MenuEtherWork *frameMenu;
+
+                    screen->frame[0][0].height = 48;
+                    frameMenu = &MenuWork;
+                    screen->frame[0][0].x = 0;
+                    screen->frame[0][1].width = screen->frame[0][0].width = viewportWidth;
+                    screen->frame[0][1].y = 354;
+                    screen->frame[0][1].height = 158;
+                    screen->frame[0][0].y = 0;
+                    screen->frame[0][1].x = 0;
+                    screen->previousCursor = frameMenu->targetCursor;
+                    screen->scrollLimit = frameMenu->partyCount - 3;
+                }
+            }
+            if (screen->previousCursor != MenuWork.targetCursor) {
+                if (MenuWork.targetCursor < screen->previousCursor) {
+                    if (screen->visibleRow == 0) {
+                        screen->scrollOffset--;
+                        MenuWork.wait = 32;
+                    } else {
+                        screen->visibleRow--;
+                    }
+                } else {
+                    if (screen->visibleRow == 2) {
+                        screen->scrollOffset++;
+                        MenuWork.wait = 32;
+                    } else {
+                        screen->visibleRow++;
+                    }
+                }
+                screen->previousCursor = MenuWork.targetCursor;
+            }
+            for (i = 0; i < MenuWork.partyCount; i++) {
+                targetX[i] = 16;
+                targetY[i] = (i - screen->scrollOffset) * 104 + 64;
+            }
+            if (screen->window[0].x == targetX[0]) {
+                screen->listMode = 1;
+            }
+            if (screen->window[MenuWork.targetCursor].y == targetY[MenuWork.targetCursor]) {
+                if (MenuWork.state == 50 && screen->cursor[0].state == 0) {
+                    screen->cursor[0].state = 32;
+                }
+                MenuWork.wait = 0;
+            }
+            break;
+        case 130:
+            if (MenuWork.flags & 1) {
+                unsigned char targetsInitialized = screen->targetInitialized;
+
+                screen->drawFrame = 1;
+                screen->active = 1;
+                screen->visibleCount = MenuWork.targetCount;
+                if (targetsInitialized == 0) {
+                    for (i = 0; i < MenuWork.targetCount; i++) {
+                        screen->panel[i].chrNo = MenuEtherParty[MenuWork.targetList[i]];
+                        screen->window[i].renderTitle = MenuTagTextGet(8);
+                        screen->window[i].x = -272;
+                        screen->window[i].y = i * 100 + 96;
+                    }
+                    screen->cursor[0].state = 32;
+                    {
+                        unsigned char targetCursor = MenuWork.targetCursor;
+
+                        screen->targetInitialized = 1;
+                        screen->previousCursor = targetCursor;
+                    }
+                }
+                screen->frame[0][0].height = 80;
+                screen->frame[0][0].x = 0;
+                screen->frame[0][1].width = screen->frame[0][0].width = 256;
+                screen->frame[0][1].y = 378;
+                screen->frame[0][1].height = 134;
+                screen->frame[0][0].y = 0;
+                screen->frame[0][1].x = 0;
+                screen->scrollLimit = MenuWork.targetCount - 3;
+            }
+            if (screen->previousCursor != MenuWork.targetCursor) {
+                if (MenuWork.targetCursor < screen->previousCursor) {
+                    if (screen->visibleRow == 0) {
+                        screen->scrollOffset--;
+                        MenuWork.wait = 32;
+                    } else {
+                        screen->visibleRow--;
+                    }
+                } else {
+                    if (screen->visibleRow == 2) {
+                        screen->scrollOffset++;
+                        MenuWork.wait = 32;
+                    } else {
+                        screen->visibleRow++;
+                    }
+                }
+                screen->previousCursor = MenuWork.targetCursor;
+            }
+            for (i = 0; i < MenuWork.targetCount; i++) {
+                targetX[i] = 16;
+                targetY[i] = (i - screen->scrollOffset) * 100 + 96;
+            }
+            if (screen->window[0].x == targetX[0]) {
+                screen->listMode = 2;
+            }
+            if (screen->window[MenuWork.targetCursor].y == targetY[MenuWork.targetCursor]) {
+                eCursolModeChange(&screen->cursor[0], 32);
+                MenuWork.wait = 0;
+            }
+            break;
+        case 132:
+            screen->listMode = 0;
+            screen->drawFrame = 1;
+            /* fall through */
+        case 134:
+            for (i = 0; i < MenuWork.partyCount; i++) {
+                targetY[i] = (i - screen->scrollOffset) * 100 + 96;
+            }
+            targetX[MenuWork.targetCursor] = 16;
+            targetY[MenuWork.targetCursor] = 96;
+            break;
+        default:
+            screen->scrollOffset = 0;
+            screen->visibleRow = 0;
+            screen->targetInitialized = 0;
+            if (screen->window[0].x == targetX[0]) {
+                screen->drawFrame = 0;
+            }
+            screen->listMode = 0;
+            break;
+        }
+
+        if (screen->active == 0) {
+            return;
+        }
+        if (screen->drawFrame != 0) {
+            for (i = 0; i < 2; i++) {
+                endPrintExtFunc(screen->color, 12, &screen->frame[0][i]);
+            }
+            screen->scrollBar.width = 256;
+            screen->scrollBar.y = 48;
+            screen->scrollBar.x = 0;
+            if (screen->listMode == 2) {
+                screen->scrollBar.y = 80;
+            }
+            screen->scrollBar.height = 354 - (unsigned short)screen->scrollBar.y;
+            endPrintExtFunc(screen->color, 101, &screen->scrollBar);
+        }
+        for (i = 0; i < screen->visibleCount; i++) {
+            short *xTarget = &targetX[i];
+
+            MoveSlide(&screen->window[i].x, xTarget, 3.0f);
+            if (screen->window[i].x == *xTarget) {
+                MoveSlide(&screen->window[i].y, &targetY[i], 3.0f);
+            }
+            {
+                unsigned short clipOffset = screen->window[i].y + 39;
+
+                if (clipOffset < 415) {
+                    WindowDXMain((WindowDX *)(void *)(&screen->window[i]));
+                }
+            }
+        }
+        if (MenuWork.useType == 1 || MenuWork.useType == 3 || MenuWork.state == 130) {
+            screen->cursor[0].x = screen->window[MenuWork.targetCursor].x + 3;
+            screen->cursor[0].y = screen->window[MenuWork.targetCursor].y +
+                                screen->window[MenuWork.targetCursor].height / 2 - 4;
+            eCursolMain(&screen->cursor[0]);
+            if (screen->scrollLimit > 0 && screen->cursor[0].state != 0 && screen->listMode != 0) {
+                if (screen->scrollOffset != 0) {
+                    screen->cursor[1].x = 240;
+                    if (screen->listMode == 1) {
+                        screen->cursor[1].y = 50;
+                    } else {
+                        screen->cursor[1].y = 82;
+                    }
+                    eCursolMain(&screen->cursor[1]);
+                }
+                if ((unsigned char)screen->scrollOffset != (unsigned char)screen->scrollLimit) {
+                    screen->cursor[2].x = 240;
+                    if (screen->listMode == 1) {
+                        screen->cursor[2].y = 338;
+                    } else {
+                        screen->cursor[2].y = 362;
+                    }
+                    eCursolMain(&screen->cursor[2]);
+                }
+            }
+        } else if (MenuWork.useType == 2) {
+            int count = MenuWork.partyCount;
+            if (count >= 4) {
+                count = 3;
+            }
+
+            if (screen->multiCursor == count - 1) {
+                screen->multiCursor = 0;
+            } else {
+                screen->multiCursor++;
+            }
+            screen->cursor[0].x = screen->window[screen->multiCursor].x + 3;
+            screen->cursor[0].y = screen->multiCursor * 104 + 101;
+            eCursolMain(&screen->cursor[0]);
+        }
+        if (screen->drawFrame != 0) {
+            EtherPasBox *nextFrame = screen->frame[1];
+
+            for (i = 0; i < 2; i++) {
+                EtherPasBox *callFrame = nextFrame;
+
+                screen->frame[1][i].width = screen->frame[0][i].width;
+                screen->frame[1][i].x = screen->frame[0][i].x;
+                screen->frame[1][i].y = screen->frame[0][i].y;
+                screen->frame[1][i].height = screen->frame[0][i].height;
+                nextFrame++;
+                endPrintExtFunc(screen->color, 12, callFrame);
+            }
+            endPrintExtFunc(screen->color, 102, 0);
+        }
+    }
+}
+
+void MenuEtherListMain(void)
+{
+    short targetX[2];
+    EtherMenuListsWork *screen = (void *)MenuEtherList;
+    int i;
+
+    switch (screen->window[0].header.state) {
+    case 0:
+        screen->window[0].header.work = 0x00FFFFF8;
+        for (i = 0; i < 2; i++) {
+            screen->window[i].window.work = screen->window[0].header.work;
+            screen->window[i].window.items = 0;
+            screen->window[i].window.x = 528;
+            screen->window[i].window.y = 64;
+            WindowSPSet((WindowSPCursor *)(void *)(&screen->window[i].window));
+        }
+        for (i = 0; i < 8; i++) {
+            eSpriteSet(&screen->sprite[i], 1546);
+            screen->sprite[i].work = 0x00FFFFFF;
+        }
+        for (i = 0; i < 8; i++) {
+            eNumberSet(&screen->number[i], 0);
+            screen->number[i].work = 0x00FFFFFA;
+        }
+        screen->window[0].header.configured = 0;
+        screen->window[0].header.state = 2;
+        screen->window[0].header.acquireLayout = 0;
+        screen->window[0].header.showNumbers = 0;
+        break;
+    case 2:
+        break;
+    default:
+        return;
+    }
+
+    if (screen->window[0].header.acquireLayout == 0) {
+        targetX[0] = 528;
+        targetX[1] = -262;
+    } else {
+        targetX[1] = -262;
+        targetX[0] = -262;
+    }
+    switch (MenuWork.state) {
+    case 48:
+        if ((MenuWork.flags & 1) && screen->window[0].header.configured == 0) {
+            EtherMenuListWindow *window = &screen->window[0].window;
+
+            screen->window[0].window.x = 528;
+            screen->window[0].window.y = 144;
+            screen->window[0].window.height = 222;
+            screen->window[0].window.lineCount = 9;
+            screen->window[0].window.width = 232;
+            screen->window[0].window.title = D_004C8670;
+            screen->window[0].window.active = 1;
+            screen->window[0].window.items = MenuListGet(0);
+            screen->window[0].window.itemType = 7;
+            WindowSPItemChange((WindowSPCursor *)(void *)((void *)window));
+            WindowSPSetSelect((WindowSPCursor *)(void *)(window), MenuKeepSelect);
+            screen->window[0].window.state = 17;
+            WindowSPMain((WindowSPCursor *)(void *)(window));
+            screen->window[0].header.configured = 1;
+            screen->window[0].header.acquireLayout = 0;
+            screen->window[0].header.showNumbers = 0;
+        }
+        /* fall through */
+    case 50:
+        targetX[0] = 272;
+        break;
+    case 80:
+        if (MenuWork.flags & 1) {
+            EtherMenuListWindow *window = &screen->window[0].window;
+
+            screen->window[0].window.x = 528;
+            screen->window[0].window.y = 160;
+            screen->window[0].window.height = 198;
+            screen->window[0].window.lineCount = 8;
+            screen->window[0].window.width = 256;
+            screen->window[0].window.title = D_004C8680;
+            screen->window[0].window.active = 1;
+            screen->window[0].window.items = MenuListGet(0);
+            screen->window[0].window.itemType = 3;
+            WindowSPItemChange((WindowSPCursor *)(void *)((void *)window));
+            WindowSPSetSelect((WindowSPCursor *)(void *)(window), &MenuKeepSelect[5]);
+            screen->window[0].window.state = 17;
+            WindowSPMain((WindowSPCursor *)(void *)(window));
+            screen->window[0].header.acquireLayout = 0;
+            screen->window[0].header.showNumbers = 1;
+        }
+        targetX[0] = 16;
+        break;
+    case 112:
+        if ((MenuWork.flags & 1) && screen->window[0].header.configured == 0) {
+            EtherMenuListWindow *window = &screen->window[0].window;
+
+            screen->window[0].window.x = -262;
+            screen->window[0].window.y = 92;
+            screen->window[0].window.height = 174;
+            screen->window[0].window.width = 246;
+            screen->window[0].window.title = D_004C8690;
+            screen->window[0].window.lineCount = 7;
+            screen->window[0].window.active = 1;
+            screen->window[0].window.items = MenuListGet(0);
+            screen->window[0].window.itemType = 7;
+            WindowSPItemChange((WindowSPCursor *)(void *)((void *)window));
+            WindowSPSetSelect((WindowSPCursor *)(void *)(window), &MenuKeepSelect[10]);
+            screen->window[0].window.selectionMode = 4;
+            screen->window[0].window.state = 17;
+            WindowSPMain((WindowSPCursor *)(void *)(window));
+            screen->window[0].header.showNumbers = 0;
+            screen->window[0].header.configured = 1;
+            screen->window[0].header.acquireLayout = 1;
+        }
+        /* fall through */
+    case 114:
+    case 116:
+    case 118:
+    case 120:
+    case 128:
+        targetX[0] = 10;
+        break;
+    case 132: {
+        unsigned char initializeList = MenuWork.flags & 1;
+
+        if (initializeList) {
+            EtherMenuListWindow *window = &screen->window[1].window;
+            i = 0;
+
+            screen->window[1].window.x = -262;
+            screen->window[1].window.y = 196;
+            screen->window[1].window.width = 246;
+            screen->window[1].window.height = 174;
+            screen->window[1].window.itemType = 7;
+            screen->window[1].window.active = 1;
+            screen->window[1].window.lineCount = 7;
+            screen->window[1].window.title = D_004C86A0;
+            screen->window[1].window.items = MenuListGet(1);
+            WindowSPItemChange((WindowSPCursor *)(void *)((void *)window));
+            screen->window[1].window.selectionMode = 4;
+            screen->window[1].window.state = 17;
+            WindowSPMain((WindowSPCursor *)(void *)(window));
+            {
+                int *sortRows = MenuSortAddrGet(1);
+                int count = MenuSortCheck(1);
+
+                while (i < count) {
+                    short rowEther = sortRows[i];
+                    signed char targetEther = MenuWork.etherId;
+
+                    if (rowEther == targetEther) {
+                        break;
+                    }
+                    i++;
+                }
+                WindowSPSelectJump((WindowSPCursor *)(void *)((void *)window), i);
+            }
+            screen->window[0].header.configured = 2;
+        }
+    }
+        /* fall through */
+    case 134:
+        targetX[1] = 10;
+        break;
+    default:
+        screen->window[0].header.configured = 0;
+        break;
+    }
+    for (i = 0; i < 2; i++) {
+        MoveSlide(&screen->window[i].window.x, &targetX[i], 3.0f);
+        WindowSPMain((WindowSPCursor *)(void *)(&screen->window[i].window));
+    }
+    if (screen->window[0].header.showNumbers != 0) {
+        unsigned int iconIndex = 0;
+        int displayRow;
+
+        for (displayRow = 0; displayRow < 8; displayRow++) {
+            int row = screen->window[0].window.firstVisible + displayRow;
+
+            if (row < screen->window[0].window.itemCount) {
+                if (screen->window[0].window.items[row].status != 0) {
+                    screen->sprite[iconIndex].x =
+                        (screen->window[0].window.x + screen->window[0].window.width) - 39;
+                    screen->sprite[iconIndex].y =
+                        (screen->window[0].window.y + displayRow * 24) + 3;
+                    eSpriteMain(&screen->sprite[iconIndex]);
+                    iconIndex++;
+                }
+                screen->number[displayRow].x =
+                    (screen->window[0].window.x + screen->window[0].window.width) - 63;
+                {
+                    unsigned short numberWindowY = screen->window[0].window.y;
+
+                    screen->number[displayRow].digits = 2;
+                    screen->number[displayRow].format = 0;
+                    screen->number[displayRow].y = (numberWindowY + displayRow * 24) + 7;
+                }
+                screen->number[displayRow].value = screen->window[0].window.items[row].amount;
+                eNumberMain(&screen->number[displayRow]);
+            }
+        }
+    }
+}
 
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_ether", MenuEtherListMain2);
+void MenuEtherListMain2(void) {
+    EtherResultWork *screen = (void *)MenuEtherList2;
+    EtherResultWindowDX *window;
+    short targetX;
+    short targetY;
+    int i;
+
+    switch (screen->state) {
+    case 0:
+        screen->work = 0x00FFFFF8;
+        window = &screen->window;
+        WindowDXSet((WindowDX *)(void *)(window));
+        screen->window.x = -240;
+        screen->window.y = 280;
+        screen->window.width = 185;
+        screen->window.height = 78;
+        screen->window.color = screen->work;
+        screen->window.title = D_004DB2F8;
+        screen->window.state = 1;
+        WindowDXMain((WindowDX *)(void *)(&screen->window));
+        screen->window.state = 3;
+        for (i = 0; i < 3; i++) {
+            eMessageSet(&screen->messages[i], 0);
+            screen->messages[i].mode = 32;
+            screen->messages[i].color = screen->work + 2;
+        }
+        for (i = 0; i < 3; i++) {
+            eNumberSet(&screen->numbers[i], 0);
+            screen->numbers[i].work = screen->work + 2;
+            screen->numbers[i].format = 0;
+            screen->numbers[i].digits = 4;
+            screen->numbers[i].value = 0;
+        }
+        eCursolSet(&screen->cursor, 0);
+        screen->cursor.state = 0;
+        screen->rightPanel = 0;
+        screen->state = 2;
+        screen->cursor.work = screen->work + 2;
+        break;
+    case 2:
+        window = &screen->window;
+        break;
+    default:
+        return;
+    }
+
+    if (screen->rightPanel == 0) {
+        targetX = -243;
+        targetY = 288;
+    } else {
+        targetX = 528;
+        targetY = 144;
+    }
+    switch (MenuWork.state) {
+    case 116:
+        if ((unsigned char)(MenuWork.flags & 1)) {
+            unsigned char *slotEthers;
+            screen->cursor.state = 32;
+            screen->window.x = -240;
+            screen->window.y = 288;
+            screen->window.height = 78;
+            screen->window.renderTitle = D_004DB2F8;
+            screen->rightPanel = 0;
+            slotEthers = MenuEtherDataGet(MenuSortGet(0, MenuWork.listSelect));
+            for (i = 0; i < 3; i++) {
+                if (slotEthers[i] != 0) {
+                    screen->messages[i].text = func_A2C5A8(slotEthers[i])->name;
+                    screen->numbers[i].value = func_A1A488(slotEthers[i])->pointCost;
+                    if (func_A19578(MenuWork.chrNo, slotEthers[i]) != 0) {
+                        screen->messages[i].glyphColor.blue = 64;
+                        screen->messages[i].glyphColor.green = 64;
+                        screen->messages[i].glyphColor.red = 64;
+                    } else {
+                        screen->messages[i].glyphColor.blue = -128;
+                        screen->messages[i].glyphColor.green = -128;
+                        screen->messages[i].glyphColor.red = -128;
+                    }
+                } else {
+                    screen->messages[i].text = 0;
+                    screen->numbers[i].value = 0;
+                }
+            }
+        }
+    case 118:
+        targetX = 71;
+        break;
+    case 130:
+        if ((unsigned char)(MenuWork.flags & 1)) {
+            screen->rightPanel = 1;
+            screen->window.x = 528;
+            screen->window.y = 144;
+            screen->window.height = 30;
+            screen->window.renderTitle = D_004C8810;
+            {
+                EtherTextEntry *entry;
+                int next;
+                signed char normalShade = -128;
+                int *firstValue = &screen->numbers[0].value;
+
+                i = 0;
+                entry = func_A2C5A8(MenuWork.etherId);
+                *firstValue = 0;
+                screen->messages[i].text = entry->name;
+                screen->messages[i].glyphColor.blue = normalShade;
+                screen->messages[i].glyphColor.green = normalShade;
+                screen->messages[i].glyphColor.red = normalShade;
+                for (i = 1; i < 3; i = next) {
+                    next = i + 1;
+                    screen->messages[i].text = 0;
+                    screen->numbers[i].value = 0;
+                }
+            }
+        }
+    case 132:
+    case 134:
+        targetX = 272;
+        targetY = 144;
+        break;
+    default:
+        screen->cursor.state = 0;
+        break;
+    }
+
+    MoveSlide(&window->x, &targetX, 3.0f);
+    if (window->x == targetX) {
+        MoveSlide(&screen->window.y, &targetY, 3.0f);
+    }
+    WindowDXMain((WindowDX *)(void *)(window));
+    for (i = 0; i < 3; i++) {
+        screen->messages[i].x = screen->window.x + 19;
+        screen->messages[i].y = screen->window.y + 24 * i + 3;
+        eMessageMain(&screen->messages[i]);
+    }
+    screen->cursor.x = screen->window.x + 3;
+    screen->cursor.y = screen->window.y + MenuWork.slotCursor * 24 + 7;
+    eCursolMain(&screen->cursor);
+}
 
 void MenuEtherListMake00(void) {
     EtherListRow *rows = MenuListGet(0);
@@ -1150,7 +2583,59 @@ void MenuEtherListMake03(int listIndex) {
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_ether", MenuEtherEquip);
+int MenuEtherEquip(void) {
+    EtherListRow *rows = MenuListGet(0);
+    int *sortRow = MenuSortAddrGet(0);
+    EtherUnitRecord *unit = func_A191C0(MenuWork.chrNo);
+    int slot;
+
+    if (MenuWork.listSelect < 0) {
+        return 0;
+    }
+    if (rows[MenuWork.listSelect].status != 0) {
+        for (slot = 0; slot < 12; slot++) {
+            if (unit->etherId[slot] == (short)sortRow[MenuWork.listSelect]) {
+                unit->etherId[slot] = 0;
+                unit->capUsed = (unsigned char)unit->capUsed -
+                    (unsigned char)rows[MenuWork.listSelect].amount;
+                break;
+            }
+        }
+    } else {
+        if (rows[MenuWork.listSelect].flag != 0) {
+            return 0;
+        }
+        {
+            short *slotId;
+            slotId = unit->etherId;
+            for (slot = 0; slot < 12; slot++, slotId++) {
+                if (unit->etherId[slot] == 0) {
+                    __builtin_memcpy(slotId, &sortRow[MenuWork.listSelect],
+                                     sizeof(unit->etherId[slot]));
+                    unit->capUsed = (unsigned char)unit->capUsed +
+                        (unsigned char)rows[MenuWork.listSelect].amount;
+                    break;
+                }
+            }
+        }
+    }
+    for (slot = 0; slot < 11; slot++) {
+        if (unit->etherId[slot] == 0) {
+            int nextSlot;
+            for (nextSlot = slot + 1; nextSlot < 12; nextSlot++) {
+                if (unit->etherId[nextSlot] != 0) {
+                    unit->etherId[slot] = unit->etherId[nextSlot];
+                    unit->etherId[nextSlot] = 0;
+                    break;
+                }
+            }
+            if (nextSlot == 12) {
+                break;
+            }
+        }
+    }
+    return 1;
+}
 
 void MenuEther(void)
 {
@@ -1354,8 +2839,8 @@ void MenuEther(void)
         if (MenuWork.wait != 0) {
             break;
         }
-        MenuWork.listSelect = WindowSPSelect(&MenuEtherList->window, PadData.repeat);
-        WindowSPKeepSelect(&MenuEtherList->window, &MenuKeepSelect[0]);
+        MenuWork.listSelect = WindowSPSelect((WindowSPCursor *)(void *)(&MenuEtherList->window), PadData.repeat);
+        WindowSPKeepSelect((WindowSPCursor *)(void *)(&MenuEtherList->window), &MenuKeepSelect[0]);
         if (PadData.pressed & PAD_CIRCLE) {
             if (MenuWork.listSelect >= 0) {
                 short etherId = MenuSortGet(0, MenuWork.listSelect);
@@ -1380,7 +2865,7 @@ void MenuEther(void)
             if (MenuCursorKeepCheck() == 0) {
                 MenuWork.commandCursor = 0;
             }
-            WindowSPKeepSelectCheck(&MenuKeepSelect[0]);
+            WindowSPKeepSelectCheck((unsigned char *)(void *)(&MenuKeepSelect[0]));
             MenuWork.nextState = 0x20;
             MenuWork.wait = 12;
             xglSoundEffectNormalID(SE_CANCEL, 0);
@@ -1460,8 +2945,8 @@ void MenuEther(void)
             MenuEtherListMake01();
         }
         if (MenuWork.wait == 0) {
-            MenuWork.listSelect = WindowSPSelect(&MenuEtherList->window, PadData.repeat);
-            WindowSPKeepSelect(&MenuEtherList->window, &MenuKeepSelect[5]);
+            MenuWork.listSelect = WindowSPSelect((WindowSPCursor *)(void *)(&MenuEtherList->window), PadData.repeat);
+            WindowSPKeepSelect((WindowSPCursor *)(void *)(&MenuEtherList->window), &MenuKeepSelect[5]);
             if ((PadData.pressed & PAD_SQUARE) && MenuWork.listSelect >= 0) {
                 int start = MenuWork.listSelect + 1;
                 int count = MenuSortCheck(0);
@@ -1475,7 +2960,7 @@ void MenuEther(void)
                         break;
                     }
                 }
-                WindowSPSelectJump(&MenuEtherList->window, row);
+                WindowSPSelectJump((WindowSPCursor *)(void *)(&MenuEtherList->window), row);
                 xglSoundEffectNormalID(SE_DECIDE, 0);
             }
             if ((PadData.repeat & PAD_CIRCLE) && MenuWork.listSelect >= 0) {
@@ -1491,10 +2976,10 @@ void MenuEther(void)
                 if (MenuCursorKeepCheck() == 0) {
                     MenuWork.commandCursor = 0;
                 }
-                WindowSPKeepSelectCheck(&MenuKeepSelect[5]);
+                WindowSPKeepSelectCheck((unsigned char *)(void *)(&MenuKeepSelect[5]));
             }
         }
-        MenuWork.listSelect = WindowSPSelect(&MenuEtherList->window, 0);
+        MenuWork.listSelect = WindowSPSelect((WindowSPCursor *)(void *)(&MenuEtherList->window), 0);
         if (MenuWork.listSelect >= 0) {
             MenuWork.etherId = MenuSortGet(0, MenuWork.listSelect);
         }
@@ -1510,8 +2995,8 @@ void MenuEther(void)
             MenuWork.etherId = 0;
         }
         if (MenuWork.wait == 0) {
-            MenuWork.listSelect = WindowSPSelect(&MenuEtherList->window, PadData.repeat);
-            WindowSPKeepSelect(&MenuEtherList->window, &MenuKeepSelect[10]);
+            MenuWork.listSelect = WindowSPSelect((WindowSPCursor *)(void *)(&MenuEtherList->window), PadData.repeat);
+            WindowSPKeepSelect((WindowSPCursor *)(void *)(&MenuEtherList->window), &MenuKeepSelect[10]);
             if (MenuWork.listSelect >= 0) {
                 unsigned char *slots = MenuEtherDataGet(MenuSortGet(0, MenuWork.listSelect));
                 int i;
@@ -1544,10 +3029,10 @@ void MenuEther(void)
                 if (MenuCursorKeepCheck() == 0) {
                     MenuWork.commandCursor = 0;
                 }
-                WindowSPKeepSelectCheck(&MenuKeepSelect[10]);
+                WindowSPKeepSelectCheck((unsigned char *)(void *)(&MenuKeepSelect[10]));
             }
         }
-        MenuWork.listSelect = WindowSPSelect(&MenuEtherList->window, 0);
+        MenuWork.listSelect = WindowSPSelect((WindowSPCursor *)(void *)(&MenuEtherList->window), 0);
         if (MenuWork.listSelect >= 0) {
             MenuWork.etherId = MenuSortGet(0, MenuWork.listSelect);
         }
@@ -1664,7 +3149,7 @@ void MenuEther(void)
                 character->points -= (short)func_A1A488(MenuWork.etherId)->pointCost;
                 MenuSortSet(0, 0x80, MenuWork.chrNo);
                 MenuEtherListMake02(0);
-                WindowSPItemChange(&MenuEtherList->window);
+                WindowSPItemChange((WindowSPCursor *)(void *)(&MenuEtherList->window));
                 MenuEtherList->window.state = 4;
                 xglSoundEffectNormalID(SE_DECIDE, 0);
                 MenuWork.nextState = 0x78;
@@ -1808,3 +3293,21 @@ void MenuEther(void)
     xglFontDebugPrintf(0, 0x80, "\vum %2d", MenuWork.slotCursor);
     xglFontDebugPrintf(0, 0x88, "\vumm%2d", MenuWork.slotCount);
 }
+
+EtherInfoCharacterHelp D_004DB278[1] = {
+    {{D_004C7CD0, D_004C7CD0 + 24}}
+};
+
+char D_004DB288[8] = ".";
+
+char D_004DB298[8] = { 0 };
+
+char D_004DB2A0[8] = ".\n";
+
+char D_004DB2A8[8] = ". \x1f";
+
+char D_004DB2B0[8] = "of ";
+
+char D_004DB2B8[8] = "?";
+
+char D_004DB2F8[8] = "Result";

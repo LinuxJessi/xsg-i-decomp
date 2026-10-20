@@ -1,9 +1,12 @@
 #include "common.h"
 
+void JNT_animSetFlags(int anim_flags);
+
 #include "act_2.h"
 #include "main/act_1.h"
 #include "main/jnt.h"
 #include "main/jc_face.h"
+#include "main/enemy_1.h"
 
 /* Partial shape binding: original lhu loads +2 for the 0x40-byte joint
  * matrix index and +4 for the shape identifier passed to the model renderer. */
@@ -113,9 +116,9 @@ typedef struct CameraRecord {
 
 CameraRecord tcamera[8] = {0};
 
-extern void ACT_resetParent(Actor *actor, Actor *other);
+void ACT_resetParent(Actor *actor, Actor *parent);
 
-extern void ACT_setHumanHand(Actor *actor, int hand);
+void ACT_setHumanHand(Actor *actor, int hand);
 
 /*
  * acc_id 0x108 is the only accessory kind reset here: ACT_resetParent(actor,
@@ -124,9 +127,9 @@ extern void ACT_setHumanHand(Actor *actor, int hand);
  * default (main:0x00306ae8..0x00306b1c).
  */
 
-extern Actor *ACT_setParent(Actor *actor, int type, Actor *parent, int joint, int id);
+Actor *ACT_setParent(Actor *actor, int type, Actor *parent, int joint, int flags);
 
-extern void ACT_setVisible(Actor *actor, int part, int visible);
+void ACT_setVisible(Actor *actor, int part, int visible);
 
 /*
  * Attaches `actor` to `parent` at joint 0x30 (type 2, id `faceId`); on
@@ -175,8 +178,8 @@ extern void *JNT_getAccessories(struct JntMoveResource *move);
 
 extern void JC_face(void *work, void *parameter, int flags);
 
-extern Actor *ACT_setParent2(Actor *actor, int type, Actor *parent, int joint, int flags,
-                            void (*filter)(void *work, void *parameter, int flags));
+Actor *ACT_setParent2(Actor *actor, int type, Actor *parent, int joint, int flags,
+                      void (*filter)(void *work, void *parameter, int flags));
 
 
 extern void nmlModelSetZwrite(int enabled);
@@ -203,7 +206,7 @@ extern void *JNT_getRootElement(void *joint);
 
 /* main:0x00307c40 is `jr ra` / nop: no argument is read and no state changes. */
 
-extern void ACT_resetMatrix(Actor *actor);
+void ACT_resetMatrix(Actor *actor);
 
 extern void JNT_setFlags(int flags);
 
@@ -222,6 +225,42 @@ extern int RES_loadFile(int command, int callback, int resource_id, int flags);
 extern int MDL_setNameVisible(void *model, const void *pattern, int visible);
 
 enum { HAND_NAME, HAND_SUFFIX, HAND_NAME_MASK, HAND_SUFFIX_MASK };
+
+extern int JNT_startProduction(float frame, JntProducer *producer, void *actor);
+
+extern void JNT_setClipR(float clipRadius);
+
+extern void FCV2_setStep(float frameStep);
+
+extern void CUR_MATRIX_Rx4s(const float *rotation);
+
+extern void CUR_MATRIX_Ry4s(const float *rotation);
+
+extern void CUR_MATRIX_Rz4s(const float *rotation);
+
+extern void JNT_setInterpMatrix(void *matrixBuffer, float interpolation);
+
+extern void JNT_setCurve(void *staticValueRecords, void *valueRecords);
+
+extern void JNT_setFCurve(void *fcurve, int slot);
+
+extern void JNT_getRootTrans(void *translation);
+
+extern void ANM_update(void *slot);
+
+extern char *strstr(const char *haystack, const char *needle);
+
+extern const char D_004D1800[];
+
+extern const char D_004D1810[];
+
+extern const char D_004DC230[];
+
+static void ACT_updateMotionSub(Actor *actor, int pause);
+
+extern void ACT_initMotion(Actor *actor);
+
+void ACT_setMotion2(Actor *actor, int motionId, unsigned int flags);
 
 void ACT_resetMatrix(Actor *actor)
 {
@@ -271,14 +310,14 @@ void ACT_resetMatrix(Actor *actor)
     producer->state = 0u;
     work->producer = (struct JntProducer *)producer;
     work->current_frame = 0u;
-    JNT_resetMatrix(work, (work)->channels);
+    JNT_resetMatrix((JntWork *)(void *)(work), (work)->channels);
     JNT_setMatrix((actor)->previousJointMatrices);
     work->channel_start_index = 0;
     work->current_index = 0;
     producer->state = 0;
     work->producer = (struct JntProducer *)producer;
     work->current_frame = 0;
-    JNT_resetMatrix(work, work->channels);
+    JNT_resetMatrix((JntWork *)(void *)(work), work->channels);
 }
 
 void ACT_resetParent(Actor *actor, Actor *parent)
@@ -539,7 +578,164 @@ void ACT_updateMotionPause(Actor *actor)
     ACT_updateMotionCore(actor, 1);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/act_2", ACT_updateMotionSub);
+extern EnemyWorkEntry enepc[16];
+
+static inline void ACT_runQueuedMotion(Actor *actor, ActorAnimSlot *queue)
+{
+    if ((queue->flags & 0x1000) && queue->nextDataId != 0xffff) {
+        if ((unsigned int)actor != GameLoopState[1] || enepc[0].encount_lock == 0) {
+            ACT_setMotion2(actor, queue->nextDataId, queue->animQueuedFlags);
+        }
+    }
+}
+
+static void ACT_updateMotionSub(Actor *actor, int pause)
+{
+    ActorAnimationState *animation = &actor->animation;
+    ActorAnimSlot *slot = &animation->slot;
+    ActorAnimSlot *pending = slot;
+    unsigned int slotFlags = slot->flags;
+    unsigned int flags = slotFlags;
+    void *matrices;
+    void *model;
+    void *move;
+    float frame;
+
+    if (pause == 0) {
+        if ((short)actor->pauseCounter > 0) {
+            actor->pauseCounter--;
+        } else {
+            actor->pauseCounter = 0;
+        }
+    }
+    if (0x408 == (*(unsigned long long *)actor & 0x408)) {
+        return;
+    }
+    if (0 != actor->transitionFrames) {
+        actor->transitionFrames -= 1;
+        actor->animation.slot.flags &= 0xbfffffff;
+        flags = pending->flags;
+    } else if ((int)actor->holdFrames >= 0) {
+        actor->holdFrames = actor->holdFrames + -1;
+        actor->animation.slot.flags |= 0x40000000;
+        if (0 > (int)actor->holdFrames) {
+            actor->animation.slot.flags &= 0xbfffffff;
+        }
+        flags = pending->flags;
+    }
+    ACT_runQueuedMotion(actor, pending);
+    slot = &animation->slot;
+    model = actor->modelResource;
+    move = actor->move;
+    matrices = actor->jointMatrices;
+    if (matrices == 0
+        || (model != 0 && (*(unsigned long long *)model & 0xffffff) != 0x78656c)
+        || (0 != move && (*(unsigned short *)move != 0x4e4a || ((char *)move)[2] != 'T'))) {
+        return;
+    }
+    CUR_MATRIX_Unit4s();
+    CUR_MATRIX_SetT(&actor->position);
+    CUR_MATRIX_Rx4s(&actor->rotation.x);
+    CUR_MATRIX_Ry4s(&actor->rotation.y);
+    CUR_MATRIX_Rz4s(&actor->rotation.z);
+    CUR_MATRIX_Sxyz4s(&actor->scale.vector);
+    CUR_MATRIX_Get(matrices);
+    actor->flags &= ~0x1000;
+    if ((slotFlags & 0x10000) != 0) {
+        void *swapTmp;
+        void *valueTmp;
+
+        swapTmp = actor->jointMatrices;
+        valueTmp = actor->valueRecords;
+        actor->jointMatrices = actor->previousJointMatrices;
+        actor->previousJointMatrices = swapTmp;
+        actor->animation.slot.bufferIndex = (actor->animation.slot.bufferIndex + 1u) & 1u;
+        swapTmp = actor->staticValueRecords;
+        actor->staticValueRecords = valueTmp;
+        actor->valueRecords = swapTmp;
+        __asm__ __volatile__("lq $2, 0(%1)\n"
+                             "sq $2, 0(%0)\n"
+                             "lq $2, 16(%1)\n"
+                             "sq $2, 16(%0)\n"
+                             "lq $2, 32(%1)\n"
+                             "sq $2, 32(%0)\n"
+                             "lq $2, 48(%1)\n"
+                             "sq $2, 48(%0)\n"
+                             :
+                             : "r"(actor->jointMatrices), "r"(*(void *volatile *)&actor->previousJointMatrices)
+                             : "$2", "memory");
+    }
+    FCV2_setStep((float)slot->speed);
+    JNT_animSetFlags((unsigned int)slot->flags);
+    if ((slotFlags & 2) != 0 && (short)actor->pauseCounter == 0) {
+        unsigned int pausedFlags = 0x8002u;
+
+        if (1 == actor->faceKind) {
+            pausedFlags = 0x8082u;
+        }
+        if ((actor->flags & 0x200) != 0) {
+            pausedFlags |= 0x100;
+        }
+        if ((actor->flags & 8) != 0 && (actor->drawEnv.flags & 0x100) == 0) {
+            pausedFlags |= 0x200;
+        }
+        if (model != 0) {
+            if (strstr((char *)model + 0x10, D_004DC230) != 0) {
+                pausedFlags |= 0x40000;
+            }
+            if (strstr((char *)model + 0x10, D_004D1800) != 0
+                || strstr((char *)model + 0x10, D_004D1810) != 0) {
+                pausedFlags |= 0x20000;
+            }
+        }
+        JNT_setFlags(pausedFlags);
+        frame = 1.0f - (animation->blendEndFrame - slot->frame) * (1.0f / animation->blendDuration);
+        JNT_setInterpMatrix(actor->previousJointMatrices, frame);
+        JNT_setCurve(actor->staticValueRecords, actor->valueRecords);
+    } else {
+        unsigned int plainFlags = 0x8000u;
+
+        if ((actor->flags & 0x200) != 0) {
+            plainFlags = 0x8100;
+        }
+
+        if ((actor->flags & 8) != 0 && (actor->drawEnv.flags & 0x100) == 0) {
+            plainFlags |= 0x200;
+        }
+        JNT_setFlags(plainFlags);
+    }
+    JNT_setClipR(animation->blendWork[3]);
+    if (FCV2_checkData((void *)animation->animData) != 0 && animation->animData != 0) {
+        animation->animData = 0;
+    }
+    JNT_setModel(model, move);
+    JNT_setFCurve(animation->animData, slot->channelMask);
+    JNT_setMatrix(actor->jointMatrices);
+    JNT_setCurve(actor->staticValueRecords, actor->valueRecords);
+    frame = slot->frame;
+    if (0.0f <= slot->speed) {
+        if (slot->forwardLimit < frame) {
+            frame = slot->forwardLimit;
+        }
+    } else {
+        if (frame < slot->reverseLimit) {
+            frame = slot->reverseLimit;
+        }
+    }
+    JNT_startProduction(frame, (JntProducer *)actor->jointProducer, actor);
+    JNT_getRootTrans(&actor->rootTranslation);
+    if ((actor->jointStatus & 0x10) != 0) {
+        actor->flags |= 0x2000;
+    }
+    flags = slot->flags;
+    if ((flags & 0x10000000) != 0 && (actor->jointStatus & 0x40) != 0) {
+        actor->flags = (actor->flags | 0x1000) & 0xffffdfff;
+    }
+    if ((slotFlags & 0x10000) != 0) {
+        slot->flags = slot->flags & 0xfffeffff;
+    }
+    ANM_update(slot);
+}
 
 void ACT_setDrawEnv(Actor *actor)
 {
@@ -585,10 +781,9 @@ void ACT_modelDraw(Actor *actor)
     }
 }
 
-extern void JNT_animSetFlags(unsigned int flags);
 extern void MATRIX_convert4(void *out, unsigned int matrices);
 extern void nmlModelSetShapeId(int shapeId, float weight);
-extern void ACT_setDrawEnv(Actor *actor);
+void ACT_setDrawEnv(Actor *actor);
 extern void nmlModelSetLight(void *light, void *colors);
 extern void nmlModelSetScale(void *scale);
 extern void nmlModelClear(void);
@@ -811,7 +1006,7 @@ static void ACT_modelDrawSub(Actor *actor)
 }
 
 
-void ACT_setModelWrapper(Actor *actor)
+void ACT_setModelWrapper(Actor *actor, int unused)
 {
     ActorModelState *modelState = actor->model;
     void *resource = actor->modelResource;
@@ -860,7 +1055,7 @@ void ACT_loadResource(Actor *actor, int resourceId)
     actor->matrixResource = (void *)matrices;
     actor->move = move;
     ACT_allocMatrix((ActRecord *)actor, (int)-1);
-    do { ((void (*)(Actor *, int))ACT_setModelWrapper)(actor, 0u); } while (0);
+    ACT_setModelWrapper(actor, 0);
     if (0 == (resourceId & 0x00fff000u)) {
         int kind = actor->resourceKind;
 

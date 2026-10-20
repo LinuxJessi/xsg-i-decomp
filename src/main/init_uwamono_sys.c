@@ -1,4 +1,9 @@
 #include "common.h"
+#include "main/xgl_dma.h"
+#include "main/xgl_2.h"
+#include "main/sef.h"
+#include "main/enemy_1.h"
+#include "main/map_2.h"
 
 #include "shared.h"
 
@@ -15,12 +20,16 @@ typedef union UwamonoAlignedVector {
     long long words[2];
 } UwamonoAlignedVector;
 
+
+
 typedef struct UwamonoNyuruAlignedActor {
     unsigned char unmodeled_00[0x10];
     UwamonoAlignedVector position;
     unsigned char unmodeled_20[0x10];
     UwamonoAlignedVector displacement;
 } UwamonoNyuruAlignedActor;
+
+
 
 typedef struct UwamonoScreenPoint {
     int x;
@@ -29,11 +38,15 @@ typedef struct UwamonoScreenPoint {
     int w;
 } UwamonoScreenPoint;
 
+
+
 typedef union UwamonoAlignedScreenPoint {
     UwamonoScreenPoint value;
     int coordinates[4];
     long long words[2];
 } UwamonoAlignedScreenPoint;
+
+
 
 typedef struct UwamonoSpritePacket {
     unsigned char unmodeled_00[0x30];
@@ -43,6 +56,8 @@ typedef struct UwamonoSpritePacket {
     UwamonoScreenPoint position1;
 } UwamonoSpritePacket;
 
+
+
 typedef struct UwamonoLinePacket {
     unsigned char unmodeled_00[0x20];
     UwamonoScreenPoint color0;
@@ -51,11 +66,24 @@ typedef struct UwamonoLinePacket {
     UwamonoScreenPoint position1;
 } UwamonoLinePacket;
 
+
+
 extern UwamonoSpritePacket sPoint_0;
 
 extern UwamonoLinePacket sSortLine_1;
 
 extern signed char lineflg;
+
+typedef struct UwamonoCrossBasis {
+    float xAxisX;
+    unsigned char unmodeled_04[4];
+    float xAxisZ;
+    unsigned char unmodeled_0c[0x14];
+    float zAxisX;
+    unsigned char unmodeled_24[4];
+    float zAxisZ;
+    unsigned char unmodeled_2c[0x14];
+} UwamonoCrossBasis;
 
 typedef struct UwamonoMapUnit {
     u32 flags;                        /* +0x00 */
@@ -69,7 +97,9 @@ typedef struct UwamonoMapUnit {
      * evidenced here.
      */
     float symbolPhase;                /* +0x24 */
-    unsigned char unmodeled_28[0x79];
+    unsigned char unmodeled_28[0x58];
+    struct UwamonoCrossBasis *basis;         /* +0x80 */
+    unsigned char unmodeled_84[0x1d];
     signed char actionNo;             /* +0xA1 */
     signed char actionSub;            /* +0xA2 */
     unsigned char unmodeled_a3;
@@ -77,16 +107,21 @@ typedef struct UwamonoMapUnit {
     unsigned char unmodeled_a6[2];
     short sequenceNo;                 /* +0xA8 */
     short sequenceSub;                /* +0xAA */
-    unsigned char unmodeled_ac[0xf8];
+    unsigned char unmodeled_ac[4];
+    float radius;                     /* +0xB0 */
+    float height;                     /* +0xB4 */
+    float boxDepth;                   /* +0xB8 */
+    unsigned char unmodeled_bc[0xe8];
     signed char signal;               /* +0x1A4 */
     unsigned char unmodeled_1a5[0x28];
     signed char crossType;            /* +0x1CD */
 } UwamonoMapUnit;
 
+
+
 /* Runtime-loaded object message with a hexadecimal unit identifier. */
 
-/* JP: 常駐上物ロード %x\n
- * EN: Loading resident field objects %x\n */
+/* Loading resident field objects, followed by their hexadecimal identifier. */
 const char D_004CA028[24] = "\xBE\xEF\xC3\xF3\xBE\xE5\xCA\xAA\xA5\xED\xA1\xBC\xA5\xC9 %x\n";
 
 int uwares_tbl[14] = { 0 };
@@ -109,6 +144,8 @@ typedef struct UwamonoResourceUnit {
     int xtxresId;                     /* +0xE4 */
 } UwamonoResourceUnit;
 
+
+
 /*
  * Valid resourceId values run 0x7001..0x700E (14 entries, the size of
  * uwares_tbl and xtxres_tbl); 0x7012 is excluded explicitly ahead of the
@@ -122,30 +159,46 @@ typedef struct UwamonoResourceUnit {
  */
 
 typedef struct MapPartsResource {
-    unsigned char unmodeled_00[0x50];
+    unsigned char unmodeled_00[0x40];
+    int partCount;                /* +0x40 */
+    unsigned char unmodeled_44[0x0c];
     int arrayOffset;              /* +0x50, added to this pointer to form the entry array base */
 } MapPartsResource;
 
+
+
 typedef struct MapPartsRoot {
     unsigned char unmodeled_00[4];
-    MapPartsResource *resource;   /* +0x04 */
+    struct MapPartsResource *resource;   /* +0x04 */
 } MapPartsRoot;
+
+
 
 typedef struct UwamonoSoundActor {
     unsigned char unmodeled_00[0x10];
     Vector4 position;
+    unsigned char unmodeled_20[0x60];
+    unsigned char actorIndex;
+    unsigned char unmodeled_81[0x4d0 - 0x81];
+    unsigned short flags;
 } UwamonoSoundActor;
+
+
 
 typedef UwamonoSoundActor AimHeightReference;
 
+
+
 typedef struct UwamonoGameLoopState {
     unsigned char unmodeled_00[4];
-    UwamonoSoundActor *actor; /* +0x04 */
-    unsigned char unmodeled_08[0x14];
+    struct UwamonoSoundActor *actor; /* +0x04 */
+    unsigned char unmodeled_08[8];
+    unsigned int systemFlags;             /* +0x10 */
+    unsigned char unmodeled_14[8];
     int enemyUpdateState;             /* +0x1C */
     unsigned int aimHeightFlags;      /* +0x20 */
     unsigned char unmodeled_24[0x30];
-    MapPartsRoot *partsRoot;          /* +0x54 */
+    struct MapPartsRoot *partsRoot;          /* +0x54 */
     unsigned char unmodeled_58[0x8c];
     short shootUnit[64];              /* +0xE4 */
     unsigned char unmodeled_164[0x29ddd];
@@ -153,6 +206,8 @@ typedef struct UwamonoGameLoopState {
     unsigned char unmodeled_29f42[2];
     float selectionDistance;      /* +0x29F41 */
 } UwamonoGameLoopState;
+
+
 
 extern UwamonoGameLoopState GameLoopState;
 
@@ -178,6 +233,8 @@ typedef struct GetPartsPosEntry {
     unsigned char unmodeled_3c[4];
 } GetPartsPosEntry;
 
+
+
 typedef struct GetPartsPosUnit {
     unsigned char unmodeled_00[0x10];
     Vector4 position;      /* +0x10, w set to 1.0f */
@@ -185,10 +242,12 @@ typedef struct GetPartsPosUnit {
     float rotationY;          /* +0x24, atan2f(entry->basisX, entry->basisZ) */
     float rotationZ;           /* +0x28, always cleared */
     unsigned char unmodeled_2c[0x54];
-    GetPartsPosEntry *entry;      /* +0x80 */
+    struct GetPartsPosEntry *entry;      /* +0x80 */
     unsigned char unmodeled_84[0x20];
     short serial;                  /* +0xA4 */
 } GetPartsPosUnit;
+
+
 
 extern float atan2f(float y, float x);
 
@@ -224,18 +283,26 @@ typedef struct UwamonoEffectUnit {
     } timers;                           /* +0x1A0 */
 } UwamonoEffectUnit;
 
+
+
 typedef struct InitMapPartsUnit {
     unsigned int flags;
     void (*update)(struct InitMapPartsUnit *);
-    unsigned char unmodeled_08[0xd8];
+    unsigned char unmodeled_08[0x98];
+    unsigned char hideMode;          /* +0xa0 */
+    unsigned char unmodeled_a1[3];
+    short serial;                    /* +0xa4 */
+    unsigned char unmodeled_a6[0x3a];
     int uwaresId;
     unsigned char unmodeled_e4[0xbc];
     short mapType;
 } InitMapPartsUnit;
 
+
+
 extern void InitMapDoor(InitMapPartsUnit *unit);
 
-extern void InitMapKoware(InitMapPartsUnit *unit);
+void InitMapKoware(InitMapPartsUnit *mapUnit);
 
 extern void InitDrill(InitMapPartsUnit *unit);
 
@@ -250,7 +317,7 @@ const char D_004CA0D0[24] = "Illegal Parts Type %d\n";
  * HitCheckMapUnitPosSize returns).
  */
 
-extern int HitCheckMapUnitPosSize(const Vector4 *position, float radius);
+int HitCheckMapUnitPosSize(const Vector4 *position, float radius);
 
 /*
  * *(UwamonoLinkedUnit.position below) is a separate record UwamonoCommonFunc
@@ -264,28 +331,41 @@ typedef struct UwamonoLinkedUnit {
     Vector4 position; /* +0x30, set from the owning unit's position */
 } UwamonoLinkedUnit;
 
+
+
 typedef struct UwamonoTimers {
     unsigned char unmodeled_00[0xa];
     signed char projectSound;         /* +0x0A (record +0x1AA) */
     unsigned char unmodeled_0b[0x23];
     signed char heightCheckFlag; /* +0x2E (record +0x1CE) */
-    unsigned char unmodeled_2f[0x19];
+    signed char heightBounce;    /* +0x2F (record +0x1CF) */
+    unsigned char unmodeled_30[0x18];
     int bgmTimer;                /* +0x48 (record +0x1E8) */
 } UwamonoTimers;
 
 
+
+
 typedef struct UwamonoCommonUnit {
-    unsigned char unmodeled_00[0x10];
+    unsigned int flags;
+    unsigned char unmodeled_04[0x0c];
     UwamonoAlignedVector position;                 /* +0x10 */
-    unsigned char unmodeled_20[0x60];
-    UwamonoLinkedUnit *linkedUnit;     /* +0x80 */
+    float rotationX;
+    float rotationY;
+    float rotationZ;
+    unsigned char unmodeled_2c[0x54];
+    struct UwamonoLinkedUnit *linkedUnit;     /* +0x80 */
     unsigned char unmodeled_84[0x1c];
     unsigned char seChannel;
     unsigned char unmodeled_a1[3];
     short serial;                     /* +0xA4 */
     unsigned char unmodeled_a6[0xfa];
     UwamonoTimers timers;              /* +0x1A0 */
+    unsigned char unmodeled_1ec[0x38];
+    float heightVelocity; /* +0x224 */
 } UwamonoCommonUnit;
+
+
 
 /* Defined in src/main/map_create_unit_peer.c (main/tu270), still in asm. */
 
@@ -322,19 +402,35 @@ typedef struct UwamonoBgmFadeOutUnit {
     unsigned char unmodeled_1ec[0x114];
 } UwamonoBgmFadeOutUnit;
 
+
+
 typedef struct UwamonoMapSlot UwamonoMapSlot;
 
 
+
+
+typedef struct UwamonoBoxBasis {
+    float x;
+    unsigned char unmodeled_04[4];
+    float z;
+} UwamonoBoxBasis;
+
 struct UwamonoMapSlot {
     unsigned int flags;
-    void (*update)(UwamonoMapSlot *);
-    unsigned char unmodeled_08[8];
+    void (*update)(void *);
+    void (*draw)(void *);
+    unsigned char unmodeled_0c[4];
     UwamonoAlignedVector position;
-    unsigned char unmodeled_20[0x60];
-    struct UwamonoBoxBasis *basis;
+    float rotationX, rotationY, rotationZ;
+    unsigned char unmodeled_2c[0x14];
+    Matrix4 localMatrix;
+    union {
+        struct UwamonoBoxBasis *basis;
+        Matrix4 *matrixView;
+    };
     unsigned char unmodeled_84[0x1e];
     unsigned char actionSub;
-    unsigned char unmodeled_a3;
+    unsigned char linkedUnitIndex;
     short serial;
     unsigned char unmodeled_a6[0x0a];
     UwamonoAlignedVector dimensions;
@@ -342,11 +438,17 @@ struct UwamonoMapSlot {
     int effectCf[3];
     unsigned char unmodeled_f4[0xac];
     struct UwamonoMapCollisionState {
-        unsigned char unmodeled_00[0x2d];
+        short kindIndex;
+        unsigned char unmodeled_02[2];
+        signed char signal;
+        unsigned char unmodeled_05[0x28];
         signed char crossType;
-        unsigned char unmodeled_2e[0x132];
+        signed char hideOverride;
+        unsigned char unmodeled_2f[0x131];
     } state;
 };
+
+
 
 extern UwamonoMapSlot MapUnit[];
 
@@ -357,6 +459,8 @@ typedef struct UwamonoSoundWorkView {
         unsigned char unmodeled_02[2];
     } effectBanks[16];
 } UwamonoSoundWorkView;
+
+
 
 extern UwamonoSoundWorkView SoundWork;
 
@@ -372,9 +476,11 @@ typedef struct UwamonoInitSymbolState {
     int timer;                         /* +0x44 */
 } UwamonoInitSymbolState;
 
+
+
 typedef struct UwamonoInitSymbolUnit {
     int flags;                         /* +0x00 */
-    void (*updateFunction)(UwamonoMapUnit *unit); /* +0x04 */
+    void (*updateFunction)(struct UwamonoMapUnit *unit); /* +0x04 */
     unsigned char unmodeled_08[8];
     Vector4 position;                  /* +0x10 */
     float rotationX;                   /* +0x20 */
@@ -390,47 +496,75 @@ typedef struct UwamonoInitSymbolUnit {
     UwamonoInitSymbolState timerState; /* +0x1a0 */
 } UwamonoInitSymbolUnit;
 
+
+
 const char D_004CA170[32] = "Create Save Symbol %f %f %f\n";
 
 const char D_004CA190[32] = "Create Shop Symbol %f %f %f\n";
 
-extern void MAP_updateUnitSaveSymbol(UwamonoMapUnit *unit);
+void MAP_updateUnitSaveSymbol(UwamonoMapUnit *unit);
 
-extern void MAP_updateUnitShopSymbol(UwamonoMapUnit *unit);
+void MAP_updateUnitShopSymbol(UwamonoMapUnit *unit);
 
-extern void MAP_updateUnitSymbol(UwamonoMapUnit *unit);
+void MAP_updateUnitSymbol(UwamonoMapUnit *unit);
 
 
 
 typedef struct UwamonoCreatedState {
-    unsigned char unmodeled_00[5];
+    short mapType;                    /* +0x00 */
+    short initialUnitId;              /* +0x02 */
+    unsigned char unmodeled_04;
     signed char signal;
     unsigned char unmodeled_06[0x1e];
     float height;
     unsigned char unmodeled_28[4];
     signed char state;
-    unsigned char unmodeled_2d[1];
+    signed char initialState;
     signed char heightCheckFlag;
-    unsigned char unmodeled_2f[3];
+    signed char unmodeled_2f;
+    short initialPartId;              /* +0x30 */
     signed char target;
-    unsigned char unmodeled_33[0x11];
+    unsigned char unmodeled_33;
+    int initialValue34;
+    int initialValue38;
+    unsigned char unmodeled_3c[4];
+    int initialValue40;
     int timer;
-    unsigned char unmodeled_48[0x38];
+    int initialValue48;
+    unsigned char unmodeled_4c[0x34];
 } UwamonoCreatedState;
 
+
+
 typedef struct UwamonoCreatedUnit {
-    unsigned char unmodeled_00[0x10];
+    unsigned int flags;
+    void (*initialize)(struct UwamonoCreatedUnit *);
+    unsigned char unmodeled_08[8];
     Vector4 position;
     float rotationX;
     float rotationY;
     float rotationZ;
-    unsigned char unmodeled_2c[0x174];
+    unsigned char unmodeled_2c[0x14];
+    Matrix4 matrix; /* +0x40 */
+    float (*savedMatrix)[4]; /* +0x80 */
+    unsigned char unmodeled_84[0x1c];
+    unsigned char sequenceIndex;
+    unsigned char actionNo;
+    unsigned char actionSub;
+    unsigned char unmodeled_a3;
+    short serial;
+    unsigned char unmodeled_a6[2];
+    short sequenceNo;
+    short sequenceSub;
+    unsigned char unmodeled_ac[0xf4];
     UwamonoCreatedState state;
 } UwamonoCreatedUnit;
 
+
+
 extern const char D_004CA1B0[32];
 
-extern UwamonoCreatedUnit *MAP_createUnit(int index, int resourceId);
+
 
 extern int MAP_loadUnitResource(UwamonoCreatedUnit *unit, int resourceId);
 
@@ -439,67 +573,121 @@ extern void InitMapTrap(UwamonoCreatedUnit *unit);
 extern void *memset(void *destination, int value, unsigned int bytes);
 
 typedef struct UwamonoMapUnitState {
-    unsigned char unmodeled_00[0x2d];
+    unsigned char unmodeled_00[2];
+    short kindIndex;
+    signed char signal;                 /* +0x04 */
+    signed char hideObjectIndex;
+    unsigned char unmodeled_06[6];
+    float baseSizeX;
+    float baseSizeY;
+    float baseSizeZ;
+    float sizeOffsetX;
+    float sizeOffsetY;
+    float sizeOffsetZ;
+    unsigned char unmodeled_24[8];
+    signed char enemyIndex;
     signed char state;                 /* +0x2d */
-    unsigned char unmodeled_2e[4];
+    unsigned char unmodeled_2e[2];
+    short initialPartId;               /* +0x30 */
     signed char target;                /* +0x32 */
-    unsigned char unmodeled_33[0x11];
+    unsigned char unmodeled_33[9];
+    int frameLimit;                    /* +0x3c */
+    union { int effectResourceId; int kindParameter; };              /* +0x40 */
     int timer;                         /* +0x44 */
 } UwamonoMapUnitState;
 
-typedef struct UwamonoKowareDimensions {
+
+
+typedef union UwamonoKowareDimensions {
     unsigned long long lanes[2];
+    unsigned long long words[2];
+    Vector4 vector;
 } UwamonoKowareDimensions;
+
+
 
 typedef struct UwamonoKowareKind {
     signed char shape;
     unsigned char unmodeled_01[0xf];
-    UwamonoKowareDimensions dimensions;
+    UwamonoKowareDimensions dimensions; /* +0x10 */
     signed char target;
-    unsigned char unmodeled_21[7];
+    unsigned char unmodeled_21[3];
+    int kindParameter;                 /* +0x24 */
     unsigned long long unmodeled_28;
 } UwamonoKowareKind;
+
+
 
 typedef struct UwamonoKowareUnit {
     unsigned int flags;
     void (*updateFunction)(void *unit);
     unsigned char unmodeled_08[8];
-    unsigned long long unmodeled_10;
-    unsigned char unmodeled_18[0x98];
+    Vector4 position;                  /* +0x10 */
+    Vector4 rotation;                  /* +0x20 */
+    unsigned char unmodeled_30[0x70];
+    unsigned char sequenceIndex;       /* +0xA0 */
+    unsigned char actionNo;            /* +0xA1 */
+    unsigned char actionSub;           /* +0xA2 */
+    unsigned char unmodeled_a3;
+    short serial;                      /* +0xA4 */
+    unsigned char unmodeled_a6[2];
+    short breakCount;                  /* +0xA8 */
+    unsigned char unmodeled_aa[6];
     UwamonoKowareDimensions dimensions;
     unsigned char unmodeled_c0[0xe0];
     UwamonoMapUnitState state;         /* +0x1a0 */
 } UwamonoKowareUnit;
 
+
+
 extern UwamonoKowareKind KowareKind_t[];
 
 extern const char D_004CA1D0[];
 
-extern void MAP_updateUnitKoware(void *unit);
+void MAP_updateUnitKoware(void *argument);
 
 void CreateUwamonoCommon(UwamonoMapUnit *unit);
 
 typedef struct UwamonoCollisionUnit {
     unsigned char unmodeled_00[0x10];
     Vector4 position;
-    unsigned char unmodeled_20[0x90];
+    unsigned char unmodeled_20[0x60];
+    struct UwamonoCrossBasis *basis;
+    unsigned char unmodeled_84[0x2c];
     float radius;
     float height;
-    unsigned char unmodeled_b8[0xe8];
+    float boxDepth;
+    unsigned char unmodeled_bc[0xe4];
     UwamonoMapUnitState state;
+    unsigned char unmodeled_1e8[0x118];
 } UwamonoCollisionUnit;
 
+
+
+typedef struct UwamonoAimQuery {
+    unsigned char unmodeled_00[8];
+    unsigned short attributeMask;
+    unsigned char unmodeled_0a[0x0e];
+    void *header;
+    unsigned char unmodeled_1c[0x24];
+} UwamonoAimQuery;
 typedef struct UwamonoCollisionActor {
     unsigned char unmodeled_00[0x10];
     Vector4 position;
-    unsigned char unmodeled_20[0x9c8];
+    unsigned char unmodeled_20[0x10];
+    Vector4 displacement;              /* +0x30 */
+    unsigned char unmodeled_40[0x488];
+    UwamonoAimQuery undulation; /* +0x4c8 */
+    unsigned char unmodeled_508[0x4e0];
     float radius;
     unsigned char unmodeled_9ec[0x84];
 } UwamonoCollisionActor;
 
+
+
 extern float CheckDist2D(const Vector4 *first, const Vector4 *second);
 
-extern int HitCheckBoxCorner(UwamonoCollisionActor *actor, UwamonoCollisionUnit *unit);
+int HitCheckBoxCorner(UwamonoCollisionActor *actor, UwamonoCollisionUnit *unit);
 
 unsigned int HitCheckMapUnitPosAt(UwamonoCollisionActor *actor, UwamonoCollisionUnit *unit);
 
@@ -511,6 +699,8 @@ typedef struct UwamonoScanFields {
     UwamonoMapUnitState state;         /* +0x100; state byte at +0x12D */
 } UwamonoScanFields;
 
+
+
 typedef struct UwamonoScanUnit {
     unsigned int flags;
     unsigned char unmodeled_04[0x0c];
@@ -520,23 +710,7 @@ typedef struct UwamonoScanUnit {
     unsigned char unmodeled_1e8[0x118];
 } UwamonoScanUnit;
 
-struct UwamonoBoxUnit;
 
-int HitCheckBox(UwamonoCollisionActor *actor, struct UwamonoBoxUnit *unit);
-
-extern const float D_004D7ED0;
-
-extern const float D_004D7ED4;
-
-extern const float D_004D7ED8;
-
-extern const float D_004D7EDC;
-
-typedef struct UwamonoBoxBasis {
-    float x;
-    unsigned char unmodeled_04[4];
-    float z;
-} UwamonoBoxBasis;
 
 typedef struct UwamonoBoxCollisionState {
     unsigned char unmodeled_00[0x2d];
@@ -547,63 +721,110 @@ typedef struct UwamonoBoxUnit {
     unsigned char unmodeled_00[0x10];
     Vector4 position;                 /* +0x10 */
     unsigned char unmodeled_20[0x60];
-    UwamonoBoxBasis *basis;           /* +0x80 */
+    struct UwamonoBoxBasis *basis;           /* +0x80 */
     unsigned char unmodeled_84[0x2c];
     Vector4 dimensions;               /* +0xB0 */
     unsigned char unmodeled_c0[0xe0];
     UwamonoBoxCollisionState state;   /* +0x1A0 */
 } UwamonoBoxUnit;
 
-extern int HitCheckCorner(UwamonoCollisionActor *actor, UwamonoCollisionUnit *unit);
+struct UwamonoBoxUnit;
+
+int HitCheckBox(UwamonoCollisionActor *actor, struct UwamonoBoxUnit *boxUnit);
+
+extern const float D_004D7ED0;
+
+extern const float D_004D7ED4;
+
+extern const float D_004D7ED8;
+
+extern const float D_004D7EDC;
+
+
+
+
+
+
+
+int HitCheckCorner(UwamonoCollisionActor *actor, UwamonoCollisionUnit *unit);
 
 typedef struct UwamonoCrossState {
     unsigned char unmodeled_00[0x2d];
     signed char crossType;
 } UwamonoCrossState;
 
+
+
 typedef struct UwamonoCrossUnit {
     unsigned char unmodeled_00[0x10];
-    Vector4 position;
-    unsigned char unmodeled_20[0x180];
+    union {
+        Vector4 position;
+        UwamonoAlignedVector alignedPosition;
+    };
+    unsigned char unmodeled_20[0x60];
+    struct UwamonoCrossBasis *basis;
+    unsigned char unmodeled_84[0x2c];
+    UwamonoAlignedVector dimensions;
+    unsigned char unmodeled_c0[0xe0];
     UwamonoCrossState state;
 } UwamonoCrossUnit;
 
+
+
 typedef Vector4 UwamonoNyuruVector;
 
+
+
 typedef Vector4 UwamonoBoxVector;
+
+
 
 typedef struct UwamonoNyuruActor {
     unsigned char unmodeled_00[0x10];
     UwamonoNyuruVector position;
     unsigned char unmodeled_20[0x10];
     UwamonoNyuruVector displacement;
+    unsigned char unmodeled_40[0x488];
+    UwamonoAimQuery undulation;
+    unsigned char unmodeled_508[0x4e0];
+    float radius; /* +0x9e8 */
 } UwamonoNyuruActor;
 
-extern int NyuruCircle(UwamonoNyuruActor *actor, UwamonoCollisionUnit *unit);
 
-extern int NyuruMatrix(UwamonoNyuruActor *actor, UwamonoCollisionUnit *unit, int mode);
 
-extern int HitCheckMapUnit(void *actor);
+static int NyuruCircle(UwamonoNyuruActor *actor, UwamonoCollisionUnit *unit);
+
+static int NyuruMatrix(UwamonoNyuruActor *actor, UwamonoCollisionUnit *unit, int mode);
+
+int HitCheckMapUnit(void *actor);
 
 /*
  * Still assembler: it only reads `from` and `to`, and reads the unit's
  * position and radius (+0x10/+0x18, +0xB0), so it takes the collision view.
  */
-extern int CrossCheckMapUnitCircle(const Vector4 *from, const Vector4 *to,
-                                   UwamonoCollisionUnit *unit);
+int CrossCheckMapUnitCircle(const Vector4 *from, const Vector4 *to,
+                            UwamonoCollisionUnit *unit);
 
 extern void xglVectorNormal(Vector4 *destination, const Vector4 *source);
 
 
-extern int AreaCheckBox(const Vector4 *position, UwamonoMapSlot *unit, float radius);
+int AreaCheckBox(const Vector4 *position, UwamonoMapSlot *unit, float radius);
 
-extern int CrossCheckMapUnitAt(Vector4 *from, Vector4 *to, UwamonoCrossUnit *unit);
+int CrossCheckMapUnitAt(Vector4 *first, Vector4 *second, UwamonoCrossUnit *unit);
+
+struct UwamonoEnemyUnit;
 
 typedef struct UwamonoCrossActor {
     unsigned int flags;
-    unsigned char unmodeled_04[0x0c];
-    Vector4 position;
-    unsigned char unmodeled_20[0x60];
+    void (*update)(struct UwamonoEnemyUnit *);
+    unsigned char unmodeled_08[8];
+    union {
+        Vector4 position;
+        UwamonoAlignedVector alignedPosition;
+    };
+    unsigned char unmodeled_20[0x30];
+    float unmodeled_50[3];
+    unsigned char unmodeled_5c[0x24];
     unsigned char actorIndex;
     unsigned char unmodeled_81[5];
     short resourceId;
@@ -613,6 +834,8 @@ typedef struct UwamonoCrossActor {
     float radius;
     unsigned char unmodeled_9ec[0x84];
 } UwamonoCrossActor;
+
+
 
 extern UwamonoCrossActor actor[64];
 
@@ -631,6 +854,8 @@ typedef struct BrokenMapUnitState {
     int brokenId;
 } BrokenMapUnitState;
 
+
+
 typedef struct BrokenMapUnit {
     unsigned int flags;
     unsigned char unmodeled_04[0xa0];
@@ -639,13 +864,15 @@ typedef struct BrokenMapUnit {
     BrokenMapUnitState brokenState;
 } BrokenMapUnit;
 
-extern int CheckBrokenMapUnit(BrokenMapUnit *unit);
+
+
+int CheckBrokenMapUnit(BrokenMapUnit *unit);
 
 extern void xglSoundEffectPosID(int soundId, const float *position, int enabled, int channel);
 
 /* Defined in src/main/ssd_1.c (main/tu ssd_1), already C. */
 
-extern int HitCheckUwamonoAt(UwamonoBoxUnit *actor, UwamonoBoxUnit *unit);
+int HitCheckUwamonoAt(UwamonoBoxUnit *actor, UwamonoBoxUnit *unit);
 
 
 
@@ -655,13 +882,26 @@ typedef struct UwamonoVectorWords {
     long long upper;
 } UwamonoVectorWords;
 
+
+
 typedef struct UwamonoEnemyLink {
-    unsigned char unmodeled_00[0x4b];
-    unsigned char unitId;
+    unsigned char unmodeled_00[0x40];
+    union {
+        unsigned char linkState[12];
+        struct {
+            unsigned char unmodeled_link_40[8];
+            unsigned char unmodeled_48[3];
+            unsigned char unitId; /* +0x4b */
+        };
+    };
     unsigned char unmodeled_4c[0x3864];
 } UwamonoEnemyLink;
 
+
+
 typedef struct UwamonoEnemyUnit UwamonoEnemyUnit;
+
+
 
 struct UwamonoEnemyUnit {
     unsigned int flags;
@@ -675,6 +915,8 @@ struct UwamonoEnemyUnit {
     unsigned char unmodeled_81[0x963];
     float actorHeading;
 };
+
+
 
 extern UwamonoEnemyLink enepc[16];
 
@@ -691,12 +933,16 @@ typedef struct UwamonoWind {
     unsigned char unmodeled_2c[4];
 } UwamonoWind;
 
+
+
 typedef struct UwamonoWindUnit {
     long long unmodeled_00[2];
     Vector4 position;
     unsigned char unmodeled_20[0x94];
     float height;
 } UwamonoWindUnit;
+
+
 
 UwamonoWind uwaWind = { 0 };
 
@@ -713,12 +959,16 @@ typedef struct UwamonoBrokenSoundState {
     int soundId;
 } UwamonoBrokenSoundState;
 
+
+
 typedef struct UwamonoBrokenSoundUnit {
     unsigned char unmodeled_00[0xa0];
     unsigned char seChannel;
     unsigned char unmodeled_a1[0xff];
     UwamonoBrokenSoundState state;
 } UwamonoBrokenSoundUnit;
+
+
 
 extern void xglSoundEffectNormalID(int soundId, int channel);
 
@@ -746,20 +996,623 @@ void UnlockMapUnit(void);
  * UwamonoMapSlot or UwamonoMapUnit pass it in that view, the same way
  * CheckNearMapUnit hands its scan slot to CheckCornerDist.
  */
-extern int HitCheckMapUnitAt(UwamonoCollisionActor *actor, UwamonoCollisionUnit *unit);
+int HitCheckMapUnitAt(UwamonoCollisionActor *actor, UwamonoCollisionUnit *unit);
 
-void CalcNearCrossPointCircle(const Vector4 *first, const Vector4 *second,
-                              UwamonoCollisionUnit *unit, Vector4 *result);
+void CalcNearCrossPointCircle(const Vector4 *from, const Vector4 *to,
+                              UwamonoCollisionUnit *unit, Vector4 *out);
 
-void CalcNearCrossPointBox(Vector4 *first, Vector4 *second,
-                           UwamonoMapUnit *unit, void *result);
+void CalcNearCrossPointBox(const Vector4 *first, const Vector4 *second,
+                           UwamonoMapUnit *unit, Vector4 *result);
 
-extern int CrossCheckMapUnitBox(Vector4 *first, Vector4 *second,
-                                UwamonoCrossUnit *unit);
+int CrossCheckMapUnitBox(Vector4 *first, Vector4 *second,
+                         UwamonoCrossUnit *unit);
 
-INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", InitUwamonoSys);
+extern const char *D_004C9F20[14];
 
-INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", Unit_CreateUwamono);
+extern const char D_004C9F58[];
+
+extern const char D_004C9F88[];
+
+extern const char D_004C9FB0[];
+
+extern const char D_004C9FD0[];
+
+extern const char D_004DB6D8[];
+
+extern const char D_004DB6E0[];
+
+extern unsigned char uwamono_dat[];
+
+extern unsigned char ItemBoxTbl[0x12C8];
+
+extern unsigned char EvtItemTbl[0x7F80];
+
+extern char *strcpy(char *destination, const char *source);
+
+void InitUwamono(UwamonoCreatedUnit *unit);
+
+typedef struct UwamonoSequenceRecord {
+    int initialValues00[2];
+    unsigned char unmodeled_08[4];
+    int initialValues0c[10];
+    unsigned char unmodeled_34[0x20c];
+    int initialValues240[3];
+    float scaleX;
+    float scaleY;
+    int initialValues254[2];
+    float scaleZ;
+} UwamonoSequenceRecord;
+
+
+
+extern signed char printflg;
+
+extern const char D_004C9FF0[];
+
+extern const char D_004CA008[];
+
+extern UwamonoSequenceRecord unitSequence[];
+
+typedef struct UwamonoKowareSizeUnit {
+    unsigned int flags;
+    void (*updateFunction)(void *unit);
+    unsigned char unmodeled_08[8];
+    Vector4 position;
+    float rotationX;
+    float rotationY;
+    float rotationZ;
+    unsigned char unmodeled_2c[0x74];
+    unsigned char hideMode;
+    unsigned char unmodeled_a1[3];
+    short serial;
+    unsigned char unmodeled_a6[0x0a];
+    UwamonoKowareDimensions dimensions;
+    unsigned char unmodeled_c0[0xe0];
+    UwamonoMapUnitState state;
+} UwamonoKowareSizeUnit;
+
+
+
+extern const char D_004CA040[];
+
+extern const char D_004CA050[];
+
+extern double fptodp(float value);
+
+extern const char D_004CA060[];
+
+extern const char D_004CA088[];
+
+typedef struct UwamonoProbeParameters {
+    unsigned char unmodeled_00[8];
+    unsigned short flags;              /* +0x08 */
+    unsigned char unmodeled_0a[0x0e];
+    void *dataHeader;                   /* +0x18 */
+    unsigned char unmodeled_1c[0x24];
+} UwamonoProbeParameters;
+
+
+
+extern void *UnduDataGetHeader(int dataId, int flags);
+
+extern void UnduParamInit(void *parameters);
+
+extern float UnduCheck(Vector4 *position, Vector4 *displacement, void *parameters);
+
+extern void InitItemBox(UwamonoCreatedUnit *unit);
+
+extern void InitItemSymbol(UwamonoCreatedUnit *unit);
+
+void InitSaveSymbol(UwamonoInitSymbolUnit *unit);
+
+void InitShopSymbol(UwamonoInitSymbolUnit *unit);
+
+void InitEvsSymbol(UwamonoInitSymbolUnit *unit);
+
+void InitRetSymbol(UwamonoInitSymbolUnit *unit);
+
+extern void InitSpecialSymbol(UwamonoCreatedUnit *unit);
+
+extern const char D_004CA220[];
+
+extern const char D_004CA230[];
+
+extern const char D_004CA240[];
+
+extern const char D_004CA250[];
+
+extern const float D_004D7EE0;
+
+extern const float D_004D7EE4;
+
+extern const char D_004DB6F0[];
+
+extern const char D_004DB6F8[];
+
+extern const char D_004DB700[];
+
+extern const char D_004DB708[];
+
+extern const char D_004DB710[];
+
+extern const char D_004DB718[];
+
+extern const char D_004DB720[];
+
+extern void xglFontDebugPrintf(int x, int y, const char *format, ...);
+
+typedef struct KowarePartsSizeState {
+    unsigned char unmodeled_00[2];
+    short kindIndex;
+    unsigned char unmodeled_04[8];
+    float baseSizeX;
+    float baseSizeY;
+    float baseSizeZ;
+    float sizeOffsetX;
+    float sizeOffsetY;
+    float sizeOffsetZ;
+    unsigned char unmodeled_24[8];
+    unsigned char unmodeled_2c[1];
+    signed char state;
+    unsigned char unmodeled_2e[4];
+    signed char target;
+    unsigned char unmodeled_33[0x0d];
+    int kindParameter;
+    int timer;
+} KowarePartsSizeState;
+
+
+
+typedef union KowarePartsSizeUnitDimensions {
+    UwamonoKowareDimensions raw;
+    Vector4 vector;
+} KowarePartsSizeUnitDimensions;
+
+
+
+typedef struct KowarePartsSizeUnit {
+    unsigned char unmodeled_00[0xb0];
+    KowarePartsSizeUnitDimensions dimensions;
+    unsigned char unmodeled_c0[0xe0];
+    KowarePartsSizeState state;
+} KowarePartsSizeUnit;
+
+
+
+typedef struct KowareInitState {
+    unsigned char unmodeled_00[2];
+    short kindIndex;
+    unsigned char unmodeled_04[0x28];
+    unsigned char unmodeled_2c;
+    signed char state;
+    unsigned char unmodeled_2e[4];
+    signed char target;
+    unsigned char unmodeled_33[0x11];
+    int timer;
+} KowareInitState;
+
+
+
+typedef struct KowareInitUnit {
+    unsigned int flags;
+    void (*updateFunction)(void *unit);
+    unsigned char unmodeled_08[8];
+    Vector4 position;
+    unsigned char unmodeled_20[0x80];
+    unsigned char hideMode;
+    unsigned char unmodeled_a1[3];
+    short serial;
+    unsigned char unmodeled_a6[0x0a];
+    UwamonoKowareDimensions dimensions;
+    unsigned char unmodeled_c0[0xe0];
+    KowareInitState state;
+} KowareInitUnit;
+
+
+
+typedef struct KowareInitResourceCount {
+    unsigned char unmodeled_00[0x40];
+    int partCount;
+} KowareInitResourceCount;
+
+
+
+extern const char D_004CA0E8[];
+
+extern const char D_004CA108[];
+
+extern const char D_004CA138[];
+
+void SetHideObject(void *argument);
+
+typedef struct UwamonoHideEffect {
+    unsigned char unmodeled_00[0xa9a];
+    signed char enabled;
+} UwamonoHideEffect;
+
+
+
+typedef struct UwamonoCreatedPosition {
+    unsigned char unmodeled_00[0x10];
+    UwamonoAlignedVector position;
+} UwamonoCreatedPosition;
+
+
+
+void MAP_updateUnitHide(void *argument);
+
+extern const char D_004DB6E8[];
+
+extern const char D_004CA1F8[];
+
+void DrawActiveCursol(UwamonoMapUnit *argument);
+
+extern void Vibration_Set_Strong(int strength, int duration, int interval);
+
+extern void EXM_ClearWindStruct(void);
+
+extern void MAP_updateUnitTrap(void *unit);
+
+extern void MAP_updateUnitItemBox(void *unit);
+
+extern void MAP_drawUnitItemBox(void *unit);
+
+extern void MAP_updateUnitItemSymbol(void *unit);
+
+typedef struct DrawActiveCursorUnit {
+    unsigned int flags;
+    unsigned char unmodeled_04[0x9c];
+    unsigned char aimIndex;
+    unsigned char unmodeled_a1[0x0f];
+    float cursorScale[3];
+    unsigned char unmodeled_bc[0xe8];
+    signed char signal;
+} DrawActiveCursorUnit;
+
+
+
+typedef struct DrawActiveCursorEffect {
+    unsigned char unmodeled_00[0xa0];
+    Vector4 scale;
+    unsigned char unmodeled_b0[0x614];
+    void *casterUnit;
+    unsigned char unmodeled_6c8[0x3c4];
+    unsigned int flags;
+} DrawActiveCursorEffect;
+
+
+
+extern float D_004D7EC8;
+
+extern float D_004D7ECC;
+
+
+
+static inline float UwamonoProjectBoxBasisXZ(float x, float z,
+                                           const struct UwamonoBoxBasis *basis)
+{
+    return x * basis->x + z * basis->z;
+}
+
+typedef struct UwamonoCornerCollisionUnit {
+    unsigned char unmodeled_00[0x10];
+    UwamonoAlignedVector position;
+    unsigned char unmodeled_20[0x60];
+    const float (*basis)[4];
+    unsigned char unmodeled_84[0x2c];
+    UwamonoAlignedVector halfSize;
+} UwamonoCornerCollisionUnit;
+
+
+
+extern float D_004D7EE8;
+
+extern float xglSin(float angle);
+
+extern float xglCos(float angle);
+
+
+
+typedef struct UwamonoBoxDimensions {
+    float radius;
+    float height;
+    float boxDepth;
+    unsigned char unmodeled_0c[4];
+} UwamonoBoxDimensions;
+
+
+
+extern float D_004D7EEC;
+
+extern float D_004D7EF0;
+
+typedef union UwamonoAlignedBoxDims {
+    UwamonoBoxDimensions value;
+    long long words[2];
+} UwamonoAlignedBoxDims;
+
+
+
+typedef struct UwamonoAimActor {
+    unsigned char unmodeled_00[0x10];
+    UwamonoAlignedVector position;
+    unsigned char unmodeled_20[0x60];
+    unsigned char actorIndex;
+    unsigned char unmodeled_81[0x4D0 - 0x81];
+    unsigned short flags;
+    unsigned char unmodeled_4d2[0x16];
+    unsigned long long shootModeFlags;    /* +0x4e8 */
+    unsigned char unmodeled_4f0[0x200];
+    int shootFlags;                       /* +0x6f0 */
+    float shootProgress;                  /* +0x6f4 */
+    float motionSpeed;                    /* +0x6f8 */
+    unsigned char unmodeled_6fc[8];
+    unsigned short motion;                /* +0x704 */
+    unsigned char unmodeled_706[0x9e4 - 0x706];
+    float targetAngle;                    /* +0x9e4 */
+} UwamonoAimActor;
+
+
+
+typedef struct UwamonoShotEffect {
+    unsigned char unmodeled_000[0x6bc];
+    struct UwamonoAimActor *owner;
+    unsigned char unmodeled_6c0[0x3cc];
+    unsigned int flags;
+} UwamonoShotEffect;
+
+
+
+extern signed char dispflg;
+
+extern signed char collflg;
+
+
+
+extern const char D_004CA260[];
+
+extern float D_004D7EF8;
+
+extern float D_004D7EFC;
+
+int AimMapUnit(void);
+
+extern void DispDebugUwamono(void);
+
+extern void DispCollUwamono(void);
+
+extern void Vibration_Set_Weak(int strength);
+
+extern void ACT_setMotion(UwamonoAimActor *actor, unsigned int motion);
+
+extern void Enemy_FindByEar(UwamonoAimActor *actor, Vector4 *position);
+
+int UwamonoAreaCheck(const Vector4 *position, UwamonoMapSlot *unit, float radius);
+
+extern int CheckPointLine(const Vector4 *first, const Vector4 *second,
+                          const Vector4 *point);
+
+extern int CheckCrossLine(const Vector4 *first, const Vector4 *second,
+                          const Vector4 *edgeStart, const Vector4 *edgeEnd);
+
+extern void CalcCrossPoint(const Vector4 *first, const Vector4 *second,
+                           const Vector4 *edgeStart, const Vector4 *edgeEnd, Vector4 *out);
+
+extern const float D_004D7F10;
+
+extern const float D_004D7F14;
+
+extern float D_004D7F20;
+
+
+
+
+extern float D_004D7F2C;
+
+extern float D_004D7F30;
+
+extern float D_004D7F34;
+
+extern float D_004D7F38;
+
+extern float D_004D7F3C;
+
+extern float D_004D7F40;
+
+typedef union UwamonoCollisionCopy {
+    UwamonoCollisionUnit value;
+    unsigned long long words[0x300 / 8];
+} UwamonoCollisionCopy;
+
+
+
+extern float D_004D7F28;
+
+extern float D_004D7EF4;
+
+typedef struct UwamonoAimCandidate {
+    int unitIndex;
+    unsigned char unmodeled_04[0x0c];
+    UwamonoAlignedScreenPoint screenPoint;
+    float distance;
+    unsigned char unmodeled_24[0x0c];
+} UwamonoAimCandidate;
+
+
+
+float xglRotTransPers(Vector4 *out, const Matrix4 matrix,
+                      Vector4 *point, int camera_id);
+
+void InitMapParts(InitMapPartsUnit *unit);
+
+int HitCheckNyuru(UwamonoNyuruAlignedActor *actor, UwamonoCollisionUnit *unit);
+
+void MAP_updateUnitEnemy(UwamonoEnemyUnit *unit);
+
+void UwamonoBrokenSe(UwamonoBrokenSoundUnit *unit);
+
+typedef struct NativeUnitPeer NativeUnitPeer;
+
+
+void DrawSprite(const UwamonoAlignedScreenPoint *position,
+                const UwamonoScreenPoint *color, int width, int height);
+
+static void NyuruCorner(UwamonoNyuruActor *actor, UwamonoCollisionCopy *unit);
+
+void CrossPointUwamonoAt(const Vector4 *first, const Vector4 *second,
+                         UwamonoMapUnit *unit, void *result);
+
+int CrossPointUwamono(const Vector4 *position, const Vector4 *previous,
+                      float radius, Vector4 *result);
+
+void CheckNearPoint(const Vector4 *origin, const Vector4 *candA,
+                    const Vector4 *candB, Vector4 *out);
+
+int AimMapUnitLookCheck(UwamonoScanUnit *target);
+
+void SortLine(const UwamonoAlignedScreenPoint *from,
+              const UwamonoAlignedScreenPoint *to, int mode);
+
+int HitCheckUwamono(UwamonoScanUnit *actor);
+
+void InitUwamonoSys(void)
+{
+    char path[128];
+    const char *paths[14];
+    unsigned char *dataEnd = uwamono_dat;
+    int index;
+    int size;
+
+    __builtin_memcpy(paths, D_004C9F20, sizeof(paths));
+    for (index = 0; index < 14; index++) {
+        memset(path, 0, sizeof(path));
+        strcpy(path, paths[index]);
+        strcat(path, D_004DB6D8);
+        uwares_tbl[index] = (int)dataEnd;
+        dataEnd += xglCdReadFile(path, dataEnd, 0, 1);
+        dataEnd = (unsigned char *) (((unsigned int) dataEnd + 15) & ~15);
+
+        memset(path, 0, sizeof(path));
+        strcpy(path, paths[index]);
+        strcat(path, D_004DB6E0);
+        xtxres_tbl[index] = (int)dataEnd;
+        dataEnd += xglCdReadFile(path, dataEnd, 0, 1);
+        dataEnd = (unsigned char *) (((unsigned int) dataEnd + 15) & ~15);
+    }
+
+    size = (int) (dataEnd - uwamono_dat);
+    if (size > 0x50000) {
+        printf(D_004C9F58, size / 1024);
+    } else {
+        printf(D_004C9F88, size / 1024, index);
+    }
+
+    memset(ItemBoxTbl, 0, sizeof(ItemBoxTbl));
+    memset(EvtItemTbl, 0, sizeof(EvtItemTbl));
+    {
+        unsigned char *workEnd = WorkEnd;
+
+        xglCdReadFile(D_004C9FB0, workEnd, 0, 1);
+        __builtin_memcpy(ItemBoxTbl, workEnd, 0x12C8);
+        xglCdReadFile(D_004C9FD0, workEnd, 0, 1);
+        __builtin_memcpy(EvtItemTbl, workEnd, 0x7F80);
+    }
+
+    GameLoopState.aimHeightFlags |= 3;
+    GameLoopState.selectionDistance = 3.0f;
+}
+
+UwamonoCreatedUnit *Unit_CreateUwamono(int index, int resourceId)
+{
+    int slot;
+    float identityScale;
+    UwamonoCreatedUnit *unit = 0;
+    UwamonoCreatedState *state;
+
+    if (resourceId < 0x1000) {
+        for (slot = 0; slot < 64; slot++) {
+            if (resourceId != MapUnit[slot].serial) {
+                continue;
+            }
+            if ((MapUnit[slot].flags & 0x10000) == 0) {
+                continue;
+            }
+            if (printflg != 0) {
+                printf(D_004C9FF0, resourceId);
+            }
+            unit = (UwamonoCreatedUnit *)&MapUnit[slot];
+            break;
+        }
+    }
+
+    if (unit == 0) {
+        unit = (UwamonoCreatedUnit *)MAP_createUnit(index, resourceId);
+        if (unit == 0) {
+            printf(D_004CA008);
+            return 0;
+        }
+    }
+
+    if (resourceId >= 0x1001 &&
+        ((unsigned int)(resourceId - 0x7000) >= 0x14U) &&
+        ((unsigned int)(resourceId - 0x7005) >= 3U) &&
+        (resourceId != 0x7013)) {
+        MAP_loadUnitResource(unit, resourceId);
+    }
+
+    identityScale = 1.0f;
+    unit->flags = 0x10004;
+    unit->savedMatrix = unit->matrix;
+    unit->actionNo = 0;
+    unit->sequenceNo = 0;
+    unit->sequenceSub = 0;
+    unit->actionSub = 0;
+    unit->position.x = 0.0f;
+    unit->position.y = 0.0f;
+    unit->position.z = 0.0f;
+    unit->position.w = identityScale;
+
+    state = &unit->state;
+    memset(state, 0, sizeof(*state));
+    state->signal = -1;
+    state->initialUnitId = -1;
+    state->state = -1;
+    state->initialState = -1;
+    state->heightCheckFlag = -1;
+    state->target = -1;
+    state->initialValue48 = -1;
+    state->timer = -1;
+    state->initialValue34 = -1;
+    state->initialValue38 = -1;
+    state->initialValue40 = -1;
+    state->initialPartId = -1;
+    unit->initialize = InitUwamono;
+    {
+        UwamonoSequenceRecord *sequence = &unitSequence[unit->sequenceIndex];
+
+        sequence->initialValues00[0] = 0;
+        sequence->initialValues00[1] = 0;
+        sequence->initialValues240[0] = 0;
+        sequence->initialValues240[1] = 0;
+        sequence->initialValues240[2] = 0;
+        sequence->scaleX = identityScale;
+        sequence->scaleY = identityScale;
+        sequence->initialValues254[0] = 0;
+        sequence->initialValues254[1] = 0;
+        sequence->initialValues0c[0] = 0;
+        sequence->initialValues0c[2] = 0;
+        sequence->initialValues0c[3] = 0;
+        sequence->initialValues0c[4] = 0;
+        sequence->initialValues0c[5] = 0;
+        sequence->initialValues0c[6] = 0;
+        sequence->initialValues0c[7] = 0;
+        sequence->initialValues0c[8] = 0;
+        sequence->scaleZ = identityScale;
+        sequence->initialValues0c[9] = 0;
+    }
+
+    return unit;
+}
 
 void MAP_LoadUwamonoResource(UwamonoResourceUnit *unit, int resourceId)
 {
@@ -804,7 +1657,39 @@ void SendBrokenSignal(UwamonoMapUnit *unit)
     unit->signal = 2;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", GetPartsSize);
+void GetPartsSize(UwamonoKowareSizeUnit *unit)
+{
+    UwamonoMapUnitState *state;
+    short kindIndex;
+
+    state = &unit->state;
+    kindIndex = state->kindIndex;
+    if (state->state == -1) {
+        state->state = KowareKind_t[kindIndex].shape;
+    }
+    if (state->baseSizeX > 0.0f) {
+        unit->dimensions.vector.x = state->baseSizeX * 0.5f;
+        unit->dimensions.vector.y = state->baseSizeY;
+        unit->dimensions.vector.z = state->baseSizeZ * 0.5f;
+        if (printflg != 0) {
+            const char *format = D_004CA050;
+            printf(D_004CA040);
+            printf(format, fptodp(state->baseSizeX),
+                   fptodp(state->baseSizeY), fptodp(state->baseSizeZ));
+        }
+    } else {
+        unit->dimensions = KowareKind_t[kindIndex].dimensions;
+    }
+    unit->dimensions.vector.x += state->sizeOffsetX * 0.5f;
+    unit->dimensions.vector.y += state->sizeOffsetY;
+    unit->dimensions.vector.z += state->sizeOffsetZ * 0.5f;
+    if (state->target == -1) {
+        state->target = KowareKind_t[kindIndex].target;
+    }
+    if (state->kindParameter == -1) {
+        state->kindParameter = KowareKind_t[kindIndex].kindParameter;
+    }
+}
 
 void ClearUwamonoEffect(UwamonoEffectUnit *unit)
 {
@@ -830,7 +1715,67 @@ signed char GetUwamonoSignal(UwamonoMapUnit *unit)
     return unit->signal;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", InitUwamono);
+void InitUwamono(UwamonoCreatedUnit *unit)
+{
+    UwamonoCreatedState *map = &unit->state;
+    UwamonoProbeParameters parameters;
+
+    unit->flags &= ~4;
+    if (map->mapType == 0) {
+        printf(D_004CA060, unit->serial, unit->sequenceIndex);
+        unit->serial = -1;
+        unit->initialize = 0;
+        return;
+    }
+
+    if (map->heightCheckFlag == -1) {
+        map->heightCheckFlag = 0;
+    }
+    UnduParamInit(&parameters);
+    parameters.dataHeader = UnduDataGetHeader(0, 0x8000);
+    if (map->unmodeled_2f != 0) {
+        parameters.flags |= 0x20;
+    }
+    if (UnduCheck(&unit->position, 0, &parameters) == -1000.0f && map->unmodeled_2f == 0) {
+        map->heightCheckFlag = 0;
+    }
+
+    if (unit->serial < 0x1000) {
+        InitMapParts((InitMapPartsUnit *)unit);
+        return;
+    }
+
+    switch (map->mapType) {
+    case 4:
+        InitItemBox(unit);
+        return;
+    case 5:
+        InitItemSymbol(unit);
+        return;
+    case 3:
+        InitMapTrap(unit);
+        return;
+    case 6:
+        InitSaveSymbol((UwamonoInitSymbolUnit *)(void *)unit);
+        return;
+    case 7:
+        InitShopSymbol((UwamonoInitSymbolUnit *)(void *)unit);
+        return;
+    case 8:
+        InitEvsSymbol((UwamonoInitSymbolUnit *)(void *)unit);
+        return;
+    case 9:
+        InitRetSymbol((UwamonoInitSymbolUnit *)(void *)unit);
+        return;
+    case 10:
+        InitSpecialSymbol(unit);
+        return;
+    default:
+        printf(D_004CA088, map->mapType);
+        unit->initialize = 0;
+        return;
+    }
+}
 
 void InitMapParts(InitMapPartsUnit *unit)
 {
@@ -852,17 +1797,161 @@ void InitMapParts(InitMapPartsUnit *unit)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", InitMapKoware);
+void InitMapKoware(InitMapPartsUnit *mapUnit)
+{
+    KowareInitUnit *unit = (KowareInitUnit *)mapUnit;
+    MapPartsResource *resource = GameLoopState.partsRoot->resource;
+    KowareInitResourceCount *resourceCount = (KowareInitResourceCount *)resource;
+    KowareInitState *state = &unit->state;
+    short kindIndex = state->kindIndex;
+    if (kindIndex < 0) {
+        printf(D_004CA0E8, kindIndex);
+    }
+    GetPartsPos((GetPartsPosUnit *)unit);
+    GetPartsSize((UwamonoKowareSizeUnit *)(void *)unit);
+    if (state->timer == -1) {
+        state->timer = 1;
+    }
+    unit->flags = 0;
+    unit->updateFunction = MAP_updateUnitKoware;
+    CreateUwamonoCommon((UwamonoMapUnit *)unit);
+    SetHideObject(unit);
+    if (unit->serial >= 0 && unit->serial < resourceCount->partCount) {
+        nmlModelSetPartsVisible(resource, unit->serial, 1);
+    } else {
+        printf(D_004CA108, unit->serial);
+        unit->serial = -1;
+        unit->updateFunction = 0;
+    }
+    if (printflg != 0) {
+        printf(D_004CA138, unit->serial, kindIndex,
+               fptodp(unit->position.x), fptodp(unit->position.y),
+               fptodp(unit->position.z));
+    }
+}
 
-INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", InitSaveSymbol);
+void InitSaveSymbol(UwamonoInitSymbolUnit *unit)
+{
+    UwamonoInitSymbolState *timerState = &unit->timerState;
+    float (*matrix)[4] = unit->matrix;
+    Vector4 *position = &unit->position;
+    int uwaresId = uwares_tbl[5];
 
-INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", InitShopSymbol);
+    unit->xtxresId = xtxres_tbl[5];
+    unit->uwaresId = uwaresId;
+
+    xglMatrixStackUnit();
+    xglMatrixStackTrans(&position->x);
+    xglMatrixStackRotX(unit->rotationX);
+    xglMatrixStackRotY(unit->rotationY);
+    xglMatrixStackRotZ(unit->rotationZ);
+    xglMatrixStackSave(matrix);
+    unit->savedMatrix = matrix;
+
+    if (timerState->state == -1) {
+        timerState->state = 0;
+    }
+    *(int *)((char *)timerState + 0x44) = 0;
+    unit->updateFunction = MAP_updateUnitSaveSymbol;
+    unit->flags |= 0x10000;
+    unit->flags |= 0x20000000;
+
+    if (printflg != 0) {
+        printf(D_004CA170,
+                      fptodp(position->x),
+                      fptodp(unit->position.y),
+                      fptodp(unit->position.z));
+    }
+}
+
+void InitShopSymbol(UwamonoInitSymbolUnit *unit)
+{
+    UwamonoInitSymbolState *timerState = &unit->timerState;
+    float (*matrix)[4] = unit->matrix;
+    Vector4 *position = &unit->position;
+    int uwaresId = uwares_tbl[6];
+
+    unit->xtxresId = xtxres_tbl[6];
+    unit->uwaresId = uwaresId;
+
+    xglMatrixStackUnit();
+    xglMatrixStackTrans(&position->x);
+    xglMatrixStackRotX(unit->rotationX);
+    xglMatrixStackRotY(unit->rotationY);
+    xglMatrixStackRotZ(unit->rotationZ);
+    xglMatrixStackSave(matrix);
+    unit->savedMatrix = matrix;
+
+    if (timerState->state == -1) {
+        timerState->state = 0;
+    }
+    *(int *)((char *)timerState + 0x44) = 0;
+    unit->updateFunction = MAP_updateUnitShopSymbol;
+    unit->flags |= 0x10000;
+    unit->flags |= 0x40000000;
+
+    if (printflg != 0) {
+        printf(D_004CA190,
+                      fptodp(position->x),
+                      fptodp(unit->position.y),
+                      fptodp(unit->position.z));
+    }
+}
 
 INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", InitEvsSymbol);
 
 INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", InitRetSymbol);
 
-INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", SetHideObject);
+void SetHideObject(void *argument)
+{
+    UwamonoCreatedUnit *created = argument;
+    UwamonoCreatedPosition *createdPosition = argument;
+    UwamonoCreatedState *state = &created->state;
+    signed char actorIndex = state->state;
+    signed char mapUnitIndex;
+
+    if (actorIndex != -1) {
+        unsigned char sequenceIndex = created->sequenceIndex;
+        UwamonoCrossActor *enemy = &actor[actorIndex];
+        unsigned char *linkState = enepc[enemy->actorIndex].linkState;
+
+        enemy->update = MAP_updateUnitEnemy;
+        linkState[8] = 0;
+        linkState[11] = sequenceIndex;
+        enemy->alignedPosition = createdPosition->position;
+        enemy->unmodeled_50[0] = 0.0f;
+        enemy->unmodeled_50[1] = 0.0f;
+        enemy->unmodeled_50[2] = 0.0f;
+        ACT_updateEnemy((UwamonoEnemyUnit *)enemy);
+        enemy->flags |= 8;
+    }
+
+    mapUnitIndex = state->signal;
+    if (mapUnitIndex != -1) {
+        UwamonoMapSlot *unit = &MapUnit[mapUnitIndex];
+        struct UwamonoMapCollisionState *mapState = &unit->state;
+        UwamonoHideEffect *effect = (UwamonoHideEffect *)unit->effectCf[0];
+        MapPartsResource *resource = GameLoopState.partsRoot->resource;
+
+        unit->linkedUnitIndex = created->sequenceIndex;
+        unit->position = createdPosition->position;
+        unit->update = MAP_updateUnitHide;
+        unit->flags |= 0x100004;
+        unit->draw = 0;
+        if (effect != 0) {
+            effect->enabled = 0;
+        }
+        if (mapState->kindIndex == 2) {
+            if (unit->serial >= 0 && unit->serial < resource->partCount) {
+                nmlModelSetPartsVisible(resource, unit->serial, 0);
+                return;
+            }
+            printf(D_004CA108, unit->serial, effect, resource);
+            unit->serial = -1;
+            unit->update = 0;
+        }
+    }
+}
 
 void GameStateRestoreKoware(void)
 {
@@ -913,7 +2002,8 @@ void ResetShootSys(void)
 
 UwamonoCreatedUnit *CreateUwamono(float x, float y, float z, float rotationY, int resourceId)
 {
-    UwamonoCreatedUnit *unit = MAP_createUnit(-1, resourceId);
+    UwamonoCreatedUnit *unit =
+        (UwamonoCreatedUnit *)(void *)MAP_createUnit(-1, resourceId);
     UwamonoCreatedState *state;
     int inactiveValue;
 
@@ -974,7 +2064,63 @@ void CreateUwamonoCommon(UwamonoMapUnit *unit)
     unit->actionSub = 0;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", MAP_updateUnitKoware);
+void SetUwaWind(UwamonoWindUnit *unit);
+void UwamonoCommonFunc(UwamonoCommonUnit *unit);
+
+void MAP_updateUnitKoware(void *argument)
+{
+    UwamonoKowareUnit *unit = argument;
+    UwamonoMapUnitState *state = &unit->state;
+    int slot;
+
+    if (state->timer != 0) {
+        DrawActiveCursol((UwamonoMapUnit *)(void *)unit);
+    }
+    UwamonoCommonFunc((UwamonoCommonUnit *)(void *)unit);
+
+    switch (unit->actionSub) {
+    case 0:
+        if (state->signal == 0) {
+            return;
+        }
+        unit->actionSub = 1;
+        for (slot = 0; slot < 64; slot++) {
+            if (GameLoopState.shootUnit[slot] == -1) {
+                GameLoopState.shootUnit[slot] = unit->serial;
+                break;
+            }
+        }
+
+        Vibration_Set_Strong(255, 32, 30);
+        UwamonoBrokenSe((UwamonoBrokenSoundUnit *)unit);
+        sefCreateEffectCf(state->effectResourceId, &unit->position, &unit->rotation);
+        ClearUwamonoEffect((UwamonoEffectUnit *)unit);
+        SetUwaWind((UwamonoWindUnit *)unit);
+        if (state->initialPartId != -1) {
+            GameLoopState.enemyUpdateState = 0;
+            CallMethod_I(D_004DB6E8, state->initialPartId);
+        }
+        return;
+    case 1:
+        break;
+    default:
+        return;
+    }
+    unit->breakCount++;
+    if (unit->breakCount >= 3) {
+        nmlModelSetPartsVisible(GameLoopState.partsRoot->resource, unit->serial, 0);
+        unit->flags |= 0x20000;
+    }
+    if (state->frameLimit < unit->breakCount) {
+        if (printflg != 0) {
+            printf(D_004CA1F8, unit->serial, unit->sequenceIndex);
+        }
+        unit->updateFunction = 0;
+        unit->flags = 0;
+        unit->serial = -1;
+        EXM_ClearWindStruct();
+    }
+}
 
 void MAP_updateUnitEnemy(UwamonoEnemyUnit *unit)
 {
@@ -993,7 +2139,65 @@ void MAP_updateUnitEnemy(UwamonoEnemyUnit *unit)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", MAP_updateUnitHide);
+void MAP_updateUnitHide(void *argument)
+{
+    UwamonoMapSlot *unit = argument;
+    UwamonoHideEffect *effect;
+    struct UwamonoMapCollisionState *state = &unit->state;
+    MapPartsResource *resource;
+    Matrix4 *matrix;
+
+    if (MapUnit[unit->linkedUnitIndex].actionSub == 0) {
+        unit->flags |= 0x100000;
+        state->hideOverride = 0;
+        effect = (UwamonoHideEffect *)unit->effectCf[0];
+        if (effect != 0) {
+            effect->enabled = 0;
+        }
+        return;
+    }
+
+    unit->position = MapUnit[unit->linkedUnitIndex].position;
+    unit->flags &= ~0x100000;
+    state->hideOverride = 1;
+    effect = (UwamonoHideEffect *)unit->effectCf[0];
+    if (effect != 0) {
+        effect->enabled = 1;
+    }
+    matrix = unit->matrixView;
+    (*matrix)[3][0] = unit->position.value.x;
+    (*matrix)[3][1] = unit->position.value.y;
+    (*matrix)[3][2] = unit->position.value.z;
+
+    switch (state->kindIndex) {
+    case 4:
+        unit->update = MAP_updateUnitItemBox;
+        unit->draw = MAP_drawUnitItemBox;
+        break;
+    case 5:
+        unit->flags &= ~4;
+        unit->update = MAP_updateUnitItemSymbol;
+        break;
+    case 2:
+        unit->flags &= ~4;
+        unit->update = MAP_updateUnitKoware;
+        resource = GameLoopState.partsRoot->resource;
+        if (unit->serial < 0 || unit->serial >= resource->partCount) {
+            printf(D_004CA108, unit->serial);
+            unit->serial = -1;
+            unit->update = 0;
+        } else {
+            nmlModelSetPartsVisible(resource, unit->serial, 1);
+        }
+        break;
+    case 3:
+        unit->flags &= ~4;
+        unit->update = MAP_updateUnitTrap;
+        break;
+    default:
+        break;
+    }
+}
 
 void MAP_updateUnitSaveSymbol(UwamonoMapUnit *unit)
 {
@@ -1057,7 +2261,77 @@ void UwamonoBrokenSe(UwamonoBrokenSoundUnit *unit)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", DrawActiveCursol);
+void DrawActiveCursol(UwamonoMapUnit *argument)
+{
+    DrawActiveCursorUnit *unit = (DrawActiveCursorUnit *)argument;
+    UwamonoEffectUnit *effects = (UwamonoEffectUnit *)argument;
+    DrawActiveCursorEffect *effect;
+    float scale;
+    if (unit->signal == 1 || !(unit->flags & 0x40000)) {
+        if (effects->effectCf[1] != 0) {
+            sefDeleteEffectCf(effects->effectCf[1]);
+            effects->effectCf[1] = 0;
+        }
+        if (effects->effectCf[2] != 0) {
+            sefDeleteEffectCf(effects->effectCf[2]);
+            effects->effectCf[2] = 0;
+        }
+        return;
+    } else if (GameLoopState.aimMapUnitIndex == unit->aimIndex) {
+        if (effects->effectCf[1] != 0) {
+            sefDeleteEffectCf(effects->effectCf[1]);
+            effects->effectCf[1] = 0;
+        }
+        if (effects->effectCf[2] == 0) {
+            effect = (DrawActiveCursorEffect *)sefCreateEffectCf(0x2e3, 0, 0);
+            if (effect != 0) {
+                scale = (unit->cursorScale[0] + unit->cursorScale[1] +
+                                unit->cursorScale[2]) / 3.0f;
+                scale = scale * D_004D7EC8;
+
+                effect->casterUnit = argument;
+                effect->flags = (effect->flags & ~0x400u) | 4;
+                if (scale < D_004D7EC8)
+                    scale = D_004D7EC8;
+                if (scale > 2.0f)
+                    scale = 2.0f;
+                effects->effectCf[2] = (int)effect;
+            } else {
+                return;
+            }
+        } else {
+            return;
+        }
+    } else {
+        if (effects->effectCf[2] != 0) {
+            sefDeleteEffectCf(effects->effectCf[2]);
+            effects->effectCf[2] = 0;
+        }
+        if (effects->effectCf[1] == 0) {
+            effect = (DrawActiveCursorEffect *)sefCreateEffectCf(0x2e2, 0, 0);
+            if (effect != 0) {
+                scale = (unit->cursorScale[0] + unit->cursorScale[1] +
+                                unit->cursorScale[2]) / 3.0f;
+                scale = scale * D_004D7ECC;
+
+                effect->casterUnit = argument;
+                effect->flags = (effect->flags & ~0x400u) | 4;
+                if (scale < D_004D7ECC)
+                    scale = D_004D7ECC;
+                if (scale > 2.0f)
+                    scale = 2.0f;
+                effects->effectCf[1] = (int)effect;
+            } else {
+                return;
+            }
+        } else {
+            return;
+        }
+    }
+    effect->scale.z = scale;
+    effect->scale.y = scale;
+    effect->scale.x = scale;
+}
 
 int HitCheckMapUnit(void *actor)
 {
@@ -1079,7 +2353,74 @@ int HitCheckMapUnit(void *actor)
     return -1;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", HitCheckMapUnitWithNyuru);
+int HitCheckMapUnitWithNyuru(UwamonoNyuruAlignedActor *actor)
+{
+    int candidates[64];
+    int count;
+    int index;
+    int candidate;
+    UwamonoAlignedVector position;
+    UwamonoAlignedVector displacement;
+
+    for (index = 63; index >= 0; index--) {
+        candidates[index] = -1;
+    }
+
+    count = 0;
+    index = 0;
+    for (; index < 64; index++) {
+        struct UwamonoMapCollisionState *state = &MapUnit[index].state;
+        UwamonoMapSlot *unit = &MapUnit[index];
+        if (unit->serial != -1 && !(unit->flags & 0x100000) &&
+            state->crossType != 0 && (unit->flags & 0x10000) &&
+            HitCheckMapUnitAt((UwamonoCollisionActor *)actor,
+                              (UwamonoCollisionUnit *)unit)) {
+            candidates[count] = index;
+            count++;
+        }
+    }
+
+    if (count == 0) {
+        return 0;
+    }
+    if (count == 1) {
+        return HitCheckNyuru(actor, (UwamonoCollisionUnit *)&MapUnit[candidates[0]]);
+    }
+
+    if (candidates[0] != -1) {
+        candidate = 0;
+        while (candidates[candidate] != -1) {
+            UwamonoMapSlot *unit = &MapUnit[candidates[candidate]];
+
+            position = actor->position;
+            displacement = actor->displacement;
+            switch (unit->state.crossType) {
+            case 1:
+                NyuruCircle((UwamonoNyuruActor *)actor,
+                            (UwamonoCollisionUnit *)unit);
+                break;
+            case 2:
+                NyuruMatrix((UwamonoNyuruActor *)actor,
+                            (UwamonoCollisionUnit *)unit, 1);
+                break;
+            }
+
+            if (HitCheckMapUnit(actor) == -1) {
+                return 1;
+            }
+
+            actor->position = position;
+            actor->displacement = displacement;
+            candidate++;
+        }
+    }
+
+    actor->position.value.x -= actor->displacement.value.x;
+    actor->position.value.z -= actor->displacement.value.z;
+    actor->displacement.value.x = 0.0f;
+    actor->displacement.value.z = 0.0f;
+    return 0;
+}
 
 int HitCheckMapUnitReverse(void *actor)
 {
@@ -1199,11 +2540,92 @@ unsigned int HitCheckMapUnitPosAt(UwamonoCollisionActor *actor, UwamonoCollision
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", HitCheckBox);
+int HitCheckBox(UwamonoCollisionActor *actor, struct UwamonoBoxUnit *boxUnit)
+{
+    const float (*basis)[4];
+    UwamonoCornerCollisionUnit *unit = (UwamonoCornerCollisionUnit *)boxUnit;
+    UwamonoAlignedVector dimensions = unit->halfSize;
+    UwamonoAlignedVector position;
+    float unitX;
+    float actorX;
+    float actorZ;
+    float basisX;
+    float basisZ;
+    float halfWidth;
+    float margin;
+    float testDistance;
+    float depth;
+    float depthSquared;
+    float differenceX;
+    float differenceZ;
+    float axisX;
+    float deltaZ;
+
+    position.words[1] = unit->position.words[1];
+    position.words[0] = unit->position.words[0];
+    /* Begin with unit-relative X before reconstructing projected world X. */
+    unitX = position.value.x;
+    actorX = actor->position.x;
+    actorZ = actor->position.z;
+    deltaZ = actorZ - position.value.z;
+    basis = unit->basis;
+    axisX = actorX - unitX;
+    /* The saved transform's first row supplies the horizontal box axis. */
+    testDistance = axisX * basis[0][0] + deltaZ * basis[0][2];
+    halfWidth = dimensions.value.x;
+    margin = actor->radius * 1.5f;
+    if (halfWidth + margin < __builtin_fabsf(testDistance)) {
+        return 0;
+    }
+    depth = dimensions.value.z + margin;
+    depthSquared = depth * depth;
+    basisZ = basis[0][2];
+    basisX = basis[0][0];
+    axisX = testDistance * basisX + unitX;
+    differenceX = actorX - axisX;
+    deltaZ = testDistance * basisZ + position.value.z;
+    differenceZ = actorZ - deltaZ;
+    /* The final test measures squared residual distance from the box axis. */
+    testDistance = differenceX * differenceX + differenceZ * differenceZ;
+    return testDistance < depthSquared;
+}
 
 INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", HitCheckBoxCorner);
 
-INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", HitCheckCorner);
+int HitCheckCorner(UwamonoCollisionActor *actor, UwamonoCollisionUnit *unit)
+{
+    UwamonoCornerCollisionUnit *box = (UwamonoCornerCollisionUnit *)unit;
+    const float (*basis)[4] = box->basis;
+    Vector4 corners[4];
+    UwamonoAlignedVector center = box->position;
+    UwamonoAlignedVector halfSize = box->halfSize;
+
+    corners[0].x = center.value.x + (halfSize.value.x * basis[0][0] + halfSize.value.z * basis[2][0]);
+    corners[0].y = center.value.y;
+    corners[0].z = center.value.z + (halfSize.value.x * basis[0][2] + halfSize.value.z * basis[2][2]);
+    if (CheckDist2D(&actor->position, &corners[0]) < actor->radius * 1.5f) {
+        return 1;
+    }
+
+    corners[1].x = center.value.x - (halfSize.value.z * basis[0][2] + halfSize.value.x * basis[2][2]);
+    corners[1].y = center.value.y;
+    corners[1].z = center.value.z + (halfSize.value.z * basis[0][0] + halfSize.value.x * basis[2][0]);
+    if (CheckDist2D(&actor->position, &corners[1]) < actor->radius * 1.5f) {
+        return 1;
+    }
+
+    corners[2].x = center.value.x - (halfSize.value.x * basis[0][0] + halfSize.value.z * basis[2][0]);
+    corners[2].y = center.value.y;
+    corners[2].z = center.value.z - (halfSize.value.x * basis[0][2] + halfSize.value.z * basis[2][2]);
+    if (CheckDist2D(&actor->position, &corners[2]) < actor->radius * 1.5f) {
+        return 1;
+    }
+
+    corners[3].x = center.value.x + (halfSize.value.z * basis[0][2] + halfSize.value.x * basis[2][2]);
+    corners[3].y = center.value.y;
+    corners[3].z = center.value.z - (halfSize.value.z * basis[0][0] + halfSize.value.x * basis[2][0]);
+    return CheckDist2D(&actor->position, &corners[3]) < actor->radius * 1.5f;
+}
 
 INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", HitCheckBoxTest);
 
@@ -1239,19 +2661,388 @@ int HitCheckNyuru(UwamonoNyuruAlignedActor *actor, UwamonoCollisionUnit *unit)
     return 1;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", NyuruCircle);
+static int NyuruCircle(UwamonoNyuruActor *actor, UwamonoCollisionUnit *unit)
+{
+    float gapZ;
+    float gapX;
+    float displacementLength;
+    float displacementAngle;
+    float movedAngle;
+    float scale;
+    float angleCorrection;
+    float combinedRadius;
+    float distance;
+    Vector4 target;
+    float height;
+    Vector4 direction;
 
-INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", NyuruMatrix);
+    displacementLength = __builtin_sqrtf(actor->displacement.x * actor->displacement.x + actor->displacement.z * actor->displacement.z);
+    scale = displacementLength;
+    direction.x = actor->displacement.x / scale;
+    direction.z = actor->displacement.z / scale;
 
-INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", NyuruBox);
+    displacementAngle = Get_Angle(&actor->position, &unit->position);
+    (void)atan2f(actor->displacement.x, actor->displacement.z);
+    combinedRadius = actor->radius + unit->radius;
+    actor->position.x -= actor->displacement.x;
+    actor->position.z -= actor->displacement.z;
+    movedAngle = Get_Angle(&actor->position, &unit->position);
+
+    target.x = unit->position.x - combinedRadius * xglSin(displacementAngle);
+    target.z = unit->position.z - combinedRadius * xglCos(displacementAngle);
+    gapX = actor->position.x - target.x;
+    gapZ = actor->position.z - target.z;
+    distance = __builtin_sqrtf(gapX * gapX + gapZ * gapZ);
+    scale = (displacementLength - distance) * 0.25f;
+    angleCorrection = scale / (unit->radius * 2.0f);
+    if (0.0f < movedAngle - displacementAngle) {
+        displacementAngle -= angleCorrection;
+    } else {
+        displacementAngle += angleCorrection;
+    }
+
+    combinedRadius = actor->radius + unit->radius + D_004D7EE8;
+    target.x = unit->position.x - combinedRadius * xglSin(displacementAngle);
+    target.z = unit->position.z - combinedRadius * xglCos(displacementAngle);
+    actor->displacement.x = target.x - actor->position.x;
+    actor->displacement.z = target.z - actor->position.z;
+    height = UnduCheck(&actor->position, &actor->displacement,
+                       &actor->undulation);
+    if (height == -1000.0f) {
+        actor->position.x -= actor->displacement.x;
+        actor->position.z -= actor->displacement.z;
+        return 0;
+    }
+    actor->position.y = height;
+    return 1;
+}
+
+static int NyuruMatrix(UwamonoNyuruActor *actor, UwamonoCollisionUnit *unit, int mode)
+{
+    UwamonoCrossBasis *basis;
+    UwamonoAlignedBoxDims dims;
+    float dx = actor->displacement.x;
+    float dz = actor->displacement.z;
+    float remainingX = actor->position.x - dx;
+    float remainingZ = actor->position.z - dz;
+    float distanceSquared = dx * dx + dz * dz;
+    float distance;
+    float relativeX;
+    float relativeZ;
+    float alongX;
+    Vector4 direction;
+    float projection;
+    UwamonoCrossBasis basisCopy;
+
+    dims = *(UwamonoAlignedBoxDims *)&unit->radius;
+    basis = unit->basis;
+    basisCopy = *basis;
+    actor->position.x = remainingX;
+    actor->position.z = remainingZ;
+    relativeX = remainingX - unit->position.x;
+    relativeZ = remainingZ - unit->position.z;
+    alongX = relativeX * basis->xAxisX + relativeZ * basis->xAxisZ;
+    distance = __builtin_sqrtf(distanceSquared);
+    if (distance == 0.0f) {
+        return 0;
+    }
+    direction.x = actor->displacement.x / distance;
+    direction.z = actor->displacement.z / distance;
+    direction.y = 0.0f;
+
+    if (__builtin_fabsf(alongX) < dims.value.radius + actor->radius * 1.5f) {
+        projection = direction.x * basis->xAxisX + direction.z * basis->xAxisZ;
+        actor->displacement.x = projection * basis->xAxisX * distance;
+        actor->displacement.z = projection * basis->xAxisZ * distance;
+        if (__builtin_fabsf(actor->displacement.x) < D_004D7EEC &&
+            __builtin_fabsf(actor->displacement.z) < D_004D7EEC && mode == 0) {
+            if (alongX > dims.value.radius) {
+                actor->displacement.x = basis->xAxisX * distance * 0.5f;
+                actor->displacement.z = basis->xAxisZ * distance * 0.5f;
+            } else if (alongX < -dims.value.radius) {
+                actor->displacement.x = -basis->xAxisX * distance * 0.5f;
+                actor->displacement.z = -basis->xAxisZ * distance * 0.5f;
+            }
+        }
+    } else {
+        projection = direction.x * basis->zAxisX + direction.z * basis->zAxisZ;
+        actor->displacement.x = projection * basis->zAxisX * distance;
+        actor->displacement.z = projection * basis->zAxisZ * distance;
+        if (__builtin_fabsf(actor->displacement.x) < D_004D7EF0 &&
+            __builtin_fabsf(actor->displacement.z) < D_004D7EF0 && mode == 0) {
+            alongX = relativeX * basis->zAxisX + relativeZ * basis->zAxisZ;
+            if (alongX > dims.value.boxDepth) {
+                actor->displacement.x = basis->zAxisX * distance * 0.5f;
+                actor->displacement.z = basis->zAxisZ * distance * 0.5f;
+            } else if (alongX < -dims.value.boxDepth) {
+                actor->displacement.x = -basis->zAxisX * distance * 0.5f;
+                actor->displacement.z = -basis->zAxisZ * distance * 0.5f;
+            }
+        }
+    }
+
+    actor->undulation.attributeMask |= 0x4000;
+    {
+        float height = UnduCheck(&actor->position, &actor->displacement,
+                                 &actor->undulation);
+        if (height == -1000.0f) {
+            actor->position.x -= actor->displacement.x;
+            actor->position.z -= actor->displacement.z;
+            return 0;
+        }
+        actor->position.y = height;
+    }
+    return 1;
+}
+
+int NyuruBox(UwamonoCollisionActor *actor, UwamonoCollisionUnit *unit, int mode)
+{
+    UwamonoCrossBasis *basis;
+    UwamonoAlignedBoxDims dims;
+    Vector4 normal;
+    UwamonoCrossBasis basisCopy;
+    float dx;
+    float dz;
+    float distance;
+    float relativeX;
+    float relativeZ;
+    float alongX;
+    float projection;
+
+    basis = unit->basis;
+    basisCopy = *basis;
+    dims = *(UwamonoAlignedBoxDims *)&unit->radius;
+
+    if (mode == 0 && HitCheckCorner(actor, unit)) {
+        NyuruCorner((UwamonoNyuruActor *)actor,
+                    (UwamonoCollisionCopy *)(void *)unit);
+        return 1;
+    }
+    dx = actor->displacement.x;
+    dz = actor->displacement.z;
+    actor->position.x -= dx;
+    actor->position.z -= dz;
+    relativeX = actor->position.x - unit->position.x;
+    relativeZ = actor->position.z - unit->position.z;
+    alongX = relativeX * basis->xAxisX + relativeZ * basis->xAxisZ;
+    distance = __builtin_sqrtf(actor->displacement.x * actor->displacement.x + actor->displacement.z * actor->displacement.z);
+    if (distance == 0.0f) {
+        return 0;
+    }
+
+    normal.x = actor->displacement.x / distance;
+    normal.y = 0.0f;
+    normal.z = actor->displacement.z / distance;
+    if (__builtin_fabsf(alongX) < dims.value.radius + actor->radius * 1.5f) {
+        projection = normal.x * basis->xAxisX + normal.z * basis->xAxisZ;
+        actor->displacement.x = projection * basis->xAxisX * distance;
+        actor->displacement.z = projection * basis->xAxisZ * distance;
+    } else {
+        projection = normal.x * basis->zAxisX + normal.z * basis->zAxisZ;
+        actor->displacement.x = projection * basis->zAxisX * distance;
+        actor->displacement.z = projection * basis->zAxisZ * distance;
+    }
+
+    ((UwamonoNyuruActor *)actor)->undulation.attributeMask |= 0x4000;
+    {
+        float height = UnduCheck(&actor->position, &actor->displacement,
+                                 &((UwamonoNyuruActor *)actor)->undulation);
+        if (height == -1000.0f) {
+            actor->position.x -= actor->displacement.x;
+            actor->position.z -= actor->displacement.z;
+            return 0;
+        }
+        actor->position.y = height;
+    }
+    return 1;
+}
 
 INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", NyuruCorner);
 
-INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", ShootMapUnit);
+void ShootMapUnit(void)
+{
+    UwamonoGameLoopState *state = &GameLoopState;
+    UwamonoAimActor *actor = (UwamonoAimActor *)state->actor;
+    int unitIndex;
+    struct UwamonoMapCollisionState *unitState;
+    float threshold;
 
-INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", CrossPointUwamono);
+    if (actor->shootModeFlags & 0x0F000000) {
+        UnlockMapUnit();
+        return;
+    }
+    if (dispflg == 1) {
+        DispDebugUwamono();
+    }
+    if (collflg == 1) {
+        DispCollUwamono();
+    }
 
-void CrossPointUwamonoAt(Vector4 *first, Vector4 *second, UwamonoMapUnit *unit, void *result)
+    if (actor->motion != 14) {
+        if (!(state->systemFlags & 0x8000)) {
+            AimMapUnit();
+            if ((PadData.half_2a & 0x80) &&
+                state->aimMapUnitIndex != -1) {
+                const Vector4 *targetPosition;
+
+                unitIndex = state->aimMapUnitIndex;
+                targetPosition = &MapUnit[unitIndex].position.value;
+                actor->targetAngle = Get_Angle(&actor->position.value,
+                                               targetPosition);
+                {
+                    UwamonoShotEffect *effect =
+                        (UwamonoShotEffect *)(void *)sefCreateEffectCf(0x2de, 0, 0);
+                    if (effect != 0) {
+                        effect->owner = actor;
+                        effect->flags &= ~0x400u;
+                    }
+                }
+                actor->motionSpeed = D_004D7EF8;
+                state->systemFlags |= 0xC000;
+                ACT_setMotion(actor, 14);
+                actor->shootFlags = actor->shootFlags & ~8;
+                xglSoundEffectNormalID(0x10002, 0);
+            }
+        }
+        if (actor->motion != 14) {
+            return;
+        }
+    }
+
+    unitIndex = GameLoopState.aimMapUnitIndex;
+    unitState = &MapUnit[unitIndex].state;
+    if (actor->shootProgress > D_004D7EFC &&
+        actor->shootProgress < 0.36f) {
+            Vibration_Set_Weak(4);
+    }
+    threshold = 0.36f;
+    if (threshold < actor->shootProgress) {
+        if (unitState->signal == 0) {
+            if (printflg != 0) {
+                printf(D_004CA260, GameLoopState.aimMapUnitIndex);
+            }
+            Enemy_FindByEar(actor, &MapUnit[unitIndex].position.value);
+            unitState->signal = 1;
+        }
+    }
+    if (actor->shootProgress > 0.5f) {
+        GameLoopState.aimMapUnitIndex = -1;
+        GameLoopState.systemFlags &= ~0x4000u;
+        GameLoopState.systemFlags &= ~0x8000u;
+        actor->shootFlags |= 8;
+    }
+}
+
+int CrossPointUwamono(const Vector4 *position, const Vector4 *previous,
+                      float radius, Vector4 *result)
+{
+    int candidates[64];
+    Vector4 nearStart;
+    Vector4 nearEnd;
+    Vector4 farStart;
+    Vector4 farEnd;
+    Vector4 normal;
+    Vector4 candidate;
+    int count;
+    float scaledRadius;
+    float reach;
+    int empty;
+    int i;
+
+    normal.w = 1.0f;
+    normal.x = position->x - previous->x;
+    normal.z = position->z - previous->z;
+    normal.y = 0.0f;
+    scaledRadius = radius * 1.5f;
+    reach = normal.x * normal.x + normal.y * normal.y + normal.z * normal.z;
+    reach = __builtin_sqrtf(reach) + scaledRadius;
+    empty = -1;
+    for (i = 63; i >= 0; i--) {
+        candidates[i] = empty;
+    }
+    count = 0;
+    for (i = 0; i < 64; i++) {
+        struct UwamonoMapCollisionState *state = &MapUnit[i].state;
+        UwamonoMapSlot *unit = &MapUnit[i];
+        if (unit->serial != -1 && !(unit->flags & 0x100000) &&
+            !(0.3f < __builtin_fabsf(position->y - unit->position.value.y)) &&
+            state->crossType != 0 && (unit->flags & 0x10000) &&
+            UwamonoAreaCheck(position, unit, reach)) {
+            candidates[count] = i;
+            count++;
+        }
+    }
+
+    result->x = 65535.0f;
+    result->z = 65535.0f;
+    result->y = -1000.0f;
+    if (count == 0) {
+        *result = *previous;
+        return 0;
+    }
+
+    xglVectorNormal(&normal, &normal);
+    nearStart = *position;
+    nearEnd = *previous;
+    farStart = *position;
+    __builtin_memcpy(&farEnd, previous, sizeof(farEnd));
+    farEnd.w = farStart.w = nearEnd.w = nearStart.w = 1.0f;
+    nearStart.x += scaledRadius * normal.z;
+    nearStart.z -= scaledRadius * normal.x;
+    nearEnd.x += scaledRadius * normal.z;
+    nearEnd.z -= scaledRadius * normal.x;
+    farStart.x -= scaledRadius * normal.z;
+    farStart.z += scaledRadius * normal.x;
+    farEnd.x -= scaledRadius * normal.z;
+    farEnd.z += scaledRadius * normal.x;
+
+    for (i = 0; i < 64; i++) {
+        UwamonoMapSlot *unit;
+        if (candidates[i] == -1) {
+            break;
+        }
+        unit = &MapUnit[candidates[i]];
+        CrossPointUwamonoAt(&nearStart, &nearEnd,
+                            (UwamonoMapUnit *)unit, &candidate);
+        if (candidate.y != -1000.0f) {
+            CheckNearPoint(position, &candidate, result, result);
+        }
+        CrossPointUwamonoAt(&farStart, &farEnd,
+                            (UwamonoMapUnit *)unit, &candidate);
+        if (candidate.y != -1000.0f) {
+            CheckNearPoint(position, &candidate, result, result);
+        }
+        candidate.x = position->x - unit->position.value.x;
+        candidate.z = position->z - unit->position.value.z;
+        if ((normal.x * candidate.x + normal.z * candidate.z) > 0.0f &&
+            CheckPointLine(&nearStart, &nearEnd, &unit->position.value) !=
+                CheckPointLine(&farStart, &farEnd, &unit->position.value)) {
+            CrossPointUwamonoAt(position, &unit->position.value,
+                                (UwamonoMapUnit *)unit, &candidate);
+            CheckNearPoint(position, &candidate, result, result);
+        }
+    }
+
+    if (result->y == -1000.0f) {
+        *result = *previous;
+        return 0;
+    }
+    nearEnd.x = position->x - result->x;
+    nearEnd.y = position->y;
+    nearEnd.z = position->z - result->z;
+    reach = normal.x * nearEnd.x + normal.z * nearEnd.z;
+    reach -= scaledRadius;
+    if (reach < 0.0f) {
+        *result = *position;
+        return 1;
+    }
+    result->x = position->x - reach * normal.x;
+    result->y = position->y;
+    result->z = position->z - reach * normal.z;
+    return 1;
+}
+
+void CrossPointUwamonoAt(const Vector4 *first, const Vector4 *second, UwamonoMapUnit *unit, void *result)
 {
     switch (unit->crossType) {
     case 1:
@@ -1295,7 +3086,61 @@ void CalcNearCrossPointCircle(const Vector4 *from, const Vector4 *to,
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", CalcNearCrossPointBox);
+void CalcNearCrossPointBox(const Vector4 *first, const Vector4 *second,
+                           UwamonoMapUnit *unit, Vector4 *result)
+{
+    Vector4 corners[4];
+    UwamonoAlignedVector centerCopy;
+    UwamonoAlignedBoxDims dims;
+    Vector4 candidate;
+    UwamonoCrossBasis *basis = unit->basis;
+
+    centerCopy = *(UwamonoAlignedVector *)&unit->position;
+    dims = *(UwamonoAlignedBoxDims *)&unit->radius;
+    result->y = -1000.0f;
+    candidate.y = first->y;
+
+    corners[0].x = centerCopy.value.x + (dims.value.radius * basis->xAxisX + dims.value.boxDepth * basis->zAxisX);
+    corners[0].y = centerCopy.value.y;
+    corners[0].z = centerCopy.value.z + (dims.value.radius * basis->xAxisZ + dims.value.boxDepth * basis->zAxisZ);
+    corners[1].x = centerCopy.value.x - (dims.value.boxDepth * basis->xAxisZ + dims.value.radius * basis->zAxisZ);
+    corners[1].y = centerCopy.value.y;
+    corners[1].z = centerCopy.value.z + (dims.value.boxDepth * basis->xAxisX + dims.value.radius * basis->zAxisX);
+    corners[2].x = centerCopy.value.x - (dims.value.radius * basis->xAxisX + dims.value.boxDepth * basis->zAxisX);
+    corners[2].y = centerCopy.value.y;
+    corners[2].z = centerCopy.value.z - (dims.value.radius * basis->xAxisZ + dims.value.boxDepth * basis->zAxisZ);
+    corners[3].x = centerCopy.value.x + (dims.value.boxDepth * basis->xAxisZ + dims.value.radius * basis->zAxisZ);
+    corners[3].y = centerCopy.value.y;
+    corners[3].z = centerCopy.value.z - (dims.value.boxDepth * basis->xAxisX + dims.value.radius * basis->zAxisX);
+    if (CheckCrossLine(first, second, &corners[0], &corners[1])) {
+        CalcCrossPoint(first, second, &corners[0], &corners[1], &candidate);
+        *(UwamonoAlignedVector *)result = *(UwamonoAlignedVector *)&candidate;
+    }
+    if (CheckCrossLine(first, second, &corners[1], &corners[2])) {
+        CalcCrossPoint(first, second, &corners[1], &corners[2], &candidate);
+        if (result->y != -1000.0f) {
+            CheckNearPoint(first, &candidate, result, result);
+        } else {
+            *(UwamonoAlignedVector *)result = *(UwamonoAlignedVector *)&candidate;
+        }
+    }
+    if (CheckCrossLine(first, second, &corners[2], &corners[3])) {
+        CalcCrossPoint(first, second, &corners[2], &corners[3], &candidate);
+        if (result->y != -1000.0f) {
+            CheckNearPoint(first, &candidate, result, result);
+        } else {
+            *(UwamonoAlignedVector *)result = *(UwamonoAlignedVector *)&candidate;
+        }
+    }
+    if (CheckCrossLine(first, second, &corners[3], &corners[0])) {
+        CalcCrossPoint(first, second, &corners[3], &corners[0], &candidate);
+        if (result->y != -1000.0f) {
+            CheckNearPoint(first, &candidate, result, result);
+        } else {
+            *(UwamonoAlignedVector *)result = *(UwamonoAlignedVector *)&candidate;
+        }
+    }
+}
 
 void CheckNearPoint(const Vector4 *origin, const Vector4 *candA, const Vector4 *candB, Vector4 *out)
 {
@@ -1331,7 +3176,37 @@ void CheckNearPoint(const Vector4 *origin, const Vector4 *candA, const Vector4 *
         *out = *candB;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", UwamonoAreaCheck);
+int UwamonoAreaCheck(const Vector4 *position, UwamonoMapSlot *unit, float radius)
+{
+    const struct UwamonoMapCollisionState *state = &unit->state;
+    float positionY = position->y;
+    float unitY = unit->position.value.y;
+    float lowerHeight;
+
+    if (positionY > unitY + unit->dimensions.value.y * D_004D7F10)
+        return 0;
+    lowerHeight = unitY - D_004D7F14;
+    if (positionY < lowerHeight)
+        return 0;
+    switch (state->crossType) {
+    case 1: {
+        float distance = CheckDist2D(position, &unit->position.value);
+        float limit = radius + unit->dimensions.value.x;
+        if (distance < limit)
+            return 1;
+        break;
+    }
+    case 2: {
+        int boxResult = AreaCheckBox(position, unit, radius);
+        if (boxResult != 0)
+            return 1;
+        break;
+    }
+    default:
+        break;
+    }
+    return 0;
+}
 
 static inline float UwamonoProjectBoxAxisXZ(float x, float z,
                                            const Matrix4 *matrix)
@@ -1339,46 +3214,7 @@ static inline float UwamonoProjectBoxAxisXZ(float x, float z,
     return x * (*matrix)[0][0] + z * (*matrix)[0][2];
 }
 
-int AreaCheckBox(const Vector4 *position, UwamonoMapSlot *unit, float radius)
-{
-    UwamonoMapSlot *box = unit;
-    UwamonoAlignedVector dimensions;
-    float pointX = position->x;
-    float pointZ = position->z;
-    float unitZ;
-    float unitX;
-    float offsetX;
-    float offsetZ;
-    float differenceZ;
-    const Matrix4 *matrix;
-    float basisZ;
-    float basisX;
-    float projection;
-    float depth;
-
-    unitX = unit->position.value.x;
-    unitZ = unit->position.value.z;
-    offsetX = pointX - unitX;
-    offsetZ = pointZ - unitZ;
-    dimensions = box->dimensions;
-    matrix = (const Matrix4 *)box->basis;
-    projection = UwamonoProjectBoxAxisXZ(offsetX, offsetZ, matrix);
-    if (box->dimensions.value.x + radius < __builtin_fabsf(projection)) {
-        return 0;
-    }
-    depth = box->dimensions.value.z + radius;
-    basisZ = (*matrix)[0][2];
-    basisX = (*matrix)[0][0];
-    /* Measure the residual offset from the point projected onto the box axis. */
-    offsetX = pointX - (projection * basisX + unitX);
-    differenceZ = pointZ - (projection * basisZ + unitZ);
-    /* Square the Z residual component for the radial-distance test. */
-    offsetZ = differenceZ * differenceZ;
-    if (offsetX * offsetX + offsetZ < depth * depth) {
-        return 1;
-    }
-    return 0;
-}
+INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", AreaCheckBox);
 
 int CrossCheckMapUnitAim(Vector4 *from, UwamonoScanUnit *aim)
 {
@@ -1496,7 +3332,46 @@ int CrossCheckMapUnitCircle(const Vector4 *from, const Vector4 *to,
     return hit;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", CrossCheckMapUnitBox);
+int CrossCheckMapUnitBox(Vector4 *first, Vector4 *second,
+                         UwamonoCrossUnit *unit)
+{
+    Vector4 corners[4];
+    UwamonoAlignedVector center;
+    UwamonoAlignedVector extents;
+    UwamonoCrossBasis *basis;
+
+    extents.words[1] = unit->dimensions.words[1];
+    extents.words[0] = unit->dimensions.words[0];
+    center = unit->alignedPosition;
+    basis = unit->basis;
+    extents.value.x += D_004D7F20;
+    extents.value.z += D_004D7F20;
+    corners[0].x = center.value.x + (extents.value.x * basis->xAxisX + extents.value.z * basis->zAxisX);
+    corners[0].y = center.value.y;
+    corners[0].z = center.value.z + (extents.value.x * basis->xAxisZ + extents.value.z * basis->zAxisZ);
+
+    corners[1].x = center.value.x - (extents.value.z * basis->xAxisZ + extents.value.x * basis->zAxisZ);
+    corners[1].y = center.value.y;
+    corners[1].z = center.value.z + (extents.value.z * basis->xAxisX + extents.value.x * basis->zAxisX);
+    if (CheckCrossLine(first, second, &corners[0], &corners[1]) != 0) {
+        return 1;
+    }
+
+    corners[2].x = center.value.x - (extents.value.x * basis->xAxisX + extents.value.z * basis->zAxisX);
+    corners[2].y = center.value.y;
+    corners[2].z = center.value.z - (extents.value.x * basis->xAxisZ + extents.value.z * basis->zAxisZ);
+    if (CheckCrossLine(first, second, &corners[1], &corners[2]) != 0) {
+        return 1;
+    }
+
+    corners[3].x = center.value.x + (extents.value.z * basis->xAxisZ + extents.value.x * basis->zAxisZ);
+    corners[3].y = center.value.y;
+    corners[3].z = center.value.z - (extents.value.z * basis->xAxisX + extents.value.x * basis->zAxisX);
+    if (CheckCrossLine(first, second, &corners[2], &corners[3]) != 0) {
+        return 1;
+    }
+    return CheckCrossLine(first, second, &corners[3], &corners[0]) != 0;
+}
 
 void UnlockMapUnit(void)
 {
@@ -1576,9 +3451,178 @@ int AimHeightCheck(UwamonoMapUnit *unit)
     return __builtin_fabsf(heightReference->position.y - unit->position.y) < 0.3f;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", AimMapUnit);
+int AimMapUnit(void)
+{
+    UwamonoAlignedScreenPoint actorScreen;
+    UwamonoAimCandidate candidates[64];
+    UwamonoAimCandidate savedCandidate;
+    UwamonoAlignedVector actorPosition;
+    UwamonoAlignedVector unitPosition;
+    int candidateCount;
+    int selectedFound;
+    UwamonoAimCandidate *candidate;
+    UwamonoAimCandidate *list;
+    UwamonoSoundActor *actor = GameLoopState.actor;
+    int index;
 
-INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", AimMapUnitLookCheck);
+    actorPosition = *(UwamonoAlignedVector *)&actor->position;
+    actorPosition.value.y += 1.0f;
+    xglRotTransPers((Vector4 *)&actorScreen, 0, &actorPosition.value, 0);
+    candidateCount = 0;
+    selectedFound = 0;
+    candidate = candidates;
+    list = candidates;
+
+    for (index = 0; index < 64; ++index) {
+        unsigned int oldFlags = MapUnit[index].flags;
+        float distance;
+
+        MapUnit[index].flags &= ~0x40000u;
+        candidate->unitIndex = -1;
+        if (!(CheckBrokenMapUnit((BrokenMapUnit *)&MapUnit[index]) & 1)) {
+            continue;
+        }
+        if (!AimHeightCheck((UwamonoMapUnit *)&MapUnit[index])) {
+            continue;
+        }
+
+        distance = CheckCornerDist(&actor->position,
+                                   (UwamonoCollisionUnit *)&MapUnit[index]);
+        if (GameLoopState.selectionDistance < distance) {
+            continue;
+        }
+        if (!AimMapUnitLookCheck((UwamonoScanUnit *)&MapUnit[index])) {
+            continue;
+        }
+
+        if ((oldFlags & 0x40000u) == 0) {
+            xglSoundEffectNormalID(0x10001, 0);
+        }
+        candidate->distance = distance;
+        unitPosition = MapUnit[index].position;
+        ((Vector4 *)&unitPosition)->y += 0.5f * ((const Vector4 *)&MapUnit[index].dimensions)->y;
+        MapUnit[index].flags = MapUnit[index].flags | 0x40000u;
+        if (GameLoopState.aimMapUnitIndex == index) {
+            selectedFound = 1;
+        }
+        candidate->unitIndex = index;
+        xglRotTransPers((Vector4 *)&candidate->screenPoint, 0,
+                        &unitPosition.value, 0);
+        ++candidateCount;
+        ++candidate;
+    }
+
+    if (candidateCount < 2) {
+        GameLoopState.aimMapUnitIndex = candidates[0].unitIndex;
+        if (candidates[0].unitIndex != -1) {
+            SortLine(&actorScreen, &candidates[0].screenPoint, 1);
+        }
+        return candidates[0].unitIndex;
+    }
+
+    index = 1;
+    if (candidates[1].unitIndex != -1) {
+        for (;;) {
+            if (candidates[index - 1].screenPoint.value.x > candidates[index].screenPoint.value.x) {
+            savedCandidate = candidates[index];
+            candidates[index] = candidates[index - 1];
+            candidates[index - 1] = savedCandidate;
+            index = 0;
+            }
+            ++index;
+            if (!(index < 64 && candidates[index].unitIndex != -1)) {
+                break;
+            }
+        }
+    }
+
+    for (index = 0; index < 63 && candidates[index].unitIndex != -1; ++index) {
+        if (GameLoopState.aimMapUnitIndex == candidates[index].unitIndex) {
+            int offset = index * 48 + 16;
+
+            SortLine(&actorScreen, (UwamonoAlignedScreenPoint *)((char *)candidates + offset), 1);
+        } else {
+            int offset = index * 48 + 16;
+
+            SortLine(&actorScreen, (UwamonoAlignedScreenPoint *)((char *)candidates + offset), 0);
+        }
+    }
+
+    if (!selectedFound) {
+        GameLoopState.aimMapUnitIndex = CheckNearMapUnit();
+    }
+
+    if (PadData.half_2a & 8) {
+        xglSoundEffectNormalID(3, 0);
+        for (index = 0; index <= candidateCount; ++index) {
+            if (GameLoopState.aimMapUnitIndex == candidates[index].unitIndex) {
+                if (candidates[index + 1].unitIndex == -1) {
+                    GameLoopState.aimMapUnitIndex = candidates[0].unitIndex;
+                } else {
+                    GameLoopState.aimMapUnitIndex = candidates[index + 1].unitIndex;
+                }
+                return GameLoopState.aimMapUnitIndex;
+            }
+        }
+    }
+
+    if (PadData.half_2a & 4) {
+        xglSoundEffectNormalID(3, 0);
+        for (index = candidateCount - 1; index >= 0; --index) {
+            if (GameLoopState.aimMapUnitIndex == candidates[index].unitIndex) {
+                if (index == 0) {
+                    GameLoopState.aimMapUnitIndex =
+                        candidates[candidateCount - 1].unitIndex;
+                } else {
+                    GameLoopState.aimMapUnitIndex = candidates[index - 1].unitIndex;
+                }
+                return GameLoopState.aimMapUnitIndex;
+            }
+        }
+    }
+
+    return candidates[0].unitIndex;
+}
+
+int AimMapUnitLookCheck(UwamonoScanUnit *target)
+{
+    UwamonoSoundActor *listener = GameLoopState.actor;
+    UwamonoAimQuery query;
+    UwamonoAlignedVector position;
+    Vector4 direction;
+    float result;
+
+    if ((GameLoopState.aimHeightFlags & 8) != 0 &&
+        CrossCheckMapUnitAim(&listener->position, target) != -1) {
+        return 0;
+    }
+    if ((GameLoopState.aimHeightFlags & 4) == 0) {
+        return 1;
+    }
+
+    UnduParamInit(&query);
+    query.header = UnduDataGetHeader(0x305, 0x8000);
+    if (query.header == 0) {
+        query.header = UnduDataGetHeader(0, 0x8000);
+        if ((listener->flags & 0x20) != 0) {
+            query.attributeMask |= 0x20;
+        }
+    }
+    position = *(UwamonoAlignedVector *)&listener->position;
+    direction.x = target->position.x - listener->position.x;
+    direction.y = target->position.y - listener->position.y;
+    direction.z = target->position.z - listener->position.z;
+    direction.w = 1.0f;
+    query.attributeMask = 0x1810;
+    result = UnduCheck(&position.value, &direction, &query);
+    if (result == -1000.0f) {
+        return 0;
+    }
+    if (!(__builtin_fabsf(position.value.x - target->position.x) < D_004D7F28)) {
+        return 0;
+    }
+    return __builtin_fabsf(position.value.z - target->position.z) < D_004D7F28;
+}
 
 static float CheckCornerDist(const Vector4 *position, UwamonoCollisionUnit *unit)
 {
@@ -1691,7 +3735,50 @@ void UwamonoBgmFadeOut(void)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", CheckUwamonoHeight);
+void CheckUwamonoHeight(UwamonoCommonUnit *unit)
+{
+    UwamonoTimers *timers = &unit->timers;
+    float floorHeight;
+    UwamonoAimQuery query;
+
+    UnduParamInit(&query);
+    query.header = UnduDataGetHeader(0, 0x8000);
+    if (timers->heightBounce != 0) {
+        query.attributeMask |= 0x20;
+    } else {
+        query.attributeMask = 0x1010;
+    }
+
+    floorHeight = UnduCheck(&unit->position.value, 0, &query);
+    if (unit->heightVelocity > D_004D7F2C) {
+        unit->heightVelocity -= D_004D7F30;
+    }
+
+    unit->position.value.y += unit->heightVelocity;
+    if (floorHeight > unit->position.value.y) {
+        unit->heightVelocity = -unit->heightVelocity * 0.25f;
+        unit->position.value.y = floorHeight + D_004D7F34;
+        if (unit->heightVelocity < D_004D7F38) {
+            unit->flags |= 0x80000;
+            unit->heightVelocity = 0.0f;
+        }
+    } else {
+        int hitIndex = HitCheckUwamono((UwamonoScanUnit *)unit);
+        float hitHeight;
+        float reboundVelocity;
+        if (hitIndex == -1) {
+            return;
+        }
+        hitHeight = MapUnit[hitIndex].position.value.y +
+                    MapUnit[hitIndex].dimensions.value.y + D_004D7F40;
+        reboundVelocity = -unit->heightVelocity;
+        unit->heightVelocity = 0.25f * reboundVelocity;
+        unit->position.value.y = hitHeight;
+        if (unit->heightVelocity < D_004D7F3C) {
+            unit->heightVelocity = 0.0f;
+        }
+    }
+}
 
 int HitCheckUwamono(UwamonoScanUnit *actor)
 {

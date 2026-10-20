@@ -1,4 +1,10 @@
 #include "common.h"
+#include "main/e_battle_win_open.h"
+
+void WindowSPSet(WindowSPCursor *cursor);
+void WindowSPMain(WindowSPCursor *cursor);
+void WindowSPSelectJump(WindowSPCursor *cursor, int selection);
+
 
 #include "main/menu_top_command_check.h"
 
@@ -219,9 +225,9 @@ int MenuSortCheck(int list);
 
 void MoveSlide(short *current, short *target, float rate);
 
-void WindowDXSet(void *window);
 
-void WindowDXMain(void *window);
+
+
 
 void eSpriteSet(void *sprite, short spriteId);
 
@@ -674,7 +680,7 @@ void MenuTecPasMain(void)
     switch (pas->state) {
     case 0:
         pas->color = 0x00FFFFF0;
-        WindowDXSet(&pas->window);
+        WindowDXSet((WindowDX *)(void *)(&pas->window));
         pas->window.x = -288;
         pas->window.y = 8;
         pas->window.color = pas->color;
@@ -683,7 +689,7 @@ void MenuTecPasMain(void)
         pas->window.callback = MenuPasWindow;
         pas->window.callbackArg = pas->callbackWork;
         pas->window.state = 1;
-        WindowDXMain(&pas->window);
+        WindowDXMain((WindowDX *)(void *)(&pas->window));
         pas->window.state = 3;
         for (i = 0; i < 3; i++) {
             eMessageSet(&pas->message[i], msg_0_0036DC68[i]);
@@ -724,7 +730,7 @@ void MenuTecPasMain(void)
     }
 
     MoveSlide(&pas->window.x, &slideTarget, 3.0f);
-    WindowDXMain(&pas->window);
+    WindowDXMain((WindowDX *)(void *)(&pas->window));
     if (pas->window.state == 3) {
         pas->box.x = pas->window.x + 3;
         pas->box.y = pas->window.y + 3;
@@ -752,7 +758,7 @@ void MenuTecMenuMain(void)
     switch (work->state) {
     case 0: {
         work->color = 0x00FFFFF0;
-        WindowDXSet(&work->window[0]);
+        WindowDXSet((WindowDX *)(void *)(&work->window[0]));
         work->window[0].x = 528;
         work->window[0].y = 192;
         work->window[0].color = work->color;
@@ -765,9 +771,9 @@ void MenuTecMenuMain(void)
         work->list[0].hasPrompt = 0;
         work->list[0].items = msg00_1_0036DC78[0];
         work->window[0].state = 1;
-        WindowDXMain(&work->window[0]);
+        WindowDXMain((WindowDX *)(void *)(&work->window[0]));
         work->window[0].state = 3;
-        WindowDXSet(&work->window[1]);
+        WindowDXSet((WindowDX *)(void *)(&work->window[1]));
         work->window[1].x = 528;
         work->window[1].y = 240;
         work->window[1].color = work->color;
@@ -781,7 +787,7 @@ void MenuTecMenuMain(void)
         work->list[1].items = msg01_2_0036DC80[0];
         work->list[1].prompt = msg01_2_0036DC80[1];
         work->window[1].state = 1;
-        WindowDXMain(&work->window[1]);
+        WindowDXMain((WindowDX *)(void *)(&work->window[1]));
         work->window[1].state = 3;
         work->state = 2;
     }
@@ -808,7 +814,7 @@ void MenuTecMenuMain(void)
         }
         for (i = 0; i < 2; i++) {
             MoveSlide(&work->window[i].x, &target[i], 3.0f);
-            WindowDXMain(&work->window[i]);
+            WindowDXMain((WindowDX *)(void *)(&work->window[i]));
         }
         break;
     }
@@ -1070,7 +1076,7 @@ void MenuTecStatusMain(void)
         for (i = 0; i < MenuWork.rosterCount; i++) {
             short characterNo = MenuTecParty[i];
 
-            WindowDXSet(&work->window[i].window);
+            WindowDXSet((WindowDX *)(void *)(&work->window[i].window));
             work->window[i].window.x = (i & 1) * 816 - 272;
             work->window[i].window.color = work->window[0].header.color;
             work->window[i].window.y = i / 2 * 104 + 64;
@@ -1088,7 +1094,7 @@ void MenuTecStatusMain(void)
             work->detail[i].record.unmodeled_01 = 0;
             work->detail[i].record.offsetY = 0;
             work->window[i].window.state = 1;
-            WindowDXMain(&work->window[i].window);
+            WindowDXMain((WindowDX *)(void *)(&work->window[i].window));
             work->window[i].window.state = 3;
         }
         for (i = 0; i < 1; i++) {
@@ -1191,7 +1197,7 @@ void MenuTecStatusMain(void)
                 work->window[i].window.color = 0x7f00;
             else
                 work->window[i].window.color = 0x7e00;
-            WindowDXMain(&work->window[i].window);
+            WindowDXMain((WindowDX *)(void *)(&work->window[i].window));
         }
         work->cursor[0].cursor.x = work->window[MenuWork.rosterCursor].window.x + 3;
         work->cursor[0].cursor.y = work->window[MenuWork.rosterCursor].window.y +
@@ -1202,10 +1208,10 @@ void MenuTecStatusMain(void)
     }
 }
 
-void WindowSPSet(MenuTecSPWindow *window);
-void WindowSPMain(MenuTecSPWindow *window);
-void WindowSPItemChange(MenuTecSPWindow *window);
-void WindowSPSetSelect(MenuTecSPWindow *window, unsigned char *selection);
+
+
+
+
 extern unsigned char MenuKeepSelect[];
 extern const char D_004C90F0[];
 extern const char D_004DB458[];
@@ -1228,7 +1234,7 @@ void MenuTecListMain(void)
         work->window.title = 0;
         work->window.columns = 1;
         work->window.items = 0;
-        WindowSPSet(&work->window);
+        WindowSPSet((WindowSPCursor *)(void *)(&work->window));
         work->state = 2;
         work->valid = 1;
         /* fallthrough */
@@ -1252,11 +1258,11 @@ void MenuTecListMain(void)
                     work->window.title = D_004C90F0;
                     work->window.columns = 1;
                     work->window.items = MenuListGet(0);
-                    WindowSPItemChange(window);
-                    WindowSPSetSelect(window, MenuKeepSelect);
+                    WindowSPItemChange((WindowSPCursor *)(void *)(window));
+                    WindowSPSetSelect((WindowSPCursor *)(void *)(window), MenuKeepSelect);
                     work->window.mode = 1;
                     window->state = 17;
-                    WindowSPMain(window);
+                    WindowSPMain((WindowSPCursor *)(void *)(window));
                     work->valid = 1;
                 }
                 work->side = 0;
@@ -1283,11 +1289,11 @@ void MenuTecListMain(void)
                     work->window.title = D_004DB458;
                     work->window.columns = 1;
                     work->window.items = MenuListGet(0);
-                    WindowSPItemChange(window);
-                    WindowSPSetSelect(window, &MenuKeepSelect[5]);
+                    WindowSPItemChange((WindowSPCursor *)(void *)(window));
+                    WindowSPSetSelect((WindowSPCursor *)(void *)(window), &MenuKeepSelect[5]);
                     work->window.mode = 1;
                     window->state = 17;
-                    WindowSPMain(window);
+                    WindowSPMain((WindowSPCursor *)(void *)(window));
                     work->valid = 1;
                 }
                 work->side = 1;
@@ -1303,7 +1309,7 @@ void MenuTecListMain(void)
             break;
         }
         MoveSlide(&work->window.x, target, 3.0f);
-        WindowSPMain(&work->window);
+        WindowSPMain((WindowSPCursor *)(void *)(&work->window));
         break;
     }
     default:
@@ -1409,7 +1415,7 @@ void MenuTecListMain2(void)
             int positionY;
             int rowHeight;
 
-            WindowDXSet(&work->row[i].window);
+            WindowDXSet((WindowDX *)(void *)(&work->row[i].window));
             positionY = i * 68 + 192;
             rowHeight = i * 48 + 54;
             work->row[i].window.x = -272;
@@ -1422,7 +1428,7 @@ void MenuTecListMain2(void)
             else
                 work->row[i].window.title = D_004C9200;
             work->row[i].window.state = 1;
-            WindowDXMain(&work->row[i].window);
+            WindowDXMain((WindowDX *)(void *)(&work->row[i].window));
             work->row[i].window.state = 3;
             for (j = 0; j < 4; j++) {
                 eMessageSet(&work->row[i].techniqueName[j], 0);
@@ -1445,7 +1451,7 @@ void MenuTecListMain2(void)
                 work->row[i].marker[j].work = work->color + 1;
             }
         }
-        WindowDXSet(&work->detailWindow);
+        WindowDXSet((WindowDX *)(void *)(&work->detailWindow));
         {
             MenuTecList2Work *detailWork = work;
 
@@ -1456,7 +1462,7 @@ void MenuTecListMain2(void)
             detailWork->detailWindow.height = 54;
             detailWork->detailWindow.state = 1;
         }
-        WindowDXMain(&work->detailWindow);
+        WindowDXMain((WindowDX *)(void *)(&work->detailWindow));
         work->detailWindow.state = 3;
         for (i = 0; i < 2; i++) {
             eMessageSet(&work->detailLabel[i], 0);
@@ -1525,7 +1531,7 @@ void MenuTecListMain2(void)
         for (i = 0; i < 2; i++) {
             MoveSlide(&work->row[i].window.x, &targetX[i], 3.0f);
             MoveSlide(&work->row[i].window.y, &targetY[i], 3.0f);
-            WindowDXMain(&work->row[i].window);
+            WindowDXMain((WindowDX *)(void *)(&work->row[i].window));
             if (i == 0) {
                 for (j = 0; j < 2; j++) {
                     work->row[i].marker[j].x = work->row[i].window.x + 115;
@@ -1561,7 +1567,7 @@ void MenuTecListMain2(void)
             }
         }
         MoveSlide(&work->detailWindow.x, &targetDetail, 3.0f);
-        WindowDXMain(&work->detailWindow);
+        WindowDXMain((WindowDX *)(void *)(&work->detailWindow));
         work->detailLabel[0].text = msg00_4_0036DC90[0];
         work->detailLabel[0].x = work->detailWindow.x + 80;
         if (MenuWork.tecBit == 0x61) {
@@ -1652,7 +1658,7 @@ void MenuTecSetWinMain(void)
     switch (work->state) {
     case 0:
         work->color = 0x00FFFFF8;
-        WindowDXSet(&work->window);
+        WindowDXSet((WindowDX *)(void *)(&work->window));
         work->window.x = 528;
         work->window.y = 144;
         work->window.color = work->color;
@@ -1660,7 +1666,7 @@ void MenuTecSetWinMain(void)
         work->window.height = 64;
         work->window.title = "Set\003,Lv\003\022T.Pts";
         work->window.state = 1;
-        WindowDXMain(&work->window);
+        WindowDXMain((WindowDX *)(void *)(&work->window));
         work->window.state = 3;
         for (i = 0; i < 3; i++) {
             eTagFontSet(&work->row[i].label[0], msg00_7[i]);
@@ -1719,7 +1725,7 @@ void MenuTecSetWinMain(void)
             break;
         }
         MoveSlide(&work->window.x, &slide, 3.0f);
-        WindowDXMain(&work->window);
+        WindowDXMain((WindowDX *)(void *)(&work->window));
         for (i = 0; i < 3; i++) {
             work->row[i].label[0].x = work->window.x + 67;
             work->row[i].label[0].y = work->window.y + i * 18 + 6;
@@ -2070,7 +2076,7 @@ void MenuTec(void)
             if (PadData.half_2a == 0x40) {
                 if (!MenuCursorKeepCheck())
                     MenuWork.listCursor = 0;
-                WindowSPKeepSelectCheck(MenuKeepSelect);
+                WindowSPKeepSelectCheck((unsigned char *)(void *)(MenuKeepSelect));
                 xglSoundEffectNormalID(2, 0);
                 MenuWork.inputDelay = 8;
                 MenuWork.nextState = 0x20;
@@ -2083,8 +2089,8 @@ void MenuTec(void)
         if (MenuWork.resetFlags & 1)
             MenuTecListMake00_2();
         if (MenuWork.inputDelay == 0) {
-            MenuWork.selectedTechnique = WindowSPSelect(&MenuTecList->window, PadData.mappedRepeat);
-            WindowSPKeepSelect(&MenuTecList->window, MenuKeepSelect);
+            MenuWork.selectedTechnique = WindowSPSelect((WindowSPCursor *)(void *)(&MenuTecList->window), PadData.mappedRepeat);
+            WindowSPKeepSelect((WindowSPCursor *)(void *)(&MenuTecList->window), MenuKeepSelect);
             if (MenuWork.selectedTechnique >= 0) {
                 MenuWork.tecBit = MenuSortGet(0, MenuWork.selectedTechnique);
                 MenuWork.point = BitToTecNo(MenuWork.tecBit);
@@ -2138,8 +2144,8 @@ void MenuTec(void)
             MenuTecListMake01();
         }
         if (MenuWork.inputDelay == 0) {
-            MenuWork.selectedTechnique = WindowSPSelect(&MenuTecList->window, PadData.mappedRepeat);
-            WindowSPKeepSelect(&MenuTecList->window, &MenuKeepSelect[5]);
+            MenuWork.selectedTechnique = WindowSPSelect((WindowSPCursor *)(void *)(&MenuTecList->window), PadData.mappedRepeat);
+            WindowSPKeepSelect((WindowSPCursor *)(void *)(&MenuTecList->window), &MenuKeepSelect[5]);
             if (MenuWork.selectedTechnique >= 0) {
                 MenuWork.tecBit = MenuSortGet(0, MenuWork.selectedTechnique);
                 MenuWork.point = BitToTecNo(MenuWork.tecBit);
@@ -2155,13 +2161,13 @@ void MenuTec(void)
             if (PadData.half_2a == 0x40) {
                 if (!MenuCursorKeepCheck())
                     MenuWork.listCursor = 0;
-                WindowSPKeepSelectCheck(&MenuKeepSelect[5]);
+                WindowSPKeepSelectCheck((unsigned char *)(void *)(&MenuKeepSelect[5]));
                 xglSoundEffectNormalID(2, 0);
                 MenuWork.nextState = 0x20;
                 MenuWork.inputDelay = 8;
             }
         } else {
-            MenuWork.selectedTechnique = WindowSPSelect(&MenuTecList->window, 0);
+            MenuWork.selectedTechnique = WindowSPSelect((WindowSPCursor *)(void *)(&MenuTecList->window), 0);
             MenuWork.tecBit = MenuSortGet(0, MenuWork.selectedTechnique);
             MenuWork.point = BitToTecNo(MenuWork.tecBit);
         }

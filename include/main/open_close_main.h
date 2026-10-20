@@ -38,6 +38,6 @@ typedef struct ECursolMainData {
 
 void eCursolMain(ECursolMainData *cursol);
 
-void eCursolSet(ECursol *cursol, signed char width);
+void eCursolSet(ECursol *cursol, int width);
 
 #endif /* INCLUDE_MAIN_OPEN_CLOSE_MAIN_H */

@@ -12,4 +12,6 @@ extern void xglFontPrint(int x, int y, int color, const char *text);
  * attempt-4d6f277fff4a form 17, implicit, vs attempt-5684d45333e0 form 01). */
 extern void xglFontDebugPrintf(int x, int y, const char *format, ...);
 
+unsigned int xglFontAscii2Euc(signed char character, signed char **text);
+
 #endif /* INCLUDE_MAIN_XGL_FONT_H */

@@ -35,7 +35,9 @@ struct NmlStealthUV {
 };
 
 struct NmlStealthGeometry {
-    unsigned char unmodeled_00[0x30];
+    Vector4 endpoints[2];
+    float sortClass;
+    unsigned char unmodeled_24[0x0c];
     struct NmlStealthXYZ xyz[14];
     struct NmlStealthUV uv[14];
 };

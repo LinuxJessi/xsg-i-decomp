@@ -1,0 +1,6 @@
+#ifndef INCLUDE_MAIN_GAME_BG_DRAW_TYPE_H
+#define INCLUDE_MAIN_GAME_BG_DRAW_TYPE_H
+
+void GameBgDrawType2(void);
+
+#endif /* INCLUDE_MAIN_GAME_BG_DRAW_TYPE_H */

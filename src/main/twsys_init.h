@@ -17,11 +17,6 @@
 
 #include "main/ew_sprt_set_cursor_uv.h"
 
-typedef struct MsgQueueInfo {
-    short count;
-    short lines;
-    short width;
-} MsgQueueInfo;
 
 
 int MSG_queuePop(MsgQueue *queue, unsigned char *output, int glyphLimit);

@@ -23,6 +23,31 @@ typedef struct EMessageParam {
     ECursol cursor;
 } EMessageParam;
 
-extern int eMessageMain(EMessageParam *message);
+int eMessageMain(EMessageParam *message);
+
+struct EMessageSetParam {
+    unsigned char flags;
+    unsigned char mode;
+    unsigned char visible;
+    unsigned char wrap_width_half;
+    short x;
+    short y;
+    int draw_parameter;
+    short text_x_offset;
+    short text_y_offset;
+    unsigned char red;
+    unsigned char green;
+    unsigned char blue;
+    unsigned char alpha;
+    unsigned short text_timer;
+    unsigned short frame;
+    char *text;
+    unsigned char page_available;
+    unsigned char page_index;
+    unsigned char page_count;
+    ECursol cursor;
+};
+
+void eMessageSet(struct EMessageSetParam *message, char *text);
 
 #endif /* INCLUDE_MAIN_E_MESSAGE_H */

@@ -19,8 +19,6 @@ typedef struct JntMoveResource {
     int accessory_size;
 } JntMoveResource;
 
-/* Static-value copying uses floating point, while the matrix API transports
- * these same angle representations as raw words into VU0. */
 typedef union JntRotationPayload {
     float values[3];
     int bits[3];
@@ -28,7 +26,7 @@ typedef union JntRotationPayload {
 
 struct JntStaticChannel {
     unsigned short type;           /* 0x00 */
-    unsigned char unmodeled_02[2];
+    unsigned short interpolation_flags; /* 0x02 */
     int rotation_limits_offset;
     unsigned char unmodeled_08[6];
     unsigned short matrix_index;   /* 0x0E */
@@ -37,5 +35,7 @@ struct JntStaticChannel {
     JntRotationPayload rotate;     /* 0x20 */
     unsigned char unmodeled_2C[0x14];
 };
+
+JntStaticChannel *JNT_resetMatrix(JntWork *work, JntStaticChannel *channel);
 
 #endif /* INCLUDE_MAIN_JNT_H */

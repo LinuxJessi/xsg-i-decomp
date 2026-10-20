@@ -7,6 +7,8 @@ int sefIsDeadSchduler(unsigned int scheduler_index);
 
 void sefKillEffect(int effect_no);
 
+int sefSearchMapperIndex(int effect_id);
+
 void sefInitEffectCf(void);
 
 void sefExecEffect(void);

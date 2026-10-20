@@ -5,6 +5,142 @@
 #ifndef SRC_MAIN_SDV_H
 #define SRC_MAIN_SDV_H
 
+/* Private typed view of the zero-initialized serialized battle-data buffer.
+ * The resource is loaded at runtime; it is not an ELF initializer. */
+typedef struct BattleDataS32Parts {
+    unsigned short low;
+    unsigned short high;
+} BattleDataS32Parts;
+
+typedef union BattleDataS32 {
+    BattleDataS32Parts parts;
+    int value __attribute__((packed));
+} BattleDataS32;
+
+typedef struct BattleDataHeader {
+    unsigned int sectionCount;
+    unsigned int byteSize;
+    int unitInitOffset;
+    int techniqueOffset;
+    int normalInitOffset;
+    int specialInitOffset;
+    int etherInitOffset;
+    int weaponOffset;
+    int ethOffset;
+    int itmOffset;
+    int attOffset;
+    int accessoryOffset;
+    int skillOffset;
+    int gainOffset;
+    int experienceOffset;
+    int parameterOffset;
+    int specialTableOffset;
+    int defaultEquipmentOffset;
+    int frameOffset;
+    int engOffset;
+} BattleDataHeader;
+
+typedef struct BattleWeaponPriceRecord {
+    unsigned char unmodeled_00[2];
+    BattleDataS32 price;
+    unsigned char unmodeled_06[2];
+    unsigned short characterEquipMask;
+    unsigned char unmodeled_0a[2];
+    unsigned short categoryMask;
+    unsigned char mountMask;
+    unsigned char unmodeled_0f[2];
+    unsigned char equipWeight;
+    short wagl;
+    short techniqueId;
+    unsigned char unmodeled_16[10];
+} BattleWeaponPriceRecord;
+
+typedef struct BattleItemPriceRecord {
+    BattleDataS32 price;
+    unsigned char unmodeled_04[16];
+} BattleItemPriceRecord;
+
+typedef struct BattleBulletPriceRecord {
+    unsigned char unmodeled_00[6];
+    BattleDataS32 price;
+    unsigned char unmodeled_0a[2];
+    short weaponId;
+} BattleBulletPriceRecord;
+
+typedef struct BattleAccessoryPriceRecord {
+    BattleDataS32 price;
+    unsigned char unmodeled_04[2];
+    unsigned short equipMask;
+    unsigned char unmodeled_08[2];
+    unsigned short category;
+    unsigned char unmodeled_0c[2];
+    unsigned short associatedId;
+} BattleAccessoryPriceRecord;
+
+typedef struct BattleFramePriceRecord {
+    BattleDataS32 price;
+    unsigned char unmodeled_04[2];
+    unsigned short equipMask;
+    unsigned char unmodeled_08[2];
+    unsigned short category;
+    unsigned char unmodeled_0c[2];
+    unsigned short associatedId;
+} BattleFramePriceRecord;
+
+typedef struct BattleEnginePriceRecord {
+    BattleDataS32 price;
+    unsigned char unmodeled_04[2];
+    unsigned short equipMask;
+    unsigned char unmodeled_08[4];
+} BattleEnginePriceRecord;
+
+typedef struct BattleParameterRecord {
+    BattleDataS32 firstParameterPair;
+    unsigned char unmodeled_04[28];
+} BattleParameterRecord;
+
+typedef struct BattleExperienceAndParameters {
+    BattleDataS32 experience[99];
+    BattleParameterRecord parameters[16];
+} BattleExperienceAndParameters;
+
+typedef struct BattleDataStorage {
+    BattleDataHeader header;
+    unsigned char unitInitBytes[0x25c8];
+    unsigned char techniqueBytes[0x51a8];
+    unsigned char normalInitBytes[0x08b8];
+    unsigned char specialInitBytes[0x00c0];
+    unsigned char etherInitBytes[0x1170];
+    BattleWeaponPriceRecord weapons[115];
+    unsigned char ethBytes[0x0858];
+    BattleItemPriceRecord items[72];
+    BattleBulletPriceRecord bullets[178];
+    BattleAccessoryPriceRecord accessories[180];
+    unsigned char skillBytes[0x02d0];
+    unsigned char gainBytes[0x0c08];
+    BattleExperienceAndParameters levelData;
+    unsigned char specialTableBytes[0x0200];
+    unsigned char defaultEquipmentBytes[0x0400];
+    BattleFramePriceRecord frames[41];
+    BattleEnginePriceRecord engines[40];
+    unsigned char unusedCapacity[0x1f30];
+} BattleDataStorage;
+
+typedef char BattleDataHeaderSizeCheck[sizeof(BattleDataHeader) == 0x50 ? 1 : -1];
+typedef char BattleDataS32SizeCheck[
+    sizeof(BattleDataS32) == 4 && __alignof__(BattleDataS32) == 2 ? 1 : -1];
+typedef char BattleWeaponPriceRecordSizeCheck[sizeof(BattleWeaponPriceRecord) == 0x20 ? 1 : -1];
+typedef char BattleItemPriceRecordSizeCheck[sizeof(BattleItemPriceRecord) == 0x14 ? 1 : -1];
+typedef char BattleBulletPriceRecordSizeCheck[sizeof(BattleBulletPriceRecord) == 0x0e ? 1 : -1];
+typedef char BattleAccessoryPriceRecordSizeCheck[sizeof(BattleAccessoryPriceRecord) == 0x10 ? 1 : -1];
+typedef char BattleFramePriceRecordSizeCheck[sizeof(BattleFramePriceRecord) == 0x10 ? 1 : -1];
+typedef char BattleEnginePriceRecordSizeCheck[sizeof(BattleEnginePriceRecord) == 0x0c ? 1 : -1];
+typedef char BattleParameterRecordSizeCheck[sizeof(BattleParameterRecord) == 0x20 ? 1 : -1];
+typedef char BattleLevelDataSizeCheck[sizeof(BattleExperienceAndParameters) == 0x38c ? 1 : -1];
+typedef char BattleDataStorageSizeCheck[sizeof(BattleDataStorage) == 0x10000 ? 1 : -1];
+
+extern BattleDataStorage batDatBuf;
+
 extern const Vector4 McMathUnitVector;
 
 typedef struct SdvKeyCursor {
@@ -132,13 +268,13 @@ typedef struct SdvSpecialTable {
 typedef struct SdvSpecialSlot {
     Matrix4 matrix;                 /* +0x00 */
     SdvSpecialKey key;              /* +0x40 */
-    SdvSpecialTable *table;         /* +0x54 */
+    struct SdvSpecialTable *table;         /* +0x54 */
     int frame;                      /* +0x58 */
     int index;                      /* +0x5c */
 } SdvSpecialSlot;
 
 extern short _sefBattleMode;
-extern int sdvProgressPrm(int kind, void *data, int size);
+int sdvProgressPrm(int kind, void *data, int size);
 extern void func_A31920(int kind, float *params);
 
 void sdvScheduleCamera(SdvCameraTask *task);
@@ -159,8 +295,8 @@ typedef struct SdvActorPosition {
 } SdvActorPosition;
 
 typedef struct SdvAlterRequest {
-    SdvActorPosition *source_actor; /* +0x00 */
-    SdvActorPosition *target_actor; /* +0x04 */
+    struct SdvActorPosition *source_actor; /* +0x00 */
+    struct SdvActorPosition *target_actor; /* +0x04 */
     void *weapon;                   /* +0x08 */
     unsigned char unmodeled_0c[8];
     short effect_no;                /* +0x14 */
@@ -213,10 +349,10 @@ typedef struct SdvAlter {
     unsigned char unmodeled_127e[2];
 } SdvAlter;
 
-extern int sdvCreateAlter(SdvAlterParameters *parameters);
-extern void sdvInitAlter(SdvAlter *alter);
-extern void sdvDestroyAlter(SdvAlter *alter);
-extern void sdvExecAlter(SdvAlter *alter);
+int sdvCreateAlter(SdvAlterParameters *parameters);
+void sdvInitAlter(SdvAlter *alter);
+void sdvDestroyAlter(SdvAlter *alter);
+void sdvExecAlter(SdvAlter *alter);
 /* The GIF packet accumulator of the SGs* family: a growing array of 16-byte
  * records at `base`, `count` records long; `tag_index` is the record the open
  * GIF tag sits in and `loop_count` is what closing it ORs into its NLOOP. */
@@ -227,7 +363,7 @@ typedef struct SdvGifPacket {
     void *base;                     /* +0x0c */
 } SdvGifPacket;
 
-extern void sdvDrawAlter(SdvAlter *alter, SdvGifPacket *packet);
+void sdvDrawAlter(SdvAlter *alter, SdvGifPacket *packet);
 extern SdvGifPacket _packet;
 extern void SGsInitEnv(void);
 

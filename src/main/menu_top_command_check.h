@@ -1,6 +1,8 @@
 #ifndef SRC_MAIN_MENU_TOP_COMMAND_CHECK_H
 #define SRC_MAIN_MENU_TOP_COMMAND_CHECK_H
 
+#include "main/e_battle_win_open.h"
+
 #include "shared.h"
 #include "main/party.h"
 typedef struct WindowDX WindowDX;
@@ -189,14 +191,34 @@ typedef struct MenuTopPartySlot {
     unsigned char unmodeled_03;
 } MenuTopPartySlot;
 
+typedef union MenuModelVector {
+    Vector4 vector;
+    unsigned long long words[2];
+} MenuModelVector;
+
+typedef union MenuFormationPositions {
+    Vector4 vector[6];
+    unsigned long long words[12];
+} MenuFormationPositions;
+
 typedef struct MenuModelTransform {
+    Vector4 rotation;
+    MenuModelVector position;
+    Vector4 scale;
+    MenuModelVector target;
+    Matrix4 place;
+} MenuModelTransform;
+
+
+/* Scalar view used by the formation task; complete-vector copy consumers keep
+ * the doubleword storage view above. Both views describe the same 0x80 bytes. */
+typedef struct MenuModelScalarTransform {
     Vector4 rotation;
     Vector4 position;
     Vector4 scale;
     Vector4 target;
     Matrix4 place;
-} MenuModelTransform;
-
+} MenuModelScalarTransform;
 
 typedef struct MenuTaiTask {
     XglTaskPrefix link;
@@ -206,7 +228,7 @@ typedef struct MenuTaiTask {
     unsigned char index;
     short previousCommand;
     unsigned char unmodeled_16[2];
-    MenuModelTransform *model;
+    MenuModelScalarTransform *model;
 } MenuTaiTask;
 
 typedef struct MenuModelProjectedPoint {
@@ -237,10 +259,13 @@ typedef struct MenuModelLighting {
     Matrix4 matrix[2];
 } MenuModelLighting;
 
-typedef struct MenuLightingSources {
-    float ambient[4];
-    float intensity[3][4];
-    float direction[3][4];
+typedef union MenuLightingSources {
+    struct {
+        float ambient[4];
+        float intensity[3][4];
+        float direction[3][4];
+    } value;
+    unsigned long long words[14];
 } MenuLightingSources;
 
 /* Number formats 4, 6 and 13 carry the current and maximum as two halfwords;
@@ -361,6 +386,8 @@ typedef struct MenuTopPartyData {
     unsigned short takeAgwsMask;
     unsigned char unmodeled_2c[4];
     MenuTopPartySlot slot[3];
+    unsigned short firstTechniqueWord; /* +0x3c */
+    unsigned char unmodeled_3e[0x188 - 0x3e];
 } MenuTopPartyData;
 
 typedef struct MenuTopFaceRibbon {
@@ -413,7 +440,7 @@ typedef struct MenuTopMenuPanel {
     int cursor;
     const char *text;
     const char *heading;
-    MenuTopCommandEntry *commands;
+    struct MenuTopCommandEntry *commands;
     unsigned char unmodeled_14[0x1A8 - 0x14];
     MenuSelectCursor marker;
     MenuSelectMessage message[12];
@@ -540,8 +567,8 @@ extern void eSpriteMain(MenuTopESprite *sprite);
 extern void eTagFontSet(MenuTopETagFont *tag, const char *text);
 extern void eTagFontMain(MenuTopETagFont *tag);
 extern char D_004DA8B8[];
-extern int MenuSelectWindow(MenuStatusPanelWindow *window, MenuTopMenuPanel *panel);
-extern int MenuInfoWindow(MenuStatusPanelWindow *window, MenuTopInfoPanel *panel);
+int MenuSelectWindow(MenuStatusPanelWindow *window, MenuTopMenuPanel *panel);
+int MenuInfoWindow(MenuStatusPanelWindow *window, MenuTopInfoPanel *panel);
 void MenuPasWindow(void);
 extern unsigned char *PartyDataGet(void);
 extern void MoveSlide(short *current, short *target, float rate);
@@ -563,10 +590,12 @@ void TopFaceExWinMain(void);
 extern const char *text[12];
 
 extern MenuTopCommandEntry command_0[11];
-int MenuTopCommandCheck(int command_id);
+int MenuTopCommandCheck(int commandId);
 int MenuCursorKeepCheck(void);
 void eRibbonSet(void *ribbon, int mode);
 void eRibbonMain(void *ribbon);
 void eNumberSet(void *number, int value);
 void eNumberMain(void *number);
+
+
 #endif

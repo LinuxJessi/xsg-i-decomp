@@ -52,9 +52,9 @@ typedef struct SeisanControlState {
     unsigned char unmodeled_07[64 - 7];
 } SeisanControlState;
 
-extern int subSeisanHissatuCheck00(unsigned char *seisan_work);
-extern int subSeisanHissatuCheck01(void);
-extern void subSeisanMain(void);
+int subSeisanHissatuCheck00(unsigned char *seisan_work);
+int subSeisanHissatuCheck01(void);
+void subSeisanMain(void);
 
 /*
  * dataPlChaGet (ov01/data_unit_org_get.c VA 0x00a19210, config/symbols/ov01.txt):
@@ -169,7 +169,7 @@ extern void MenuBgTaskMain(void);
 extern XglTaskScheduler *SeisanBgTask;
 extern XglTaskScheduler *SeisanTask;
 
-extern void SeisanFadeMain(void);
+void SeisanFadeMain(void);
 
 /* Original shared pad prefix and interfaces used by the recovered callbacks. */
 extern PadPrefix PadData;
@@ -179,7 +179,7 @@ extern void eSpriteMain(void *sprite);
 extern void eMessageSet(void *message, const char *text);
 extern void eMessageMain(void *message);
 extern void MenuBgTaskBreak(void);
-extern void SeisanCountMain(int mode);
+void SeisanCountMain(int mode);
 
 /*
  * Partial prompt-button layout used by tskSeisanButton. Its original
@@ -360,6 +360,121 @@ extern int dataMoneyBoxChk(void);
 
 /* SQ masks the low four address bits. The containing storage block is aligned
  * explicitly before typed access; SeisanWork retains the control-byte address. */
+
+const int *func_A19338(int tableId);
+
+typedef struct SeisanStatusProfile {
+    signed char mode;
+    unsigned char flags;
+    short characterNo;
+    short x;
+    short y;
+    unsigned char unmodeled_08[0x840 - 8];
+} SeisanStatusProfile;
+
+typedef struct SeisanStatusSprite {
+    short x;
+    short y;
+    int depth;
+    short width;
+    short height;
+    unsigned char color[4];
+    short uv;
+    unsigned char column;
+    unsigned char row;
+} SeisanStatusSprite;
+
+typedef struct SeisanStatusPanel {
+    unsigned char state;
+    unsigned char displayFlags;
+    unsigned char enabled;
+    unsigned char partySlot;
+    unsigned char learnedVisible;
+    unsigned char unmodeled_05[3];
+    unsigned short previousLevel;
+    unsigned short levelFlashTimer;
+    int depth;
+    SeisanTimeWindow window;
+    SeisanStatusProfile profile;
+    SeisanTimeNumber numbers[10];
+    SeisanTimeTag tags[4];
+    SeisanButtonMessage learnedTitle;
+    SeisanButtonMessage learned[6];
+    SeisanFadeVertex separator[3];
+    SeisanStatusSprite sprites[14];
+    SeisanFadeVertex highlight[5];
+} SeisanStatusPanel;
+
+extern void MenuStatusDisp(SeisanTimeWindow *window, void *argument);
+
+extern void endSpriteSet(void *sprite, int flags);
+
+extern SeisanItemTextEntry *func_A2C7D8(int abilityId);
+
+extern const char D_004C7340[];
+
+extern const char *msg00_3_0036DAD8[];
+
+extern const char *msg01_4_0036DAE8[];
+
+typedef struct SeisanRewardSnapshot {
+    int techPoints;
+    int skillPoints;
+    int specialPoints;
+    int experience;
+} SeisanRewardSnapshot;
+
+typedef unsigned int SeisanQuadword __attribute__((mode(TI)));
+
+typedef struct SeisanRenderPrefix {
+    unsigned char unmodeled_00[0x12];
+    unsigned short height;
+    unsigned short flipBase;
+} SeisanRenderPrefix;
+
+typedef struct SeisanBackgroundColor {
+    unsigned char red;
+    unsigned char green;
+    unsigned char blue;
+    unsigned char unmodeled_03;
+} SeisanBackgroundColor;
+
+extern SeisanRenderPrefix sRender;
+
+extern unsigned int GameLoopState[];
+
+typedef struct SeisanItemCategoryTable {
+    short entries[4];
+} SeisanItemCategoryTable;
+
+extern const SeisanItemCategoryTable D_004DB0B8[];
+
+extern void *MenuWorkEndGet(void);
+
+extern XglTaskScheduler *MenuBgTaskInit(void *work, int cameraId);
+
+extern void *xglTaskInitial(void *pool, int capacity, int flags);
+
+extern void endPrintInit(void);
+
+extern void func_A17C08(SeisanResultData *result);
+
+extern SeisanMoneyData *func_00A0F110(void);
+
+extern void endPrintDirectFrameCopy(XglPacket *packet, int height, int flipBase);
+
+extern void endBackTexDraw(SeisanBackgroundColor *color);
+
+extern void MenuLoadInit(void);
+
+extern void MenuFontLoad(int font, int option);
+
+extern int WindowTexLoad(unsigned char *buffer, unsigned int request);
+
+extern void GameResourcePreLoad(int state);
+
+extern void MenuWorkEndCheck(void *workEnd);
+
 
 
 

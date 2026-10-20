@@ -571,7 +571,7 @@ set_state:
     *state = mode;
 }
 
-void eCursolSet(ECursol *cursol, signed char width)
+void eCursolSet(ECursol *cursol, int width)
 {
     cursol->x = 0;
     cursol->y = 0;

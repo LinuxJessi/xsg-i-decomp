@@ -1,4 +1,7 @@
 #include "common.h"
+#include "main/act_1.h"
+#include "main/open_close_main.h"
+#include "main/e_number_main.h"
 
 #include "shared.h"
 
@@ -14,10 +17,14 @@ typedef struct PartyAttackSlot {
     unsigned char unmodeled_03;
 } PartyAttackSlot;
 
+
+
 typedef struct PartyDataView {
     unsigned char unmodeled_00[0x30];
     PartyAttackSlot attack_slots[3];
 } PartyDataView;
+
+
 
 extern const char D_004C2F10[];
 
@@ -45,6 +52,8 @@ typedef struct EndouBattleWindowParams {
     int selection;
 } EndouBattleWindowParams;
 
+
+
 typedef struct EndouBattleMessageParams {
     int x;
     int y;
@@ -52,6 +61,8 @@ typedef struct EndouBattleMessageParams {
     const char *title;
     const char *text;
 } EndouBattleMessageParams;
+
+
 
 typedef struct EndouBattleAnalysisParams {
     int x;
@@ -71,6 +82,8 @@ typedef struct EndouBattleAnalysisParams {
     unsigned short rare_drop;
 } EndouBattleAnalysisParams;
 
+
+
 typedef struct EndouBattleRewardParams {
     int x;
     int y;
@@ -79,6 +92,8 @@ typedef struct EndouBattleRewardParams {
     const char *text;
     const char *title;
 } EndouBattleRewardParams;
+
+
 
 extern unsigned char data_15[];
 
@@ -116,6 +131,8 @@ typedef struct PadDataButtonView {
     } buttons;
 } PadDataButtonView;
 
+
+
 extern PadDataButtonView PadData;
 
 extern void xglCdLoadOverlay(int overlayId);
@@ -134,6 +151,8 @@ typedef struct EModelTestState {
     unsigned char unmodeled_12[1];
     unsigned char extFuncFlag;
 } EModelTestState;
+
+
 
 extern void MenuModelUnitOpen(void *unit, int drawType);
 
@@ -174,10 +193,14 @@ typedef struct GifPackedTag {
     u64 register_descriptors;
 } GifPackedTag;
 
+
+
 typedef struct GifAdWrite {
     u64 value;
     u64 register_id;
 } GifAdWrite;
+
+
 
 typedef struct GifPackedRgbaq {
     unsigned int red;
@@ -186,12 +209,16 @@ typedef struct GifPackedRgbaq {
     unsigned int alpha;
 } GifPackedRgbaq;
 
+
+
 typedef struct GifUv {
     unsigned int u;
     unsigned int v;
     unsigned int q;
     unsigned int reserved;
 } GifUv;
+
+
 
 typedef struct GifXyz2 {
     unsigned int x;
@@ -200,10 +227,14 @@ typedef struct GifXyz2 {
     unsigned int fog;
 } GifXyz2;
 
+
+
 typedef struct BgTestRenderState {
     unsigned char unmodeled_00[0x14];
     unsigned short packetControl;
 } BgTestRenderState;
+
+
 
 typedef struct BgTestEnvironment {
     unsigned int vif_nop[3];
@@ -219,6 +250,8 @@ typedef struct BgTestEnvironment {
     GifXyz2 second_vertex;
 } BgTestEnvironment;
 
+
+
 enum {
     BG_TEST_COMMAND_HIGH = 0xc800,
     BG_TEST_COMMAND_BASE = 0x2412,
@@ -226,6 +259,8 @@ enum {
     BG_TEST_CONTROL_SHIFT = 5,
     BG_TEST_COMMAND_HIGH_SHIFT = 19
 };
+
+
 
 extern BgTestRenderState sRender;
 
@@ -280,6 +315,8 @@ typedef struct WinTexEnvironment {
     GifAdWrite transfer_direction;
 } WinTexEnvironment;
 
+
+
 /* VIF DIRECTHL carries a GIF PACKED tag and five GS A+D register writes. */
 
 static WinTexEnvironment WinTexEnv_65 = {
@@ -302,6 +339,8 @@ typedef struct ETestContext {
     XglPacket *packet;
 } ETestContext;
 
+
+
 extern void xglFontReloadTexture(ETestContext *context, int mode);
 
 /*
@@ -323,6 +362,8 @@ typedef struct EndouPadDataPrefix {
     } buttons;
 } EndouPadDataPrefix;
 
+
+
 typedef struct EndouClearEnvironment {
     u8 unmodeled_00[0x20];
     u32 color_r;
@@ -330,6 +371,8 @@ typedef struct EndouClearEnvironment {
     u32 color_b;
     u32 color_a;
 } EndouClearEnvironment;
+
+
 
 extern EndouClearEnvironment ClearEnv;
 
@@ -361,31 +404,33 @@ extern const char D_004DA660[];
 
 extern void endPrintInit(void);
 
-extern void SeisanTest(void);
+void SeisanTest(void);
 
-extern void eMessageTest(void);
+void eMessageTest(void);
 
-extern void eNumberTest(void);
+void eNumberTest(void);
 
-extern void eModelTest(void);
+void eModelTest(void);
 
-extern void TexturTest(void);
+void TexturTest(void);
 
-extern void JpegTest(void);
+void JpegTest(void);
 
-extern void BattleWindowTest(void);
+void BattleWindowTest(void);
 
-extern void ModelTest(void);
+void ModelTest(void);
 
-extern void TextTest(void);
+void TextTest(void);
 
-extern void ShopTest(void);
+void ShopTest(void);
 
 extern int MenuFileMain(int mode);
 
 typedef struct ShopDataRecord {
     u16 values[0xb8];
 } ShopDataRecord;
+
+
 
 extern void PartyFriendOn(int party_id);
 
@@ -421,6 +466,8 @@ typedef struct EMessageTestWindow {
     u8 page_state;
     u8 unmodeled_1d[0x33];
 } EMessageTestWindow;
+
+
 
 extern int WindowTexLoad(unsigned char *buffer, unsigned int request);
 
@@ -465,6 +512,8 @@ typedef struct UmnEventTextRecord {
     const char *message_text;
 } UmnEventTextRecord;
 
+
+
 typedef struct TextTestMessage {
     u8 unmodeled_00[4];
     u16 message_x;
@@ -474,6 +523,8 @@ typedef struct TextTestMessage {
     u8 page_state;
     u8 unmodeled_1d[0x33];
 } TextTestMessage;
+
+
 
 extern u8 *UmnEventTextInit(u8 *work_end);
 
@@ -500,6 +551,8 @@ typedef struct UmnMailDisplayParams {
     u8 unmodeled_20[0x20];
 } UmnMailDisplayParams;
 
+
+
 extern void tyaUmlDispInit(void);
 
 extern void tyaUmlDispParamReset(UmnMailDisplayParams *params, int mode);
@@ -519,6 +572,8 @@ typedef struct JpegTestDecodeRequest {
     u8 unmodeled_18[8];
 } JpegTestDecodeRequest;
 
+
+
 typedef struct JpegTestDisplay {
     u16 x;
     u16 y;
@@ -529,6 +584,8 @@ typedef struct JpegTestDisplay {
     signed char alpha;
     void *image_data;
 } JpegTestDisplay;
+
+
 
 extern int GameSnapShotSaveThumbnail(int quality, void *jpeg_buffer);
 
@@ -577,6 +634,457 @@ extern int PartyLockPartyCheck(int characterId);
 extern void PartyLockPartyOn(int characterId);
 
 extern void PartyLockPartyOff(int characterId);
+
+extern void func_A22628(void);
+
+extern int dataMoneyBoxInc(int amount);
+
+extern void MenuShopMain(int menu_selection);
+
+extern const char D_004C2568[], D_004C2588[], D_004C2598[], D_004C25B0[], D_004C25C8[];
+
+extern const char D_004DA668[], D_004DA670[], D_004DA678[], D_004DA680[], D_004DA688[];
+
+extern const char D_004DA690[], D_004DA698[], D_004DA6A0[], D_004DA6A8[], D_004DA6B0[];
+
+extern const char D_004DA6B8[];
+
+static inline void endouShopHeading(int y, const char *format, int shop_number)
+{
+    xglFontDebugPrintf(0, y, format, shop_number);
+}
+
+typedef struct FileLoadState {
+    int state;
+    void *buffer;
+    unsigned char unmodeled_08[0x40];
+} FileLoadState;
+
+
+
+extern FileLoadState files;
+
+extern u64 eNumberTexEnv_69[12];
+
+extern u64 TestEnv_70[20];
+
+extern int x_71;
+
+extern const char D_004C2D80[];
+
+extern const char D_004C2D98[];
+
+extern void (*xglCdSetCallback(void (*callback)(int, int)))(int, int);
+
+typedef int s32;
+
+
+
+typedef s32 M2C_UNK;
+
+
+
+typedef struct StudioLight StudioLight;
+
+
+
+typedef struct EndouModelActor {
+    unsigned char unmodeled_00[0x10];
+    Vector4 position;
+    unsigned char unmodeled_20[0x30];
+    Vector4 rotation;
+    Vector4 scale;
+    unsigned char unmodeled_70[0x16];
+    short resource_kind;
+    unsigned char unmodeled_88[0x8d0 - 0x88];
+    void *model_resource;
+    void *matrix_resource;
+    void *move;
+    void *anim_pack_tables[8];
+    unsigned char unmodeled_8fc[0x9d8 - 0x8fc];
+    unsigned long long draw_alpha;
+} EndouModelActor;
+
+
+
+M2C_UNK ACT_initMotion();
+
+void ACT_modelDraw(EndouModelActor *actor);
+
+EndouModelActor *ACT_setArms(EndouModelActor *actor, EndouModelActor *parent,
+                             unsigned int accessory_id, int flags);
+
+void ACT_setModelWrapper(EndouModelActor *actor, int unused);
+
+void ACT_setMotion(EndouModelActor *actor, int motion_id);
+
+void ACT_updateMotion(EndouModelActor *actor);
+
+void GameResourceInit(unsigned int address, int size);
+
+void RES_GetMdlFileName(char *filename, int resource_kind);
+
+void nmlModelFlush(void);
+
+char *strcpy(char *destination, const char *source);
+
+void xglRotTransPersN(void *destination, const Matrix4 matrix,
+                      const void *points, int count, int cameraId);
+
+void xglStudioChange(int studio_index);
+
+StudioCamera *xglStudioGetActiveCamera(void);
+
+void xglLightDirection(void *light, unsigned int index,
+                       const Vector4 *direction);
+void xglLightIntensityAmbient(void *light, const void *intensity);
+void xglLightIntensityParallel(void *light, unsigned int index,
+                               const void *intensity);
+void xglStudioGetLight(StudioLight **light_out);
+
+typedef struct EndouTestLighting {
+    unsigned long long ambient[2];
+    unsigned long long parallel_intensity[3][2];
+    Vector4 direction[3];
+} EndouTestLighting;
+
+static inline void endModelCameraPosition(StudioCamera *camera,
+                                         float x, float y, float z)
+{
+    camera->position.x = x;
+    camera->position.y = y;
+    camera->position.z = z;
+}
+
+static __inline__ void EndouApplyModelLighting(StudioLight **light_slot,
+                                              EndouTestLighting profile)
+{
+    xglStudioGetLight(light_slot);
+    xglLightIntensityAmbient(*light_slot, profile.ambient);
+    xglLightIntensityParallel(*light_slot, 0, profile.parallel_intensity[0]);
+    xglLightDirection(*light_slot, 0, &profile.direction[0]);
+    xglLightIntensityParallel(*light_slot, 1, profile.parallel_intensity[1]);
+    xglLightDirection(*light_slot, 1, &profile.direction[1]);
+    xglLightIntensityParallel(*light_slot, 2, profile.parallel_intensity[2]);
+    xglLightDirection(*light_slot, 2, &profile.direction[2]);
+}
+
+
+
+extern const EndouTestLighting D_004C25E0;
+
+extern const signed char D_004C2650[];
+
+extern const char D_004C2658[];
+
+extern const char D_004C26F0[];
+
+extern const unsigned long long D_004C2710[2];
+
+extern const unsigned long long D_004C2720[8];
+
+extern const char D_004DA6C0[5];
+
+extern const char D_004DA6C8[5];
+
+extern const char D_004DA6D0[];
+
+extern float ang_0[4];
+
+extern const char *msg00_14[];
+
+extern struct EMessageParam msg_11;
+
+extern s32 no_13;
+
+extern f32 pipo_2;
+
+extern float pos_1[4];
+
+extern s32 time_10;
+
+typedef struct EndouModelLineVertex {
+    int x;
+    int y;
+    int z;
+    int terminator;
+} EndouModelLineVertex;
+
+
+
+typedef struct EndouModelLinePoint {
+    EndouModelLineVertex vertex;
+    unsigned char color[4];
+    unsigned char unmodeled_14[12];
+} EndouModelLinePoint;
+
+
+
+extern EndouModelLinePoint line00_3[7];
+
+extern EndouModelLinePoint line01_4[7];
+
+extern EndouModelLinePoint line02_5[7];
+
+extern EndouModelLinePoint line03_6[7];
+
+extern EndouModelLinePoint line10_7[7];
+
+extern EndouModelLinePoint line11_8[7];
+
+extern EndouModelLinePoint line12_9[7];
+
+typedef struct EndouOrientationStorage {
+    Vector4 rotation;
+    Vector4 scale;
+} EndouOrientationStorage;
+
+
+
+extern const unsigned char D_004DA6E0[];
+
+extern const unsigned char D_004DA6E8[];
+
+typedef struct EndouModelBackQuad {
+    int vertices[4][4];
+    float uv[4];
+} EndouModelBackQuad;
+
+extern EndouModelBackQuad bsp_12;
+
+typedef struct EndouPrintLinePoint {
+    int x;
+    int y;
+    int z;
+    u32 unmodeled_0c;
+    u8 color[4];
+    u8 unmodeled_14[12];
+} EndouPrintLinePoint;
+
+
+
+typedef struct EndouELinePoint {
+    int x;
+    int y;
+    int work;
+    signed char red;
+    signed char green;
+    signed char blue;
+    signed char alpha;
+} EndouELinePoint;
+
+typedef struct EndouELineSetData {
+    u8 state;
+    u8 unmodeled_001[2];
+    u8 duration;
+    u8 progress[5];
+    u8 unmodeled_009[3];
+    EndouELinePoint points[5];
+} EndouELineSetData;
+
+
+
+void eLineSet(EndouELineSetData *line, int unused);
+
+typedef struct EndouELineEntry {
+    u8 state;
+    u8 unmodeled_001[2];
+    u8 duration;
+    u8 progress[5];
+    u8 unmodeled_009[3];
+    EndouELinePoint points[5];
+    u32 count;
+    EndouELinePoint render[5];
+} EndouELineEntry;
+
+void eLineMain(EndouELineEntry *line);
+
+void endPrintDirectLine(EndouPrintLinePoint *line);
+
+void endSpriteSet(void *sprite, int mode);
+
+void xglStudioGetCamera(StudioCamera **camera_out, int camera_index);
+
+extern u8 time_37;
+
+extern const char D_004C2AD8[];
+
+extern ECursolMainData cur_25;
+
+typedef struct EndouSpriteQuadVertex {
+    int x;
+    int y;
+    int depth;
+    unsigned char unmodeled_00c[4];
+} EndouSpriteQuadVertex;
+
+typedef struct EndouSpriteQuad {
+    unsigned char flags;
+    signed char coordinate_mode;
+    unsigned short uv;
+    unsigned char unmodeled_004[12];
+    EndouSpriteQuadVertex vertices[4];
+    unsigned char unmodeled_050[16];
+} EndouSpriteQuad;
+
+extern EndouSpriteQuad d_28;
+
+extern ENumberSpriteDescriptor d_33;
+
+extern ENumberSpriteDescriptor d_35[2];
+
+extern ENumberSpriteDescriptor d_36;
+
+extern ENumberSpriteDescriptor d_38;
+
+extern ENumberRenderDescriptor d_39;
+
+extern ENumberRenderDescriptor d_40;
+
+extern ENumberSpriteDescriptor d_41;
+
+typedef struct EndouPrintPoint {
+    short x;
+    unsigned short y;
+    int depth;
+    unsigned char color[4];
+} EndouPrintPoint;
+
+extern EndouPrintPoint d_42[7];
+
+extern EndouPrintPoint d_43;
+
+typedef struct EndouQuadColor {
+    signed char red;
+    signed char green;
+    signed char blue;
+    signed char alpha;
+} EndouQuadColor;
+
+typedef struct EndouQuadPosition {
+    short x;
+    short y;
+    int depth;
+} EndouQuadPosition;
+
+typedef struct EndouQuadDescriptor {
+    EndouQuadPosition points[4];
+    EndouQuadColor colors[4];
+    unsigned int format;
+} EndouQuadDescriptor;
+
+extern EndouQuadDescriptor d_44;
+
+extern EndouELineEntry line_23[4];
+
+extern EndouPrintPoint line_34[6];
+
+extern unsigned char moji2_27[];
+
+extern unsigned char moji_26[];
+
+extern ENumberMainData num_29[1];
+
+extern ENumberMainData num_30[1];
+
+extern ENumberMainData num_31[1];
+
+extern ENumberMainData num_32[1];
+
+typedef struct EndouRibbonRecord {
+    short x;
+    short y;
+    int work;
+    short width;
+    short height;
+    signed char mode;
+    unsigned char progress;
+    unsigned char visible;
+    unsigned char style;
+    ERibbonPoint points[6];
+    unsigned char unmodeled_058[0x18];
+} EndouRibbonRecord;
+
+extern EndouRibbonRecord rbn_21[3];
+
+extern ESprite spr_22[4];
+
+typedef union EndouTagFontViews {
+    ETagFont control;
+    ETagFontMainData draw;
+} EndouTagFontViews;
+
+extern EndouTagFontViews tgf_24[2];
+
+extern unsigned char *buffer_72;
+
+extern char mm_73[];
+
+extern const char D_004C2DB8[], D_004C2DD0[], D_004C2DE0[];
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#define NULL ((void *)0)
+
+typedef struct EndouModelPadState {
+    PadDataButtonView button_prefix;
+    unsigned char unmodeled_30[8];
+    signed char stick_axis[4];
+} EndouModelPadState;
+#define ENDOU_MODEL_PAD ((EndouModelPadState *)(void *)&PadData)
+
+typedef struct EndouModelMessagePrefix {
+    unsigned char flags;
+    unsigned char mode;
+    unsigned char visible;
+    unsigned char wrap_width_half;
+    short x;
+    short y;
+    int draw_parameter;
+} EndouModelMessagePrefix;
+#define ENDOU_MODEL_MESSAGE ((EndouModelMessagePrefix *)(void *)&msg_11)
+
+
+
+
+
+enum FileLoadDrawState {
+    FILE_DRAW_UNINITIALIZED = -1,
+    FILE_DRAW_ENABLED = 1
+};
+
+struct FileLoadInfo {
+    enum FileLoadDrawState status;
+    unsigned char *buffer;
+    char filename[64];
+};
+
+
+struct FileLoadDrawEnvironment {
+    unsigned char unmodeled_00[0x30];
+    unsigned long long texture_parameters;
+};
+
 
 void EndouTest(void)
 {
@@ -701,7 +1209,133 @@ void TextTest(void)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/endou_test", ShopTest);
+void ShopTest(void)
+{
+    unsigned int ab_column_offset;
+    typedef struct ShopFile {
+        u16 records[20][0xb8];
+    } ShopFile;
+    int row_index;
+    int menu_open;
+    unsigned int menu_selection = 1;
+    ShopFile *shop_file;
+    unsigned short pressed;
+
+    xglCdLoadOverlay(1);
+    func_A22628();
+    ACT_init();
+
+    shop_file = (ShopFile *)(((u32)WorkEnd + 0x7fU) & 0xffffff80U);
+    WorkEnd = (u8 *)shop_file + xglCdReadFile(D_004C2568, shop_file, 0, 1);
+    PartyFriendOn(3);
+    PartyFriendOn(2);
+    menu_open = 0;
+    PartyFriendOn(7);
+    PartyTakeAgwsOn(0x11);
+    PartyTakeAgwsOn(0x18);
+    if ((PadData.buttons.input.held & 0x100U) != 0)
+        dataMoneyBoxInc(0x64);
+    else
+        dataMoneyBoxInc(0xf4240);
+    xglRenderClearFrame();
+
+    for (;;) {
+        xglFontDebugPrintf(0, 0x10, D_004C2588);
+        if ((PadData.buttons.button_state & 0x08000100U) == 0x08000100U)
+            break;
+        pressed = PadData.buttons.input.pressed;
+        if ((pressed & 0x40) != 0)
+            break;
+
+        switch (menu_open) {
+        case 0: {
+            u16 repeated;
+            u16 (*selected_page)[0xb8];
+            const u16 *entry_values;
+            const u16 *neighbor_values;
+            const u16 *extra_values;
+
+            repeated = PadData.buttons.input.repeat;
+            if ((repeated & 0x1000U) != 0)
+                menu_selection = menu_selection == 1 ? 0x14 : menu_selection - 1;
+            if ((repeated & 0x4000U) != 0)
+                menu_selection = menu_selection == 0x14 ? 1 : menu_selection + 1;
+            if ((pressed & 0x20) != 0)
+                menu_open = 1;
+            xglFontDebugPrintf(0, 0x20, D_004C2598);
+            xglFontDebugPrintf(0x80, 0x20, D_004C25B0);
+            endouShopHeading(0x30, D_004C25C8, menu_selection);
+
+            {
+            u16 (*const page)[0xb8] =
+                &shop_file->records[menu_selection];
+
+            endouShopHeading(0x40, D_004DA668, menu_selection);
+            endouShopHeading(0x50, D_004DA670, menu_selection);
+            selected_page = page - 1;
+            endouShopHeading(0x60, D_004DA678, menu_selection);
+            endouShopHeading(0x70, D_004DA680, menu_selection);
+            endouShopHeading(0x80, D_004DA688, menu_selection);
+            endouShopHeading(0x90, D_004DA690, menu_selection);
+            endouShopHeading(0xa0, D_004DA698, menu_selection);
+            endouShopHeading(0xb0, D_004DA6A0, menu_selection);
+            endouShopHeading(0xc0, D_004DA6A8, menu_selection);
+            endouShopHeading(0xd0, D_004DA6B0, menu_selection);
+
+            row_index = 0;
+            extra_values = page[-1] + 4;
+            entry_values = selected_page[0];
+            neighbor_values = selected_page[0] + 0x8c;
+
+            do {
+                xglFontDebugPrintf((row_index % 10) * 0x18 + 0x10,
+                                   (row_index / 10) * 8 + 0x40, D_004DA6B8,
+                                   *entry_values);
+                xglFontDebugPrintf((row_index % 10) * 0x18 + 0x10,
+                                   (row_index / 10) * 8 + 0x50, D_004DA6B8,
+                                   neighbor_values[-0x78]);
+                xglFontDebugPrintf((row_index % 10) * 0x18 + 0x10,
+                                   (row_index / 10) * 8 + 0x60, D_004DA6B8,
+                                   entry_values[0x28]);
+                xglFontDebugPrintf((row_index % 10) * 0x18 + 0x10,
+                                   (row_index / 10) * 8 + 0x70, D_004DA6B8,
+                                   neighbor_values[-0x50]);
+                xglFontDebugPrintf((row_index % 10) * 0x18 + 0x10,
+                                   (row_index / 10) * 8 + 0x80, D_004DA6B8,
+                                   entry_values[0x50]);
+                xglFontDebugPrintf((row_index % 10) * 0x18 + 0x10,
+                                   (row_index / 10) * 8 + 0x90, D_004DA6B8,
+                                   neighbor_values[-0x28]);
+                ab_column_offset = 6 * 20;
+                xglFontDebugPrintf((row_index % 10) * 0x18 + 0x10,
+                                   (row_index / 10) * 8 + 0xa0, D_004DA6B8,
+                                   entry_values[ab_column_offset]);
+                xglFontDebugPrintf((row_index % 10) * 0x18 + 0x10,
+                                   (row_index / 10) * 8 + 0xb0, D_004DA6B8,
+                                   *neighbor_values++);
+                xglFontDebugPrintf((row_index % 10) * 0x18 + 0x10,
+                                   (row_index / 10) * 8 + 0xc0, D_004DA6B8,
+                                   (entry_values++)[0xa0]);
+            } while (++row_index < 0x14);
+            for (row_index = 0; row_index < 4; row_index++) {
+                int x = (row_index % 10) * 0x18 + 0x10;
+                int y = (row_index / 10) * 8;
+
+                xglFontDebugPrintf(x, y + 0xd0, D_004DA6B8,
+                                   extra_values[0xb0 + row_index]);
+            }
+            }
+            break;
+        }
+        case 1:
+            menu_open = 0;
+            MenuShopMain(menu_selection);
+            xglRenderClearFrame();
+            break;
+        }
+        xglSleep();
+    }
+}
 
 void SeisanTest(void)
 {
@@ -945,6 +1579,8 @@ typedef struct TexturTestHeader {
     u32 entries_offset;
 } TexturTestHeader;
 
+
+
 typedef struct TexturTestEntry {
     u32 width_and_pitch;
     u32 height;
@@ -953,6 +1589,8 @@ typedef struct TexturTestEntry {
     u32 data_offset;
 } TexturTestEntry;
 
+
+
 typedef struct TexturTestUploadEnvironment {
     u8 unmodeled_00[0x20];
     u64 destination_parameters;
@@ -960,10 +1598,14 @@ typedef struct TexturTestUploadEnvironment {
     u64 transfer_dimensions;
 } TexturTestUploadEnvironment;
 
+
+
 typedef struct TexturTestDrawEnvironment {
     u8 unmodeled_00[0x50];
     u64 texture_parameters;
 } TexturTestDrawEnvironment;
+
+
 
 extern TexturTestUploadEnvironment eNumberTexEnv_48;
 extern TexturTestDrawEnvironment TestEnv_52;
@@ -1192,7 +1834,46 @@ static void endCallback(int result, int amount)
 
 extern XglPacket *xglPacketGetCurrent(void);
 
-INCLUDE_ASM("asm/main/nonmatchings/endou_test", FileLoadTest);
+void FileLoadTest(void)
+{
+    void (*previous_callback)(int, int);
+    unsigned int pad_mask;
+    u64 pad_state;
+    u64 *pad_words;
+
+    xglRenderClearFrame();
+    xglSleep();
+    files.buffer = (void *)(((u32)WorkEnd + 0x7fU) & 0xffffff80U);
+    WorkEnd = (u8 *)files.buffer + 0x100000;
+    previous_callback = xglCdSetCallback(endCallback);
+    xglCdReadFile(D_004C2D80, files.buffer, 0, 0);
+    files.state = 1U;
+    pad_words = (u64 *)&PadData;
+    pad_mask = 0x08000100U;
+    pad_state = pad_words[5];
+
+    if ((pad_state & pad_mask) != pad_mask)
+    do {
+        xglFontDebugPrintf(0, 0, D_004C2D98);
+        if (files.state == 1) {
+            XglPacket *packet = xglPacketGetCurrent();
+
+            sceVif1PkRef(packet, eNumberTexEnv_69, 6, 0, 0, 0);
+            sceVif1PkRef(packet, (u8 *)files.buffer + 0x30, 0x4002, 0, 0, 0);
+            xglFontDebugHex(0, 0x20, x_71, 5);
+            if ((PadData.buttons.input.repeat & 0x2000U) != 0) {
+                x_71 += 0x100;
+            }
+            if ((PadData.buttons.input.repeat & 0x8000U) != 0) {
+                x_71 -= 0x100;
+            }
+            TestEnv_70[6] = ((u64)((x_71 + 0xf0000U) >> 6) << 37) | 0x2000000669343c00ULL;
+            sceVif1PkRef(packet, TestEnv_70, 10, 0, 0, 0);
+        }
+        xglSleep();
+    } while ((PadData.buttons.button_state & pad_mask) != pad_mask);
+    xglCdSetCallback(previous_callback);
+}
 
 void JpegTest(void)
 {

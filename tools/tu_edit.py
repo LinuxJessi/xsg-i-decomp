@@ -542,8 +542,9 @@ _US_SUFFIX = re.compile(r'^(.+)_([0-9]+)$')
 # A nested definition belongs to its enclosing TU-level C block. The editor
 # binds unique original names; the audit checks the declared identity/parent.
 GNU_NESTED_REGISTRY = 'config/gnu-nested-functions.json'
-_GNU_NESTED_DEF = re.compile(r'([A-Za-z_]\w*)\s*\([^;{}]*\)\s*\{')
-_GNU_NESTED_KEYWORDS = frozenset(('if', 'for', 'while', 'switch', 'catch'))
+_GNU_NESTED_DEF = re.compile(r'\b([A-Za-z_]\w*)\s*\(')
+_GNU_NESTED_KEYWORDS = frozenset(('if', 'for', 'while', 'switch', 'catch',
+                                 'return', 'sizeof', '_Alignof'))
 
 
 def gnu_nested_mask(text):
@@ -560,9 +561,24 @@ def gnu_nested_definitions(text):
     for match in _GNU_NESTED_DEF.finditer(masked):
         if match.group(1) in _GNU_NESTED_KEYWORDS:
             continue
-        opening = masked.find('{', match.start(), match.end())
-        if opening < 0:
+        # A definition's body follows its own complete parameter list. A
+        # compound literal inside a call, e.g. consume((Profile){...}), has
+        # an initializer brace before the call's closing parenthesis instead.
+        parameter_depth = 1
+        index = match.end()
+        while index < len(masked) and parameter_depth:
+            if masked[index] == '(':
+                parameter_depth += 1
+            elif masked[index] == ')':
+                parameter_depth -= 1
+            index += 1
+        if parameter_depth:
             continue
+        while index < len(masked) and masked[index].isspace():
+            index += 1
+        if index >= len(masked) or masked[index] != '{':
+            continue
+        opening = index
         depth = sum(1 if c == '{' else -1 for c in masked[:match.start()]
                     if c in '{}')
         balance = 0

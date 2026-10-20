@@ -1,4 +1,5 @@
 #include "common.h"
+#include "main/xgl_2.h"
 
 #include "shared.h"
 
@@ -13,6 +14,8 @@ typedef struct SefBossDeathEffect {
     unsigned short effect_no;
 } SefBossDeathEffect;
 
+
+
 extern const SefBossDeathEffect _sefBossDeathPrm_4[];
 
 typedef struct SefEffectControl {
@@ -23,12 +26,16 @@ typedef struct SefEffectControl {
     unsigned char unmodeled_0a[0x40 - 0x0a];
 } SefEffectControl;
 
+
+
 typedef struct SefEffectScheduler {
     unsigned char unmodeled_000[0x6b0];
     int inUse;
     unsigned char unmodeled_6b4[0xa70 - 0x6b4];
     SefEffectControl effect;
 } SefEffectScheduler;
+
+
 
 /* Original-backed literal aliases; keep the accepted function bodies intact. */
 
@@ -46,18 +53,29 @@ typedef struct SefActor {
     Vector4 position;                /* +0x10 */
     unsigned char unmodeled_20[0x50 - 0x20];
     Vector4 rotation;                /* +0x50 */
-    Vector4 scale;                   /* +0x60 */
-    unsigned char unmodeled_70[0x824 - 0x70];
+    Vector4 scale;
+    unsigned char unmodeled_70[0x510 - 0x70];
+    Vector4 light_parameters[15];
+    unsigned char unmodeled_600[0x824 - 0x600];
     Matrix4 *accessoryMatrix;
 } SefActor;
 
+
+
 #define SEF_ACTOR_LIGHT_FLAG 0x00008000u
+
 
 #define SEF_BATTLE_ACTOR_MAX 24
 
+
 typedef struct SefBattleActor {
-    unsigned char unmodeled_000[0x80];
-    SefActor *actor;
+    unsigned char unmodeled_000[0x20];
+    Vector4 light_direction;         /* +0x20 */
+    unsigned char unmodeled_030[0x20];
+    Vector4 light_accumulator;       /* +0x50 */
+    Vector4 light_position;          /* +0x60 */
+    Vector4 actor_position;          /* +0x70 */
+    struct SefActor *actor;
     short excluded;
     short lightCount;
     short hitSignal;
@@ -66,6 +84,8 @@ typedef struct SefBattleActor {
     unsigned char unmodeled_08e[2];
 } SefBattleActor;
 
+
+
 typedef struct SefBattleActorTbl {
     SefBattleActor actors[SEF_BATTLE_ACTOR_MAX];
     Vector4 center;
@@ -73,11 +93,15 @@ typedef struct SefBattleActorTbl {
     unsigned char unmodeled_d94[0x0c];
 } SefBattleActorTbl;
 
+
+
 static SefBattleActorTbl _battleActor[1];
 
 #define SEF_LINE_DATA_RECORD_SIZE 0x820
 
+
 #define SEF_LINE_DATA_COUNT 0x80
+
 
 typedef struct SefLineDataEntry {
     unsigned char unmodeled_000[2];
@@ -85,10 +109,14 @@ typedef struct SefLineDataEntry {
     unsigned char unmodeled_004[SEF_LINE_DATA_RECORD_SIZE - 4];
 } SefLineDataEntry;
 
+
+
 typedef struct SefLineDataTable {
     unsigned char unmodeled_000[0x810];
     SefLineDataEntry entries[SEF_LINE_DATA_COUNT];
 } SefLineDataTable;
+
+
 
 extern unsigned char _lineData[];
 
@@ -97,9 +125,12 @@ typedef struct GameLoopFlagsView {
     int flags;
 } GameLoopFlagsView;
 
+
+
 extern GameLoopFlagsView GameLoopState;
 
 #define SEF_DRAW_FLAG_PENDING 0x04000000
+
 
 /* The freed-scheduler helper is declared after an assembly placeholder below. */
 
@@ -111,6 +142,8 @@ typedef struct SefKey3 {
     short jump;
 } SefKey3;
 
+
+
 typedef struct SefProgressState {
     int key_index;
     int frame;
@@ -119,12 +152,16 @@ typedef struct SefProgressState {
     Vector4 vector;
 } SefProgressState;
 
+
+
 /* The float-valued view of SefProgressState used by the line-data scale keys. */
 typedef struct SefFloatProgressState {
     int key_index;
     int frame;
     float value;
 } SefFloatProgressState;
+
+
 
 extern int ACT_jointGetAccessories(SefActor *actor, int index);
 
@@ -138,12 +175,15 @@ typedef struct SefEffectRequest {
     short character_id;              /* +0x10 */
     short character_id_copy;         /* +0x12 */
     short effect_no;                 /* +0x14 */
-    short special;                   /* +0x16 */
-    unsigned char unmodeled_18[2];
+    short special;
+    unsigned char reaction_mask;
+    unsigned char reaction_mask_high;
     unsigned short flags;            /* +0x1a */
     unsigned char unmodeled_1c[4];
     int param;                       /* +0x20 */
 } SefEffectRequest;
+
+
 
 extern const char D_004CBF78[];
 
@@ -218,10 +258,14 @@ static int _sefLoadEftQue;
 
 typedef unsigned int Quadword __attribute__((mode(TI)));
 
+
+
 typedef union SefQuadBlock {
     Quadword quad;
     unsigned int words[4];
 } SefQuadBlock;
+
+
 
 extern Matrix4 *MMathRotateMatrixXYZ(Matrix4 *out, Matrix4 *matrix, Vector4 *angles);
 
@@ -231,7 +275,7 @@ extern StudioCamera *xglStudioGetActiveCamera(void);
 
 extern Matrix4 *MMathRotateMatrixYXZ(Matrix4 *out, Matrix4 *matrix, Vector4 *angles);
 
-extern int sefSearchMapperIndex2(int effect_id, int number, int category);
+int sefSearchMapperIndex2(int effect_id, int number, int category);
 
 extern char *srsAnalyzeEftNo(int effect_id, int *number, int *category);
 
@@ -259,7 +303,9 @@ typedef struct SefKey5 {
     short jump;
 } SefKey5;
 
-extern void sefGetPoint(Vector4 *position, const unsigned char *source);
+
+
+extern void sefGetPoint(Vector4 *position, const unsigned char *source, int mode);
 
 static const unsigned char _zeroPos_004CBF00[16] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x80, 0x3f
@@ -300,6 +346,8 @@ typedef struct SefParticleOffset {
     short *target_index;                     /* +0x1DC */
 } SefParticleOffset;
 
+
+
 /*
  * sefCalcLocalMatrix (main:0x002e2d48), re-treated from the accepted assembly
  * group src/main/sef/sefCalcLocalMatrix.s toward readable C with constrained
@@ -331,21 +379,30 @@ typedef struct SefParticleOffset {
 
 #define SEF_BATTLE_PHASE         0x00c
 
+
 #define SEF_BATTLE_MATRIX_SOURCE 0x200
+
 
 #define SEF_BATTLE_RUNNING       0x22c
 
+
 #define SEF_LOCAL_MATRIX         0x000
+
 
 #define SEF_LOCAL_BASE_MATRIX    0x080
 
+
 #define SEF_LOCAL_ROTATION       0x0c0
+
 
 #define SEF_LOCAL_OFFSET         0x0f0
 
+
 #define SEF_LOCAL_OFFSET_Z       0x0f8
 
+
 #define SEF_PARENT_DIR_MATRIX    0x120
+
 
 /* _battleData + 0x200, still owned by the scaffold, so it keeps the original
  * object's own name for the address (docs/naming.md). The two callees below
@@ -408,9 +465,12 @@ extern void MMathMulMatrix(void *destination, void *left, void *right);
 
 #define SEF_ROTCHANGE_SRC_MATRIX  0x040
 
+
 #define SEF_ROTCHANGE_OFFSET_BASE 0x0e0
 
+
 #define SEF_ROTCHANGE_DELTA       0x1c0
+
 
 extern Matrix4 *MMathRotateMatrixX(Matrix4 *out, Matrix4 *matrix, float angle);
 
@@ -421,6 +481,7 @@ extern Matrix4 *MMathRotateMatrixZ(Matrix4 *out, Matrix4 *matrix, float angle);
 static void sevFreePtAllocator(unsigned int handle);
 
 #define SEF_LOCAL_DATA_PT_TABLE 0x600
+
 
 /*
  * PARTIAL ACCESSED VIEW of an effect-table record (sefInitEffectData): the
@@ -440,6 +501,8 @@ typedef struct EffectData {
     short frame;
 } EffectData;
 
+
+
 static void sefFreeLineData(int line_index);
 
 /* One line-data record (SEF_LINE_DATA_RECORD_SIZE bytes): the particle-allocator
@@ -450,6 +513,8 @@ typedef struct SefLocalData {
     unsigned char unmodeled_800[0x80e - 0x800];
     short cursor;                                      /* +0x80e */
 } SefLocalData;
+
+
 
 static void sefFreeEffectData(unsigned char *effect, unsigned int index);
 
@@ -471,7 +536,7 @@ extern void srsInitCdRead(void);
 
 extern void svInitImageMapper(void);
 
-extern void sefInitScheduler(void);
+void sefInitScheduler(void);
 
 extern void scInitScript(void);
 
@@ -492,19 +557,21 @@ typedef struct {
     void (*cfDrawCallback)(void);                    /* +0x38 */
 } SefRenderState;
 
+
+
 extern SefRenderState sRender;
 
 extern SrsMemRes _srsMemRes;
 
 extern void sdvInitAlters(void);
 
-extern void sefDestroyEffect(void);
+void sefDestroyEffect(void);
 
-extern void sefDestroyEffectCf(void);
+void sefDestroyEffectCf(void);
 
 extern void sresLoadCfMemory(void);
 
-extern void sefDrawEffect2D(void);
+void sefDrawEffect2D(void);
 
 extern void *smAlloc(unsigned int size);
 
@@ -538,7 +605,7 @@ extern void svDrawScheduler3D(int flags);
 
 extern void svDrawScheduler2D(int flags);
 
-extern void sefFreeSchedulerCf(SchedulerState *scheduler);
+void sefFreeSchedulerCf(SchedulerState *scheduler);
 
 extern int srsFileLoadCf(int cf_id, int effect_no);
 
@@ -554,7 +621,9 @@ static SchedulerState *sefCreateEffectCf2(int effectNo,
 
 #define SEF_SCHEDULER_REWIND_FLAG 1
 
+
 #define SEF_RECORD_ANCHOR 0xa70
+
 
 #define SEF_RECORD_LIVE (0x6b0 - SEF_RECORD_ANCHOR)
 
@@ -564,16 +633,21 @@ static SchedulerState *sefCreateEffectCf2(int effectNo,
 
 #define SEF_SCHEDULER_RECORD_SIZE 0xab0
 
+
 #define SEF_SCHEDULER_COUNT 0x80
+
 
 #define SEF_TARGET_DAMAGE_NULL_A 527
 
+
 #define SEF_TARGET_DAMAGE_NULL_B 528
+
 
 /* _ptAlloc's per-record byte size, the same 640 sefCalcLocalMatrix already
  * multiplies by at sef.c:359. */
 
 #define SEF_PT_ALLOC_RECORD_SIZE 640
+
 
 /* These values remain mutable objects so the recovered callers use storage. */
 
@@ -807,13 +881,15 @@ typedef struct SefPtAllocatorState {
     unsigned char unmodeled_a0808[8];
 } SefPtAllocatorState;
 
+
+
 #define SEF_PT_ALLOCATOR ((SefPtAllocatorState *)(void *)_ptAlloc)
 
 /* Original TU-local scheduler storage, kept named for its recovered users. */
 
 static unsigned char _scheduler[0x55800];
 
-void sefLerpIVectorA(void *keys, Vector4 *vector);
+void sefLerpIVectorA(const void *keys, void *vector);
 
 static const char D_004CBF60[24] = {
     (char)0xA5, (char)0xAD, (char)0xA5, (char)0xE3,
@@ -834,11 +910,222 @@ typedef struct SefBattleParameters {
     int has_boss;
 } SefBattleParameters;
 
-extern void sefSetupEffect(void);
+
+
+void sefSetupEffect(void);
 
 extern void tracePrint(const char *format, ...);
 
 extern int func_A33248(void);
+
+extern short D_00794120[];
+
+typedef union SefIntFloatVector {
+    int ints[4];
+    Vector4 floats;
+} SefIntFloatVector;
+
+
+
+extern Vector4 *MMathApplyMatrix(Vector4 *destination, const void *matrix, const Vector4 *point);
+
+extern Vector4 *MMathSpecialVectorSub(Vector4 *destination, const Vector4 *first, const Vector4 *second, float parameter);
+
+extern Vector4 *MMathApplyMatrix(Vector4 *destination, const void *matrix, const Vector4 *point);
+
+typedef struct SefAnalyzeRecord {
+    short time;
+    short image_id;
+    short alt_image_id;
+    unsigned char unmodeled_06;
+    signed char flag;
+} SefAnalyzeRecord;
+
+
+
+typedef struct SefImageItem {
+    void *data;
+    unsigned char unmodeled_04[0x08];
+    unsigned short u12;
+    unsigned char unmodeled_0e[4];
+    unsigned short u18;
+    unsigned short u20;
+    unsigned short u22;
+    unsigned short u24;
+    unsigned short u26;
+    unsigned short u28;
+    unsigned short u30;
+} SefImageItem;
+
+
+
+extern void *svGetImageListItem(int type, int image_id);
+
+extern const float D_004D8334;
+
+typedef struct SefAnimRecord {
+    short frame;
+    unsigned char unmodeled_02[4];
+    signed char jump;
+    unsigned char unmodeled_07;
+} SefAnimRecord;
+
+
+
+typedef struct SefAnimBlock {
+    int item_a_word;
+    int item_b_word;
+    unsigned long long packed_params;
+    float scale_u;
+    float scale_v;
+    short item_u12;
+    short total_time;
+    int first_flag;
+} SefAnimBlock;
+
+
+
+typedef struct SefAnimCursor {
+    int key_index;
+    SefAnimBlock block;
+} SefAnimCursor;
+
+
+
+extern unsigned int D_00794334[];
+
+extern float D_004D8338;
+
+extern const char D_004CBF98[];
+
+typedef struct SefSavePrm {
+    Vector4 position;
+    Vector4 orientation;
+    Vector4 saved_vector;
+    int active;
+    int saved_words[5];
+    short effect_no;
+    unsigned char saved_flags;
+    unsigned char unmodeled_4b[5];
+} SefSavePrm;
+
+
+
+typedef struct SefSavedEffect {
+    Vector4 saved_vector;
+    unsigned char unmodeled_010[0x608];
+    int active;
+    int copied_words[4];
+    unsigned char unmodeled_62c[0x3C0];
+    int tail_word;
+    unsigned char unmodeled_9f0[0x0A];
+    unsigned char saved_flags;
+    unsigned char unmodeled_9fb[0xB5];
+} SefSavedEffect;
+
+
+
+#define SEF_SAVE_PRM_COUNT 0x80
+extern SefSavePrm _savePrm[SEF_SAVE_PRM_COUNT];
+
+extern SefSavedEffect D_0065A9A0[];
+
+typedef enum SefSaveActive {
+    SEF_SAVE_INACTIVE,
+    SEF_SAVE_ACTIVE
+} SefSaveActive;
+
+
+
+typedef enum SefSaveTail {
+    SEF_SAVE_TAIL_NONE
+} SefSaveTail;
+
+
+
+typedef struct SefIntegerProgressState {
+    int key_index;
+    int frame;
+    int value;
+} SefIntegerProgressState;
+
+struct SefKey5Table {
+    unsigned int unmodeled_000;
+    SefKey5 keys[1];
+};
+
+typedef struct SefLineData {
+    unsigned char unmodeled_000[0xB0];
+    Vector4 position;
+    unsigned char unmodeled_0C0[0x20];
+    Vector4 scale_vector;
+    unsigned char unmodeled_0F0[0x10];
+    Vector4 rotation_vector;
+    unsigned char unmodeled_110[0x10];
+    Vector4 position_vector;
+    unsigned char position_source[0x30];
+    SefProgressState first_vector_progress;
+    SefProgressState second_vector_progress;
+    unsigned char unmodeled_1A0[0x0C];
+    SefIntegerProgressState first_integer_progress;
+    SefIntegerProgressState second_integer_progress;
+    unsigned char unmodeled_1C4[0x0C];
+    unsigned char *scale_keys;
+    struct SefKey5Table *first_vector_keys;
+    unsigned char *rotation_keys;
+    struct SefKey5Table *second_vector_keys;
+    unsigned char unmodeled_1E0[8];
+    struct SefKey3 *first_integer_keys;
+    struct SefKey3 *second_integer_keys;
+    unsigned char unmodeled_1F0[4];
+    short *position_keys;
+    unsigned char unmodeled_1F8[0x400];
+    float gravity;
+    float height;
+    unsigned char unmodeled_600[0x202];
+    short global_result;
+    short timer;
+    unsigned short frame;
+    unsigned char unmodeled_808[2];
+    unsigned short loop_mode;
+    unsigned short global_data_count;
+    unsigned char unmodeled_80E[6];
+    unsigned short local_result;
+    short collision_progress;
+    unsigned char unmodeled_818[8];
+} SefLineData;
+
+
+
+extern float D_004D834C;
+
+int sefExecLineGlobalData(SefLineData *line_data, unsigned short frame);
+
+int sefExecLineLocalData(SefLineData *line_data, unsigned short frame);
+
+
+
+
+
+static void sefCnvWaitEffectNo(SefEffectRequest *request);
+
+#define D_004D833C (0.009999999776482582f)
+
+#define D_004D8340 (0.009999999776482582f)
+
+#define D_004D8344 (3.0518509447574615e-05f)
+
+#define D_004D8348 (3.0518509447574615e-05f)
+
+
+
+void sefDeleteEffect2(SchedulerState *scheduler);
+
+extern short srsEftNoWeaponEffectID(int effectNo);
+
+static void sefGetSpherePos(Vector4 *position, float radius);
+
+static int sefAnimate(unsigned char *object, unsigned char *state, int advance);
 
 float srsAtan2(float x, float y)
 {
@@ -959,7 +1246,64 @@ static void sefCalcInvView(Matrix4 *matrix) {
     MMathRotateMatrixYXZ(matrix, matrix, &camera->rotation);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/sef", sefSearchMapperIndex2);
+int sefSearchMapperIndex2(int effect_id, int number, int category) {
+    int index;
+    int column;
+    int weapon_id;
+
+    if (category == 14) {
+        return 14;
+    }
+    if (category == 15) {
+        return 15;
+    }
+    if ((unsigned int)(category - 16) < 24U) {
+        for (index = 0; index < 24; index++) {
+            if (_srsMemRes.effectData[index] != 0 &&
+                _srsMemRes.no[16 + index] == effect_id) {
+                return index + 16;
+            }
+        }
+        return 0;
+    }
+
+    if ((unsigned int)(effect_id - 0xAF0) < 0xC8U) {
+        weapon_id = srsEftNoWeaponEffectID(effect_id);
+        if (weapon_id <= 0) {
+            return 0;
+        }
+        for (index = 0; index < 3; index++) {
+            for (column = 0; column < 3; column++) {
+                if (_srsMemRes.weaponData[index][column] != 0 &&
+                    _srsMemRes.no[index * 3 + column + 2] == weapon_id) {
+                    return index * 3 + column + 2;
+                }
+            }
+        }
+        return 0;
+    }
+
+    if (((unsigned int)effect_id < 0x64U) ||
+        ((unsigned int)(effect_id - 0xF0) < 0x9DU) ||
+        ((unsigned int)(effect_id - 0x9C4) < 0x64U) ||
+        ((unsigned int)(effect_id - 0xA78) < 0x6AU)) {
+        {
+            for (index = 0; index < 3; index++) {
+                if (D_00794120[0] != 0 && ((SefBattleParameters *)_battlePrm)->player_character_ids[index] == D_00794120[0]) {
+                    return index * 3 + 2;
+                }
+            }
+        }
+        {
+            for (index = 0; index < 3; index++) {
+                if (D_00794120[0] != 0 && ((SefBattleParameters *)_battlePrm)->enemy_character_ids[index] == D_00794120[0]) {
+                    return index + 11;
+                }
+            }
+        }
+    }
+    return 0;
+}
 
 int sefSearchMapperIndex(int effect_id) {
     int number;
@@ -1150,7 +1494,20 @@ static int sefLerpVectorSC(void *keys, Vector4 *vectors)
     return status;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/sef", sefLerpIVectorA);
+void sefLerpIVectorA(const void *keys, void *vector)
+{
+    /* Decode four signed halfwords from eight source bytes into sixteen
+     * destination bytes. These are integer representations, not floats. */
+    __asm__ __volatile__(
+        "ldl $9, 7(%0)\n\t"
+        "ldr $9, 0(%0)\n\t"
+        "pcgth $10, $0, $9\n\t"
+        "pextlh $10, $10, $9\n\t"
+        "sq $10, 0(%1)"
+        :
+        : "r"(keys), "r"(vector)
+        : "$9", "$10", "memory");
+}
 
 void sefLerpIVector(SefKey5 *keys, SefProgressState *state)
 {
@@ -1203,7 +1560,32 @@ void sefLerpIVector(SefKey5 *keys, SefProgressState *state)
     sefLerpIVectorA(key->vector, vector);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/sef", sefLerpIVector2);
+void sefLerpIVector2(SefKey5 *keys, SefProgressState *state)
+{
+    SefKey5 *key = keys + state->key_index;
+    SefIntFloatVector *vector = (SefIntFloatVector *)&state->vector;
+    int start_frame;
+    int end_frame;
+    int factor;
+
+    if (key[1].end_frame != 1024) {
+        key = sefProgressKey5(keys, state);
+        start_frame = key->end_frame;
+        end_frame = key[1].end_frame;
+        if (start_frame != end_frame) {
+            factor = ((state->frame - start_frame) << 16) / (end_frame - start_frame);
+            vector->ints[0] = (((key[1].vector[0] - key->vector[0]) * factor) >> 16) + key->vector[0];
+            vector->ints[1] = (((key[1].vector[1] - key->vector[1]) * factor) >> 16) + key->vector[1];
+            vector->ints[2] = (((key[1].vector[2] - key->vector[2]) * factor) >> 16) + key->vector[2];
+            vector->ints[3] = -((((key[1].jump - key->jump) * factor) >> 16) + key->jump);
+            return;
+        }
+    }
+    vector->ints[0] = key->vector[0];
+    vector->ints[1] = key->vector[1];
+    vector->ints[2] = key->vector[2];
+    vector->ints[3] = -key->jump;
+}
 
 void sefLerpFloat(SefKey3 *keys, SefFloatProgressState *state)
 {
@@ -1332,13 +1714,14 @@ void sefGetWeaponPosition(Vector4 *position, SefActor *actor, unsigned int index
 
 INCLUDE_ASM("asm/main/nonmatchings/sef", sefGetPoint);
 
-void sefGetPosition(Vector4 *position, unsigned char *source) {
+void sefGetPosition(Vector4 *position, unsigned char *source, int mode)
+{
     const unsigned char *point = source;
 
     if (point == 0) {
         point = _zeroPos_004CBF00;
     }
-    sefGetPoint(position, point);
+    sefGetPoint(position, point, mode);
     position->w = 1.0f;
 }
 
@@ -1376,9 +1759,112 @@ static void sefGetCirclePos(Vector4 *pos, float radius)
     pos->z = z_unit * radius;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/sef", sefGetSpherePos);
+static void sefGetSpherePos(Vector4 *position, float radius)
+{
+    int random_vector[4];
+    unsigned int seed_1;
+    unsigned int seed_2;
+    unsigned int seed_3;
+    int random_x;
+    int random_y;
+    int random_z;
+    float component_center;
 
-INCLUDE_ASM("asm/main/nonmatchings/sef", sefGetCubePosBtm);
+    do {
+        component_center = 16384.0f;
+        seed_1 = sefRandSeed * 0x41C64E6Du + 0x3039u;
+        seed_2 = seed_1 * 0x41C64E6Du + 0x3039u;
+        seed_3 = seed_2 * 0x41C64E6Du + 0x3039u;
+        sefRandSeed = seed_3;
+        random_x = (int)((seed_1 >> 16) & 0x7FFF);
+        random_y = (int)((seed_2 >> 16) & 0x7FFF);
+        random_vector[0] = random_x;
+        random_vector[1] = random_y;
+        random_z = (int)((seed_3 >> 16) & 0x7FFF);
+        random_vector[2] = random_z;
+    } while (0);
+
+    __asm__ __volatile__(
+        "lqc2 vf1, 0(%0)\n\t"
+        "mfc1 $2, %1\n\t"
+        "vitof0.xyzw vf1, vf1\n\t"
+        "qmtc2 $2, vf2"
+        :
+        : "r"(random_vector), "f"(component_center)
+        : "$2", "memory");
+    __asm__ __volatile__("vsubx.xyz vf1, vf1, vf2x" : : : "memory");
+    __asm__ __volatile__("vmul.xyz vf2, vf1, vf1" : : : "memory");
+    __asm__ __volatile__("vaddy.x vf2, vf2, vf2y" : : : "memory");
+    __asm__ __volatile__("vaddz.x vf2, vf2, vf2z" : : : "memory");
+    __asm__ __volatile__("vsqrt Q, vf2x" : : : "memory");
+    __asm__ __volatile__("vwaitq" : : : "memory");
+    __asm__ __volatile__("vaddq.x vf2, vf0, Q" : : : "memory");
+    __asm__ __volatile__("vdiv Q, vf0w, vf2x" : : : "memory");
+    __asm__ __volatile__("vmove.w vf2, vf0" : : : "memory");
+    __asm__ __volatile__("vwaitq" : : : "memory");
+    __asm__ __volatile__("vmulq.xyz vf2, vf1, Q" : : : "memory");
+    __asm__ __volatile__("qmtc2.ni %0, vf1" : : "r"(radius) : "memory");
+    __asm__ __volatile__("vmulx.xyz vf2, vf2, vf1x" : : : "memory");
+    __asm__ __volatile__("sqc2 vf2, 0(%0)" : : "r"(position) : "memory");
+}
+
+void sefGetCubePosBtm(Vector4 *pos, const int *extent)
+{
+    Vector4 extent_vector;
+    Vector4 random_vector;
+    Vector4 *random_position;
+    unsigned int seed_1;
+    unsigned int seed_2;
+    unsigned int seed_3;
+    int random_x;
+    int random_y;
+    int random_z;
+    float random_scale;
+    float final_scale;
+    float half_scale;
+
+    __asm__ __volatile__("lqc2 vf1, 0(%0)" : : "r"(extent) : "memory");
+    __asm__ __volatile__("vitof0.xyzw vf1, vf1" : : : "memory");
+    __asm__ __volatile__("sqc2 vf1, 0(%0)" : : "r"(&extent_vector) : "memory");
+    random_vector.w = 0.0f;
+    random_position = &random_vector;
+
+    random_scale = 3.051851e-05f;
+    seed_1 = sefRandSeed * 0x41C64E6Du + 0x3039u;
+    seed_2 = seed_1 * 0x41C64E6Du + 0x3039u;
+    seed_3 = seed_2 * 0x41C64E6Du + 0x3039u;
+    sefRandSeed = seed_3;
+    random_x = (int)((seed_1 >> 16) & 0x7FFF);
+    random_y = (int)((seed_2 >> 16) & 0x7FFF);
+    random_z = (int)((seed_3 >> 16) & 0x7FFF);
+    random_vector.x = (float)random_x * random_scale;
+    random_vector.y = (float)random_y * random_scale;
+    random_vector.z = (float)random_z * random_scale;
+
+    __asm__ __volatile__("lqc2 vf1, 0(%0)" : : "r"(random_position) : "memory");
+    __asm__ __volatile__("lqc2 vf2, 0(%0)" : : "r"(&extent_vector) : "memory");
+    __asm__ __volatile__("vmul.xyz vf1, vf1, vf2" : : : "memory");
+    __asm__ __volatile__("sqc2 vf1, 0(%0)" : : "r"(random_position) : "memory");
+    extent_vector.y = 0.0f;
+    __asm__ __volatile__("" : : "m"(extent_vector.y));
+
+    half_scale = 0.5f;
+    __asm__ __volatile__("lqc2 vf1, 0(%0)" : : "r"(&extent_vector) : "memory");
+    __asm__ __volatile__("mfc1 $8, %0\n\tqmtc2 $8, vf2" : : "f"(half_scale) : "$8", "memory");
+    __asm__ __volatile__("vmulx.xyz vf1, vf1, vf2x" : : : "memory");
+    __asm__ __volatile__("sqc2 vf1, 0(%0)" : : "r"(&extent_vector) : "memory");
+
+    __asm__ __volatile__("lqc2 vf1, 0(%0)" : : "r"(random_position) : "memory");
+    __asm__ __volatile__("lqc2 vf2, 0(%0)" : : "r"(&extent_vector) : "memory");
+    __asm__ __volatile__("vsub.xyz vf1, vf1, vf2" : : : "memory");
+    __asm__ __volatile__("sqc2 vf1, 0(%0)" : : "r"(random_position) : "memory");
+
+    final_scale = 0.1f;
+    __asm__ __volatile__("lqc2 vf1, 0(%0)" : : "r"(random_position) : "memory");
+    __asm__ __volatile__("mfc1 $8, %0\n\tqmtc2 $8, vf2" : : "f"(final_scale) : "$8", "memory");
+    __asm__ __volatile__("vmulx.xyz vf1, vf1, vf2x" : : : "memory");
+    __asm__ __volatile__("sqc2 vf1, 0(%0)" : : "r"(pos) : "memory");
+}
 
 static void sefGetCubePosTop(Vector4 *pos, const int *extent)
 {
@@ -1536,10 +2022,67 @@ static void sefGetTargetPos(Vector4 *position, SefParticleOffset *record) {
     __asm__ __volatile__("sqc2 vf1, 0(%0)" : : "r"(position) : "memory");
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/sef", sefGetSpeed);
+static void sefGetSpeed(Vector4 *position, void *particle, int mode, int option)
+{
+    unsigned char *record = (unsigned char *)particle;
+    Vector4 vector;
+    Vector4 *source;
+    Vector4 *dest;
+    unsigned char *parent;
+    float speed;
+    Vector4 *out;
 
-INCLUDE_ASM("asm/main/nonmatchings/sef", sefMoveParticle);
+    source = (Vector4 *)(record + 0x200);
+    speed = *(float *)(record + 0x270) + *(float *)(record + 0x150);
+    out = position;
+    if (0.0f == speed) {
+        __asm__ __volatile__("sqc2 vf0, 0(%0)" : : "r"(out) : "memory");
+        return;
+    }
 
+    if (option != 0 && mode != 0) {
+        MMathSpecialVectorSub(&vector, source, source, (float)option);
+    } else {
+        __asm__ __volatile__(
+            "lq $8, 0(%0)\n\t"
+            "sq $8, 0(%1)"
+            : : "r"(source), "r"(&vector) : "$8", "memory");
+    }
+
+    if (mode >= 5) {
+        sefGetVecMatrix((Matrix4 *)particle, (Vector4 *)(record + 0xd0), (Vector4 *)(record + 0xc0));
+        sefGetDirVector(&vector, &vector);
+    } else {
+        if (mode == 4) {
+            if (_parentLine >= 0 && _nowParentLocal >= 0) {
+                parent = &_ptAlloc[_nowParentLocal * 640];
+            } else {
+                parent = 0;
+            }
+            if (parent != 0) {
+                sefGetDirMatrix((Matrix4 *)particle, (Vector4 *)(parent + 0x120));
+                sefGetDirVector(&vector, &vector);
+            }
+        } else if (mode == 3) {
+            speed = 10.0f * speed;
+            __asm__ __volatile__("lq $8, 0(%0)\n\tsq $8, 0(%0)" : : "r"(&vector) : "$8", "memory");
+        } else if (mode == 1) {
+            if (*(int *)_battleData != 0) {
+                MMathApplyMatrix(&vector, _battleData + 0x80, &vector);
+            }
+        }
+    }
+
+    dest = (Vector4 *)(record + 0x120);
+    __asm__ __volatile__(
+        "lqc2 vf1, 0(%0)\n\t"
+        "mfc1 $8, %2\n\t"
+        "qmtc2 $8, vf2\n\t"
+        "sqc2 vf1, 0(%1)\n\t"
+        "vmulx.xyz vf1xyz, vf1xyz, vf2x\n\t"
+        "sqc2 vf1, 0(%3)"
+        : : "r"(&vector), "r"(dest), "f"(speed), "r"(out) : "$8", "memory");
+}
 
 typedef struct {
     unsigned char unmodeled_00[0x0c];
@@ -1548,12 +2091,90 @@ typedef struct {
     int running;
 } SefBattleStatus;
 
+void sefMoveParticle(void *arg0, void *arg1, int arg2) {
+    unsigned char *particle = (unsigned char *)arg0;
+    Vector4 speed;
+    int target;
+
+    target = *(short *)*(void **)((unsigned char *)arg1 + 16);
+    if (target == 529) {
+        target = (((SefBattleStatus *)_battleData)->phase >= 2) ? 527 : 528;
+    }
+    if (((SefBattleStatus *)_battleData)->running != 0) {
+        if ((unsigned int)(target - 257) < 16U) {
+            target += 1792;
+        }
+        if ((_nowScheduler->flags & 0x1400) == 0x1000) {
+            __asm__ __volatile__(
+                "lq $8, 0(%1)\n\t"
+                "lq $9, 16(%1)\n\t"
+                "lq $10, 32(%1)\n\t"
+                "lq $11, 48(%1)\n\t"
+                "sq $8, 0(%0)\n\t"
+                "sq $9, 16(%0)\n\t"
+                "sq $10, 32(%0)\n\t"
+                "sq $11, 48(%0)"
+                : : "r"(particle + 0x40), "r"((unsigned char *)_battleData + 0x180)
+                : "$8", "$9", "$10", "$11", "memory");
+            *(float *)(particle + 0x154) = *(float *)((unsigned char *)_battleData + 0x220);
+        }
+    }
+
+    if (*(signed char *)(particle + 0x163) == 0) {
+        sefGetSpeed(&speed, particle, target, arg2);
+        __asm__ __volatile__(
+            "lqc2 $vf1, 0(%0)\n\t"
+            "lqc2 $vf2, 0(%1)\n\t"
+            "vadd.xyz $vf1xyz, $vf1xyz, $vf2xyz\n\t"
+            "sqc2 $vf1, 0(%0)"
+            : : "r"(particle + 0xc0), "r"(&speed) : "memory");
+    }
+    *(float *)(particle + 0x114) = *(float *)(particle + 0x114) - _gravity;
+    __asm__ __volatile__(
+        "lqc2 $vf1, 0(%0)\n\t"
+        "lqc2 $vf2, 0(%1)\n\t"
+        "vadd.xyz $vf1xyz, $vf1xyz, $vf2xyz\n\t"
+        "sqc2 $vf1, 0(%0)"
+        : : "r"(particle + 0xc0), "r"(particle + 0x110) : "memory");
+    if (_colision != 0.0f) {
+        if (*(float *)(particle + 0xc4) <= _height) {
+            float colision;
+            if (*(signed char *)(particle + 0x163) == 0) {
+                __asm__ __volatile__(
+                    "lqc2 $vf1, 0(%0)\n\t"
+                    "lqc2 $vf2, 0(%1)\n\t"
+                    "vadd.xyz $vf1xyz, $vf1xyz, $vf2xyz\n\t"
+                    "sqc2 $vf1, 0(%1)"
+                    : : "r"(&speed), "r"(particle + 0x110) : "memory");
+            }
+            *(signed char *)(particle + 0x163) = 1;
+            colision = _colision;
+            *(float *)(particle + 0xc4) = _height;
+            __asm__ __volatile__(
+                "lqc2 $vf1, 0(%0)\n\t"
+                "mfc1 $8, %1\n\t"
+                "qmtc2 $8, $vf2\n\t"
+                "vmulx.xyz $vf1xyz, $vf1xyz, $vf2x\n\t"
+                "sqc2 $vf1, 0(%0)"
+                : : "r"(particle + 0x110), "f"(colision) : "$8", "memory");
+            if (*(float *)(particle + 0x114) < 0.0f) {
+                *(float *)(particle + 0x114) = -*(float *)(particle + 0x114);
+            }
+        }
+    }
+}
+
+
+
+
 typedef struct {
     unsigned char unmodeled_00[0xf0];
     unsigned long long offsetXYBits;
     float offsetZ;
     float offsetW;
 } SefLocalOffset;
+
+
 
 typedef struct {
     unsigned char unmodeled_00[0x6b0];
@@ -1564,6 +2185,8 @@ typedef struct {
     short effectNo;
     unsigned char unmodeled_a7a[0xab0 - 0xa7a];
 } SefSchedulerRecord;
+
+
 
 static void sefCalcLocalMatrix(unsigned char *record, int target, int previous_target)
 {
@@ -1805,15 +2428,188 @@ static void sefFreeLineData(int line_index)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/sef", sefAnalyzeAnim);
+static void sefAnalyzeAnim(unsigned char *object)
+{
+    SefAnalyzeRecord *records = *(SefAnalyzeRecord **)(object + 496);
+    int accumulated = 0;
+    int index = 0;
+    float scale;
 
-INCLUDE_ASM("asm/main/nonmatchings/sef", sefAnimate);
+    if (records->image_id <= 0) {
+        return;
+    }
+    scale = D_004D8334;
+    do {
+        SefImageItem *item_a;
+        SefImageItem *item_b;
+        int type = *(short *)((unsigned char *)_nowScheduler + 2724);
+
+        item_a = (SefImageItem *)svGetImageListItem(type, records[index].image_id);
+        item_b = (SefImageItem *)svGetImageListItem(type, records[index].alt_image_id);
+        if (item_a != 0 && item_b != 0) {
+            int flag = records->flag;
+
+            if (index < 32) {
+                unsigned long long tex0;
+                unsigned char *dest = (unsigned char *)((index << 5) + (int)object) + 512;
+                int psm;
+
+                *(float *)(dest + 8) = (float)item_a->u24 * scale;
+                *(float *)(dest + 12) = (float)item_a->u26 * scale;
+                *(short *)(dest + 16) = (short)item_a->u12;
+                psm = (item_a->u20 == 8) ? 19 : 20;
+                ((void **)dest)[-2] = item_a->data;
+                ((void **)dest)[-1] = item_b->data;
+                tex0 = (unsigned long long)item_a->u18 | ((unsigned long long)((unsigned int)item_a->u22 >> 6) << 14) | ((unsigned long long)psm << 20) | ((unsigned long long)item_a->u28 << 26) | ((unsigned long long)item_a->u30 << 30) | (1ULL << 34) | ((unsigned long long)item_b->u18 << 37) | (1ULL << 61);
+                accumulated = (records[index].time != 1024) ? accumulated + records[index].time : 1024;
+                *(unsigned long long *)(object + (index << 5) + 512) = tex0;
+                *(int *)(dest + 20) = flag > 0;
+                *(short *)(dest + 18) = (short)accumulated;
+            }
+        } else {
+            memset(object + 504 + index * 32, 0, 32);
+        }
+        index++;
+    } while (records[index].image_id > 0);
+}
+
+static int sefAnimate(unsigned char *object, unsigned char *state, int advance)
+{
+    SefAnimCursor *cursor = (SefAnimCursor *)(state + 360);
+    SefAnimRecord *records = *(SefAnimRecord **)(object + 496);
+    int key = cursor->key_index;
+    SefAnimRecord *current = records + key;
+    int advanced = 0;
+    int found = 0;
+    int result = 0;
+    unsigned int scan = D_00794334[0];
+    short value;
+    unsigned short frame_bits;
+    short first_frame;
+
+    if (advance < 0 || (scan & 1) != 0) {
+        cursor->block = *(SefAnimBlock *)(object + 504);
+        cursor->key_index = 0;
+        *(short *)(state + 352) = 0;
+        return 0;
+    }
+    first_frame = current->frame;
+    frame_bits = current->frame;
+    if (first_frame == 1024) {
+        return 0;
+    }
+    if ((scan & 8) != 0) {
+        for (scan = key; ; scan++, current = records + scan, frame_bits = current->frame) {
+            int scan_jump = current->jump;
+
+            if ((short)frame_bits == 1024) {
+                return 0;
+            }
+            if (scan_jump >= 0) {
+                if (current[1].frame == 1024) {
+                    continue;
+                }
+                return 0;
+            }
+            cursor->key_index = scan;
+            found = 1;
+            break;
+        }
+    }
+    if (found) {
+        cursor->key_index++;
+        result = 1;
+        advanced = 1;
+    } else {
+        value = *(short *)((unsigned char *)cursor + 34);
+        if (advance >= value) {
+            int jump = current->jump;
+
+            if (jump >= 0) {
+                cursor->key_index = jump;
+                result = 4096;
+                if (jump == 0) {
+                    *(short *)(state + 352) = 0;
+                } else {
+                    *(short *)(state + 352) = *(short *)(object + 32 * jump + 498);
+                }
+            } else if (jump == -1) {
+                if (current[1].frame != 1024) {
+                    cursor->key_index++;
+                    result = 1;
+                }
+            } else if (jump == -2) {
+                result = 0;
+            } else {
+                if (current[1].frame == 1024) {
+                    return 0;
+                }
+            }
+            advanced = 1;
+        }
+    }
+    if (advanced) {
+        cursor->block = *(SefAnimBlock *)(object + 504 + 32 * cursor->key_index);
+    }
+    *(short *)(state + 352) = *(short *)(state + 352) + 1;
+    return result;
+}
 
 INCLUDE_ASM("asm/main/nonmatchings/sef", sefCreateParticle);
 
 INCLUDE_ASM("asm/main/nonmatchings/sef", sefExecLineGlobalData);
 
-INCLUDE_ASM("asm/main/nonmatchings/sef", sefExecLineData);
+static int sefExecLineData(SefLineData *line_data)
+{
+    unsigned short frame = line_data->frame;
+
+    line_data->global_result = -1;
+    if (line_data->loop_mode != 0) {
+        line_data->timer--;
+        if (line_data->timer < 0 &&
+            (line_data->global_data_count == 0 || line_data->local_result == 0)) {
+            line_data->timer = 0;
+            return 0;
+        }
+    }
+    if (line_data->timer < 0) {
+        line_data->timer = -1;
+    }
+
+    _gravity = line_data->gravity;
+    _height = line_data->height;
+    _colision = (float)line_data->collision_progress * D_004D834C;
+    sefLerpVectorSC(line_data->scale_keys + 8, &line_data->scale_vector);
+    sefLerpVectorSC(line_data->rotation_keys + 8, &line_data->rotation_vector);
+    if (line_data->position_keys != 0) {
+        ((void (*)(void *, Vector4 *))sefLerpVectorSC)(line_data->position_keys + 4, &line_data->position_vector);
+        sefGetPosition(&line_data->position, line_data->position_source, *line_data->position_keys);
+    }
+    sefLerpIVector(line_data->first_vector_keys->keys,
+                   &line_data->first_vector_progress);
+    sefLerpIVector(line_data->second_vector_keys->keys,
+                   &line_data->second_vector_progress);
+    sefProgressInt(line_data->first_integer_keys,
+                   (SefProgressState *)&line_data->first_integer_progress);
+    sefProgressInt(line_data->second_integer_keys,
+                   (SefProgressState *)&line_data->second_integer_progress);
+
+    if (line_data->timer < 0 || sefExecLineGlobalData(line_data, frame) != 0) {
+        line_data->local_result = sefExecLineLocalData(line_data, frame);
+        line_data->frame++;
+        if (line_data->frame == 0x3FF) {
+            if (line_data->loop_mode == 0) {
+                line_data->frame -= (unsigned short)line_data->second_integer_progress.value;
+                if (line_data->frame == 0) {
+                    line_data->frame = 1;
+                }
+            } else {
+                line_data->frame = 0x3FE;
+            }
+        }
+    }
+    return 1;
+}
 
 static void sefInitEffectData(EffectData *effect, int owner, int effect_no, int category)
 {
@@ -2250,7 +3046,33 @@ void sefSetupEnemy(int character_id)
     tracePrint(D_004CBF78, character_id);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/sef", sefReleaseID);
+void sefReleaseID(int effect_id)
+{
+    int index;
+
+    for (index = 0; index < 3; index++) {
+        if (sefBattleParameters()->player_character_ids[index] == effect_id) {
+            sresFreeReloaderMemoryNo(index);
+            sefBattleParameters()->player_character_ids[index] = 0;
+            sefBattleParameters()->player_setup_parameters[index][0] = 0;
+            sefBattleParameters()->player_setup_parameters[index][1] = 0;
+            sefBattleParameters()->player_setup_parameters[index][2] = 0;
+            sefBattleParameters()->player_active[index] = 0;
+            return;
+        }
+    }
+
+    for (index = 0; index < 3; index++) {
+        if (sefBattleParameters()->enemy_character_ids[index] == effect_id) {
+            sefBattleParameters()->enemy_effect_numbers[index] = effect_id;
+            sefBattleParameters()->enemy_character_ids[index] = 0;
+            sefBattleParameters()->enemy_active[index] = 0;
+            return;
+        }
+    }
+
+    tracePrint(D_004CBF98, effect_id);
+}
 
 void sefSetupEffect(void) {
     sresLoadBattleData(_battlePrm);
@@ -2383,7 +3205,43 @@ static void sefCnvDeathEffectNo(SefEffectRequest *request)
 
 INCLUDE_ASM("asm/main/nonmatchings/sef", sefCnvWaitEffectNo);
 
-INCLUDE_ASM("asm/main/nonmatchings/sef", sefDeleteEffectWait);
+void sefDeleteEffectWait(int character_id)
+{
+    SefEffectRequest request;
+    SchedulerState *schedulers;
+    SchedulerState *scheduler;
+    unsigned int table_address;
+    short *effect_no_cursor;
+    int effect_no_offset;
+    int remaining;
+    int byte_offset;
+
+    memset(&request, 0, sizeof(request));
+    request.character_id = character_id;
+    request.effect_no = 0x4001;
+    sefCnvWaitEffectNo(&request);
+    if (request.effect_no > 0) {
+        schedulers = (SchedulerState *)_scheduler;
+        table_address = (unsigned int)schedulers;
+        effect_no_cursor = &schedulers[0].effectNo;
+        effect_no_offset = offsetof(SchedulerState, effectNo);
+        byte_offset = 0;
+        remaining = 127;
+        for (;;) {
+            scheduler = (SchedulerState *)((unsigned char *)effect_no_cursor - effect_no_offset);
+            if (scheduler->inUse != 0
+                && *effect_no_cursor == request.effect_no) {
+                sefDeleteEffect2((SchedulerState *)(byte_offset + table_address));
+            }
+            if (--remaining < 0) {
+                break;
+            }
+            effect_no_cursor = (short *)((unsigned char *)effect_no_cursor
+                + sizeof(SchedulerState));
+            byte_offset += sizeof(SchedulerState);
+        }
+    }
+}
 
 static int sefCnvEtEffectNo(int effect_no, int character_id)
 {
@@ -2643,7 +3501,52 @@ void sefHitEffect(void) {
 
 INCLUDE_ASM("asm/main/nonmatchings/sef", sefPushEffect);
 
-INCLUDE_ASM("asm/main/nonmatchings/sef", sefPopEffect);
+void sefPopEffect(void)
+{
+    unsigned char *save_params;
+    unsigned char *save_params_10;
+    unsigned char *save_params_20;
+    unsigned char *effect_data;
+    unsigned char *effect_cursor;
+    unsigned char *save_cursor;
+    int record_offset;
+    int effect_offset;
+    int index;
+
+    sefKillEffect(-1);
+    save_params = (unsigned char *)_savePrm;
+    save_params_10 = save_params + 0x10;
+    save_params_20 = save_params + 0x20;
+    effect_data = (unsigned char *)D_0065A9A0;
+    effect_cursor = effect_data + 0x620;
+    save_cursor = save_params + 0x40;
+    record_offset = 0;
+    effect_offset = 0;
+    for (index = 0; index < SEF_SAVE_PRM_COUNT; index++) {
+        if (((SefSavePrm *)(save_cursor - 0x40))->active != 0) {
+            sefCreateEffectCf2(*(short *)(save_cursor + 0x08),
+                               (Vector4 *)(record_offset + (int)save_params),
+                               (Vector4 *)(record_offset + (int)save_params_10), index);
+            __asm__ __volatile__(
+                "lq $8, 0(%1)\n\t"
+                "sq $8, 0(%0)"
+                : : "r"(effect_offset + (int)effect_data), "r"(record_offset + (int)save_params_20) : "$8", "memory");
+            *(SefSaveActive *)(effect_cursor - 0x08) = *(SefSaveActive *)(save_cursor - 0x10);
+            *(int *)(effect_cursor - 0x04) = *(int *)(save_cursor - 0x0C);
+            *(int *)(effect_cursor + 0x00) = *(int *)(save_cursor - 0x08);
+            *(int *)(effect_cursor + 0x04) = *(int *)(save_cursor - 0x04);
+            *(int *)(effect_cursor + 0x08) = *(int *)(save_cursor + 0x00);
+            *(SefSaveTail *)(effect_cursor + 0x3CC) = *(SefSaveTail *)(save_cursor + 0x04);
+            *(unsigned char *)(effect_cursor + 0x3DA) = *(save_cursor + 0x0A);
+        }
+        effect_cursor += 0xAB0;
+        effect_offset += 0xAB0;
+        save_cursor += 0x50;
+        record_offset += 0x50;
+    }
+    sefMemZero(_savePrm, 0x2800);
+    sefProgressEffect(10);
+}
 
 unsigned char *sefGetBattleData(void)
 {

@@ -9,6 +9,7 @@
 #include "main/party.h"
 
 #include "main/menu_1.h"
+#include "main/e_message.h"
 
 typedef struct SaveDataHead00 {
     u64 words[0x38 / 8];
@@ -132,9 +133,6 @@ typedef struct FileExplanation {
     FileMessage message;
 } FileExplanation;
 
-extern void eMessageSet(FileMessage *message, int text);
-
-extern void eMessageMain(FileMessage *message);
 
 extern void MoveSlide(short *current, short *target, float rate);
 

@@ -1,4 +1,5 @@
 #include "common.h"
+#include "main/xgl_font.h"
 
 #include "msg_init.h"
 static void _copyCTRLCode(unsigned char **destination, unsigned char **source);
@@ -38,25 +39,25 @@ int strcmp(const char *, const char *);
  */
 
 typedef struct MsgFuncEntry {
-    char *(*handler)(char *out, int argc, const Mif2Argument *args);
+    char *(*handler)(char *out, int argc, const struct Mif2Argument *args);
     const char *name;
 } MsgFuncEntry;
 
-extern char *MIF2_clear(char *out, int argc, const Mif2Argument *args);
+char *MIF2_clear(char *out, int argc, const Mif2Argument *args);
 
-extern char *MIF2_waitkey(char *out, int argc, const Mif2Argument *args);
+char *MIF2_waitkey(char *out, int argc, const Mif2Argument *args);
 
-extern char *MIF2_wait(char *out, int argc, const Mif2Argument *args);
+char *MIF2_wait(char *out, int argc, const Mif2Argument *args);
 
-extern char *MIF2_color(char *out, int argc, const Mif2Argument *args);
+char *MIF2_color(char *out, int argc, const Mif2Argument *args);
 
-extern char *MIF2_close(char *out, int argc, const Mif2Argument *args);
+char *MIF2_close(char *out, int argc, const Mif2Argument *args);
 
-extern char *MIF2_ruby(char *out, int argc, const Mif2Argument *args);
+char *MIF2_ruby(char *out, int argc, const Mif2Argument *args);
 
-extern char *MIF2_font(char *out, int argc, const Mif2Argument *args);
+char *MIF2_font(char *out, int argc, const Mif2Argument *args);
 
-extern char *MIF2_label(char *out, int argc, const Mif2Argument *args);
+char *MIF2_label(char *out, int argc, const Mif2Argument *args);
 
 char *MIF2_dummy(char *out, int argc, const Mif2Argument *args);
 char *MIF2_gaiji(char *out, int argc, const Mif2Argument *args);
@@ -138,7 +139,7 @@ struct MsgPrintContext {
     MsgQueue queue;
 };
 
-unsigned int MSG_convert(unsigned char *output, int capacity, const char *text, int length);
+unsigned int MSG_convert(unsigned char *destination, int capacity, const char *text, int length);
 
 int MSG_queuePush(MsgQueue *queue, const unsigned char *text, int capacity, int length);
 
@@ -184,6 +185,25 @@ static int rubyY;
 #define MSG_QUEUE_RESET_CLEAR_COUNT_AND_WIDTH 10u
 
 #define MSG_CONTROL_CODE_FLAG_ENABLED 1u
+
+typedef struct MsgQueueInfo {
+    short count;
+    short lines;
+    short width;
+} MsgQueueInfo;
+
+extern int xglFontCheckProportional(unsigned int high, unsigned int low);
+
+extern unsigned int xglFontGetProportionalSize(int code);
+
+
+extern int xglFontGetStringWidth(const char *text);
+
+extern int xglFontGetStringWidth2(const char *text, int mode);
+
+extern const char D_004DA3B0[];
+
+static void _skipCTRLCode(unsigned char **source);
 
 void MSG_init(void)
 {
@@ -383,9 +403,230 @@ void MSG_queueReset(MsgQueue *queue, unsigned int flags)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/msg_init", MSG_queueGetInfo);
+void MSG_queueGetInfo(MsgQueue *queue, MsgQueueInfo *info, unsigned char *cursor)
+{
+    int width = 0;
+    int max_width = 0;
+    int max_count = 0;
+    int lines = 0;
+    int count = 0;
+    unsigned char *end;
 
-INCLUDE_ASM("asm/main/nonmatchings/msg_init", MSG_queuePop);
+    cursor = queue->buffer + queue->head;
+    end = queue->buffer + queue->tail;
+    while (cursor < end) {
+        int code = *cursor++;
+
+        if (code == '/' && *cursor == '[') {
+            cursor++;
+            code = *cursor++;
+            if (code >= 0x80) {
+                switch (code) {
+                case ']':
+                case 0x81:
+                case 0x84:
+                    break;
+                case 0x85:
+                    while (*cursor++ != 0) {
+                    }
+                    break;
+                case 0x80:
+                case 0x82:
+                case 0x83:
+                    cursor++;
+                    break;
+                }
+                cursor++;
+                break;
+            }
+            cursor--;
+            for (;;) {
+                code = *cursor++;
+                if (code < 0x20) {
+                    cursor--;
+                    _skipCTRLCode(&cursor);
+                } else if (code == ']') {
+                    break;
+                } else if (code >= 0x8e) {
+                    cursor++;
+                }
+            }
+        } else if (code == '\n') {
+            max_width = max_width < width ? width : max_width;
+            width = 0;
+            max_count = max_count < count ? count : max_count;
+            count = 0;
+            lines++;
+        } else if (code < 0x20) {
+            cursor--;
+            _skipCTRLCode(&cursor);
+        } else {
+            count++;
+            if (code >= 0xa0) {
+                int glyph = xglFontCheckProportional(code, *cursor);
+
+                if (!(ctrlCodeFlags & 1) || glyph < 0) {
+                    width = width + 20;
+                    cursor++;
+                } else {
+                    unsigned int bounds;
+
+                    cursor++;
+                    bounds = xglFontGetProportionalSize(glyph);
+                    width += ((bounds >> 8) & 0xff) - (bounds & 0xff) + 1;
+                }
+            } else {
+                width += 8;
+            }
+        }
+    }
+    if (max_width < width) {
+        max_width = width;
+    }
+    if (max_count < count) {
+        max_count = count;
+    }
+    if (0 < width) {
+        lines = lines + 1;
+    }
+    info->width = max_width;
+    info->count = max_count;
+    info->lines = lines;
+}
+
+int MSG_queuePop(MsgQueue *queue, unsigned char *destination, int limit)
+{
+    unsigned char *output;
+    /* The control decoder advances bytes; the font decoder advances signed chars.
+     * Convert the active pointer member explicitly at that API boundary. */
+    union {
+        unsigned char *bytes;
+        signed char *font;
+    } input;
+    unsigned char *start;
+    unsigned char *end;
+    int active;
+    int count = 0;
+
+    if (limit < 0)
+        limit = 1024;
+    active = limit > count;
+    start = queue->buffer + queue->head;
+    end = queue->buffer + queue->tail;
+    input.bytes = start;
+    *end = 0;
+    output = destination;
+    xglFontGetStringWidth(D_004DA3B0);
+    queue->last = 0;
+
+    while (active && input.bytes < end) {
+        int code = input.bytes[0];
+
+        input.bytes++;
+        if ('/' == code && '[' == *input.bytes) {
+            input.bytes++;
+            code = *input.bytes++;
+            if (128 <= code) {
+                queue->last = code;
+                switch (code) {
+                case ']':
+                case 0x81:
+                case 0x84:
+                    break;
+                case 0x85:
+                    queue->label = (int)input.bytes;
+                    while (0 != *input.bytes++)
+                        ;
+                    break;
+                case 0x80:
+                case 0x82:
+                case 0x83:
+                    queue->label = *input.bytes++;
+                    break;
+                }
+                input.bytes++;
+                break;
+            }
+            input.bytes--;
+            for (;;) {
+                code = *input.bytes++;
+                if (code < 32) {
+                    input.bytes--;
+                    _copyCTRLCode(&output, &input.bytes);
+                } else if (code == ']') {
+                    break;
+                } else {
+                    *output++ = code;
+                    if (code >= 142)
+                        *output++ = *input.bytes++;
+                }
+            }
+            continue;
+        }
+        if ('\n' == code) {
+            *output++ = code;
+            queue->last = code;
+            break;
+        }
+        if (32 > code) {
+            input.bytes--;
+            _copyCTRLCode(&output, &input.bytes);
+            continue;
+        }
+        if (' ' == code) {
+            if (queue->head && !queue->width && input.bytes[1] != ' ')
+                continue;
+            if (queue->width + xglFontGetStringWidth2((const char *)input.bytes, 2) >= queue->limit) {
+                *output++ = '\n';
+                queue->last = '\n';
+                break;
+            }
+        }
+        {
+            unsigned int low = *input.bytes;
+            int proportional = 0;
+            if (code < 160) {
+                unsigned int encoded;
+                input.bytes--;
+                input.font = (signed char *)input.bytes;
+                encoded = xglFontAscii2Euc((signed char)code, &input.font);
+                input.bytes = (unsigned char *)input.font;
+                code = (unsigned short)(encoded >> 8);
+                low = encoded;
+                low &= 0xFF;
+                input.bytes++;
+                proportional = 1;
+            } else {
+                input.bytes++;
+                proportional = ctrlCodeFlags & 1;
+            }
+            count++;
+            *output++ = code;
+            if (code > 159) {
+                int glyph;
+
+                glyph = xglFontCheckProportional((unsigned char)code, (unsigned char)low);
+                *output++ = (unsigned char)low;
+                if (!proportional || glyph < 0) {
+                    active = limit > count;
+                    queue->width += 20;
+                } else {
+                    unsigned int bounds = xglFontGetProportionalSize(glyph);
+
+                    active = limit > count;
+                    queue->width += ((bounds >> 8) & 0xFF) - (bounds & 0xFF) + 1;
+                }
+            } else {
+                active = limit > count;
+                queue->width += 8;
+            }
+        }
+    }
+    *output = 0;
+    queue->head = queue->head + (input.bytes - start);
+    queue->count = queue->count + count;
+    return output - destination;
+}
 
 INCLUDE_ASM("asm/main/nonmatchings/msg_init", MSG_copyln);
 

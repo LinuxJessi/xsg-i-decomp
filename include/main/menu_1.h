@@ -23,8 +23,6 @@ MenuTextEntry *MenuTextGet(int index);
 
 int MenuScenarioNoGet(void);
 
-int MenuCursorKeepCheck(void);
-
 const unsigned char *MenuSaveMapNameGet(int mapId);
 
 int MenuMainCharCheck(int charId);

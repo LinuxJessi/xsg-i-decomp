@@ -24,6 +24,47 @@ static inline MenuStatusValuePair MenuStatusEncodeValue(short current, short max
     return value;
 }
 
+extern const MenuFormationPositions D_004C36C0;
+
+extern const MenuLightingSources D_004C3720;
+
+extern unsigned char *MenuTairetuModelPointerXtxAddr;
+
+extern unsigned char *MenuTairetuModelPointerLexAddr;
+
+extern const float D_004D7D98;
+
+extern void xglMatrixStackLoad(float matrix[4][4]);
+
+typedef struct MenuPointaTask {
+    XglTaskPrefix link;
+    unsigned char state;
+    unsigned char enabled;
+    unsigned char initialized;
+    unsigned char index;
+    short previousCommand;
+    short selectedSlot;
+    short formationIndex;
+    signed char paletteIndex;
+    unsigned char unmodeled_1b;
+    struct MenuModelTransform *formation;
+    struct MenuModelTransform *pointer;
+} MenuPointaTask;
+
+static inline unsigned short MenuPointaGuardWord(MenuPointaTask *task)
+{
+    MenuTopPartyData *party = (MenuTopPartyData *)PartyDataGet();
+    return *((const void *)(party->slot + task->index) ==
+        (const void *)&party->firstTechniqueWord ?
+        &party->firstTechniqueWord : &party->slot[task->index].id);
+}
+
+char *MenuTagTextGet(int index);
+
+int MenuMaryIdChange(int id);
+
+static void tskMenuTaiPointa(MenuPointaTask *task);
+
 int MenuTopCommandCheck(int commandId)
 {
     unsigned int commandBit = 1 << (commandId - 1);
@@ -32,7 +73,73 @@ int MenuTopCommandCheck(int commandId)
 
 void MenuStatusDisp(MenuStatusPanelWindow *window, MenuStatusPanel *work);
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_top_command_check", TopStatusWinMain);
+void TopStatusWinMain(void)
+{
+    MenuTopStatusWin *status = TopStatusWin;
+    short slideTarget;
+    int chrNo;
+    int i;
+    int y;
+
+    switch (status->state) {
+    case 0: {
+        status->count = 0;
+        status->color = 0xF000F0;
+        y = 28;
+        i = 0;
+        do {
+            MenuTopPartyData *party;
+            unsigned short partyId;
+
+            party = (MenuTopPartyData *)PartyDataGet();
+            partyId = party->slot[i].id;
+            chrNo = MenuMaryIdChange(partyId);
+            if (chrNo != 0) {
+                MenuTopWindow *const window = &status->window[i];
+                MenuStatusPanel *const panel = &status->panel[i];
+
+                WindowDXSet((WindowDX *)window);
+                status->window[i].draw = (void (*)(WindowDX *, void *))MenuStatusDisp;
+                window->x = 16;
+                window->x = -272;
+                status->window[i].color = status->color;
+                status->window[i].width = 240;
+                status->window[i].height = 99;
+                window->panel = panel;
+                status->window[i].y = y;
+                status->window[i].title = MenuTagTextGet(1);
+                window->enabled = 1;
+                status->panel[i].enabled = 1;
+                status->panel[i].offsetX = 0;
+                status->panel[i].offsetY = 0;
+                status->panel[i].chrNo = chrNo;
+                window->state = 1;
+                WindowDXMain((WindowDX *)window);
+                status->window[i].state = 3;
+                status->count++;
+            }
+            ++i;
+            y = 28 + 120 * i;
+        } while (i < 3);
+        status->state = 2;
+    }
+    case 2:
+        slideTarget = 16;
+        switch (MenuWork.state) {
+        case 32:
+        case 33:
+            break;
+        default:
+            slideTarget = -272;
+            break;
+        }
+        for (i = 0; i < status->count; i++) {
+            MoveSlide(&status->window[i].x, &slideTarget, 5.0f);
+            WindowDXMain((WindowDX *)&status->window[i]);
+        }
+        break;
+    }
+}
 
 void TopInfoMain(void)
 {
@@ -345,14 +452,20 @@ void nmlModelSetPlace(float matrix[4][4]);
 void nmlModelEntry(int model);
 void nmlModelFlush(void);
 static const float D_004C3640[4] = {1.57079637f, 0.0f, 0.0f, 1.0f};
-static const float D_004C3650[7][4] = {
-    {0.5f, 0.5f, 0.5f, 1.0f},
-    {0.8f, 0.8f, 0.8f, 1.0f},
-    {0.8f, 0.8f, 0.8f, 1.0f},
-    {0.8f, 0.8f, 0.8f, 1.0f},
-    {1.0f, 1.0f, 0.5f, 1.0f},
-    {-1.0f, 1.0f, 0.0f, 1.0f},
-    {0.0f, 1.0f, -1.0f, 1.0f}
+static const MenuLightingSources D_004C3650 = {
+    .value = {
+        .ambient = {0.5f, 0.5f, 0.5f, 1.0f},
+        .intensity = {
+            {0.8f, 0.8f, 0.8f, 1.0f},
+            {0.8f, 0.8f, 0.8f, 1.0f},
+            {0.8f, 0.8f, 0.8f, 1.0f}
+        },
+        .direction = {
+            {1.0f, 1.0f, 0.5f, 1.0f},
+            {-1.0f, 1.0f, 0.0f, 1.0f},
+            {0.0f, 1.0f, -1.0f, 1.0f}
+        }
+    }
 };
 
 
@@ -374,7 +487,7 @@ static void tskMenuTai(MenuTaiTask *task)
     MenuModelProjectedPoint projected[2][4][3];
     MenuModelLinePoint lines[98];
     MenuModelLinePoint *point;
-    MenuModelTransform *model;
+    MenuModelScalarTransform *model;
     float targetScale;
     short currentCommand;
     int i;
@@ -454,14 +567,14 @@ static void tskMenuTai(MenuTaiTask *task)
         xglMatrixStackRotY(task->model->rotation.y);
         xglMatrixStackRotX(task->model->rotation.x);
         xglMatrixStackSave(task->model->place);
-        __builtin_memcpy(&sources, D_004C3650, sizeof(sources));
-        xglLightIntensityAmbient(&light, sources.ambient);
-        xglLightIntensityParallel(&light, 0, sources.intensity[0]);
-        xglLightDirection(&light, 0, sources.direction[0]);
-        xglLightIntensityParallel(&light, 1, sources.intensity[1]);
-        xglLightDirection(&light, 1, sources.direction[1]);
-        xglLightIntensityParallel(&light, 2, sources.intensity[2]);
-        xglLightDirection(&light, 2, sources.direction[2]);
+        __builtin_memcpy(sources.words, D_004C3650.words, sizeof(sources.words));
+        xglLightIntensityAmbient(&light, sources.value.ambient);
+        xglLightIntensityParallel(&light, 0, sources.value.intensity[0]);
+        xglLightDirection(&light, 0, sources.value.direction[0]);
+        xglLightIntensityParallel(&light, 1, sources.value.intensity[1]);
+        xglLightDirection(&light, 1, sources.value.direction[1]);
+        xglLightIntensityParallel(&light, 2, sources.value.intensity[2]);
+        xglLightDirection(&light, 2, sources.value.direction[2]);
         xglLightCalcMatrix(&light);
         nmlModelSetLight(light.matrix[1], light.matrix[0]);
         nmlModelSetTexture(MenuTairetuModelXtxAddr);
@@ -549,7 +662,125 @@ static void tskMenuTai(MenuTaiTask *task)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_top_command_check", tskMenuTaiPointa);
+static void tskMenuTaiPointa(MenuPointaTask *task)
+{
+    MenuFormationPositions positions;
+    Vector4 targetScale;
+    MenuModelLighting light;
+    MenuLightingSources sources;
+
+    __builtin_memcpy(positions.words, D_004C36C0.words, sizeof(positions.words));
+
+    if (MenuWork.command == 12 ||
+        MenuPointaGuardWord(task) == 0 ||
+        MenuPointaGuardWord(task) >= 17) {
+        xglTaskWaitRemove(&task->link);
+        return;
+    }
+    switch (task->state) {
+    case 0: {
+        MenuModelTransform *pointer;
+
+        pointer = task->pointer;
+        (&pointer->position.vector)->x = 0.0f;
+        (&pointer->position.vector)->y = 0.0f;
+        (&pointer->position.vector)->z = 0.0f;
+        (&pointer->position.vector)->w = 1.0f;
+        pointer->rotation.x = 0.0f;
+        pointer->rotation.y = 0.0f;
+        pointer->rotation.z = 0.0f;
+        pointer->rotation.w = 1.0f;
+        task->previousCommand = -1;
+        task->state = 2;
+        task->initialized = 0;
+        task->paletteIndex = 0;
+        task->enabled = 0;
+        break;
+    }
+    case 2: {
+        MenuModelTransform *pointer;
+        MenuModelTransform *scalePointer;
+        short currentCommand;
+        short previousCommand;
+
+        previousCommand = task->previousCommand;
+        currentCommand = MenuWork.command;
+        if (previousCommand != currentCommand) {
+            task->initialized = 0;
+            task->previousCommand = MenuWork.command;
+            currentCommand = MenuWork.command;
+        }
+        if (currentCommand == 0) {
+            if (task->initialized == 0) {
+                if (task->index != 3) {
+                    MenuTopPartyData *party = (MenuTopPartyData *)PartyDataGet();
+
+                    pointer = task->pointer;
+                    pointer->position.vector =
+                        positions.vector[party->slot[task->index].attackPosition - 1];
+                    pointer->target = pointer->position;
+                    pointer->rotation.x = 0.0f;
+                    pointer->rotation.y = 0.0f;
+                    pointer->rotation.z = 0.0f;
+                    pointer->rotation.w = 1.0f;
+                    pointer->scale.x = 0.0f;
+                    pointer->scale.y = 1.0f;
+                    pointer->scale.z = 0.0f;
+                    pointer->scale.w = 1.0f;
+                    task->selectedSlot = task->index;
+                    task->formationIndex = ((MenuTopPartyData *)PartyDataGet())->slot[task->index].attackPosition - 1;
+                    task->enabled = 1;
+                    task->paletteIndex = 0;
+                } else {
+                    task->enabled = 0;
+                }
+                task->initialized = 1;
+            }
+            targetScale.x = targetScale.y = targetScale.z = targetScale.w = 1.0f;
+            scalePointer = task->pointer;
+            scalePointer->scale.x += (targetScale.x - scalePointer->scale.x) * D_004D7D98;
+            scalePointer->scale.y += (targetScale.y - scalePointer->scale.y) * D_004D7D98;
+            scalePointer->scale.z += (targetScale.z - scalePointer->scale.z) * D_004D7D98;
+        } else {
+            task->enabled = 0;
+        }
+        if (task->enabled != 0) {
+            xglStudioGetCamera2(0)->active = 0;
+            xglStudioGetCamera2(1)->active = 0;
+            xglStudioGetCamera2(2)->active = 1;
+            xglMatrixStackUnit();
+            xglMatrixStackLoad(task->formation[task->selectedSlot].place);
+            xglMatrixStackTrans(&task->pointer->position.vector.x);
+            xglMatrixStackScale(&task->pointer->scale.x);
+            xglMatrixStackSave(task->pointer->place);
+            sources = D_004C3720;
+            {
+                MenuModelVector ambient[3] = {
+                    {.vector = {0.40499997f, 0.27f, 0.179999992f, 1.0f}},
+                    {.vector = {0.3f, 0.5f, 0.1f, 1.0f}},
+                    {.vector = {1.0f, 0.3f, 0.3f, 1.0f}}
+                };
+                xglLightIntensityAmbient(&light, &ambient[task->paletteIndex].vector.x);
+            }
+            xglLightIntensityParallel(&light, 0, sources.value.intensity[0]);
+            xglLightDirection(&light, 0, sources.value.direction[0]);
+            xglLightIntensityParallel(&light, 1, sources.value.intensity[1]);
+            xglLightDirection(&light, 1, sources.value.direction[1]);
+            xglLightIntensityParallel(&light, 2, sources.value.intensity[2]);
+            xglLightDirection(&light, 2, sources.value.direction[2]);
+            xglLightCalcMatrix(&light);
+            nmlModelSetLight(light.matrix[1], light.matrix[0]);
+            nmlModelSetTexture(MenuTairetuModelPointerXtxAddr);
+            nmlModelSetPlace(task->pointer->place);
+            nmlModelEntry((int)MenuTairetuModelPointerLexAddr);
+            nmlModelFlush();
+        }
+        break;
+    }
+    default:
+        break;
+    }
+}
 
 INCLUDE_ASM("asm/main/nonmatchings/menu_top_command_check", MenuBackModelSet);
 

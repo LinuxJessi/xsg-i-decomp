@@ -1,4 +1,11 @@
 #include "common.h"
+#include "main/menu_1.h"
+#include "main/menu_top_command_check.h"
+#include "main/xgl_render.h"
+#include "main/xgl_packet.h"
+#include "main/xgl_thread.h"
+#include "main/party.h"
+#include "main/game_snap_shot.h"
 
 #include "shared.h"
 
@@ -16,19 +23,29 @@ extern const char D_004DB230[];
 
 typedef struct ShopDataCategory {
     unsigned short count;
-    unsigned char unmodeled_02[38];
+    unsigned char unmodeled_02[30];
+    unsigned short slots[4];
 } ShopDataCategory;
 
-typedef struct ShopDataTail {
-    unsigned short count;
-    unsigned char unmodeled_02[6];
+
+
+typedef union ShopDataTail {
+    struct {
+        unsigned short count;
+        unsigned char unmodeled_02[6];
+    };
+    unsigned short agwsSlots[4];
 } ShopDataTail;
+
+
 
 typedef struct MenuShopListRow {
     const char *name;
     int amount;
     unsigned char flag;
 } MenuShopListRow;
+
+
 
 typedef struct MenuShopWindowDX {
     short x;
@@ -41,6 +58,8 @@ typedef struct MenuShopWindowDX {
     unsigned char unmodeled_11[0x183];
 } MenuShopWindowDX;
 
+
+
 typedef struct MenuShopMessage {
     unsigned char unmodeled_00;
     unsigned char mode;
@@ -52,12 +71,16 @@ typedef struct MenuShopMessage {
     const char *text;
 } MenuShopMessage;
 
+
+
 typedef struct MenuShopEx2Work {
     unsigned char unmodeled_00[4];
     int color;
     MenuShopWindowDX window;
     MenuShopMessage message;
 } MenuShopEx2Work;
+
+
 
 typedef struct MenuShopWeapon {
     unsigned short shopParameter1;
@@ -70,12 +93,14 @@ typedef struct MenuShopWeapon {
     unsigned short shopParameter2;
 } MenuShopWeapon;
 
-/* The map anchors nine 0x28-byte count records and a separate 8-byte tail.
- * The remaining bytes stay explicitly unmodeled. */
 
-static ShopDataCategory ShopData[9];
 
-static ShopDataTail ShopDataTailStorage __attribute__((section(".bss")));
+/* Nine 0x28-byte categories and the final eight-byte slot/count view share
+ * the original 0x170-byte storage extent. */
+static struct {
+    ShopDataCategory records[9];
+    ShopDataTail tail;
+} ShopData;
 
 extern int MenuScenarioNo;
 
@@ -93,9 +118,9 @@ extern int dataMoneyBoxChk(void);
 
 extern int MenuBoxChk(int item);
 
-extern int subMenuShopEquipCheck(int item, int category);
+int subMenuShopEquipCheck(int item, int category);
 
-extern int MenuShopNoSaleCheck(int item);
+int MenuShopNoSaleCheck(int item);
 
 extern void MenuSortSet(int list, int type, int order);
 
@@ -121,10 +146,12 @@ typedef struct MenuShopWindowSP {
     unsigned char columns;
     unsigned char rows;
     unsigned char unmodeled_16[0x06];
-    MenuShopListRow *items;
+    struct MenuShopListRow *items;
     unsigned char unmodeled_20[0x06];
     unsigned char state;
 } MenuShopWindowSP;
+
+
 
 static MenuShopWindowSP *MenuShopWinSP;
 
@@ -132,7 +159,7 @@ extern unsigned char MenuKeepSelect[0x64];
 
 extern MenuShopListRow *MenuListMake(int list, int mode);
 
-extern void MenuShopSortSet(int list, int type, int order, int option);
+void MenuShopSortSet(int list, int type, int order, int option);
 
 /* Referenced original data recovered from this translation unit. */
 
@@ -152,6 +179,8 @@ struct MenuShopPasMessage {
     unsigned char unmodeled_1c[0x28];
 };
 
+
+
 struct MenuShopModelTransform {
     unsigned char unmodeled_00[0x10];
     Vector4 position;
@@ -160,10 +189,14 @@ struct MenuShopModelTransform {
     float fade;
 };
 
+
+
 struct MenuShopModelActor {
     unsigned char unmodeled_00[0xC0];
     struct MenuShopModelTransform transform;
 };
+
+
 
 struct MenuShopModelUnit {
     unsigned char unmodeled_00[0x10];
@@ -175,12 +208,16 @@ struct MenuShopModelUnit {
     struct MenuShopModelActor *actor;
 };
 
+
+
 struct MenuShopModelCallbackData {
     unsigned char unmodeled_00[0x10];
     unsigned char state;
     unsigned char unmodeled_11[0x0B];
     int modelId;
 };
+
+
 
 /* The map anchors nine 0x28-byte count records and a separate 8-byte tail.
  * The remaining bytes stay explicitly unmodeled. */
@@ -189,6 +226,39 @@ struct MenuShopAgwsListState {
     unsigned char unmodeled_00[0x160];
     unsigned short itemIds[4];
 };
+
+
+
+typedef struct AgwsModelTransform {
+    unsigned char unmodeled_00[0x10];
+    Vector4 position;
+    Vector4 rotation;
+    unsigned char unmodeled_30[0x60 - 0x30];
+    float fade;
+} AgwsModelTransform;
+
+typedef struct AgwsModelActor {
+    unsigned char unmodeled_00[0xC0];
+    AgwsModelTransform transform;
+} AgwsModelActor;
+
+typedef struct AgwsModelOrg {
+    unsigned char unmodeled_00[0x5A];
+    signed char hand[3];
+    unsigned char unmodeled_5d[0x5E - 0x5D];
+    short weaponId[3];
+} AgwsModelOrg;
+
+typedef struct AgwsModelUnit {
+    unsigned char unmodeled_00[0x10];
+    signed char taskPhase;
+    unsigned char active;
+    unsigned char unmodeled_12[1];
+    unsigned char state;
+    struct AgwsModelOrg *org;
+    unsigned char unmodeled_18[0x20 - 0x18];
+    struct AgwsModelActor *actor;
+} AgwsModelUnit;
 
 struct AgwsModelUnit;
 extern void MenuModelUnitBreak(struct AgwsModelUnit *unit);
@@ -211,6 +281,8 @@ typedef struct MenuShopUnitData {
     unsigned char unmodeled_70[0x110];
 } MenuShopUnitData;
 
+
+
 struct MenuShopListWork {
     unsigned char state;
     unsigned char active;
@@ -220,20 +292,28 @@ struct MenuShopListWork {
     MenuShopWindowSP window;
 };
 
+
+
 struct MenuShopSortOption {
     unsigned char type;
     unsigned char unmodeled_01[3];
     int order;
 };
 
+
+
 struct MenuShopSortOptionTable {
     struct MenuShopSortOption entries[9];
 };
+
+
 
 typedef struct MenuShopLineContext {
     unsigned char unmodeled_00[0x10];
     unsigned char mode;
 } MenuShopLineContext;
+
+
 
 typedef struct MenuShopLineRow {
     int text_id;
@@ -241,6 +321,8 @@ typedef struct MenuShopLineRow {
     short position;
     short target;
 } MenuShopLineRow;
+
+
 
 typedef struct MenuShopLineDisplay {
     unsigned char unmodeled_00[3];
@@ -251,19 +333,29 @@ typedef struct MenuShopLineDisplay {
     int unmodeled_48;
 } MenuShopLineDisplay;
 
+
+
 struct MenuShopRowCountTable {
     unsigned char values[18];
 };
+
+
 
 extern int MenuShopListChange00(int list);
 
 typedef signed char s8;
 
+
+
 typedef int s32;
+
+
 
 #define NULL ((void *)0)
 
 typedef struct { unsigned char bytes[8]; } M2C_BLOCK8;
+
+
 
 typedef struct MenuShopSortEntry {
     const short *itemIds;
@@ -271,9 +363,13 @@ typedef struct MenuShopSortEntry {
     int count;
 } MenuShopSortEntry;
 
+
+
 typedef struct MenuShopSortTable {
     MenuShopSortEntry entries[11];
 } MenuShopSortTable;
+
+
 
 extern const MenuShopSortTable D_004C7738;
 
@@ -282,14 +378,20 @@ struct MenuShopEquipRecord {
     short itemIds[3][3];
 };
 
+
+
 struct MenuShopEquipScratch {
     int partyIds[15];
     int slotIndex[9];
 };
 
+
+
 int PartyAgwsGet(int *);
 
 typedef struct { unsigned char bytes[4]; } M2C_BLOCK4;
+
+
 
 typedef union {
     struct {
@@ -301,7 +403,11 @@ typedef union {
     s16 ids[11];
 } MenuShopIconIds;
 
+
+
 typedef long long s64;
+
+
 
 /* The calculator and unit snapshots each copy a complete 0x180-byte record.
  * Only the statistics used by the shop are modeled here. */
@@ -317,6 +423,8 @@ typedef struct ShopCalculatedPara {
     unsigned short currentHp;
     unsigned char unmodeled_36[0x14A];
 } ShopCalculatedPara;
+
+
 
 ShopCalculatedPara *func_00A11108(int, int *, int *);
 
@@ -334,6 +442,8 @@ typedef struct MenuShopAccessoryData {
     unsigned char shopParameter2;
     unsigned char shopParameter3;
 } MenuShopAccessoryData;
+
+
 
 extern MenuShopAccessoryData *func_A1A548(int item);
 
@@ -355,9 +465,9 @@ int MenuSelectMove(int, int, int);
 
 int MenuSelectMove2(int, int, int);
 
-void WindowSPKeepSelect(MenuShopWindowSP *, u8 *);
 
-void WindowSPKeepSelectCheck(u8 *);
+
+
 
 int dataMoneyBoxDec(s32);
 
@@ -388,10 +498,14 @@ typedef struct MenuShopItemData {
     unsigned short flags;
 } MenuShopItemData;
 
+
+
 typedef struct MenuShopAttackData {
     unsigned char unmodeled_00[10];
     unsigned short flags;
 } MenuShopAttackData;
+
+
 
 extern MenuShopWeapon *dataWpnGet(int item);
 
@@ -399,38 +513,25 @@ extern MenuShopAttackData *dataAttGet(int item);
 
 extern MenuShopItemData *func_A1A4E8(int item);
 
-#include "e_battle_win_open.h"
+#include "main/e_battle_win_open.h"
+#include "main/open_close_main.h"
+#include "main/e_number_main.h"
+#include "main/xgl_sound.h"
+extern PadPrefix PadData;
 
-typedef struct AgwsModelTransform {
-    unsigned char unmodeled_00[0x10];
-    Vector4 position;
-    Vector4 rotation;
-    unsigned char unmodeled_30[0x60 - 0x30];
-    float fade;
-} AgwsModelTransform;
 
-typedef struct AgwsModelActor {
-    unsigned char unmodeled_00[0xC0];
-    AgwsModelTransform transform;
-} AgwsModelActor;
+void WindowSPSet(WindowSPCursor *cursor);
+void WindowSPMain(WindowSPCursor *cursor);
+void WindowSPSelectJump(WindowSPCursor *cursor, int selection);
 
-typedef struct AgwsModelOrg {
-    unsigned char unmodeled_00[0x5A];
-    signed char hand[3];
-    unsigned char unmodeled_5d[0x5E - 0x5D];
-    short weaponId[3];
-} AgwsModelOrg;
 
-typedef struct AgwsModelUnit {
-    unsigned char unmodeled_00[0x10];
-    signed char taskPhase;
-    unsigned char active;
-    unsigned char unmodeled_12[1];
-    unsigned char state;
-    AgwsModelOrg *org;
-    unsigned char unmodeled_18[0x20 - 0x18];
-    AgwsModelActor *actor;
-} AgwsModelUnit;
+
+
+
+
+
+
+
 
 typedef struct MenuShopPasMessageSlot {
     unsigned char unmodeled_00;
@@ -444,6 +545,8 @@ typedef struct MenuShopPasMessageSlot {
     unsigned char unmodeled_1c[0x28];
 } MenuShopPasMessageSlot;
 
+
+
 typedef struct MenuShopPasBounds {
     short x1;
     short y1;
@@ -452,10 +555,14 @@ typedef struct MenuShopPasBounds {
     short y2;
 } MenuShopPasBounds;
 
+
+
 typedef struct MenuShopPasWindow {
     WindowDX common;
     unsigned char unmodeled_30[0x194 - 0x30];
 } MenuShopPasWindow;
+
+
 
 typedef struct MenuShopPasData {
     unsigned char unmodeled_00[4];
@@ -467,7 +574,346 @@ typedef struct MenuShopPasData {
     MenuShopPasBounds bounds;
 } MenuShopPasData;
 
+
+
 /* Referenced original data recovered from this translation unit. */
+
+extern int PartyTakeAgwsCheck(int id);
+
+extern const char *D_004C74B0[4];
+
+extern const char *D_004C7500[4];
+
+extern const char *D_004C7520[3];
+
+extern const char *D_004C7580[4];
+
+extern const char *D_004C75A0[3];
+
+extern const char *D_004C7650[8];
+
+extern const char *D_004DB138[];
+
+extern const char D_004DB140[];
+
+extern const char D_004DB148[];
+
+extern const char D_004DB150[];
+
+
+
+
+
+
+
+typedef struct MenuShopInfoPanel {
+    short textOffset[2];
+    unsigned char unmodeled_04[8];
+    const char *text;
+} MenuShopInfoPanel;
+
+
+
+typedef struct MenuShopInfoWork {
+    unsigned char unmodeled_00[2];
+    unsigned char flag;
+    unsigned char unmodeled_03;
+    int unmodeled_04;
+    int ticker;
+    WindowDX window;
+    MenuShopInfoPanel panel;
+    unsigned char unmodeled_1b0[416];
+    char message[128];
+} MenuShopInfoWork;
+
+
+
+
+
+extern MenuTextEntry *func_A2C918(unsigned int itemId);
+
+extern MenuTextEntry *func_A2C968(unsigned int itemId);
+
+extern void eMessageCpy(void *message, const char *text);
+
+extern void eMessageCat(const char *text);
+
+extern const char *MenuCharNameGet(int unitId);
+
+extern const char *MenuNumberTextGet(long value, int digits, int flag);
+
+typedef struct MenuShopInfoT0 { const char *p[4]; } MenuShopInfoT0;
+
+
+
+typedef struct MenuShopInfoT16 { const char *p[4]; } MenuShopInfoT16;
+
+
+
+typedef struct MenuShopInfoT32 { const char *p[3]; } MenuShopInfoT32;
+
+
+
+typedef struct MenuShopInfoT48 { const char *p[4]; } MenuShopInfoT48;
+
+
+
+typedef struct MenuShopInfoT64 { const char *p[3]; } MenuShopInfoT64;
+
+
+
+typedef struct MenuShopInfoT80 { const char *p[8]; } MenuShopInfoT80;
+
+
+
+typedef struct MenuShopInfoT112 { const char *p[2]; } MenuShopInfoT112;
+
+
+
+struct MenuShopListDisplay {
+    unsigned char state;
+    unsigned char active;
+    unsigned char initialFlags[2];
+    unsigned int category;
+    int color;
+    WindowSPCursor window;
+};
+
+
+
+
+
+
+
+extern void eSpriteSet(void *sprite, short spriteId);
+
+extern void eSpriteMain(void *sprite);
+
+struct MenuShopPortrait {
+    signed char state;
+    unsigned char unmodeled_01[3];
+    short x;
+    short y;
+    int style;
+    signed char red;
+    signed char green;
+    signed char blue;
+    signed char alpha;
+    unsigned char unmodeled_10[0x14];
+    short spriteId;
+};
+
+
+
+struct MenuShopUnitPanel {
+    unsigned char state;
+    unsigned char active;
+    unsigned char selectionFlags;
+    unsigned char flags;
+    int depth;
+    WindowDXRibbon ribbon;
+    BattleWinTagFont label;
+    struct MenuShopPortrait portraits[7];
+    unsigned char unmodeled_1b0[4];
+    BattleWinCursor cursor;
+};
+
+
+
+extern const char D_004DB1B8[];
+
+extern unsigned short MenuFaceEpidGet(int unitId, int smallPortrait);
+
+struct MenuShopIconIds {
+    short ids[11];
+};
+
+
+
+struct MenuShopIconSprite {
+    signed char state;
+    unsigned char unmodeled_01[3];
+    short x;
+    short y;
+    int depth;
+    signed char red;
+    signed char green;
+    signed char blue;
+    unsigned char alpha;
+    unsigned char unmodeled_10[0x14];
+    short spriteId;
+};
+
+
+
+struct MenuShopIconDisplay {
+    signed char state;
+    unsigned char unmodeled_01;
+    unsigned char slide;
+    unsigned char phase;
+    short animation;
+    short active;
+    signed char categoryLift[9];
+    unsigned char unmodeled_11[3];
+    int depth;
+    float scale;
+    struct MenuShopIconSprite sprites[11];
+};
+
+
+
+extern const struct MenuShopIconIds D_004C79F8;
+
+extern const float D_004D7E64;
+
+extern const float D_004D7E68;
+
+struct MenuShopParameterLabel {
+    unsigned char state;
+    unsigned char subState;
+    unsigned char unmodeled_02[2];
+    short x;
+    short y;
+    int depth;
+    unsigned char red;
+    unsigned char green;
+    unsigned char blue;
+    unsigned char alpha;
+    unsigned char unmodeled_10[12];
+    const char *text;
+};
+
+
+
+struct MenuShopParameterNumber {
+    unsigned short x;
+    unsigned short y;
+    int depth;
+    unsigned char color[4];
+    unsigned char mode;
+    unsigned char unmodeled_0d;
+    unsigned char format;
+    unsigned char digits;
+    unsigned char unmodeled_10;
+    unsigned char comparisonColor;
+    unsigned char alignment;
+    unsigned char firstOnly;
+    MenuStatusValuePair value;
+    unsigned char unmodeled_18[0x78];
+};
+
+
+
+struct MenuShopParameterDisplay {
+    unsigned char state;
+    unsigned char active;
+    unsigned char count;
+    unsigned char twoColumns;
+    int depth;
+    WindowDX window;
+    struct MenuShopParameterLabel labels[9];
+    struct MenuShopParameterNumber numbers[9];
+};
+
+
+
+struct MenuShopParameterDigits8 { unsigned char digits[8]; };
+
+
+
+struct MenuShopParameterDigits7 { signed char digits[7]; };
+
+
+
+extern const struct MenuShopParameterDigits8 D_004DB220[];
+
+extern const struct MenuShopParameterDigits7 D_004DB228[];
+
+extern const char *msg00_9[];
+
+extern const char *msg01_10[];
+
+static void MenuShopList(TskObject *task, struct MenuShopListDisplay *work);
+
+void MenuShopSelect(void *task, void *data);
+
+static void MenuShopEx02(TskObject *task, struct MenuShopUnitPanel *work);
+
+static void MenuShopIcon(TskObject *task, struct MenuShopIconDisplay *work);
+
+struct MenuShopExBullet {
+    unsigned char unmodeled_00[4];
+    int depth;
+    WindowDX window;
+    MenuShopMessage message;
+};
+struct MenuShopExHeader {
+    WindowDXRibbon ribbon;
+    BattleWinTagFont label;
+    BattleWinNumber number;
+};
+struct MenuShopExPortrait {
+    signed char state;
+    unsigned char unmodeled_01[3];
+    short x;
+    short y;
+    int depth;
+    signed char red;
+    signed char green;
+    signed char blue;
+    signed char alpha;
+    unsigned char unmodeled_10[0x14];
+    short spriteId;
+};
+struct MenuShopExParty {
+    WindowDXRibbon ribbon;
+    BattleWinTagFont label;
+    struct MenuShopExPortrait sprites[7];
+    unsigned char unmodeled_1a8[4];
+};
+struct MenuShopExDisplay {
+    unsigned char state;
+    unsigned char active;
+    unsigned char flags;
+    unsigned char slideFlags;
+    int depth;
+    struct MenuShopExHeader headers[2];
+    struct MenuShopExParty parties[2];
+    struct MenuShopExHeader equipment;
+    struct MenuShopExBullet bullet;
+};
+
+
+struct MenuShopSelectConfirm {
+    WindowDX window;
+    MenuTopMenuPanel panel;
+};
+struct MenuShopSelectList {
+    WindowDX window;
+    MenuTopMenuPanel panel;
+    MenuTopCommandEntry commands[8];
+};
+struct MenuShopSelectDisplay {
+    unsigned char state;
+    unsigned char unmodeled_01[2];
+    unsigned char flags;
+    int depth;
+    struct MenuShopSelectList lists[2];
+    struct MenuShopSelectConfirm confirmation[2];
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 INCLUDE_ASM("asm/main/nonmatchings/menu_shop", MenuShopAgwsListChange);
 
@@ -554,6 +1000,8 @@ typedef struct MenuShopHelpWork {
     MenuShopPasBounds bounds;
 } MenuShopHelpWork;
 
+
+
 extern const char *msg00_0_0036DAF0[];
 extern void endPrintExtFunc(int depth, int mode, void *vertices);
 
@@ -573,14 +1021,14 @@ static void MenuShopPas(TskObject *task, void *data)
         work->y = 8;
         work->depth = 0xfffff0;
         window = &work->window;
-        WindowDXSet(window);
+        WindowDXSet((WindowDX *)(void *)(window));
         window->x = work->x;
         work->window.style = work->depth;
         work->window.width = 272;
         work->window.y = work->y;
         work->window.height = 32;
         work->window.state = 1;
-        WindowDXMain(window);
+        WindowDXMain((WindowDX *)(void *)(window));
         work->window.state = 3;
         text = msg00_0_0036DAF0;
         for (i = 0; i < 16; i++, text++) {
@@ -629,7 +1077,7 @@ static void MenuShopPas(TskObject *task, void *data)
         }
         window = &work->window;
         MoveSlide(&window->x, &windowX, 3.0f);
-        WindowDXMain(window);
+        WindowDXMain((WindowDX *)(void *)(window));
         work->bounds.x1 = window->x + 3;
         work->bounds.y1 = work->window.y + 3;
         work->bounds.x2 = work->window.width - 6;
@@ -647,7 +1095,182 @@ static void MenuShopPas(TskObject *task, void *data)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_shop", MenuShopInfo);
+static void MenuShopInfo(TskObject *task, MenuShopInfoWork *work)
+{
+    MenuShopInfoT0 tab0;
+    MenuShopInfoT16 tab16;
+    MenuShopInfoT32 tab32;
+    MenuShopInfoT48 tab48;
+    MenuShopInfoT64 tab64;
+    MenuShopInfoT80 tab80;
+    MenuShopInfoT112 tab112;
+    short targetY;
+    short targetH;
+    MenuShopInfoPanel *panel;
+    unsigned char *unit;
+    short value;
+
+    tab0 = *(MenuShopInfoT0 *)D_004C74B0;
+    tab16 = *(MenuShopInfoT16 *)D_004C7500;
+    tab32 = *(MenuShopInfoT32 *)D_004C7520;
+    tab48 = *(MenuShopInfoT48 *)D_004C7580;
+    tab64 = *(MenuShopInfoT64 *)D_004C75A0;
+    tab80 = *(MenuShopInfoT80 *)D_004C7650;
+    tab112 = *(MenuShopInfoT112 *)D_004DB138;
+
+    switch (task->state) {
+    case 0:
+        work->ticker = 0x00fffff0;
+        WindowDXSet((WindowDX *)(void *)(&work->window));
+        work->window.x = -16;
+        work->window.y = 480;
+        work->window.width = 544;
+        work->window.height = 54;
+        work->window.style = work->ticker;
+        work->window.close_callback = (void (*)(WindowDX *, void *))MenuInfoWindow;
+        work->window.state = 1;
+        panel = &work->panel;
+        work->window.close_callback_arg = panel;
+        WindowDXMain((WindowDX *)(void *)(&work->window));
+        work->window.state = 3;
+        panel->textOffset[0] = 0;
+        work->panel.textOffset[1] = 0;
+        work->panel.text = 0;
+        work->flag = 0;
+        work->unmodeled_04 = 0;
+        memset(work->message, 0, 128);
+        return;
+    case 2:
+        break;
+    default:
+        return;
+    }
+
+    targetY = 386;
+    targetH = 54;
+    switch (MenuShopWork->state) {
+    case 32:
+        eMessageCpy(work->message, tab0.p[MenuShopWork->mode]);
+        break;
+    case 48:
+    case 144:
+        if (MenuShopWork->itemId == 0) {
+            eMessageCpy(work->message, D_004DB140);
+        } else if ((MenuShopWork->itemId >> 16) == 7) {
+            if (MenuShopWork->modelId >= 23)
+                eMessageCpy(work->message, tab112.p[0]);
+            else
+                eMessageCpy(work->message, tab112.p[1]);
+        } else {
+            eMessageCpy(work->message, (const char *)MenuTextGet(MenuShopWork->itemId)->auxiliary);
+        }
+        break;
+    case 160:
+        if (MenuShopWork->itemId != 0) {
+            eMessageCpy(work->message, tab16.p[2]);
+            eMessageCat(tab16.p[3]);
+        }
+        break;
+    case 162:
+        if (MenuShopWork->itemId != 0) {
+            long money;
+
+            eMessageCpy(work->message, MenuNumberTextGet(MenuShopWork->quantity, 2, 0));
+            eMessageCat(tab32.p[2]);
+            eMessageCat(MenuTextGet(MenuShopWork->itemId)->name);
+            eMessageCat(tab32.p[0]);
+            switch (MenuShopWork->mode) {
+            case 0:
+                money = MenuBoxMoneyGet(MenuShopWork->itemId, 0) * MenuShopWork->quantity;
+                break;
+            default:
+                money = MenuBoxMoneyGet(MenuShopWork->itemId, 1) * MenuShopWork->quantity;
+                break;
+            }
+            eMessageCat(MenuNumberTextGet(money, 10, 0));
+            eMessageCat(tab32.p[1]);
+        }
+        break;
+    case 164:
+        if (MenuShopWork->itemId != 0) {
+            eMessageCpy(work->message, MenuNumberTextGet(MenuShopWork->quantity, 2, 0));
+            eMessageCat(tab64.p[0]);
+            eMessageCat(MenuTextGet(MenuShopWork->itemId)->name);
+            eMessageCat(D_004DB140);
+            eMessageCat(tab64.p[MenuShopWork->mode + 1]);
+        }
+        break;
+    case 192:
+        eMessageCpy(work->message, tab48.p[MenuShopWork->sortOption]);
+        break;
+    case 194:
+    case 196:
+        eMessageCpy(work->message, MenuCharNameGet(MenuShopWork->unitId));
+        eMessageCat(tab80.p[0]);
+        break;
+    case 198:
+        eMessageCpy(work->message, MenuCharNameGet(MenuShopWork->unitId));
+        eMessageCat(tab80.p[7]);
+        break;
+    case 208:
+        if (MenuShopWork->listIndex < 0 || MenuShopWork->equipmentId == 0) {
+            eMessageCpy(work->message, D_004DB140);
+        } else {
+            eMessageCpy(work->message, (const char *)func_A2C968(MenuShopWork->equipmentId)->auxiliary);
+        }
+        break;
+    case 210:
+    case 212:
+        if (MenuShopWork->listIndex >= 0) {
+            unit = func_A191C0(MenuShopWork->unitId);
+            eMessageCpy(work->message, MenuCharNameGet(MenuShopWork->unitId));
+            eMessageCat(tab80.p[1]);
+            if (MenuShopWork->sort_mode_selector != 0) {
+                value = *(short *)(unit + 88);
+                if (value != 0)
+                    eMessageCat(func_A2C968(value)->name);
+                eMessageCat(tab80.p[2]);
+                eMessageCat(tab80.p[3]);
+                if (MenuShopWork->equipmentId != 0)
+                    eMessageCat(func_A2C968(MenuShopWork->equipmentId)->name);
+            } else {
+                value = *(short *)(unit + 86);
+                if (value != 0)
+                    eMessageCat(func_A2C918(value)->name);
+                eMessageCat(tab80.p[2]);
+                eMessageCat(tab80.p[3]);
+                if (MenuShopWork->equipmentId != 0)
+                    eMessageCat(func_A2C918(MenuShopWork->equipmentId)->name);
+            }
+            eMessageCat(D_004DB148);
+        } else {
+            eMessageCpy(work->message, D_004DB140);
+        }
+        break;
+    case 214:
+        eMessageCpy(work->message, MenuCharNameGet(MenuShopWork->unitId));
+        if (MenuShopWork->sort_mode_selector != 0) {
+            eMessageCat(tab80.p[4]);
+            eMessageCat(tab80.p[6]);
+            if (MenuShopWork->equipmentId != 0)
+                eMessageCat(func_A2C968(MenuShopWork->equipmentId)->name);
+        } else {
+            eMessageCat(tab80.p[5]);
+            eMessageCat(tab80.p[6]);
+            if (MenuShopWork->equipmentId != 0)
+                eMessageCat(func_A2C918(MenuShopWork->equipmentId)->name);
+        }
+        eMessageCat(D_004DB150);
+        break;
+    default:
+        targetY = 480;
+        break;
+    }
+    MoveSlide(&work->window.y, &targetY, 3.0f);
+    MoveSlide(&work->window.height, &targetH, 3.0f);
+    work->panel.text = work->message;
+    WindowDXMain((WindowDX *)(void *)(&work->window));
+}
 
 INCLUDE_ASM("asm/main/nonmatchings/menu_shop", ListMake_3);
 
@@ -876,14 +1499,115 @@ int MenuShopListChange01(int list)
     MenuShopWinSP->title = D_004C7858;
     MenuShopWinSP->row_count = 7;
     MenuShopWinSP->items = MenuListGet(0);
-    WindowSPItemChange((void *)MenuShopWinSP);
-    WindowSPSetSelect((void *)MenuShopWinSP, &MenuKeepSelect[type * 5]);
+    WindowSPItemChange((WindowSPCursor *)(void *)((void *)MenuShopWinSP));
+    WindowSPSetSelect((WindowSPCursor *)(void *)((void *)MenuShopWinSP), &MenuKeepSelect[type * 5]);
 
     MenuShopWinSP->state = 6;
-    return WindowSPSelect((void *)MenuShopWinSP, 0);
+    return WindowSPSelect((WindowSPCursor *)(void *)((void *)MenuShopWinSP), 0);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_shop", MenuShopList);
+static void MenuShopList(TskObject *task, struct MenuShopListDisplay *work)
+{
+    MenuShopWorkData *selection;
+    short closeX;
+    short secondTargetX;
+
+    switch (task->state) {
+    case 0:
+        work->window.x = -0x110;
+        work->window.y = 0x50;
+        work->color = 0xffff0;
+        work->window.style = 0xffff0;
+        work->window.draw_flags = 7;
+        work->window.title = D_004DB140;
+        work->window.rows = 0xb;
+        work->window.height = 0x10e;
+        work->window.state = 0;
+        work->window.items = 0;
+        WindowSPSet((WindowSPCursor *)(void *)(&work->window));
+        work->initialFlags[0] = 0;
+        work->initialFlags[1] = 0;
+        work->state = 0;
+        work->active = 0;
+        return;
+    case 2:
+        switch (work->state) {
+        case 0:
+            work->active = 0;
+            work->state = 1;
+            /* fall through */
+        case 1:
+            switch (MenuShopWork->state) {
+            case 0x30:
+            case 0x90:
+                work->state = 0xa;
+                break;
+            case 0xd0:
+                work->state = 0x1e;
+                break;
+            }
+            break;
+        case 10:
+            work->window.x = -0x120;
+            work->window.y = 0x50;
+            MenuShopListChange00(0);
+            work->window.state = 0x11;
+            work->state = 0xb;
+            work->active = 1;
+            selection = MenuShopWork;
+            work->category = selection->category;
+            goto update_open_window;
+        case 11:
+            selection = MenuShopWork;
+        update_open_window:
+        {
+            short targetX = 0x10;
+            if (selection->state == 0xa2) {
+                unsigned char category = selection->category;
+
+                if (selection->mode == 0) {
+                    if (category != 0 && category != 8 && category != 7)
+                        targetX = -0x120;
+                } else if (category != 0 && category != 8 && category != 1 && category != 4) {
+                    targetX = -0x120;
+                }
+            }
+            MoveSlide(&work->window.x, &targetX, 3.0f);
+            selection = MenuShopWork;
+            if (selection->state == 0x20) {
+                work->state = 0xc;
+                selection = MenuShopWork;
+            }
+            if (work->category != selection->category)
+                work->state = 0xa;
+            break;
+        }
+        case 12:
+            closeX = -((unsigned short)work->window.width + 0x10);
+            MoveSlide(&work->window.x, &closeX, 3.0f);
+            if (work->window.x == closeX)
+                work->state = 0;
+            break;
+        case 30:
+            work->window.x = -0x120;
+            work->window.y = 0x50;
+            MenuShopListChange01(0);
+            work->window.state = 0x11;
+            work->state = 0x1f;
+            work->active = 1;
+            /* fall through */
+        case 31:
+            secondTargetX = 0x10;
+            MoveSlide(&work->window.x, &secondTargetX, 3.0f);
+            if (MenuShopWork->state == 0xc0)
+                work->state = 0xc;
+            break;
+        }
+        if (work->active != 0)
+            WindowSPMain((WindowSPCursor *)(void *)(&work->window));
+        break;
+    }
+}
 
 void MenuShopEx(void *task, void *data);
 
@@ -893,14 +1617,290 @@ INCLUDE_ASM("asm/main/nonmatchings/menu_shop", MenuShopSeisan);
 
 INCLUDE_ASM("asm/main/nonmatchings/menu_shop", MenuShopSeisan02);
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_shop", MenuShopEx02);
+static void MenuShopEx02(TskObject *task, struct MenuShopUnitPanel *work)
+{
+    short openX;
+    short closeX;
+    int i;
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_shop", MenuShopIcon);
+    switch (task->state) {
+    case 0:
+    {
+        short *unitIds;
+        work->depth = 0xffff0;
+        eRibbonSet((ERibbonSetData *)(void *)(&work->ribbon), 3);
+        work->ribbon.x = 0x210;
+        work->ribbon.y = 0x40;
+        work->ribbon.style = work->depth;
+        work->ribbon.width = 0x100;
+        work->ribbon.height = 0x90;
+        eTagFontSet((ETagFont *)(void *)(&work->label), D_004DB1B8);
+        work->label.style = work->depth + 2;
+        for (i = 0; i < MenuShopWork->unitCount; i++) {
+            unitIds = MenuShopWork->unitIds;
+            eSpriteSet(&work->portraits[i], MenuFaceEpidGet(unitIds[i], 0));
+            work->portraits[i].style = work->depth + 2;
+        }
+        eCursolSet((ECursol *)(void *)(&work->cursor), 0);
+        work->cursor.style = work->depth + 4;
+        work->cursor.mode = 0;
+        work->active = work->flags = work->selectionFlags = 0;
+        work->state = 0;
+        return;
+    }
+    case 2:
+        switch (work->state) {
+        case 0:
+            work->active = 0;
+            work->state = 1;
+            /* fall through */
+        case 1:
+            switch (MenuShopWork->state) {
+            case 0xd0:
+            case 0xd2:
+                work->state = 20;
+                break;
+            case 0xc2:
+                work->state = 10;
+                break;
+            }
+            break;
+        case 10:
+        case 20:
+            work->ribbon.x = 0x210;
+            work->active = 1;
+            if (work->state == 10) {
+                work->state = 11;
+                work->cursor.mode = 0x20;
+            } else {
+                work->state = 21;
+            }
+            /* fall through */
+        case 11:
+        case 21:
+        {
+            unsigned char shopState;
+            openX = 0x130;
+            MoveSlide(&work->ribbon.x, &openX, 3.0f);
+            shopState = MenuShopWork->state;
+            if (shopState == 0xc0) {
+                work->state = 12;
+            }
+            if (MenuShopWork->state == 0xd4) {
+                work->state = 12;
+            }
+            if (work->state == 21) {
+                for (i = 0; i < MenuShopWork->unitCount; i++) {
+                    int canEquip = 0;
+                    short *unitIds = MenuShopWork->unitIds;
+                    eSpriteSet(&work->portraits[i], MenuFaceEpidGet(unitIds[i], 0));
+                    if (MenuShopWork->sort_mode_selector != 0) {
+                        short *currentIds = MenuShopWork->unitIds;
+                        if (MenuFrameEquipCheck(currentIds[i], MenuShopWork->equipmentId) != 0)
+                            canEquip = 1;
+                    } else {
+                        short *currentIds = MenuShopWork->unitIds;
+                        canEquip = MenuEngineEquipCheck(currentIds[i], MenuShopWork->equipmentId) != 0;
+                    }
+                    if (canEquip == 0) {
+                        work->portraits[i].blue = 0x40;
+                        work->portraits[i].green = 0x40;
+                        work->portraits[i].red = 0x40;
+                    } else {
+                        work->portraits[i].blue = -0x80;
+                        work->portraits[i].green = -0x80;
+                        work->portraits[i].red = -0x80;
+                    }
+                }
+                if (MenuShopWork->state == 0xd2 && work->cursor.mode == 0)
+                    work->cursor.mode = 0x20;
+                if (MenuShopWork->state == 0xd0)
+                    work->cursor.mode = 0;
+            } else {
+                for (i = 0; i < MenuShopWork->unitCount; i++) {
+                    short *unitIds = MenuShopWork->unitIds;
+                    eSpriteSet(&work->portraits[i], MenuFaceEpidGet(unitIds[i], 0));
+                    unitIds = MenuShopWork->unitIds;
+                    if (MenuCharHpCheck(unitIds[i]) != 0) {
+                        work->portraits[i].blue = 0x40;
+                        work->portraits[i].green = 0x40;
+                        work->portraits[i].red = 0x40;
+                    } else {
+                        work->portraits[i].blue = -0x80;
+                        work->portraits[i].green = -0x80;
+                        work->portraits[i].red = -0x80;
+                    }
+                }
+            }
+            break;
+        }
+        case 12:
+            closeX = 0x210;
+            MoveSlide(&work->ribbon.x, &closeX, 3.0f);
+            if (work->ribbon.x == closeX)
+                work->state = 0;
+            work->cursor.mode = 0;
+            break;
+        }
+        if (work->active != 0) {
+            eRibbonMain((ERibbonMainData *)(void *)(&work->ribbon));
+            work->label.x = work->ribbon.x + 8;
+            work->label.y = (unsigned short)work->ribbon.y + 0x44;
+            eTagFontMain((ETagFontMainData *)(void *)(&work->label));
+            for (i = 0; i < MenuShopWork->unitCount; i++) {
+                work->portraits[i].x = work->ribbon.x + (i & 1) * 0x40 + 0x40;
+                work->portraits[i].y = (unsigned short)work->ribbon.y + (i / 2) * 0x30;
+                work->portraits[i].style = work->depth + 2;
+                eSpriteMain(&work->portraits[i]);
+            }
+            work->cursor.x = work->ribbon.x + ((unsigned char)MenuShopWork->unitSelection & 1) * 0x40 + 0x40;
+            work->cursor.y = (unsigned short)work->ribbon.y + (MenuShopWork->unitSelection / 2) * 0x30 + 0x10;
+            work->cursor.style = work->depth + 4;
+            eCursolMain((ECursolMainData *)(void *)(&work->cursor));
+        }
+        break;
+    }
+}
+
+static void MenuShopIcon(TskObject *task, struct MenuShopIconDisplay *work)
+{
+    int i;
+
+    switch (task->state) {
+    case 0:
+        {
+            struct MenuShopIconIds spriteIds = D_004C79F8;
+            work->depth = 0xfffff0;
+            for (i = 0; i < 11; i++) {
+                eSpriteSet(&work->sprites[i], spriteIds.ids[i]);
+                work->sprites[i].depth = work->depth;
+            }
+        }
+        {
+            short topY = 12;
+            for (i = 1; i >= 0; i--)
+                work->sprites[i].y = topY;
+        }
+        for (i = 2; i < 11; i++) {
+            work->sprites[i].y = 12;
+            if (((MenuShopWork->categoryMask >> (i - 2)) & 1) == 0) {
+                work->sprites[i].blue = 0x40;
+                work->sprites[i].green = 0x40;
+                work->sprites[i].red = 0x40;
+            }
+        }
+        work->active = 1;
+        work->slide = 16;
+        work->scale = 1.0f;
+        work->animation = 0;
+        work->phase = 0;
+        for (i = 0; i < 9; i++)
+            work->categoryLift[i] = 0;
+        work->state = 2;
+        return;
+    case 2:
+        switch (MenuShopWork->state) {
+        case 0x20:
+            if (MenuShopWork->stateFlags & 1) {
+                for (i = 2; i < 11; i++) {
+                    work->sprites[i].blue = -0x80;
+                    work->sprites[i].green = -0x80;
+                    work->sprites[i].red = -0x80;
+                }
+            }
+            if (work->slide != 0)
+                work->slide--;
+            if (work->scale != 1.0f)
+                work->scale += 0.2;
+            break;
+        case 0xa0:
+        case 0xa4:
+        case 0xa2:
+        case 0x30:
+        case 0x90:
+            if (MenuShopWork->stateFlags & 1) {
+                for (i = 2; i < 11; i++) {
+                    if (((MenuShopWork->categoryMask >> (i - 2)) & 1) == 0) {
+                        work->sprites[i].blue = 0x40;
+                        work->sprites[i].green = 0x40;
+                        work->sprites[i].red = 0x40;
+                    } else {
+                        work->sprites[i].blue = -0x80;
+                        work->sprites[i].green = -0x80;
+                        work->sprites[i].red = -0x80;
+                    }
+                }
+            }
+            if (work->slide != 0)
+                work->slide--;
+            work->scale += D_004D7E64;
+            if (work->scale > 1.0f)
+                work->scale = 1.0f;
+            break;
+        case 0xf0:
+            work->active = 0;
+            /* fall through */
+        case 0xff:
+            if (work->slide != 16)
+                work->slide++;
+            break;
+        default:
+            if (work->slide != 0)
+                work->slide--;
+            work->scale -= D_004D7E68;
+            if (work->scale < 0.0f)
+                work->scale = 0.0f;
+            break;
+        }
+        for (i = 0; i < 9; i++) {
+            if (i == MenuShopWork->category) {
+                unsigned char state = MenuShopWork->state;
+                if (state != 0x20 && state != 0xf0 &&
+                    (state >> 4) != 0xc && (state >> 4) != 0xd) {
+                    if (work->categoryLift[i] != 6)
+                        work->categoryLift[i]++;
+                    continue;
+                }
+            }
+            if (work->categoryLift[i] != 0)
+                work->categoryLift[i]--;
+        }
+        work->phase++;
+        {
+        for (i = 0; i < 2; i++) {
+            float cosine;
+            float alpha;
+            work->sprites[i].x = 0x102 + i * 0xdd;
+            cosine = xglCos((float)i * 3.1415927f);
+            work->sprites[i].x = (int)((float)work->sprites[i].x + cosine * (float)-(work->slide * 2));
+            work->sprites[i].y = 14;
+            alpha = (128.0f - (float)work->slide * 0.0625f * 128.0f) * work->scale;
+            work->sprites[i].alpha = alpha;
+        }
+        }
+        {
+        for (i = 2; i < 11; i++) {
+            float alpha;
+            work->sprites[i].x = 0x121 + (i - 2) * 0x15;
+            work->sprites[i].x = (int)((float)work->sprites[i].x +
+                xglCos((float)(i - 2) * 0.448798954f) * (float)-(work->slide * 2));
+            work->sprites[i].y = work->categoryLift[i - 2] + 12;
+            alpha = (128.0f - (float)work->slide * 0.0625f * 128.0f) * work->scale;
+            work->sprites[i].alpha = alpha;
+        }
+        }
+        for (i = 0; i < 11; i++)
+            eSpriteMain(&work->sprites[i]);
+        break;
+    }
+}
 
 /* The display is seven halfwords; foreign MenuAgwsPara uses the same layout. */
 typedef struct AgwsParaDisplay {
     short value[7];
 } AgwsParaDisplay;
+
+
 
 /* Partial equipment records: the four contiguous values are displayed by
  * frame selection, and the engine selection reads the first value at +8. */
@@ -909,10 +1909,14 @@ typedef struct MenuShopEquipmentValues {
     unsigned short value[4];
 } MenuShopEquipmentValues;
 
+
+
 typedef struct MenuShopEngineValue {
     unsigned char unmodeled_00[8];
     unsigned short value;
 } MenuShopEngineValue;
+
+
 
 extern AgwsParaDisplay MenuShopPara;
 extern AgwsParaDisplay MenuShopPara2;
@@ -1089,9 +2093,182 @@ void MenuShopParaSet(unsigned int mode)
     }
 }
 
-void MenuShopParameter(TskObject *task, void *data);
+static void MenuShopParameter(TskObject *task, void *data);
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_shop", MenuShopParameter);
+static void MenuShopParameter(TskObject *task, void *data)
+{
+    struct MenuShopParameterDisplay *work = data;
+    struct MenuShopParameterDigits8 characterDigits = D_004DB220[0];
+    struct MenuShopParameterDigits7 agwsDigits = D_004DB228[0];
+    short targetX;
+    int i;
+
+    switch (task->state) {
+    case 0:
+        work->depth = 0xffff00;
+        WindowDXSet((WindowDX *)(void *)(&work->window));
+        work->window.x = -0x1f0;
+        work->window.style = work->depth;
+        work->window.y = 0x149;
+        work->window.width = 0x1e0;
+        work->window.height = 0x36;
+        work->window.state = 1;
+        WindowDXMain((WindowDX *)(void *)(&work->window));
+        work->window.state = 3;
+        for (i = 0; i < 9; i++) {
+            eTagFontSet((ETagFont *)(void *)(&work->labels[i]), 0);
+            work->labels[i].depth = work->depth + 2;
+            work->labels[i].red = 0x70;
+        }
+        for (i = 0; i < 9; i++) {
+            eNumberSet(&work->numbers[i], 0);
+            work->numbers[i].format = 5;
+            work->numbers[i].depth = work->depth + 2;
+        }
+        work->count = 0;
+        work->twoColumns = 0;
+        break;
+    case 2:
+        targetX = -0x1f0;
+        switch (MenuShopWork->state) {
+        case 0x30:
+        {
+            int category = MenuShopWork->category;
+            switch (category) {
+            case 1:
+            case 2:
+            case 3:
+                    switch (category) {
+                    case 1: MenuShopParaSet(10); break;
+                    case 2: MenuShopParaSet(11); break;
+                    case 3: MenuShopParaSet(12); break;
+                    }
+                    work->twoColumns = 0;
+                    work->count = 7;
+                    for (i = 0; i < work->count; i++)
+                        work->labels[i].text = msg00_9[i];
+                    for (i = 0; i < work->count; i++) {
+                        work->numbers[i].format = 5;
+                        work->numbers[i].digits = characterDigits.digits[i];
+                        work->numbers[i].comparisonColor = 0;
+                        work->numbers[i].firstOnly = 1;
+                        work->numbers[i].value.scalar = MenuShopPara.value[i];
+                    }
+                break;
+            case 4:
+            case 5:
+            case 6:
+            case 7:
+                    switch (category) {
+                    case 4: MenuShopParaSet(13); break;
+                    case 5: MenuShopParaSet(14); break;
+                    case 6: MenuShopParaSet(15); break;
+                    case 7: MenuShopParaSet(16); break;
+                    }
+                    work->count = 6;
+                    work->twoColumns = 1;
+                    for (i = 0; i < work->count; i++)
+                        work->labels[i].text = msg01_10[i];
+                    for (i = 0; i < work->count; i++) {
+                        work->numbers[i].format = 5;
+                        work->numbers[i].digits = agwsDigits.digits[i];
+                        work->numbers[i].comparisonColor = 0;
+                        work->numbers[i].firstOnly = 1;
+                        work->numbers[i].value.scalar = MenuShopPara.value[i];
+                    }
+                break;
+            }
+        }
+            /* fall through */
+        case 0xa0:
+        case 0xa2:
+        case 0xa4:
+            if (MenuShopWork->mode == 0 && MenuShopWork->category != 0 && MenuShopWork->category != 8)
+                targetX = 0x10;
+            break;
+        case 0xd0:
+        case 0xd2:
+        case 0xd4:
+        case 0xd6:
+            if (MenuShopWork->sort_mode_selector != 0)
+                MenuShopParaSet(3);
+            else
+                MenuShopParaSet(4);
+            work->count = 6;
+            work->twoColumns = 1;
+            for (i = 0; i < work->count; i++)
+                work->labels[i].text = msg01_10[i];
+            for (i = 0; i < work->count; i++) {
+                work->numbers[i].format = 5;
+                work->numbers[i].digits = agwsDigits.digits[i];
+                work->numbers[i].value.scalar = (unsigned int)MenuShopPara.value[i] +
+                    ((unsigned int)MenuShopPara2.value[i] << 16);
+                work->numbers[i].comparisonColor = 0;
+                work->numbers[i].firstOnly = 1;
+                if (MenuShopPara.value[i] < MenuShopPara2.value[i]) {
+                    work->numbers[i].comparisonColor = 2;
+                    work->numbers[i].firstOnly = 0;
+                } else if (MenuShopPara2.value[i] < MenuShopPara.value[i]) {
+                    work->numbers[i].comparisonColor = 1;
+                    work->numbers[i].firstOnly = 0;
+                }
+            }
+            targetX = 0x10;
+            break;
+        case 0xc2:
+        case 0xc4:
+        case 0xc6:
+            MenuShopParaSet(2);
+            work->count = 6;
+            work->twoColumns = 1;
+            for (i = 0; i < work->count; i++)
+                work->labels[i].text = msg01_10[i];
+            for (i = 0; i < work->count; i++) {
+                work->numbers[i].format = 5;
+                work->numbers[i].comparisonColor = 0;
+                work->numbers[i].digits = agwsDigits.digits[i];
+                work->numbers[i].firstOnly = 1;
+                work->numbers[i].value.scalar = (unsigned int)MenuShopPara.value[i] +
+                    ((unsigned int)MenuShopPara2.value[i] << 16);
+            }
+            work->numbers[0].format = 3;
+            work->numbers[0].comparisonColor = 0;
+            work->numbers[0].firstOnly = 0;
+            targetX = 0x10;
+            break;
+        }
+        MoveSlide(&work->window.x, &targetX, 3.0f);
+        if (work->twoColumns == 0) {
+            work->window.y = 0x139;
+            work->window.height = 0x36;
+        } else {
+            work->window.y = 0x149;
+            work->window.height = 0x26;
+        }
+        WindowDXMain((WindowDX *)(void *)(&work->window));
+        for (i = 0; i < work->count; i++) {
+            if (work->twoColumns == 0) {
+                work->labels[i].x = (unsigned short)work->window.x + (i / 3) * 0xa0 + 0x30;
+                work->labels[i].y = (unsigned short)work->window.y + (i % 3) * 0x10 + 3;
+            } else {
+                work->labels[i].x = (unsigned short)work->window.x + (i / 2) * 0xa0 + 0x30;
+                work->labels[i].y = (unsigned short)work->window.y + (i % 2) * 0x10 + 3;
+            }
+            eTagFontMain((ETagFontMainData *)(void *)(&work->labels[i]));
+        }
+        for (i = 0; i < work->count; i++) {
+            if (work->twoColumns == 0) {
+                work->numbers[i].x = (unsigned short)work->window.x + (i / 3) * 0xa0 + 0x60;
+                work->numbers[i].y = (unsigned short)work->window.y + (i % 3) * 0x10 + 3;
+            } else {
+                work->numbers[i].x = (unsigned short)work->window.x + (i / 2) * 0xa0 + 0x60;
+                work->numbers[i].y = (unsigned short)work->window.y + (i % 2) * 0x10 + 3;
+            }
+            eNumberMain((ENumberMainData *)(void *)(&work->numbers[i]));
+        }
+        return;
+    }
+}
 
 static void MenuShopEx2(TskObject *task, MenuShopEx2Work *work)
 {
@@ -1101,7 +2278,7 @@ static void MenuShopEx2(TskObject *task, MenuShopEx2Work *work)
     switch (task->state) {
     case 0:
         work->color = 0xFFFF00;
-        WindowDXSet((void *)&work->window);
+        WindowDXSet((WindowDX *)(void *)((void *)&work->window));
         work->window.x = -0xB6;
         work->window.color = work->color;
         work->window.y = 0x100;
@@ -1109,7 +2286,7 @@ static void MenuShopEx2(TskObject *task, MenuShopEx2Work *work)
         work->window.height = 0x1E;
         work->window.title = D_004DB230;
         work->window.state = 1;
-        WindowDXMain((void *)&work->window);
+        WindowDXMain((WindowDX *)(void *)((void *)&work->window));
         work->window.state = 3;
         eMessageSet(&work->message, 0);
         work->message.mode = 0x20;
@@ -1126,7 +2303,7 @@ static void MenuShopEx2(TskObject *task, MenuShopEx2Work *work)
             }
         }
         MoveSlide(&work->window.x, &x, 3.0f);
-        WindowDXMain((void *)&work->window);
+        WindowDXMain((WindowDX *)(void *)((void *)&work->window));
         work->message.x = work->window.x + 3;
         work->message.y = work->window.y + 3;
         eMessageMain(&work->message);
@@ -1153,12 +2330,16 @@ typedef struct MenuShopDividerVertex {
     };
 } MenuShopDividerVertex;
 
+
+
 typedef struct MenuShopDividerWork {
     unsigned char unmodeled_00[3];
     unsigned char alpha;
     int depth;
     MenuShopDividerVertex vertices[6];
 } MenuShopDividerWork;
+
+
 
 extern void endPrintExtFunc(int depth, int mode, void *vertices);
 
@@ -1225,21 +2406,21 @@ void MenuShopInfoSet(void)
     if (MenuShopWork->mode == 0) {
         if (MenuShopWork->noCategories != 0)
             return;
-        if (ShopData[0].count != 0)
+        if (ShopData.records[0].count != 0)
             MenuShopWork->categoryMask = 1;
-        if (ShopData[1].count != 0)
+        if (ShopData.records[1].count != 0)
             MenuShopWork->categoryMask |= 0x2;
-        if (ShopData[2].count != 0)
+        if (ShopData.records[2].count != 0)
             MenuShopWork->categoryMask |= 0x4;
-        if (ShopData[3].count != 0)
+        if (ShopData.records[3].count != 0)
             MenuShopWork->categoryMask |= 0x8;
-        if (ShopData[4].count != 0)
+        if (ShopData.records[4].count != 0)
             MenuShopWork->categoryMask |= 0x10;
-        if (ShopData[5].count != 0)
+        if (ShopData.records[5].count != 0)
             MenuShopWork->categoryMask |= 0x20;
-        if (ShopData[6].count != 0)
+        if (ShopData.records[6].count != 0)
             MenuShopWork->categoryMask |= 0x40;
-        if (ShopData[9].count != 0)
+        if (ShopData.tail.count != 0)
             MenuShopWork->categoryMask |= 0x80;
         if (MenuScenarioNo >= 115)
             MenuShopWork->categoryMask |= 0x100;
@@ -1286,21 +2467,27 @@ typedef struct MenuShopSelection {
     u8 quantityLimit;
 } MenuShopSelection;
 
+
+
 typedef struct MenuShopItem {
     int listIndex;
     int itemId;
     int modelId;
 } MenuShopItem;
 
+
+
 typedef struct MenuShopAgws {
     short unitId;
     short equipmentId;
     signed char equipmentStatus;
     signed char unitCount;
-    unsigned char unmodeled_06;
+    signed char allPartyCount;
     signed char unitSelection;
     signed char sort_mode_selector;
 } MenuShopAgws;
+
+
 
 static inline MenuShopSelection *MenuShopSelectionGet(void)
 {
@@ -1320,6 +2507,8 @@ static inline MenuShopAgws *MenuShopAgwsGet(void)
 typedef struct MenuShopParty {
     short unitIds[6];
 } MenuShopParty;
+
+
 
 static inline MenuShopParty *MenuShopPartyGet(void)
 {
@@ -1400,8 +2589,8 @@ void MenuShopCore(void) {
             MenuShopWork->availableMoney = dataMoneyBoxChk();
         }
         if (MenuShopWork->waitFrames == 0) {
-            MenuShopWork->listIndex = WindowSPSelect((void *)MenuShopWinSP, PadData.half_34);
-            WindowSPKeepSelect(MenuShopWinSP, &MenuKeepSelect[(MenuShopWork->category + MenuShopWork->mode * 9) * 5]);
+            MenuShopWork->listIndex = WindowSPSelect((WindowSPCursor *)(void *)((void *)MenuShopWinSP), PadData.mappedRepeat);
+            WindowSPKeepSelect((WindowSPCursor *)(void *)(MenuShopWinSP), &MenuKeepSelect[(MenuShopWork->category + MenuShopWork->mode * 9) * 5]);
             if (MenuShopWork->listIndex >= 0) {
                 MenuShopWork->canEquip = subMenuShopEquipCheck(MenuSortGet(0, MenuShopWork->listIndex), MenuShopWork->category);
             } else {
@@ -1412,15 +2601,15 @@ void MenuShopCore(void) {
             } else {
                 MenuShopWork->itemId = *(unsigned int *)&MenuShopWork->modelId = 0;
             }
-            if (PadData.half_34 & 0xA000) {
+            if (PadData.mappedRepeat & 0xA000) {
                 u8 previousCategory;
                 int categoryStep;
                 int category;
                 int count;
 
                 previousCategory = MenuShopWork->category;
-                WindowSPKeepSelectCheck(&MenuKeepSelect[(previousCategory + MenuShopWork->mode * 9) * 5]);
-                categoryStep = (PadData.half_34 & 0x2000) ? 1 : -1;
+                WindowSPKeepSelectCheck((unsigned char *)(void *)(&MenuKeepSelect[(previousCategory + MenuShopWork->mode * 9) * 5]));
+                categoryStep = (PadData.mappedRepeat & 0x2000) ? 1 : -1;
                 category = MenuShopWork->category;
                 for (count = 0; count < 9; count += categoryStep) {
                     category += categoryStep;
@@ -1473,7 +2662,7 @@ void MenuShopCore(void) {
                 xglSoundEffectNormalID(2, 0);
             }
         } else {
-            MenuShopWork->listIndex = WindowSPSelect((void *)MenuShopWinSP, 0);
+            MenuShopWork->listIndex = WindowSPSelect((WindowSPCursor *)(void *)((void *)MenuShopWinSP), 0);
         }
         break;
 
@@ -1530,18 +2719,18 @@ void MenuShopCore(void) {
             quantityState.minimumQuantity = 1;
             quantityState.playChangeSound = 1;
             quantityState.calculatedTotal = 0;
-            if (PadData.half_34 & 0x4000) {
+            if (PadData.mappedRepeat & 0x4000) {
                 subMenuShopNumerDec();
             }
-            if (PadData.half_34 & 0x1000) {
+            if (PadData.mappedRepeat & 0x1000) {
                 subMenuShopNumerInc();
             }
-            if (PadData.half_34 & 0x2000) {
+            if (PadData.mappedRepeat & 0x2000) {
                 for (i = 0; i < 10; i++) {
                     subMenuShopNumerInc();
                 }
             }
-            if (PadData.half_34 & 0x8000) {
+            if (PadData.mappedRepeat & 0x8000) {
                 for (i = 0; i < 10; i++) {
                     subMenuShopNumerDec();
                 }
@@ -1551,22 +2740,22 @@ void MenuShopCore(void) {
             u8 quantityLimit;
 
             quantityLimit = MenuShopSelectionGet()->quantityLimit;
-            if ((PadData.half_34 & 0x4000) && MenuShopSelectionGet()->quantity != minimumQuantity) {
+            if ((PadData.mappedRepeat & 0x4000) && MenuShopSelectionGet()->quantity != minimumQuantity) {
                 MenuShopSelectionGet()->quantity--;
                 xglSoundEffectNormalID(3, 0);
             }
-            if ((PadData.half_34 & 0x1000) && MenuShopSelectionGet()->quantity != quantityLimit) {
+            if ((PadData.mappedRepeat & 0x1000) && MenuShopSelectionGet()->quantity != quantityLimit) {
                 MenuShopSelectionGet()->quantity++;
                 xglSoundEffectNormalID(3, 0);
             }
-            if ((PadData.half_34 & 0x2000) && MenuShopSelectionGet()->quantity != quantityLimit) {
+            if ((PadData.mappedRepeat & 0x2000) && MenuShopSelectionGet()->quantity != quantityLimit) {
                 MenuShopSelectionGet()->quantity += 10;
                 if (MenuShopSelectionGet()->quantity > quantityLimit) {
                     MenuShopSelectionGet()->quantity = quantityLimit;
                 }
                 xglSoundEffectNormalID(3, 0);
             }
-            if ((PadData.half_34 & 0x8000) && MenuShopSelectionGet()->quantity != minimumQuantity) {
+            if ((PadData.mappedRepeat & 0x8000) && MenuShopSelectionGet()->quantity != minimumQuantity) {
                 MenuShopSelectionGet()->quantity -= 10;
                 if (MenuShopSelectionGet()->quantity < minimumQuantity) {
                     MenuShopSelectionGet()->quantity = minimumQuantity;
@@ -1673,7 +2862,7 @@ void MenuShopCore(void) {
             break;
         }
         MenuShopWork->sortOption = MenuSelectMove(MenuShopWork->sortOption, 4, 0);
-        if (PadData.half_32 == 0x20) {
+        if (PadData.mappedPressed == 0x20) {
             switch (MenuShopWork->sortOption) {
             case 0:
             case 1:
@@ -1684,9 +2873,9 @@ void MenuShopCore(void) {
                 }
                 xglSoundEffectNormalID(1, 0);
                 if (MenuShopWork->sort_mode_selector != 0) {
-                    WindowSPKeepSelectCheck(&MenuKeepSelect[0x5A]);
+                    WindowSPKeepSelectCheck((unsigned char *)(void *)(&MenuKeepSelect[0x5A]));
                 } else {
-                    WindowSPKeepSelectCheck(&MenuKeepSelect[0x5F]);
+                    WindowSPKeepSelectCheck((unsigned char *)(void *)(&MenuKeepSelect[0x5F]));
                 }
                 MenuShopWork->listIndex = MenuShopListChange01(0);
                 MenuShopWork->nextState = 0xD0;
@@ -1707,7 +2896,7 @@ void MenuShopCore(void) {
                 break;
             }
         }
-        if (PadData.half_32 == 0x40) {
+        if (PadData.mappedPressed == 0x40) {
             if (MenuCursorKeepCheck() == 0) {
                 MenuShopWork->mode = 0;
             }
@@ -1725,7 +2914,7 @@ void MenuShopCore(void) {
         }
         MenuShopWork->unitSelection = MenuSelectMove2(MenuShopAgwsGet()->unitSelection, MenuShopAgwsGet()->unitCount, 0);
         MenuShopAgwsGet()->unitId = MenuShopPartyGet()->unitIds[MenuShopAgwsGet()->unitSelection];
-        if (PadData.half_32 == 0x20) {
+        if (PadData.mappedPressed == 0x20) {
             if (dataMoneyBoxChk() >= 100 && MenuCharHpCheck(MenuShopWork->unitId) == 0) {
                 MenuShopWork->nextState = 0xC4;
                 xglSoundEffectNormalID(1, 0);
@@ -1733,7 +2922,7 @@ void MenuShopCore(void) {
                 xglSoundEffectNormalID(5, 0);
             }
         }
-        if (PadData.half_32 == 0x40) {
+        if (PadData.mappedPressed == 0x40) {
             if (MenuCursorKeepCheck() == 0) {
                 MenuShopWork->sortOption = 0;
             }
@@ -1751,7 +2940,7 @@ void MenuShopCore(void) {
             break;
         }
         MenuShopWork->quantityAction = MenuSelectMove(MenuShopWork->quantityAction, 2, 0);
-        if (PadData.half_32 == 0x20) {
+        if (PadData.mappedPressed == 0x20) {
             if (MenuShopWork->quantityAction == 0) {
                 MenuShopWork->nextState = 0xC6;
                 xglSoundEffectNormalID(1, 0);
@@ -1760,7 +2949,7 @@ void MenuShopCore(void) {
                 xglSoundEffectNormalID(2, 0);
             }
         }
-        if (PadData.half_32 == 0x40) {
+        if (PadData.mappedPressed == 0x40) {
             MenuShopWork->nextState = 0xC2;
             xglSoundEffectNormalID(2, 0);
         }
@@ -1782,7 +2971,7 @@ void MenuShopCore(void) {
         if (MenuShopWork->waitFrames != 0) {
             break;
         }
-        if (PadData.half_32 == 0x20) {
+        if (PadData.mappedPressed == 0x20) {
             if (dataMoneyBoxChk() >= 100) {
                 MenuShopWork->nextState = 0xC2;
             } else {
@@ -1794,11 +2983,11 @@ void MenuShopCore(void) {
 
     case 0xD0:
         if (MenuShopWork->waitFrames == 0) {
-            MenuShopWork->listIndex = WindowSPSelect((void *)MenuShopWinSP, PadData.half_34);
+            MenuShopWork->listIndex = WindowSPSelect((WindowSPCursor *)(void *)((void *)MenuShopWinSP), PadData.mappedRepeat);
             if (MenuShopWork->sort_mode_selector != 0) {
-                WindowSPKeepSelect(MenuShopWinSP, &MenuKeepSelect[0x5A]);
+                WindowSPKeepSelect((WindowSPCursor *)(void *)(MenuShopWinSP), &MenuKeepSelect[0x5A]);
             } else {
-                WindowSPKeepSelect(MenuShopWinSP, &MenuKeepSelect[0x5F]);
+                WindowSPKeepSelect((WindowSPCursor *)(void *)(MenuShopWinSP), &MenuKeepSelect[0x5F]);
             }
             if (MenuShopWork->listIndex >= 0) {
                 int itemId;
@@ -1816,7 +3005,7 @@ void MenuShopCore(void) {
                             break;
                         }
                     }
-                    if (PadData.half_32 == 0x20) {
+                    if (PadData.mappedPressed == 0x20) {
                         int money;
 
                         money = dataMoneyBoxChk();
@@ -1834,7 +3023,7 @@ void MenuShopCore(void) {
                     }
                 }
             }
-            if (PadData.half_32 == 0x40) {
+            if (PadData.mappedPressed == 0x40) {
                 if (MenuCursorKeepCheck() == 0) {
                     MenuShopWork->sortOption = 0;
                 }
@@ -1843,7 +3032,7 @@ void MenuShopCore(void) {
                 xglSoundEffectNormalID(2, 0);
             }
         } else {
-            MenuShopWork->listIndex = WindowSPSelect((void *)MenuShopWinSP, 0);
+            MenuShopWork->listIndex = WindowSPSelect((WindowSPCursor *)(void *)((void *)MenuShopWinSP), 0);
             if (MenuShopWork->listIndex >= 0) {
                 int itemId;
 
@@ -1870,7 +3059,7 @@ void MenuShopCore(void) {
         }
         MenuShopWork->unitSelection = unitSelection;
         MenuShopAgwsGet()->unitId = MenuShopPartyGet()->unitIds[MenuShopAgwsGet()->unitSelection];
-        if (PadData.half_32 == 0x20) {
+        if (PadData.mappedPressed == 0x20) {
             if (MenuShopAgwsGet()->sort_mode_selector != 0) {
                 canEquip = MenuFrameEquipCheck(MenuShopAgwsGet()->unitId, MenuShopAgwsGet()->equipmentId);
             } else {
@@ -1883,7 +3072,7 @@ void MenuShopCore(void) {
                 xglSoundEffectNormalID(5, 0);
             }
         }
-        if (PadData.half_32 == 0x40) {
+        if (PadData.mappedPressed == 0x40) {
             MenuShopWork->nextState = 0xD0;
             xglSoundEffectNormalID(2, 0);
         }
@@ -1913,7 +3102,7 @@ void MenuShopCore(void) {
             break;
         }
         MenuShopWork->quantityAction = MenuSelectMove(MenuShopWork->quantityAction, 2, 0);
-        if (PadData.half_32 == 0x20) {
+        if (PadData.mappedPressed == 0x20) {
             if (MenuShopWork->quantityAction == 0) {
                 MenuShopWork->nextState = 0xD6;
                 xglSoundEffectNormalID(1, 0);
@@ -1922,7 +3111,7 @@ void MenuShopCore(void) {
                 xglSoundEffectNormalID(2, 0);
             }
         }
-        if (PadData.half_32 == 0x40) {
+        if (PadData.mappedPressed == 0x40) {
             MenuShopWork->nextState = 0xD0;
             xglSoundEffectNormalID(2, 0);
         }
@@ -1952,7 +3141,7 @@ void MenuShopCore(void) {
         if (MenuShopWork->waitFrames != 0) {
             break;
         }
-        if (PadData.half_32 == 0x20) {
+        if (PadData.mappedPressed == 0x20) {
             MenuShopWork->nextState = 0xD0;
             xglSoundEffectNormalID(1, 0);
         }

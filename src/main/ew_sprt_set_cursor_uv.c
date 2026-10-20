@@ -47,7 +47,7 @@ typedef struct EwSpriteState {
  */
 
 
-extern void EW_drawComoponent(int context, EwWidget *widget);
+void EW_drawComoponent(int context, EwWidget *widget);
 
 /* Retail maps ewComponent as a GLOBAL OBJECT at 0x0099CA30 with size 0xA00.
  * This table has 64 observed 0x28-byte slots; only flags are modeled here. */
@@ -165,7 +165,7 @@ const unsigned char D_004C2340[0x20] = {
  * tests only the enabled bit via flags & 0x4000.
  */
 
-extern void frame_put(int context, EwWidget *widget);
+static void frame_put(int context, EwWidget *widget);
 
 static void label_put(EwDrawContext *context, EwLabelWidget *widget);
 
@@ -902,7 +902,163 @@ static int checkN2(int value)
     return 0;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/ew_sprt_set_cursor_uv", frame_put);
+static void frame_put(int context, EwWidget *widget)
+{
+    int xs[16];
+    int ys[16];
+    unsigned int *gif;
+    unsigned int *qword;
+    EwGifRegister *reg;
+    int rawWidth;
+    int rawHeight;
+    int widthIsPow2;
+    int heightIsPow2;
+    int width;
+    int height;
+    int left;
+    int top;
+    int right;
+    int bottom;
+    int z;
+    int i;
+
+    gif = (unsigned int *) ((context + 63) & -16);
+    qword = gif;
+    qword[0] = 2;
+    qword[1] = 0x10000000;
+    qword[2] = -2;
+    qword[3] = 0;
+    qword += 4;
+    reg = (EwGifRegister *) qword;
+    reg->data = 0x7F0007FF;
+    reg->reg = 8;
+    reg = (EwGifRegister *) (qword + 4);
+    reg->data = 68;
+    reg->reg = 66;
+    qword += 8;
+    qword[0] = 1;
+    qword[1] = 0x50AB4000;
+    qword[2] = 0xFFF53531;
+    qword[3] = 0;
+    qword += 4;
+
+    rawWidth = widget->width;
+    rawHeight = widget->height;
+    width = rawWidth << 4;
+    widthIsPow2 = checkN2(rawWidth);
+    if (widthIsPow2 != 0) {
+        width += 16;
+    }
+    heightIsPow2 = checkN2(rawHeight);
+    left = (widget->x + 1792) << 4;
+    top = (widget->y + 1824) << 4;
+    z = widget->drawValue;
+    height = rawHeight << 4;
+    if (heightIsPow2 != 0) {
+        height += 16;
+    }
+
+    qword[0] = 128;
+    qword[1] = 128;
+    qword[2] = 128;
+    qword[3] = 96;
+    qword += 4;
+    qword[0] = 0;
+    qword[1] = 0;
+    qword += 4;
+    qword[0] = left;
+    qword[1] = top;
+    qword[2] = z;
+    qword[3] = 0;
+    qword += 4;
+    qword[0] = width;
+    qword[1] = height;
+    qword += 4;
+    qword[0] = left + width;
+    qword[1] = top + height;
+    qword[2] = z;
+    qword[3] = 0;
+    qword += 4;
+
+    qword[0] = 1;
+    qword[1] = 0x10000000;
+    qword[2] = -2;
+    qword[3] = 0;
+    qword += 4;
+    reg = (EwGifRegister *) qword;
+    reg->data = 5;
+    reg->reg = 8;
+    qword += 4;
+    qword[0] = 0x8008;
+    qword[1] = 0x50AB4000;
+    qword[2] = 0xFFF53531;
+    qword[3] = 0;
+    qword += 4;
+
+    width = rawWidth << 4;
+    if (widthIsPow2 != 0) {
+        width += 16;
+    }
+    height = rawHeight << 4;
+    if (heightIsPow2 != 0) {
+        height += 16;
+    }
+    right = left + width;
+    bottom = top + height;
+    xs[0] = xs[2] = left;
+    xs[1] = xs[3] = right;
+    xs[4] = left - 256;
+    xs[5] = left;
+    xs[6] = right;
+    xs[7] = right + 256;
+    xs[8] = left - 256;
+    xs[9] = left;
+    xs[10] = right;
+    xs[11] = right + 256;
+    xs[12] = left - 256;
+    xs[13] = left;
+    xs[14] = right;
+    xs[15] = right + 256;
+    ys[0] = top - 256;
+    ys[1] = top;
+    ys[2] = bottom;
+    ys[3] = bottom + 256;
+    ys[4] = ys[6] = top;
+    ys[5] = ys[7] = bottom;
+    ys[10] = top - 256;
+    ys[11] = top;
+    ys[14] = bottom;
+    ys[15] = bottom + 256;
+    ys[8] = top - 256;
+    ys[9] = top;
+    ys[12] = bottom;
+    ys[13] = bottom + 256;
+
+    for (i = 0; i < 8; i++) {
+        qword[0] = 128;
+        qword[1] = 128;
+        qword[2] = 128;
+        qword[3] = 96;
+        qword += 4;
+        qword[0] = frameUV[i][0];
+        qword[1] = frameUV[i][1];
+        qword += 4;
+        qword[0] = xs[i * 2];
+        qword[1] = ys[i * 2];
+        qword[2] = 0;
+        qword[3] = 0;
+        qword += 4;
+        qword[0] = frameUV[i][2];
+        qword[1] = frameUV[i][3];
+        qword += 4;
+        qword[0] = xs[i * 2 + 1];
+        qword[1] = ys[i * 2 + 1];
+        qword[2] = 0;
+        qword[3] = 0;
+        qword += 4;
+    }
+    xglPrimAddGifTagDirect(((EwDrawContext *) context)->packet, gif, (qword - gif) / 4);
+}
 
 static void label_put(EwDrawContext *context, EwLabelWidget *widget)
 {

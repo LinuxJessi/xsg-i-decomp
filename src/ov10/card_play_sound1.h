@@ -2,6 +2,7 @@
 #define CARD_PLAY_SOUND1_H
 
 #include "ov10/cgp.h"
+#include "main/xgl_2.h"
 #include "main/xgl_studio.h"
 
 /* One line of a card list window: a card id and how many copies it holds. */

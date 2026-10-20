@@ -166,7 +166,50 @@ static void _WeightToGlobalPlaceInit(float matrix[4][4])
     );
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_filter_set", _WeightToGlobalPlaceVec);
+static void _WeightToGlobalPlaceVec(Vector4 *destination,
+    const Matrix4 *jointMatrix, const Matrix4 *jointAuxMatrix)
+{
+    __asm__ __volatile__(
+        "lq $2,0(%2)\n\t"
+        "lq $3,16(%2)\n\t"
+        "lq $4,32(%2)\n\t"
+        "lqc2 $vf3,48(%2)\n\t"
+        "qmfc2.ni $5,$vf0\n\t"
+        "pextlw $6,$3,$2\n\t"
+        "pextuw $7,$3,$2\n\t"
+        "pextlw $8,$5,$4\n\t"
+        "pextuw $9,$5,$4\n\t"
+        "pcpyld $2,$8,$6\n\t"
+        "pcpyud $3,$6,$8\n\t"
+        "pcpyld $4,$9,$7\n\t"
+        "qmtc2.ni $2,$vf5\n\t"
+        "qmtc2.ni $3,$vf6\n\t"
+        "qmtc2.ni $4,$vf7\n\t"
+        "vmulax.xyz ACC,$vf5,$vf3x\n\t"
+        "vmadday.xyz ACC,$vf6,$vf3y\n\t"
+        "vmaddz.xyz $vf2,$vf7,$vf3z\n\t"
+        "vmove.w $vf2,$vf0\n\t"
+        "lqc2 $vf27,0(%1)\n\t"
+        "lqc2 $vf28,16(%1)\n\t"
+        "lqc2 $vf29,32(%1)\n\t"
+        "lqc2 $vf30,48(%1)\n\t"
+        "vsub.xyz $vf2,$vf0,$vf2\n\t"
+        "vmulax.xyzw ACC,$vf27,$vf2x\n\t"
+        "vmadday.xyzw ACC,$vf28,$vf2y\n\t"
+        "vmaddaz.xyzw ACC,$vf29,$vf2z\n\t"
+        "vmaddw.xyzw $vf31,$vf30,$vf2w\n\t"
+        "vmulax.xyzw ACC,$vf10,$vf31x\n\t"
+        "vmadday.xyzw ACC,$vf11,$vf31y\n\t"
+        "vmaddaz.xyzw ACC,$vf12,$vf31z\n\t"
+        "vmaddw.xyzw $vf31,$vf13,$vf0w\n\t"
+        "sqc2 $vf31,0(%0)\n\t"
+        "nop"
+        :
+        : "r"(destination), "r"(jointMatrix), "r"(jointAuxMatrix)
+        : "$2", "$3", "$4", "$5", "$6", "$7", "$8", "$9",
+          "memory"
+    );
+}
 
 static float _VectorLengthSQ(const Vector4 *first, const Vector4 *second)
 {
@@ -342,7 +385,50 @@ void nmlFilterSetBufferToFrame(int frameBufferBase)
     nmlPacketAddGsFlush();
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_filter_set", nmlFilterSetBufferRender);
+void nmlFilterSetBufferRender(float opacity)
+{
+    struct NmlFilterGsRegisterEntry *entry;
+    int remaining;
+
+    ((struct NmlFilterGsRegisterEntry *)0x70000000)->registerId = 0x3f;
+    ((struct NmlFilterGsRegisterEntry *)0x70000000)->value = 0;
+    ((struct NmlFilterGsRegisterEntry *)0x70000010)->value =
+        0x24020000 | ((u64)(sRender.framebufferPage << 5)) |
+        ((u64)0x20000006 << 32) | ((u64)0x4000 << 16);
+    ((struct NmlFilterGsRegisterEntry *)0x70000010)->registerId = 6;
+    ((struct NmlFilterGsRegisterEntry *)0x70000020)->value = 0;
+    ((struct NmlFilterGsRegisterEntry *)0x70000020)->registerId = 0x14;
+    ((struct NmlFilterGsRegisterEntry *)0x70000030)->value = 0;
+    ((struct NmlFilterGsRegisterEntry *)0x70000030)->registerId = 8;
+    ((struct NmlFilterGsRegisterEntry *)0x70000040)->value = 0x31001;
+    ((struct NmlFilterGsRegisterEntry *)0x70000040)->registerId = 0x47;
+    ((struct NmlFilterGsRegisterEntry *)0x70000050)->value =
+        ((u64)(int)(opacity * 128.0f) << 32) | 0x64;
+    ((struct NmlFilterGsRegisterEntry *)0x70000050)->registerId = 0x42;
+    ((struct NmlFilterGsRegisterEntry *)0x70000060)->value =
+        0x3f80000080808080ULL;
+    ((struct NmlFilterGsRegisterEntry *)0x70000060)->registerId = 1;
+    ((struct NmlFilterGsRegisterEntry *)0x70000070)->value = 0x116;
+    if (opacity < 1.0f) {
+        ((struct NmlFilterGsRegisterEntry *)0x70000070)->value = 0x156;
+    }
+    ((struct NmlFilterGsRegisterEntry *)0x70000070)->registerId = 0;
+    ((struct NmlFilterGsRegisterEntry *)0x70000080)->value = 0;
+    ((struct NmlFilterGsRegisterEntry *)0x70000080)->registerId = 3;
+    ((struct NmlFilterGsRegisterEntry *)0x70000090)->value = 0x72007000;
+    ((struct NmlFilterGsRegisterEntry *)0x70000090)->registerId = 4;
+    ((struct NmlFilterGsRegisterEntry *)0x700000A0)->value = 0x1C102000;
+    ((struct NmlFilterGsRegisterEntry *)0x700000A0)->registerId = 3;
+    ((struct NmlFilterGsRegisterEntry *)0x700000B0)->value = 0x8E009000;
+    ((struct NmlFilterGsRegisterEntry *)0x700000B0)->registerId = 4;
+
+    entry = (struct NmlFilterGsRegisterEntry *)0x70000000;
+    nmlPacketGsInit();
+    for (remaining = 11; remaining >= 0; remaining--, entry++) {
+        packet_gs_entry64((u32)entry->registerId, &entry->value);
+    }
+    nmlPacketAddGsFlush();
+}
 
 void nmlFilterSetFrameAlphaClear(void)
 {

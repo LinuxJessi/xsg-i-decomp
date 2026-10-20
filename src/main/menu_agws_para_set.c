@@ -1,4 +1,11 @@
 #include "common.h"
+#include "main/e_battle_win_open.h"
+
+void WindowSPSet(WindowSPCursor *cursor);
+void WindowSPMain(WindowSPCursor *cursor);
+void WindowSPSelectJump(WindowSPCursor *cursor, int selection);
+
+#include "main/menu_1.h"
 
 #include "shared.h"
 
@@ -112,15 +119,267 @@ AgwsSwitchWork *AgwsSwitch = 0;
 
 extern const char D_004DAF48[];
 
-void WindowSPSet(AgwsListSPWindow *window);
 
-void WindowSPMain(AgwsListSPWindow *window);
+
+
 
 int PartyAttackerCheck(int chrNo);
 
 char *MenuTagTextGet(int index);
 
 int MenuAgwsPilotCheck(int chrNo);
+
+typedef struct AgwsWeapon2Message {
+    unsigned char unmodeled_00;
+    unsigned char mode;                     /* +0x01 */
+    unsigned char unmodeled_02[2];
+    short x;                                /* +0x04 */
+    short y;                                /* +0x06 */
+    int color;                              /* +0x08 */
+    unsigned char unmodeled_0c[0x18 - 0x0C];
+    const char *text;
+    unsigned char unmodeled_1c[0x44 - 0x1C];
+} AgwsWeapon2Message;
+typedef struct AgwsWeapon2Sprite {
+    unsigned char unmodeled_00[4];
+    short x;                                /* +0x04 */
+    short y;                                /* +0x06 */
+    int color;                              /* +0x08 */
+    unsigned char unmodeled_0c[0x28 - 0x0C];
+} AgwsWeapon2Sprite;
+typedef struct AgwsWeapon2WindowDX {
+    short x;                                /* +0x000 */
+    short y;                                /* +0x002 */
+    int color;                              /* +0x004 */
+    short width;                            /* +0x008 */
+    short height;                           /* +0x00A */
+    unsigned char unmodeled_0c[0x10 - 0x0C];
+    unsigned char state;                    /* +0x010 */
+    unsigned char unmodeled_11[0x194 - 0x11];
+} AgwsWeapon2WindowDX;
+typedef struct AgwsWeapon2Row {
+    unsigned char unmodeled_00[0x14];
+    AgwsWeapon2WindowDX window;             /* +0x014 */
+    AgwsWeapon2Message message[3];          /* +0x1A8 */
+    AgwsWeapon2Sprite sprite[3];            /* +0x274 */
+    unsigned char unmodeled_2ec[0x300 - 0x2EC];
+} AgwsWeapon2Row;
+typedef struct AgwsWeapon2PanelView {
+    unsigned char state;                    /* +0x00 */
+    unsigned char mode;                     /* +0x01 */
+    unsigned char unmodeled_02[2];
+    int color;                              /* +0x04 */
+    unsigned char cursorPrefix[0x10];
+    AgwsWeapon2Row row[4];                  /* +0x18 */
+    unsigned char unmodeled_c18[0x14];
+} AgwsWeapon2PanelView;
+
+
+typedef struct AgwsWeapon2CursolControl {
+    signed char state;
+    signed char active;
+    signed char timer;
+    signed char width;
+    short x;
+    short y;
+    int work;
+    signed char color[4];
+} AgwsWeapon2CursolControl;
+typedef struct AgwsWeapon2CursolData {
+    AgwsWeapon2CursolControl control;
+    unsigned char unmodeled_10[0x14];
+} AgwsWeapon2CursolData;
+typedef union AgwsWeapon2Work {
+    AgwsWeapon2PanelView panels;
+    /* Row zero's leading bytes overlap the cursor sprite tail. */
+    struct {
+        unsigned char controlPrefix[8];
+        AgwsWeapon2CursolData cursol;       /* +0x08 */
+    } cursor;
+} AgwsWeapon2Work;
+
+
+extern AgwsWeapon2Work *AgwsWeapon2;
+
+typedef struct AgwsWeapon2MountRow {
+    unsigned short icon[3];
+} AgwsWeapon2MountRow;
+
+
+typedef struct AgwsWeapon2MountSide {
+    unsigned short icon[2];
+} AgwsWeapon2MountSide;
+
+
+extern const AgwsWeapon2MountRow D_004DAFD8[];
+
+extern const AgwsWeapon2MountSide D_004DAFE0[];
+
+
+
+
+
+void eMessageSet(void *message, const char *text);
+
+void eSpriteSet(void *sprite, short spriteId);
+
+void eSpriteMain(void *sprite);
+
+void eCursolSet(void *cursor, signed char width);
+
+void eCursolMain(void *cursor);
+
+int MenuIdChange(short id, int kind);
+
+
+
+
+
+
+
+
+
+
+
+
+
+typedef struct AgwsWeapon2Cursol {
+    unsigned char state;                    /* +0x00 */
+    unsigned char unmodeled_01[3];
+    short x;                                /* +0x04 */
+    short y;                                /* +0x06 */
+    int color;                              /* +0x08 */
+    unsigned char unmodeled_0c[0x24 - 0x0C];
+} AgwsWeapon2Cursol;
+
+
+typedef signed char s8;
+
+
+typedef int s32;
+
+
+typedef s32 M2C_UNK;
+
+
+extern unsigned short AgwsNo[];
+
+typedef struct AgwsNamePoint {
+    short x, y;
+    int depth;
+    unsigned char r, g, b, a;
+} AgwsNamePoint;
+
+
+typedef struct AgwsNameWindow {
+    short x, y;
+    int color;
+    short width, height;
+    char *title;
+    unsigned char state;
+    unsigned char ribbonInitialized;
+    unsigned char unmodeled_12[0x80 - 0x12];
+    struct {
+        unsigned char unmodeled_00[0x1C];
+        const char *text;
+    } titleFont;
+    unsigned char unmodeled_a0[0x194 - 0xA0];
+} AgwsNameWindow;
+typedef struct AgwsNameWorkPrefix {
+    unsigned char unmodeled_00[0x10];
+    unsigned char state;
+    unsigned char mode;
+    unsigned char slide;
+    signed char selection;
+    int timer;
+    int color;
+    AgwsNameWindow window[8];
+    AgwsWeapon2Sprite portrait[8];
+    unsigned char unmodeled_dfc[0xF3C - 0xDFC];
+    AgwsWeapon2Message message[8][2];
+    AgwsWeapon2Cursol cursol;
+    AgwsNamePoint ribbon[8][4][5];
+    unsigned char unmodeled_1b20[0x1D00 - 0x1B20];
+} AgwsNameWorkPrefix;
+
+
+extern AgwsNameWorkPrefix *AgwsName;
+
+
+
+s32 MenuMainAgwsCheck(s16);
+
+void MenuModelAllBreak(void);
+
+void MenuModelCreate(int *output, int character);
+
+void MenuModelExtFuncSet(s32, void (*)(AgwsModelUnit *), M2C_UNK);
+
+void MenuModelMemorySet(int);
+
+void MenuModelMenuMotionLoad(void);
+
+s32 MenuRWeaponCheck(s16, s32);
+
+void MenuWorkEndCheck(u8 *end);
+
+s32 PartyTakeAgwsCheck(s32);
+
+
+
+
+
+
+
+int dataAccBoxDec(int);
+
+void dataAccBoxInc(int);
+
+s32 dataBltBoxChk(s16);
+
+void dataBltBoxDec(int);
+
+void dataBltBoxInc(int);
+
+void dataWpnBoxDec(int);
+
+void dataWpnBoxInc(int);
+
+void xglFontDebugHex(int x, int y, int value, int digits);
+
+extern unsigned char *MainMenuWorkEnd;
+
+extern AgwsListSPWindow *AgwsWinSP[4];
+
+extern unsigned char D_004C72D0[];
+
+extern unsigned char D_004DAFF0[];
+
+extern unsigned char D_004DAFF8[];
+
+extern int MenuModelOut[4];
+
+extern int MenuSelectMove(int selection, int count, int wrap);
+
+extern int MenuCursorKeepCheck(void);
+
+extern void xglFontDebugPrintf(int x, int y, const char *format, ...);
+
+#define MENU_TEXT_WEAPON 0x30000
+
+#define MENU_TEXT_BULLET 0x40000
+
+#define AGWS_WEAPON2_SETUP 0
+
+#define AGWS_WEAPON2_MAIN  2
+
+#define M2C_FIELD(expr, type_ptr, offset) (*(type_ptr)((s8 *)(expr) + (offset)))
+
+#define NULL ((void *)0)
+
+void AgwsNameMain(void);
+
+void AgwsWeapon2Main(void);
 
 static short WaglGet(AgwsCharPara *para)
 {
@@ -186,7 +445,7 @@ void AgwsPasMain(void)
     switch (pas->state) {
     case AGWS_PAS_START:
         pas->color = AGWS_PAS_COLOR;
-        WindowDXSet(&pas->window);
+        WindowDXSet((WindowDX *)(void *)(&pas->window));
         pas->window.x = AGWS_PAS_X_OUT;
         pas->window.y = 8;
         pas->window.color = pas->color;
@@ -195,7 +454,7 @@ void AgwsPasMain(void)
         pas->window.callback = MenuPasWindow;
         pas->window.callbackArg = pas->callbackWork;
         pas->window.state = 1;
-        WindowDXMain(&pas->window);
+        WindowDXMain((WindowDX *)(void *)(&pas->window));
         pas->window.state = 3;
         for (i = 0; i < 17; i++) {
             eMessageSet(&pas->message[i], msg00_0_0036D940[i]);
@@ -262,7 +521,7 @@ void AgwsPasMain(void)
     }
 
     MoveSlide(&pas->window.x, &slideTarget, 3.0f);
-    WindowDXMain(&pas->window);
+    WindowDXMain((WindowDX *)(void *)(&pas->window));
     if (pas->window.state == 3) {
         pas->box.x = pas->window.x + 3;
         pas->box.y = pas->window.y + 3;
@@ -293,9 +552,9 @@ extern const char D_004DAF40[];
 void eMessageCpy(void *destination, const void *text);
 void eMessageCat(const void *text);
 void *memset(void *destination, int value, unsigned int size);
-AgwsTextName *MenuTextGet(int index);
+
 int OptMntToWpnPos(int mountCode);
-const char *MenuCharNameGet(short chrNo);
+char *MenuCharNameGet(unsigned int charId);
 
 void AgwsInfoMain(void)
 {
@@ -310,7 +569,7 @@ void AgwsInfoMain(void)
     switch (info->state) {
     case 0:
         info->color = 0x00FFFFF0;
-        WindowDXSet(&info->window);
+        WindowDXSet((WindowDX *)(void *)(&info->window));
         info->window.x = -16;
         info->window.y = 480;
         info->window.width = 544;
@@ -323,7 +582,7 @@ void AgwsInfoMain(void)
         info->window.state = 1;
         info->contents.textOffset[1] = 0;
         info->contents.text = 0;
-        WindowDXMain(&info->window);
+        WindowDXMain((WindowDX *)(void *)(&info->window));
         info->window.state = 3;
         info->state = 2;
         info->detail = 0;
@@ -462,7 +721,7 @@ void AgwsInfoMain(void)
         }
         info->contents.text = info->text;
         MoveSlide(&info->window.y, &targetY, 3.0f);
-        WindowDXMain(&info->window);
+        WindowDXMain((WindowDX *)(void *)(&info->window));
         break;
     }
 }
@@ -488,7 +747,7 @@ void AgwsSelectMain(void)
         select->color = 0x00FFFFF0;
         for (i = 0; i <= 3; i++) {
             char **menuText;
-            WindowDXSet(&select->window[i]);
+            WindowDXSet((WindowDX *)(void *)(&select->window[i]));
             menuText = msg_7_0036D9F8;
             select->window[i].color = select->color;
             select->window[i].title = D_004DAF80;
@@ -522,7 +781,7 @@ void AgwsSelectMain(void)
         select->contents[3].annotation = msg01_8_0036DA40[1];
         for (i = 0; i < 4; i++) {
             select->window[i].state = 1;
-            WindowDXMain(&select->window[i]);
+            WindowDXMain((WindowDX *)(void *)(&select->window[i]));
             select->window[i].state = 3;
         }
         select->visible = 1;
@@ -561,7 +820,7 @@ void AgwsSelectMain(void)
         for (i = 0; i < 4; i++) {
             MoveSlide(&select->window[i].x, &targetX[i], 3.0f);
             MoveSlide(&select->window[i].y, &targetY[i], 3.0f);
-            WindowDXMain(&select->window[i]);
+            WindowDXMain((WindowDX *)(void *)(&select->window[i]));
         }
         break;
     }
@@ -594,8 +853,8 @@ void MenuAgwsListMake_Wpn(void)
     window->rowCount = 7;
     window->flags = 0;
     window->items = MenuListGet(0);
-    WindowSPItemChange(window);
-    WindowSPSetSelect(window, &MenuKeepSelect[MenuWork.weaponSlot[MenuWork.selectedIndex] * 5 - 5]);
+    WindowSPItemChange((WindowSPCursor *)(void *)(window));
+    WindowSPSetSelect((WindowSPCursor *)(void *)(window), &MenuKeepSelect[MenuWork.weaponSlot[MenuWork.selectedIndex] * 5 - 5]);
 }
 
 void MenuAgwsListMake_Gun(void)
@@ -623,8 +882,8 @@ void MenuAgwsListMake_Gun(void)
     window->rowCount = 7;
     window->flags = 0;
     window->items = MenuListGet(0);
-    WindowSPItemChange(window);
-    WindowSPSetSelect(window, &MenuKeepSelect[30]);
+    WindowSPItemChange((WindowSPCursor *)(void *)(window));
+    WindowSPSetSelect((WindowSPCursor *)(void *)(window), &MenuKeepSelect[30]);
 }
 
 void MenuAgwsListMake_Acc(void)
@@ -652,8 +911,8 @@ void MenuAgwsListMake_Acc(void)
     window->rowCount = 7;
     window->flags = 0;
     window->items = MenuListGet(0);
-    WindowSPItemChange(window);
-    WindowSPSetSelect(window, &MenuKeepSelect[35]);
+    WindowSPItemChange((WindowSPCursor *)(void *)(window));
+    WindowSPSetSelect((WindowSPCursor *)(void *)(window), &MenuKeepSelect[35]);
 }
 
 void MenuAgwsListMake_Pilot(void)
@@ -688,8 +947,8 @@ void MenuAgwsListMake_Pilot(void)
     window->rowCount = 3;
     window->flags = (int) D_004C6F38;
     window->items = MenuListGet(0);
-    WindowSPItemChange(window);
-    WindowSPSetSelect(window, &MenuKeepSelect[40]);
+    WindowSPItemChange((WindowSPCursor *)(void *)(window));
+    WindowSPSetSelect((WindowSPCursor *)(void *)(window), &MenuKeepSelect[40]);
 }
 
 void AgwsListMain(void)
@@ -712,7 +971,7 @@ void AgwsListMain(void)
         list->window.height = 270;
         list->window.state = 0;
         list->window.items = 0;
-        WindowSPSet(&list->window);
+        WindowSPSet((WindowSPCursor *)(void *)(&list->window));
         list->visible = 1;
         list->state = 2;
         list->selectedRow = 0;
@@ -793,7 +1052,7 @@ void AgwsListMain(void)
         break;
     }
     if (list->visible != 0) {
-        WindowSPMain(&list->window);
+        WindowSPMain((WindowSPCursor *)(void *)(&list->window));
         if (list->visible == 2 && MenuWork.listSelect >= 0) {
             count = MenuSortCheck(0);
             rows = MenuListGet(0);
@@ -837,14 +1096,14 @@ void AgwsStatusMain(void)
     switch (status->state) {
     case AGWS_STATUS_START:
         status->color = AGWS_STATUS_COLOR;
-        WindowDXSet(&status->window);
+        WindowDXSet((WindowDX *)(void *)(&status->window));
         status->window.x = AGWS_STATUS_X_OUT;
         status->window.y = 304;
         status->window.color = status->color;
         status->window.width = 480;
         status->window.height = 64;
         status->window.state = 1;
-        WindowDXMain(&status->window);
+        WindowDXMain((WindowDX *)(void *)(&status->window));
         status->window.state = 3;
         for (i = 0; i < 7; i++) {
             eTagFontSet(&status->label[i], msg_10[i]);
@@ -891,7 +1150,7 @@ void AgwsStatusMain(void)
             break;
         }
         MoveSlide(&status->window.x, &slideTarget, 3.0f);
-        WindowDXMain(&status->window);
+        WindowDXMain((WindowDX *)(void *)(&status->window));
         if (status->window.state == 3) {
             for (i = 0; i < 6; i++) {
                 int rows = 3;
@@ -935,10 +1194,172 @@ void AgwsStatusMain(void)
     }
 }
 
-AgwsTextName *MenuTextGet(int index);
+
 int OptMntToWpnPos(int mountCode);
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_agws_para_set", AgwsWeapon2Main);
+void AgwsWeapon2Main(void)
+{
+    int i;
+    short *bottom;
+    int digit;
+    AgwsUnitOrg *para;
+    int one;
+    int lines;
+    AgwsWeapon2Work *storage = AgwsWeapon2;
+    AgwsWeapon2PanelView *work = &storage->panels;
+    int position;
+    int lineY;
+    int textIndex;
+    short px, py, sy;
+    short x[4];
+    short y[4];
+    unsigned int bullet[3];
+    unsigned int equipped[3];
+    const char *text[2];
+    AgwsWeapon2MountRow mountRow;
+    AgwsWeapon2MountSide mountSide;
+    short icon[2];
+
+    switch (work->state) {
+    case AGWS_WEAPON2_SETUP:
+        work->color = 0xFFFF00;
+        for (i = 0; i < 4; i++) {
+            WindowDXSet((WindowDX *)(void *)(&work->row[i].window));
+            work->row[i].window.y = 0x30 + i * 0x36;
+            work->row[i].window.color = work->color;
+            work->row[i].window.height = 0x36;
+            work->row[i].window.x = -0x102;
+            work->row[i].window.width = 0xE5;
+            if (i == 3) {
+                bottom = (short *) ((char *) work + 0x920);
+                bottom[11] = 0x4E;
+            } else {
+                work->row[i].window.height = 0x36;
+            }
+            work->row[i].window.state = 1;
+            WindowDXMain((WindowDX *)(void *)(&work->row[i].window));
+            work->row[i].window.state = 3;
+        }
+        eCursolSet(&storage->cursor.cursol.control, 0);
+        work->mode = 0;
+        work->state = AGWS_WEAPON2_MAIN;
+        /* fallthrough */
+    case AGWS_WEAPON2_MAIN:
+        para = func_A191C0(MenuWork.chrNo);
+        for (i = 0; i < 4; i++) {
+            x[i] = -0x102;
+            y[i] = 0x30 + i * 0x36;
+        }
+        switch (MenuWork.state) {
+        case 0x40:
+            for (i = 0; i < 4; i++)
+                x[i] = 0x10;
+            storage->cursor.cursol.control.state = 0x20;
+            break;
+        case 0x22:
+            storage->cursor.cursol.control.state = 0;
+            break;
+        case 0x42:
+        case 0x44:
+        case 0x46:
+            x[MenuWork.weaponHand] = 0x10;
+            y[MenuWork.weaponHand] = 0x30;
+            break;
+        case 0x62:
+            x[3] = 0x10;
+            y[3] = 0x30;
+            break;
+        case 0xC2:
+            break;
+        }
+        for (i = 0; i < 4; i++) {
+            MoveSlide(&work->row[i].window.x, &x[i], 3.0f);
+            MoveSlide(&work->row[i].window.y, &y[i], 3.0f);
+        }
+        for (i = 0; i < 3; i++) {
+            WindowDXMain((WindowDX *)(void *)(&work->row[i].window));
+            one = 1;
+            if (para->weaponId[i] != 0)
+                equipped[i] = one;
+            else
+                equipped[i] = 0;
+            bullet[i] = MenuBulletCheck(para->weaponId[i], -1);
+            text[0] = MenuTextGet(MENU_TEXT_WEAPON + (unsigned short)para->weaponId[i])->name;
+            text[1] = MenuTextGet(MENU_TEXT_BULLET + para->ammoId[i])->name;
+            lines = 1;
+            if (equipped[i] != 0) {
+                lines = 2;
+                if (bullet[i] == 0)
+                    lines = 1;
+            }
+            for (textIndex = 0; textIndex < lines; textIndex++) {
+                eMessageSet(&work->row[i].message[textIndex], text[textIndex]);
+                work->row[i].message[textIndex].mode = 0x20;
+                work->row[i].message[textIndex].color = work->row[i].window.color + 2;
+                work->row[i].message[textIndex].x = work->row[i].window.x + 39;
+                work->row[i].message[textIndex].y = work->row[i].window.y + ((lines & 1) * 12 + textIndex * 24) + 3;
+                eMessageMain(&work->row[i].message[textIndex]);
+            }
+            if (equipped[i] != 0) {
+                mountRow = D_004DAFD8[0];
+                mountSide = D_004DAFE0[0];
+                position = OptMntToWpnPos(para->hand[i]) - 1;
+                icon[0] = mountRow.icon[position / 2];
+                icon[1] = mountSide.icon[position & 1];
+                for (digit = 0; digit < 2; digit++) {
+                    eSpriteSet(&work->row[i].sprite[digit], icon[digit]);
+                    px = work->row[i].window.x + digit + 19;
+                    work->row[i].sprite[digit].x = px;
+                    sy = work->row[i].window.y + (digit * 14 + (bullet[i] ^ 1) * 12) + 3;
+                    work->row[i].sprite[digit].y = sy;
+                    work->row[i].sprite[digit].color = work->row[i].window.color + digit * 2 + 2;
+                    eSpriteMain(&work->row[i].sprite[digit]);
+                }
+                if (bullet[i] != 0) {
+                    eSpriteSet(&work->row[i].sprite[2], 0x31B);
+                    px = work->row[i].window.x + 19;
+                    work->row[i].sprite[2].x = px;
+                    work->row[i].sprite[2].color = work->row[i].window.color + 2;
+                    py = work->row[i].window.y + 27;
+                    work->row[i].sprite[2].y = py;
+                    eSpriteMain(&work->row[i].sprite[2]);
+                }
+            } else {
+                eSpriteSet(&work->row[i].sprite[2], 0x321);
+                work->row[i].sprite[2].x = work->row[i].window.x + 19;
+                work->row[i].sprite[2].color = work->row[i].window.color + 2;
+                work->row[i].sprite[2].y = work->row[i].window.y + 15;
+                eSpriteMain(&work->row[i].sprite[2]);
+            }
+        }
+        WindowDXMain((WindowDX *)(void *)(&work->row[3].window));
+        for (i = 0; i < 3; i++) {
+            eSpriteSet(&work->row[3].sprite[i], 0x315);
+            work->row[3].sprite[i].x = work->row[3].window.x + 19;
+            work->row[3].sprite[i].color = work->row[3].window.color + 2;
+            work->row[3].sprite[i].y = work->row[3].window.y + i * 24 + 3;
+            eSpriteMain(&work->row[3].sprite[i]);
+            eMessageSet(&work->row[3].message[i],
+                        MenuTextGet(MenuIdChange(para->accessoryId[i], 5))->name);
+            work->row[3].message[i].mode = 0x20;
+            work->row[3].message[i].x = work->row[3].window.x + 39;
+            work->row[3].message[i].color = work->row[3].window.color + 2;
+            work->row[3].message[i].y = work->row[3].window.y + i * 24 + 3;
+            eMessageMain(&work->row[3].message[i]);
+        }
+        storage->cursor.cursol.control.x = work->row[MenuWork.weaponHand].window.x + 3;
+        lineY = (unsigned short)work->row[MenuWork.weaponHand].window.y
+                + MenuWork.equipSlot * 24;
+        storage->cursor.cursol.control.y = lineY + 7;
+        if (MenuWork.weaponHand != 3
+                && (equipped[MenuWork.weaponHand] == 0
+                    || bullet[MenuWork.weaponHand] == 0))
+            storage->cursor.cursol.control.y = lineY + 19;
+        storage->cursor.cursol.control.work = work->color + 2;
+        eCursolMain(&storage->cursor.cursol);
+        break;
+    }
+}
 
 INCLUDE_ASM("asm/main/nonmatchings/menu_agws_para_set", AgwsNameMain);
 
@@ -950,14 +1371,14 @@ void AgwsFaceMain(void)
     switch (self->state) {
     case 0:
         self->color = 0x00FFFFF0;
-        WindowDXSet(&self->window);
+        WindowDXSet((WindowDX *)(void *)(&self->window));
         self->window.x = -103;
         self->window.color = self->color;
         self->window.y = 128;
         self->window.width = 71;
         self->window.height = 100;
         self->window.state = 1;
-        WindowDXMain(&self->window);
+        WindowDXMain((WindowDX *)(void *)(&self->window));
         self->window.state = 3;
         eSpriteSet(&self->face, 0);
         self->visible = 0;
@@ -983,9 +1404,9 @@ void AgwsFaceMain(void)
         if (self->window.x == -103) {
             self->visible = 0;
         }
-        WindowDXMain(&self->window);
+        WindowDXMain((WindowDX *)(void *)(&self->window));
         if (MenuWork.listSelect >= 0) {
-            eSpriteSet(&self->face, MenuFaceEpidGet(MenuSortGet(0, MenuWork.listSelect), 0));
+            eSpriteSet(&self->face, MenuFaceEpidGet((short)MenuSortGet(0, MenuWork.listSelect), 0));
             self->face.x = self->window.x + 3;
             self->face.y = self->window.y + 3;
             self->face.work = self->window.color + 2;
@@ -1179,4 +1600,703 @@ void MenuAgwsModelMain(AgwsModelUnit *self)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_agws_para_set", MenuAgws);
+void MenuAgws(void) {
+    int occupiedMount[3];
+    unsigned char previousWeaponHand;
+    AgwsPasWork *pas;
+    AgwsUnitOrg *temp_19_3;
+    AgwsUnitOrg *temp_21_3;
+    AgwsUnitOrg *temp_2_3;
+    AgwsUnitOrg *temp_2_8;
+    AgwsUnitOrg *temp_3_4;
+    AgwsUnitOrg *temp_4_2;
+    AgwsUnitOrg *temp_6_2;
+    s16 temp_16_2;
+    s16 temp_16_5;
+    s16 temp_17_3;
+    s16 temp_19_2;
+    s16 temp_21;
+    s16 temp_22;
+    s16 temp_23_2;
+    s16 temp_4_3;
+    s32 temp_18_2;
+    s32 temp_21_2;
+    s32 temp_22_2;
+    s32 temp_2_10;
+    s32 temp_2_4;
+    s32 temp_2_5;
+    s32 temp_2_7;
+    s32 temp_3_3;
+    int temp_19;
+    s8 temp_23;
+    u16 temp_16_3;
+    u16 temp_17_4;
+
+    if (MenuWork.state == 0) {
+        unsigned char *workCursor;
+        unsigned char *blockBase;
+        unsigned char *windowBase;
+        unsigned short *acceptedAgws;
+        AgwsNameWorkPrefix *name;
+        AgwsMenuWork *menu;
+        int windowIndex;
+        s32 var_16;
+        s32 var_17;
+
+        windowIndex = 3;
+        workCursor = MainMenuWorkEnd;
+        pas = (AgwsPasWork *) workCursor;
+        AgwsPas = pas;
+        blockBase = workCursor;
+        workCursor += 1904;
+        pas->state = 0;
+        AgwsInfo = (AgwsInfoWork *) workCursor;
+        blockBase = workCursor;
+        workCursor += 1104;
+        *blockBase = 0;
+        AgwsSelect = (AgwsSelectWork *) workCursor;
+        blockBase = workCursor;
+        workCursor += 7736;
+        *blockBase = 0;
+        AgwsList = (AgwsListWork *) workCursor;
+        blockBase = workCursor;
+        workCursor += 0x5E10;
+        *blockBase = 0;
+        windowBase = (unsigned char *) &AgwsList->window;
+        do {
+            AgwsWinSP[windowIndex] = (AgwsListSPWindow *)
+                (windowBase + windowIndex * 0x1738);
+            windowIndex--;
+        } while (windowIndex >= 0);
+        AgwsStatus = (AgwsStatusWork *) workCursor;
+        blockBase = workCursor;
+        workCursor += 0x71C;
+        *blockBase = 0;
+        AgwsWeapon2 = (AgwsWeapon2Work *) workCursor;
+        blockBase = workCursor;
+        workCursor += sizeof(AgwsWeapon2Work);
+        *blockBase = 0;
+        AgwsSwitch = (AgwsSwitchWork *) workCursor;
+        blockBase = workCursor;
+        workCursor += 0x1B8;
+        *blockBase = 0;
+        AgwsFace = (AgwsFaceWork *) workCursor;
+        blockBase = workCursor;
+        workCursor += 0x1C4;
+        *blockBase = 0;
+        AgwsName = (AgwsNameWorkPrefix *)workCursor;
+        name = AgwsName;
+        workCursor += sizeof(AgwsNameWorkPrefix);
+        name->state = 0;
+        MenuWorkEndCheck(workCursor);
+        var_17 = 0;
+        MenuWork.agwsCount = 0;
+        var_16 = 0x11;
+        acceptedAgws = AgwsNo;
+        for (; var_16 < 0x21; var_16++) {
+            if (PartyTakeAgwsCheck(var_16) != 0) {
+                var_17 += 1;
+                *acceptedAgws++ = (unsigned short) var_16;
+                MenuWork.agwsCount++;
+            }
+        }
+        for (; var_17 < 0x10; var_17++)
+            AgwsNo[var_17] = 0;
+        MenuWork.chrNo = (s16)AgwsNo[0];
+        MenuAgwsParaSet((s32) (s16) AgwsNo[0], 0);
+        MenuAgwsCameraSet();
+        MenuModelMemorySet(0xB);
+        MenuModelMenuMotionLoad();
+        MenuModelOut[0] = 0;
+        MenuKeepSelectReset();
+        menu = &MenuWork;
+        menu->state = 0;
+        menu->flags = 0;
+        menu->pendingState = 0x10;
+        menu->transitionTicks = 0x10;
+    }
+    if (MenuWork.state != MenuWork.pendingState) {
+        MenuWork.state = (u8) MenuWork.pendingState;
+        MenuWork.flags |= 1;
+        MenuWork.commandState = (u8) MenuWork.pendingState;
+    } else {
+        MenuWork.flags &= 0xFE;
+    }
+    if (MenuWork.transitionTicks != 0) {
+        MenuWork.transitionTicks = (u8) (MenuWork.transitionTicks + 0xFF);
+    }
+    MenuAgwsCameraMove();
+    switch (MenuWork.state) {                       /* switch 1; irregular */
+    case 0x10:                                      /* switch 1 */
+        if (MenuWork.transitionTicks == 0) {
+            if (PadData.mappedRepeat & 0xF000) {
+                switch (PadData.mappedRepeat) {     /* switch 2; irregular */
+                case 0x1000:                        /* switch 2 */
+                    MenuWork.selectedAgws -= 2;
+                    break;
+                case 0x4000:                        /* switch 2 */
+                    MenuWork.selectedAgws += 2;
+                    break;
+                case 0x8000:                        /* switch 2 */
+                    MenuWork.selectedAgws--;
+                    break;
+                case 0x2000:                        /* switch 2 */
+                    MenuWork.selectedAgws++;
+                    break;
+                }
+                {
+                    AgwsMenuWork *selectionMenu = &MenuWork;
+                    if (selectionMenu->selectedAgws < 0) {
+                        int lastAgws = (unsigned char)selectionMenu->agwsCount - 1;
+                        selectionMenu->selectedAgws = lastAgws;
+                    }
+                    if (selectionMenu->selectedAgws >= (short)selectionMenu->agwsCount) {
+                        selectionMenu->selectedAgws = 0;
+                    }
+                    selectionMenu->chrNo = AgwsNo[selectionMenu->selectedAgws];
+                }
+                xglSoundEffectNormalID(3, 0);
+            }
+            if (PadData.half_2a & 0x20) {
+                MenuWork.pendingState = (u8) 0x22;
+                MenuWork.transitionTicks = (u8) 0x18;
+                MenuWork.weaponHand = (s8) 0;
+                MenuWork.equipSlot = (s8) 0;
+                MenuWork.selectedIndex = (s8) 0;
+                xglSoundEffectNormalID(1, 0);
+                MenuModelCreate(MenuModelOut, MenuWork.chrNo);
+                MenuModelExtFuncSet(MenuModelOut[0], MenuAgwsModelMain, 0);
+                MenuAgwsParaSet((s32) MenuWork.chrNo, 0);
+            }
+            if (PadData.half_2a & 0x40) {
+                MenuWork.pendingState = (u8) -0x10;
+                xglSoundEffectNormalID(2, 0);
+            }
+        }
+        break;
+    case 0x22:
+        if (MenuWork.transitionTicks == 0) {
+            if (PadData.half_28 & 3)
+                break;
+            if (PadData.half_2a & 0xC) {
+                unsigned short character;
+                switch (PadData.half_2a) {
+                case 4:
+                    MenuWork.selectedAgws--;
+                    break;
+                case 8:
+                    MenuWork.selectedAgws++;
+                    break;
+                }
+                if (MenuWork.selectedAgws < 0)
+                    MenuWork.selectedAgws = (unsigned char)MenuWork.selectedAgws
+                                           + (unsigned char)MenuWork.agwsCount;
+                else if (MenuWork.selectedAgws >= (short)MenuWork.agwsCount)
+                    MenuWork.selectedAgws = (unsigned char)MenuWork.selectedAgws
+                                           - (unsigned char)MenuWork.agwsCount;
+                MenuWork.modelBreak = 1;
+                MenuWork.weaponHand = 0;
+                character = AgwsNo[MenuWork.selectedAgws];
+                MenuWork.equipSlot = 0;
+                MenuWork.chrNo = character;
+                MenuWork.selectedIndex = 0;
+                MenuAgwsParaSet((short)character, 0);
+                xglSoundEffectNormalID(3, 0);
+                MenuKeepSelectReset();
+                MenuWork.transitionTicks = 4;
+            } else {
+                int nextCursor = MenuSelectMove(MenuWork.reserveCursor, 3, 0);
+                if (MenuWork.reserveCursor != nextCursor) {
+                    MenuWork.reserveCursor = nextCursor;
+                } else if (MenuModelOut[0] != 0) {
+                    if (PadData.half_2a & 0x20) {
+                        if (MenuMainAgwsCheck(MenuWork.chrNo) != 0) {
+                            int reserve = MenuWork.reserveCursor;
+                            if (reserve != 2) {
+                                if (reserve < 3) {
+                                    if (reserve >= 0)
+                                        MenuWork.pendingState = 0x40;
+                                }
+                            } else {
+                                MenuWork.pendingState = 0xC2;
+                            }
+                            MenuWork.transitionTicks = 0x10;
+                            if (MenuCursorKeepCheck() == 0) {
+                                MenuWork.weaponHand = 0;
+                                MenuWork.equipSlot = 0;
+                            }
+                            xglSoundEffectNormalID(1, 0);
+                        } else {
+                            xglSoundEffectNormalID(5, 0);
+                        }
+                    } else if (PadData.half_2a & 0x40) {
+                        MenuWork.pendingState = 0x10;
+                        MenuWork.transitionTicks = 0x10;
+                        MenuKeepSelectReset();
+                        xglSoundEffectNormalID(2, 0);
+                    }
+                }
+            }
+            if (MenuModelOut[0] == 0) {
+                MenuModelCreate(MenuModelOut, MenuWork.chrNo);
+                MenuModelExtFuncSet(MenuModelOut[0], MenuAgwsModelMain, 0);
+            }
+        }
+        MenuWork.menuSelection = 1;
+        break;
+    case 0x40:                                      /* switch 1 */
+        if (MenuWork.flags & 1 & 0xFF) {
+            MenuWork.weaponId = (s16) 0;
+            MenuWork.ammoId = (u16) 0;
+            MenuWork.accessoryId = (u16) 0;
+        }
+        if (MenuWork.transitionTicks == 0) {
+            temp_16_3 = PadData.mappedRepeat;
+            if (temp_16_3 == 0x1000) {
+                temp_6_2 = func_A191C0((s32) MenuWork.chrNo);
+                previousWeaponHand = MenuWork.weaponHand;
+                if (MenuWork.weaponHand == 3) {
+                    if (MenuWork.equipSlot == 0) {
+                        if (MenuBulletCheck((s32) temp_6_2->accessoryId[0], -1) != 0) {
+                            MenuWork.equipSlot = (s8) 1;
+                        } else {
+                            MenuWork.equipSlot = (s8) 0;
+                        }
+                        MenuWork.weaponHand = (s8) 2;
+                    } else {
+                        MenuWork.equipSlot--;
+                    }
+                    xglSoundEffectNormalID(3, 0);
+                } else if (MenuWork.equipSlot == 1) {
+                    MenuWork.equipSlot = (s8) 0;
+                    xglSoundEffectNormalID(3, 0);
+                } else if (MenuWork.weaponHand == 0) {
+                    if (PadData.mappedPressed == temp_16_3) {
+                        MenuWork.weaponHand = (s8) 3;
+                        MenuWork.equipSlot = (s8) 2;
+                    }
+                } else {
+                    temp_3_3 = previousWeaponHand - 1;
+                    MenuWork.weaponHand = (s8) temp_3_3;
+                    if (MenuBulletCheck(temp_6_2->weaponId[MenuWork.weaponHand], -1) != 0) {
+                        MenuWork.equipSlot = (s8) 1;
+                    }
+                    xglSoundEffectNormalID(3, 0);
+                }
+            }
+            temp_17_4 = PadData.mappedRepeat;
+            if (temp_17_4 == 0x4000) {
+                temp_4_2 = func_A191C0((s32) MenuWork.chrNo);
+                if (MenuWork.weaponHand == 3) {
+                    if (MenuWork.equipSlot == 2) {
+                        if (PadData.mappedPressed == temp_17_4) {
+                            MenuWork.equipSlot = (s8) 0;
+                            MenuWork.weaponHand = (s8) 0;
+                        }
+                    } else {
+                        MenuWork.equipSlot = (s8) ((u8) MenuWork.equipSlot + 1);
+                        xglSoundEffectNormalID(3, 0);
+                    }
+                } else {
+                    if (MenuWork.equipSlot == 0
+                            && (temp_2_10 = MenuBulletCheck(temp_4_2->weaponId[MenuWork.weaponHand], -1)) == 1) {
+                        MenuWork.equipSlot = (s8) temp_2_10;
+                    } else {
+                        MenuWork.equipSlot = (s8) 0;
+                        MenuWork.weaponHand = (s8) ((u8) MenuWork.weaponHand + 1);
+                    }
+                    xglSoundEffectNormalID(3, 0);
+                }
+            }
+            if (PadData.half_2a == 0x20) {
+                if (MenuWork.reserveCursor == 0) {
+                    if (MenuWork.weaponHand != 3) {
+                        if (MenuWork.equipSlot == 0) {
+                            AgwsMenuWork *selectionMenu = &MenuWork;
+                            unsigned char nextState = 0x42;
+                            selectionMenu->selectedWeapon = -1;
+                            selectionMenu->pendingState = nextState;
+                            selectionMenu->selectedIndex = 0;
+                        } else {
+                            MenuWork.pendingState = 0x46;
+                            MenuWork.selectedAmmo = (s8) -1;
+                        }
+                    } else {
+                        MenuWork.pendingState = 0x62;
+                        MenuWork.selectedAccessory = (s8) -1;
+                    }
+                    MenuWork.transitionTicks = (u8) 0x10;
+                    xglSoundEffectNormalID(1, 0);
+                } else {
+                    temp_3_4 = func_A191C0((s32) MenuWork.chrNo);
+                    if (MenuWork.weaponHand != 3) {
+                        if (MenuWork.equipSlot != 1) {
+                            temp_18_2 = MenuRWeaponCheck2(temp_3_4->weaponId[MenuWork.weaponHand]);
+                            temp_3_4->weaponId[MenuWork.weaponHand] = 0;
+                            temp_3_4->hand[MenuWork.weaponHand] = 0;
+                            if (temp_18_2 != 0) {
+                                dataWpnBoxInc(temp_18_2);
+                            }
+                            MenuWork.weaponChange = (s8) 1;
+                            temp_16_5 = temp_3_4->ammoId[MenuWork.weaponHand];
+                            temp_3_4->ammoId[MenuWork.weaponHand] = 0;
+                            if ((MenuBulletCheck(temp_18_2, -1) != 0) && (temp_16_5 != 0)) {
+                                if ((func_A1A3D8(temp_18_2)->defaultAmmoId != temp_16_5) || (dataBltBoxChk(temp_16_5) == 0)) {
+                                    dataBltBoxInc(temp_16_5);
+                                }
+                            }
+                        }
+                    } else {
+                        int accessorySlot = MenuWork.equipSlot;
+                        temp_4_3 = temp_3_4->accessoryId[accessorySlot];
+                        temp_3_4->accessoryId[accessorySlot] = 0;
+                        if (temp_4_3 != 0) {
+                            dataAccBoxInc(temp_4_3);
+                        }
+                    }
+                    MenuAgwsParaSet((s32) MenuWork.chrNo, 0);
+                    xglSoundEffectNormalID(0x11, 0);
+                }
+            }
+            if (PadData.half_2a == 0x40) {
+                if (MenuCursorKeepCheck() == 0) {
+                    MenuWork.reserveCursor = (s8) 0;
+                }
+                    MenuWork.pendingState = (u8) 0x22;
+                xglSoundEffectNormalID(2, 0);
+            }
+        }
+        break;
+    case 0x42:                                      /* switch 1 */
+        if (MenuWork.flags & 1 & 0xFF) {
+            AgwsUnitOrg *org = func_A191C0(MenuWork.chrNo);
+            int hand;
+            int position;
+
+            MenuWork.nameRow = 0;
+            for (hand = 0; hand < 3; hand++) {
+                if (hand == MenuWork.weaponHand)
+                    occupiedMount[hand] = 0;
+                else
+                    occupiedMount[hand] = OptMntToWpnPos(org->hand[hand]);
+            }
+            for (position = 1; position < 6; position++) {
+                for (hand = 0; hand < 3; hand++) {
+                    if (occupiedMount[hand] == position)
+                        break;
+                }
+                if (hand == 3) {
+                    MenuWork.weaponSlot[MenuWork.nameRow] = position;
+                    MenuWork.nameRow++;
+                    MenuWork.weaponSlot[MenuWork.nameRow] = 0;
+                }
+            }
+        }
+        if (MenuWork.transitionTicks == 0) {
+            MenuWork.selectedIndex = (s8) MenuSelectMove((s32) MenuWork.selectedIndex, (s32) MenuWork.nameRow, 0);
+            if (PadData.half_2a & 0x40) {
+                MenuWork.pendingState = (u8) 0x40;
+                MenuWork.transitionTicks = (u8) 0x10;
+                xglSoundEffectNormalID(2, 0);
+            }
+            if (PadData.half_2a & 0x20) {
+                MenuWork.pendingState = (u8) 0x44;
+                MenuWork.transitionTicks = (u8) 0x10;
+                xglSoundEffectNormalID(1, 0);
+            }
+        }
+        break;
+    case 0x44:                                      /* switch 1 */
+        if (MenuWork.flags & 1 & 0xFF) {
+            MenuAgwsListMake_Wpn();
+            MenuWork.selectedWeapon = (s8) -1;
+            MenuWork.weaponId = (s16) 0;
+        } else if (MenuWork.transitionTicks == 0) {
+                temp_19 = WindowSPSelect((WindowSPCursor *)(void *)(AgwsWinSP[0]), PadData.mappedRepeat);
+                WindowSPKeepSelect((WindowSPCursor *)(void *)(AgwsWinSP[0]), &MenuKeepSelect[MenuWork.weaponSlot[MenuWork.selectedIndex] * 5 - 5]);
+                if (MenuWork.selectedWeapon != temp_19) {
+                    temp_2_3 = func_A191C0((s32) MenuWork.chrNo);
+                    MenuWork.selectedWeapon = (s8) temp_19;
+                    temp_2_4 = MenuSortGet(0, MenuWork.selectedWeapon);
+                    MenuWork.weaponId = (s16) temp_2_4;
+                    temp_2_5 = MenuWeaponEquipPosCheck((s32) MenuWork.chrNo, (s32) (s16) temp_2_4, (s32) MenuWork.weaponSlot[MenuWork.selectedIndex], (s32) MenuWork.weaponHand);
+                    MenuWork.weaponHandKind = (short) temp_2_5;
+                    if (MenuWork.weaponHandKind != 0) {
+                        temp_23 = temp_2_3->hand[MenuWork.weaponHand];
+                        temp_22 = temp_2_3->weaponId[MenuWork.weaponHand];
+                        temp_21 = temp_2_3->ammoId[MenuWork.weaponHand];
+                        temp_2_3->weaponId[MenuWork.weaponHand] = MenuWork.weaponId;
+                        temp_2_3->hand[MenuWork.weaponHand] = MenuWork.weaponHandKind;
+                        if (temp_2_3->weaponId[MenuWork.weaponHand] != 0) {
+                            temp_2_3->ammoId[MenuWork.weaponHand] = func_A1A3D8(MenuWork.weaponId)->defaultAmmoId;
+                        } else {
+                            temp_2_3->ammoId[MenuWork.weaponHand] = 0;
+                        }
+                        MenuAgwsParaSet((s32) MenuWork.chrNo, 1);
+                        temp_2_3->ammoId[MenuWork.weaponHand] = temp_21;
+                        temp_2_3->weaponId[MenuWork.weaponHand] = temp_22;
+                        temp_2_3->hand[MenuWork.weaponHand] = temp_23;
+                        MenuWork.weaponChange = (s8) 1;
+                    } else {
+                        MenuAgwsParaSet((s32) MenuWork.chrNo, 0);
+                        MenuWork.weaponChange = (s8) 2;
+                    }
+                    MenuWork.selectedWeapon = (s8) temp_19;
+                }
+                if ((PadData.half_2a == 0x20) && (MenuWork.selectedWeapon >= 0)) {
+                    temp_2_7 = MenuWeaponEquipPosCheck((s32) MenuWork.chrNo, (s32) MenuWork.weaponId, (s32) MenuWork.weaponSlot[MenuWork.selectedIndex], (s32) MenuWork.weaponHand);
+                    if (temp_2_7 != 0) {
+                        temp_2_8 = func_A191C0((s32) MenuWork.chrNo);
+                        temp_21_2 = MenuRWeaponCheck2(temp_2_8->weaponId[MenuWork.weaponHand]);
+                        temp_19_2 = temp_2_8->ammoId[MenuWork.weaponHand];
+                        temp_2_8->weaponId[MenuWork.weaponHand] = MenuRWeaponCheck(MenuWork.weaponId, temp_2_7);
+                        temp_2_8->hand[MenuWork.weaponHand] = temp_2_7;
+                        temp_2_8->ammoId[MenuWork.weaponHand] = func_A1A3D8(MenuWork.weaponId)->defaultAmmoId;
+                        if (temp_21_2 != 0) {
+                            dataWpnBoxInc(temp_21_2);
+                        }
+                        dataWpnBoxDec(MenuWork.weaponId);
+                        if (temp_19_2 != 0) {
+                            if (MenuBulletCheck(temp_21_2, -1) != 0) {
+                                if (func_A1A3D8(temp_21_2)->defaultAmmoId == temp_19_2) {
+                                    if (dataBltBoxChk(temp_19_2) == 0) {
+                                        dataBltBoxInc(temp_19_2);
+                                    }
+                                } else {
+                                    dataBltBoxInc(temp_19_2);
+                                }
+                            }
+                        }
+                        MenuAgwsParaSet((s32) MenuWork.chrNo, 0);
+                        MenuWork.pendingState = (u8) 0x40;
+                        MenuWork.transitionTicks = (u8) 0x10;
+                        xglSoundEffectNormalID(0x10, 0);
+                    } else {
+                        xglSoundEffectNormalID(5, 0);
+                    }
+                }
+                if (PadData.half_2a == 0x40) {
+                    MenuAgwsParaSet((s32) MenuWork.chrNo, 0);
+                    MenuWork.pendingState = (u8) 0x42;
+                    MenuWork.weaponChange = (s8) 2;
+                    MenuWork.transitionTicks = (u8) 0x10;
+                    xglSoundEffectNormalID(2, 0);
+                    if (MenuCursorKeepCheck() == 0) {
+                        MenuWork.selectedIndex = (s8) 0;
+                    }
+                    {
+                        int savedSelection;
+                        for (savedSelection = 0; savedSelection < 8; savedSelection++)
+                            WindowSPKeepSelectCheck((unsigned char *)(void *)(&MenuKeepSelect[savedSelection * 5]));
+                    }
+                }
+        }
+        break;
+    case 0x46:
+        if (MenuWork.flags & 1 & 0xFF) {
+            AgwsUnitOrg *org = func_A191C0(MenuWork.chrNo);
+            MenuWork.weaponId = org->weaponId[MenuWork.weaponHand];
+            MenuAgwsListMake_Gun();
+            MenuWork.selectedAmmo = -1;
+        } else if (MenuWork.transitionTicks == 0) {
+                int selection = WindowSPSelect((WindowSPCursor *)(void *)(AgwsWinSP[0]), PadData.mappedRepeat);
+                WindowSPKeepSelect((WindowSPCursor *)(void *)(AgwsWinSP[0]), &MenuKeepSelect[0x1E]);
+                if (MenuWork.selectedAmmo != selection) {
+                    AgwsUnitOrg *org = func_A191C0(MenuWork.chrNo);
+                    MenuWork.selectedAmmo = selection;
+                    MenuWork.ammoId = MenuSortGet(0, MenuWork.selectedAmmo);
+                    if (MenuBulletCheck(MenuWork.weaponId, (short)MenuWork.ammoId) != 0) {
+                        short previousAmmo = org->ammoId[MenuWork.weaponHand];
+                        org->ammoId[MenuWork.weaponHand] = MenuWork.ammoId;
+                        MenuAgwsParaSet(MenuWork.chrNo, 1);
+                        org->ammoId[MenuWork.weaponHand] = previousAmmo;
+                    } else {
+                        MenuAgwsParaSet(MenuWork.chrNo, 0);
+                    }
+                }
+                if (PadData.half_2a & 0x20) {
+                    if (MenuBulletCheck(MenuWork.weaponId, (short)MenuWork.ammoId) != 0) {
+                        AgwsUnitOrg *org = func_A191C0(MenuWork.chrNo);
+                        short previousAmmo = org->ammoId[MenuWork.weaponHand];
+                        short weapon;
+                        org->ammoId[MenuWork.weaponHand] = MenuWork.ammoId;
+                        MenuAgwsParaSet(MenuWork.chrNo, 0);
+                        if (previousAmmo != 0) {
+                            weapon = org->weaponId[MenuWork.weaponHand];
+                            if (weapon != 0) {
+                                if (func_A1A3D8(weapon)->defaultAmmoId != previousAmmo
+                                        || dataBltBoxChk(previousAmmo) == 0)
+                                    dataBltBoxInc(previousAmmo);
+                            } else {
+                                dataBltBoxInc(previousAmmo);
+                            }
+                        }
+                        if ((short)MenuWork.ammoId != 0) {
+                            weapon = org->weaponId[MenuWork.weaponHand];
+                            if (weapon != 0
+                                    && func_A1A3D8(weapon)->defaultAmmoId != (short)MenuWork.ammoId)
+                                dataBltBoxDec((short)MenuWork.ammoId);
+                        }
+                        MenuWork.pendingState = 0x40;
+                        MenuWork.transitionTicks = 0x10;
+                        xglSoundEffectNormalID(0x10, 0);
+                    } else {
+                        xglSoundEffectNormalID(5, 0);
+                    }
+                }
+                if (PadData.half_2a & 0x40) {
+                    MenuAgwsParaSet(MenuWork.chrNo, 0);
+                    MenuWork.pendingState = 0x40;
+                    MenuWork.transitionTicks = 0x10;
+                    xglSoundEffectNormalID(2, 0);
+                    WindowSPKeepSelectCheck((unsigned char *)(void *)(&MenuKeepSelect[0x1E]));
+                }
+        }
+        break;
+    case 0x62:
+        if (MenuWork.flags & 1 & 0xFF) {
+            MenuAgwsListMake_Acc();
+            MenuWork.selectedAccessory = -1;
+        } else if (MenuWork.transitionTicks == 0) {
+                signed char selection = WindowSPSelect((WindowSPCursor *)(void *)(AgwsWinSP[0]), PadData.mappedRepeat);
+                unsigned short buttons;
+                WindowSPKeepSelect((WindowSPCursor *)(void *)(AgwsWinSP[0]), &MenuKeepSelect[0x23]);
+                if (MenuWork.selectedAccessory != selection) {
+                    MenuWork.selectedAccessory = selection;
+                    MenuWork.accessoryId = MenuSortGet(0, selection);
+                    if (MenuAccessoryEquipCheck(MenuWork.chrNo,
+                                               (short)MenuWork.accessoryId,
+                                               MenuWork.equipSlot) != 0) {
+                        AgwsUnitOrg *org = func_A191C0(MenuWork.chrNo);
+                        short previousAccessory = org->accessoryId[MenuWork.equipSlot];
+                        org->accessoryId[MenuWork.equipSlot] = MenuWork.accessoryId;
+                        MenuAgwsParaSet(MenuWork.chrNo, 1);
+                        org->accessoryId[MenuWork.equipSlot] = previousAccessory;
+                    } else {
+                        MenuAgwsParaSet(MenuWork.chrNo, 0);
+                    }
+                }
+                if (MenuWork.selectedAccessory >= 0 && PadData.half_2a == 0x20) {
+                    if (MenuAccessoryEquipCheck(MenuWork.chrNo,
+                                               (short)MenuWork.accessoryId,
+                                               MenuWork.equipSlot) != 0) {
+                        AgwsUnitOrg *org = func_A191C0(MenuWork.chrNo);
+                        short previousAccessory = org->accessoryId[MenuWork.equipSlot];
+                        org->accessoryId[MenuWork.equipSlot] = MenuWork.accessoryId;
+                        MenuAgwsParaSet(MenuWork.chrNo, 0);
+                        if (previousAccessory != 0)
+                            dataAccBoxInc(previousAccessory);
+                        dataAccBoxDec((short)MenuWork.accessoryId);
+                        MenuWork.pendingState = 0x40;
+                        xglSoundEffectNormalID(0x10, 0);
+                    } else {
+                        xglSoundEffectNormalID(5, 0);
+                    }
+                }
+                buttons = PadData.half_2a;
+                if (buttons == 0x40) {
+                    MenuAgwsParaSet(MenuWork.chrNo, 0);
+                    MenuWork.pendingState = buttons;
+                    xglSoundEffectNormalID(2, 0);
+                    WindowSPKeepSelectCheck((unsigned char *)(void *)(&MenuKeepSelect[0x23]));
+                }
+        }
+        break;
+    case 0xC2:                                      /* switch 1 */
+        if (MenuWork.flags & 1 & 0xFF) {
+            MenuAgwsListMake_Pilot();
+        } else {
+            if (MenuWork.transitionTicks == 0) {
+                MenuWork.listSelect = (s8) WindowSPSelect((WindowSPCursor *)(void *)(AgwsWinSP[0]), PadData.mappedRepeat);
+                WindowSPKeepSelect((WindowSPCursor *)(void *)(AgwsWinSP[0]), MenuKeepSelect + 0x28);
+                temp_22_2 = MenuAgwsPilotCheck((s32) MenuWork.chrNo);
+                temp_23_2 = MenuSortGet(0, (s32) MenuWork.listSelect);
+                temp_21_3 = func_A191C0(temp_22_2);
+                temp_19_3 = func_A191C0((s32) temp_23_2);
+                temp_17_3 = temp_21_3->agwsId;
+                temp_16_2 = temp_19_3->agwsId;
+                temp_21_3->agwsId = (s16) 0;
+                temp_19_3->agwsId = (s16) (u16) MenuWork.chrNo;
+                MenuAgwsParaSet((s32) MenuWork.chrNo, 1);
+                temp_19_3->agwsId = (s16) temp_16_2;
+                temp_21_3->agwsId = (s16) temp_17_3;
+                if (PadData.half_2a & 0x20) {
+                    if (temp_22_2 == 0) {
+                        if (temp_19_3->agwsId == 0) {
+                            temp_19_3->agwsId = (s16) (u16) MenuWork.chrNo;
+                            xglSoundEffectNormalID(0x12, 0);
+                            MenuAgwsParaSet(MenuWork.chrNo, 0);
+                        } else {
+                            xglSoundEffectNormalID(5, 0);
+                        }
+                    } else if (temp_22_2 == temp_23_2) {
+                        temp_19_3->agwsId = (s16) 0;
+                        xglSoundEffectNormalID(0x13, 0);
+                        MenuAgwsParaSet((s32) MenuWork.chrNo, 0);
+                    } else {
+                        if (temp_19_3->agwsId == 0) {
+                            temp_19_3->agwsId = (s16) (u16) MenuWork.chrNo;
+                            temp_21_3->agwsId = (s16) 0;
+                            xglSoundEffectNormalID(0x12, 0);
+                            MenuAgwsParaSet(MenuWork.chrNo, 0);
+                        } else {
+                            xglSoundEffectNormalID(5, 0);
+                        }
+                    }
+                    MenuAgwsListMake_Pilot();
+                }
+                if (PadData.half_2a & 0x40) {
+                    MenuAgwsParaSet((s32) MenuWork.chrNo, 0);
+                    MenuWork.pendingState = (u8) 0x22;
+                    MenuWork.transitionTicks = (u8) 0x10;
+                    xglSoundEffectNormalID(2, 0);
+                    if (MenuCursorKeepCheck() == 0) {
+                        MenuWork.reserveCursor = (s8) 0;
+                    }
+                    WindowSPKeepSelectCheck((unsigned char *)(void *)(MenuKeepSelect + 0x28));
+                }
+            } else {
+                MenuWork.listSelect = (s8) WindowSPSelect((WindowSPCursor *)(void *)(AgwsWinSP[0]), 0U);
+                WindowSPKeepSelect((WindowSPCursor *)(void *)(AgwsWinSP[0]), MenuKeepSelect + 0x28);
+            }
+        }
+        break;
+    case 0xF0:                                      /* switch 1 */
+        MenuWork.state = (u8) -0xF;
+        MenuWork.pendingState = (u8) -0xF;
+        MenuWork.transitionTicks = (u8) 0xC;
+        /* fallthrough */
+    case 0xF1:                                      /* switch 1 */
+        if (MenuWork.transitionTicks != 0)
+            break;
+        MenuWork.state = (u8) -1;
+        /* fallthrough */
+    case 0xFF:
+        ChangeTopLevel(0);
+        MenuModelAllBreak();
+        break;
+    }
+    AgwsPasMain();
+    AgwsInfoMain();
+    AgwsSelectMain();
+    AgwsListMain();
+    AgwsStatusMain();
+    AgwsWeapon2Main();
+    AgwsSwitchMain();
+    AgwsFaceMain();
+    AgwsNameMain();
+    xglFontDebugPrintf(0, 0x38, (s8 *) D_004DAFF0);
+    xglFontDebugHex(0, 0x48, MenuWork.state, 2);
+    xglFontDebugHex(0, 0x60, MenuWork.menuSelection, 2);
+    xglFontDebugHex(0, 0x68, MenuWork.selectedAgws, 2);
+    xglFontDebugHex(0, 0x70, MenuWork.listKind, 1);
+    xglFontDebugHex(0, 0x78, MenuWork.reserveCursor, 2);
+    xglFontDebugHex(0, 0x80, MenuWork.weaponHand, 2);
+    xglFontDebugHex(0, 0x88, MenuWork.equipSlot, 2);
+    xglFontDebugHex(0, 0x90, MenuWork.agwsCount, 1);
+    xglFontDebugPrintf(0x40, 0x50, (s8 *) D_004DAFF8, MenuWork.selectedWeapon);
+    xglFontDebugPrintf(0x40, 0x58, (s8 *) D_004DAFF8, MenuWork.selectedAmmo);
+    xglFontDebugPrintf(0x40, 0x60, (s8 *) D_004DAFF8, MenuWork.selectedAccessory);
+    xglFontDebugPrintf(0x40, 0x68, (s8 *) D_004DAFF8, MenuWork.listSelect);
+    xglFontDebugPrintf(0x40, 0x78, (s8 *) D_004C72D0, MenuWork.pilotId);
+}

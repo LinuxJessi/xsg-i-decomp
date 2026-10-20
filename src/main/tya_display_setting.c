@@ -1,6 +1,7 @@
 #include "common.h"
 #include "shared.h"
 #include "main/xgl_packet.h"
+#include "tya_display_setting.h"
 
 /*
  * sRender's destination-buffer selector: folded (with a fixed high bit)
@@ -92,6 +93,11 @@ static FlushEnvironmentPacket FlushEnv_2_0036AC40 = {
     .finish = { { .value = 0 }, 0x3F, 0 },
 };
 
+#define PLAY_RESET_SOUND_EFFECT()                                       \
+    do {                                                                \
+        xglSoundEffectNormalDirect(1);                                  \
+    } while (0)
+
 static void DrawImage(u8 *framebuffer)
 {
     XglPacket *packet;
@@ -108,4 +114,125 @@ static void DrawImage(u8 *framebuffer)
     sceVif1PkRef(packet, &FlushEnv_2_0036AC40, 3, 0, 0, 0);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/tya_display_setting", tyaDisplaySetting);
+void tyaDisplaySetting(u8 *framebuffer_or_mode)
+{
+    short saved_x;
+    short saved_y;
+    TyaDisplayEnvironment environment;
+
+    sceGsSetDefDispEnv(&environment, 0, 512, 448, 0, 0);
+    saved_x = ((TyaSaveDataRecord *)SaveData)->horizontal_display_offset;
+    saved_y = ((TyaSaveDataRecord *)SaveData)->vertical_display_offset;
+
+    if (framebuffer_or_mode == (u8 *)0) {
+        DispEnv.display.dx = environment.display.dx + saved_x * 5;
+        DispEnv.display.dy = environment.display.dy + saved_y;
+        return;
+    }
+    if (framebuffer_or_mode == (u8 *)1) {
+        ((TyaSaveDataRecord *)SaveData)->horizontal_display_offset = 0;
+        DispEnv.display.dx = environment.display.dx;
+        DispEnv.display.dy = environment.display.dy;
+        ((TyaSaveDataRecord *)SaveData)->vertical_display_offset = 0;
+        return;
+    }
+
+    {
+        u8 *framebuffer = framebuffer_or_mode;
+        u8 *image_source;
+
+        image_source = framebuffer_or_mode + 0x100000;
+        xglCdReadFile(D_004C15E8, image_source, 0, 1);
+        {
+            TyaJpegRequest jpeg_request;
+
+            memset(&jpeg_request, 0, sizeof(jpeg_request));
+            jpeg_request.source = image_source;
+            jpeg_request.destination = framebuffer;
+            xglJpegDecode(&jpeg_request);
+        }
+        {
+            short horizontal;
+            short vertical;
+            int directions;
+
+            for (;;) {
+                horizontal = ((TyaSaveDataRecord *)SaveData)->horizontal_display_offset;
+                vertical = ((TyaSaveDataRecord *)SaveData)->vertical_display_offset;
+                directions = PadData.mappedRepeat;
+
+                if (directions & 0xf000) {
+                    xglSoundEffectNormalDirect(3);
+                    directions = PadData.mappedRepeat;
+                }
+                if (directions & 0x2000)
+                {
+                    horizontal++;
+                }
+                if (directions & 0x8000)
+                {
+                    horizontal--;
+                }
+                if (directions & 0x4000)
+                {
+                    vertical++;
+                }
+                if (directions & 0x1000)
+                {
+                    vertical--;
+                }
+
+                {
+                    /* The halfword event snapshot is refreshed after the sound call. */
+                    int input_event = PadData.half_2a;
+                    if (input_event & 0x80) {
+                        PLAY_RESET_SOUND_EFFECT();
+                        input_event = PadData.half_2a;
+                        horizontal = 0;
+                        vertical = 0;
+                    }
+                    {
+                        if (input_event & 0x40) {
+                            horizontal = saved_x;
+                            vertical = saved_y;
+                        }
+                        if (horizontal < -20) {
+                            horizontal = -20;
+                        }
+                        if (vertical < -20) {
+                            vertical = -20;
+                        }
+                        if (horizontal > 20) {
+                            horizontal = 20;
+                        }
+                        if (vertical > 20) {
+                            vertical = 20;
+                        }
+
+                        ((TyaSaveDataRecord *)SaveData)->horizontal_display_offset = horizontal;
+                        DispEnv.display.dx = environment.display.dx + horizontal * 5;
+                        DispEnv.display.dy = environment.display.dy + vertical;
+                        ((TyaSaveDataRecord *)SaveData)->vertical_display_offset = vertical;
+
+                        if (input_event & 0x20) {
+                            xglSoundEffectNormalDirect(1);
+                        } else if (input_event & 0x40) {
+                            xglSoundEffectNormalDirect(2);
+                        } else {
+                            xglFontDebugPrintf(8, 8, D_004C1600,
+                                DispEnv.display.dx,
+                                DispEnv.display.dy,
+                                ((TyaSaveDataRecord *)SaveData)->horizontal_display_offset,
+                                ((TyaSaveDataRecord *)SaveData)->vertical_display_offset);
+                            DrawImage(framebuffer);
+                            xglSleep();
+                            continue;
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    xglSleep();
+}

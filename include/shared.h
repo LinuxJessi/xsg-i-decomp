@@ -118,9 +118,12 @@ typedef struct StudioCamera {
     Vector4 screenScale;
     u8 unmodeled_90[0x10];
     Vector4 rotation;
-    u8 unmodeled_b0[0x20];
+    Vector4 angleVelocity;
+    u8 unmodeled_c0[0x10];
     Vector4 position;
-    u8 unmodeled_e0[0x390];
+    u8 unmodeled_e0[0x90];
+    Matrix4 cameraToWorldMatrix;
+    u8 unmodeled_1b0[0x2c0];
     Matrix4 viewMatrix;
     u8 unmodeled_4b0[0x140];
 } StudioCamera;
@@ -165,6 +168,8 @@ struct SceneField {
 typedef struct SceneMethod SceneMethod;
 
 typedef struct SceneType SceneType;
+
+typedef struct SceneStringStorage SceneStringStorage;
 
 typedef struct SceneThread SceneThread;
 
@@ -240,6 +245,8 @@ typedef struct StreamXssBuffer StreamXssBuffer;
 typedef struct StreamRing StreamRing;
 
 typedef unsigned char byte;
+
+typedef struct ConstString ConstString;
 
 typedef unsigned char DataBufferByte;
 

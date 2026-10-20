@@ -28,6 +28,8 @@ typedef struct SePacket {
     int arguments[4];
 } SePacket;
 
+void xglSoundEffectStopID(int soundEffectId, int source);
+
 void xglSoundSendEffect(void *swd, void *sed, int bank);
 
 #endif /* INCLUDE_MAIN_XGL_SOUND_H */

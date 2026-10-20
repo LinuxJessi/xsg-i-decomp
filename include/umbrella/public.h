@@ -21,6 +21,7 @@ void *newClass(void);
 void loadStaticClass(void *class_slot, const char *name);
 
 void GamePushSaveDataUser(void);
+void Game(void);
 
 void GameCameraStateSave(void);
 void GameCameraStateRestore(void);
@@ -30,8 +31,10 @@ void GameMovieMain(void);
 void GameSnapShotCheck(void);
 
 int Get_Rnd(int min, int max);
-extern int Check_Angle(float angle, float rangeStart, float rangeEnd);
+int Check_Angle(float angle, float rangeStart, float rangeEnd);
 
+int CrossPointUwamono(const Vector4 *position, const Vector4 *previous,
+                      float radius, Vector4 *result);
 int HitCheckMapUnitPos(const Vector4 *position);
 
 extern SceneClass *classString;
@@ -116,6 +119,7 @@ int SCRIPT_load2(const char *path);
 
 int sefIsDeadSchduler(unsigned int scheduler_index);
 void sefKillEffect(int effect_no);
+int sefSearchMapperIndex(int effect_id);
 void sefInitEffectCf(void);
 void sefExecEffect(void);
 int sefLoadEffectCf(int cf_id, int effect_no);
@@ -145,7 +149,6 @@ void ChangeTopLevel(int top_level);
 void MenuKeepSelectReset(void);
 
 extern void xglVectorLength(float *destination, const Vector4 *vector);
-extern void xglMatrixUnit(float matrix[4][4]);
 extern void xglMatrixStackUnit(void);
 void xglMatrixStackReverse(void);
 void xglMatrixStackScale(const float scale[4]);

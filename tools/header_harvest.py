@@ -2517,6 +2517,8 @@ class Homes:
     # (name, owner header, reason) withheld (see `compute_umbrella`)
     umbrella: list[tuple[tuple[str, str], str]] = field(default_factory=list)
     umbrella_withheld: list[tuple[str, str, str]] = field(default_factory=list)
+    # Optional measured visibility limits; never change owner homing or spelling.
+    umbrella_owner_only: dict[tuple[str, str], tuple[str, str]] = field(default_factory=dict)
     owner_migrations: list[dict] = field(default_factory=list)
 
 
@@ -3034,6 +3036,57 @@ def source_bound_exports(root: str, pool: dict, doc: dict | None = None,
                 raise CanonError(f"{EXPORTS_FILE}: source_owner is not a complete ordinary type {key[1]}")
             owned[key] = owner.c
     return owned
+
+
+def umbrella_owner_only(root: str, homes: Homes, doc: dict | None = None
+                        ) -> dict[tuple[str, str], tuple[str, str]]:
+    """Keep accurate owner prototypes out of the global convenience umbrella.
+
+    Even an unused prototype can perturb this compiler's scheduling. This
+    optional visibility restriction grants no source, byte or review credit.
+    Evidence pins are documentary: exported/public clones need not carry the
+    private build reports to honor a user's explicit visibility decision.
+    """
+    path = header_input_path(root, EXPORTS_FILE)
+    if doc is None:
+        if not os.path.isfile(path):
+            return {}
+        try:
+            with open(path, encoding="utf-8") as fh:
+                doc = json.load(fh)
+        except (OSError, ValueError) as exc:
+            raise CanonError(f"{EXPORTS_FILE}: unreadable ({exc})")
+    rows = doc.get("umbrella_withholds", [])
+    if not isinstance(rows, list):
+        raise CanonError(f"{EXPORTS_FILE}: umbrella_withholds must be a list")
+    owners = {tu.tu: tu for tu in homes.tus}
+    out: dict[tuple[str, str], tuple[str, str]] = {}
+    for index, row in enumerate(rows):
+        label = f"{EXPORTS_FILE}: umbrella_withholds[{index}]"
+        if not isinstance(row, dict):
+            raise CanonError(f"{label}: needs a record")
+        name, reason = row.get("name"), row.get("reason")
+        owner = owners.get(str(row.get("tu") or ""))
+        if (not isinstance(name, str) or not re.fullmatch(r"[A-Za-z_][A-Za-z_0-9]*", name)
+                or not isinstance(reason, str) or not reason.strip() or owner is None):
+            raise CanonError(f"{label}: needs a published tu, one name and a reason")
+        key = ("ordinary", name)
+        head = owner.defined_canon.get(key, "")
+        if (name not in owner.defines or name in owner.statics
+                or not re.search(rf"\b{re.escape(name)}\s*\(", head)):
+            raise CanonError(f"{label}: {name} is not an external C function defined by {owner.c}")
+        if key in out:
+            raise CanonError(f"{label}: duplicate umbrella-withhold name {name}")
+        if key in homes.pool and homes.pool[key].kind != KIND_PROTO:
+            raise CanonError(f"{label}: {name} is not an ordinary function prototype")
+        evidence = row.get("evidence")
+        if evidence is not None:
+            if (not isinstance(evidence, dict) or not isinstance(evidence.get("path"), str)
+                    or not evidence["path"].strip()
+                    or not re.fullmatch(r"[0-9a-f]{64}", str(evidence.get("sha256") or ""))):
+                raise CanonError(f"{label}: evidence needs a path and SHA-256")
+        out[key] = (owner.c, reason.strip())
+    return out
 
 
 def published_exports(root: str, tus: list[TuFile], doc: dict | None = None) -> list[TuFile]:
@@ -3864,6 +3917,7 @@ def compute_homes(root: str, merged_by_domain, common,
     homes.pool.update(published)
     homes.order.update(published_order)
     homes.published = declarers
+    homes.umbrella_owner_only = umbrella_owner_only(root, homes, owner_exports)
 
     provider: dict[str, tuple[str, str]] = {}
     tag_of: dict[str, set[tuple[str, str]]] = {}
@@ -4142,6 +4196,13 @@ def compute_umbrella(homes: Homes, shared_keys: list[tuple[str, str]]) -> None:
         names = {n.strip() for n in key[1].split(",")}
         canon = normalize_ws(var.canon)
         reason = None
+        restricted = homes.umbrella_owner_only.get(key)
+        if restricted is not None:
+            restricted_owner, note = restricted
+            if owner != restricted_owner or var.kind != KIND_PROTO:
+                raise CanonError(f"{EXPORTS_FILE}: umbrella-only owner of {key[1]} "
+                                 f"does not agree with its computed prototype owner")
+            reason = "explicit owner-header-only visibility: " + note
         missing = sorted(var.refs.needs - have)
         missing += sorted(f"{t} (complete)" for t in var.refs.needs_complete - have_complete)
         if missing:

@@ -19,3 +19,21 @@ Vu0CallMatrixStackPop = 0x5C8;
 Vu0CallMatrixStackMulVector = 0x620;
 Vu0CallMatrixStackRTPS = 0x648;
 Vu0CallLightCalcMatrix = 0x6A8;
+
+/* Original VU1 overlay execution labels, not EE upload addresses.
+ * SLUS_204.69 SHA-256: 412d448de31505c03ad474cc63d500b3b4f8c48d49d32bd24c89fe5b21af0fb2.
+ * Symbol values transported without changing or crediting any VU payload. */
+NewVu1EnvGsKick = 0x0;
+NewVu1EnvGsKickWide = 0x28;
+NewVu1GsKick = 0x0;
+NewVu1GsKickWide = 0x28;
+NewVu1ProGsKick = 0x0;
+NewVu1ProGsKickWide = 0x28;
+NewVu1AddEnvGsKick = 0x0;
+NewVu1AddEnvGsKickWide = 0x28;
+NewVu1AddGsKick = 0x0;
+NewVu1AddGsKickWide = 0x28;
+NewVu1TexEnvGsKick = 0x0;
+NewVu1TexEnvGsKickWide = 0x28;
+NewVu1DropGsKick = 0x0;
+NewVu1DropGsKickWide = 0x28;

@@ -1,94 +1,12 @@
 #ifndef INCLUDE_MAIN_MENU_TOP_COMMAND_CHECK_H
 #define INCLUDE_MAIN_MENU_TOP_COMMAND_CHECK_H
 
+#include "main/e_battle_win_open.h"
 #include "main/party.h"
 
-typedef struct MenuStatusPanelWindow {
-    short x;
-    short y;
-    int color;
-    short width;
-    short height;
-    unsigned char unmodeled_0c[0x10 - 0x0C];
-    signed char state;
-} MenuStatusPanelWindow;
+typedef struct MenuStatusPanelWindow MenuStatusPanelWindow;
 
-typedef struct MenuInfoMessage {
-    unsigned char unmodeled_00;
-    unsigned char mode;
-    unsigned char unmodeled_02[2];
-    short x;
-    short y;
-    int color;
-    unsigned char unmodeled_0c[12];
-    const char *text;
-    unsigned char lines;
-    unsigned char unmodeled_1d[0x44 - 0x1D];
-} MenuInfoMessage;
-
-typedef struct MenuInfoScrollSprite {
-    short x;
-    short y;
-    int color;
-    unsigned char unmodeled_08[4];
-    unsigned char r;
-    unsigned char g;
-    unsigned char b;
-    unsigned char a;
-    short image;
-    unsigned char unmodeled_12[2];
-} MenuInfoScrollSprite;
-
-typedef struct MenuInfoBox {
-    short x;
-    short y;
-    int color;
-    short width;
-    short height;
-} MenuInfoBox;
-
-typedef struct MenuInfoVertex {
-    int x;
-    int y;
-    int color;
-    unsigned char unmodeled_0c[4];
-} MenuInfoVertex;
-
-typedef struct MenuInfoColor {
-    unsigned char r;
-    unsigned char g;
-    unsigned char b;
-    unsigned char a;
-} MenuInfoColor;
-
-typedef struct MenuInfoQuad {
-    unsigned char mode;
-    unsigned char flag;
-    short image;
-    unsigned char unmodeled_04[12];
-    MenuInfoVertex vertex[4];
-    MenuInfoColor rgba[4];
-} MenuInfoQuad;
-
-typedef struct MenuTopInfoPanel {
-    short x;
-    short y;
-    signed char flag;
-    unsigned char page;
-    unsigned char lineCount;
-    unsigned char blink;
-    int inputLock;
-    const char *text;
-    MenuInfoMessage message;
-    MenuInfoScrollSprite scroll;
-    MenuInfoBox box;
-    MenuInfoBox clip;
-    int texture;
-    unsigned char unmodeled_84[12];
-    MenuInfoQuad footer;
-    MenuInfoQuad header;
-    MenuInfoQuad border;
-} MenuTopInfoPanel;
+typedef struct MenuTopInfoPanel MenuTopInfoPanel;
 
 /* Number formats 4, 6 and 13 carry the current and maximum as two halfwords;
  * other formats use the same word as a scalar value. */
@@ -229,7 +147,7 @@ typedef struct MenuTopMenuPanel {
     int cursor;
     const char *text;
     const char *heading;
-    MenuTopCommandEntry *commands;
+    struct MenuTopCommandEntry *commands;
     unsigned char unmodeled_14[0x1A8 - 0x14];
     MenuSelectCursor marker;
     MenuSelectMessage message[12];
@@ -289,9 +207,9 @@ typedef struct MenuStatusPanel {
     unsigned char unmodeled_828[0x840 - 0x828];
 } MenuStatusPanel;
 
-extern int MenuSelectWindow(MenuStatusPanelWindow *window, MenuTopMenuPanel *panel);
+int MenuSelectWindow(MenuStatusPanelWindow *window, MenuTopMenuPanel *panel);
 
-extern int MenuInfoWindow(MenuStatusPanelWindow *window, MenuTopInfoPanel *panel);
+int MenuInfoWindow(MenuStatusPanelWindow *window, MenuTopInfoPanel *panel);
 
 void MenuPasWindow(void);
 

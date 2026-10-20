@@ -134,13 +134,6 @@ typedef struct BattleWinCursor {
     unsigned char unmodeled_0c[0x24 - 0x0c];
 } BattleWinCursor;
 
-typedef struct BattleWinItem {
-    const char *text;
-    int icon;
-    signed char flags;
-    unsigned char unmodeled_09[3];
-} BattleWinItem;
-
 struct WindowDX {
     short x;                           /* +0x00 */
     short y;                           /* +0x02 */
@@ -184,7 +177,7 @@ typedef struct WindowSPCursor {
     signed char rows;
     unsigned char unmodeled_16[2];
     int buttons;
-    BattleWinItem *items;
+    struct BattleWinItem *items;
     signed char visible_top;
     signed char visible_bottom;
     signed char visible_cols;

@@ -1,8 +1,31 @@
 #include "common.h"
+#include "main/xgl_2.h"
 
 #include "shared.h"
 
 #include "jnt.h"
+
+static inline void jntCopyMatrix(JntMatrix *destination, const JntMatrix *source)
+{
+    __asm__ __volatile__(
+        "lq $2, 0(%1)\n\t"
+        "sq $2, 0(%0)\n\t"
+        "lq $2, 16(%1)\n\t"
+        "sq $2, 16(%0)\n\t"
+        "lq $2, 32(%1)\n\t"
+        "sq $2, 32(%0)\n\t"
+        "lq $2, 48(%1)\n\t"
+        "sq $2, 48(%0)"
+        : : "r"(destination), "r"(source) : "$2", "memory");
+}
+
+static inline void jntCopyMatrixRow(float destination[4], const float source[4])
+{
+    __asm__ __volatile__(
+        "lq $2, 0(%1)\n\t"
+        "sq $2, 0(%0)"
+        : : "r"(destination), "r"(source) : "$2", "memory");
+}
 
 typedef struct JntHairIdSource {
     unsigned char unmodeled_00[4];
@@ -10,23 +33,44 @@ typedef struct JntHairIdSource {
     unsigned short channel_limit;
     unsigned short primary_id;   /* 0x08 */
     unsigned short secondary_id; /* 0x0A */
-    unsigned char unmodeled_0c[4];
+    unsigned short additional_primary_count;   /* 0x0C */
+    unsigned short additional_secondary_count; /* 0x0E */
     int channel_offset;
 } JntHairIdSource;
+
+
+
+
+
 
 typedef struct JntChannelTag {
     int flag; /* 0x00 */
     int tag;  /* 0x04 */
 } JntChannelTag;
 
+
+
+
+
+
 typedef struct JntChannelWork {
     unsigned char unmodeled_000[0x28];
-    JntHairIdSource *hair_id_source; /* 0x28 */
+    struct JntHairIdSource *hair_id_source; /* 0x28 */
     unsigned char unmodeled_02c[0x7dc];
-    JntChannelTag *tag;              /* 0x808 */
+    struct JntChannelTag *tag;              /* 0x808 */
 } JntChannelWork;
 
+
+
+
+
+
 typedef struct JntInterruptElement JntInterruptElement;
+
+
+
+
+
 
 struct JntInterruptElement {
     float scale[3];
@@ -41,37 +85,82 @@ struct JntInterruptElement {
     unsigned char unmodeled_38[8];
 };
 
+
+
+
+
+
 typedef struct JntInterruptWork JntInterruptWork;
+
+
+
+
+
 
 struct JntInterruptWork {
     unsigned char unmodeled_000[0x818];
     JntInterruptElement *elements; /* 0x818 */
 };
 
+
+
+
+
+
 typedef struct JntChannelList JntChannelList;
+
+
+
+
+
 
 struct JntChannelList {
     int count;                 /* 0x00 */
     int channel_elements[8];   /* 0x04, indexed by channel */
 };
 
+
+
+
+
+
 typedef struct JntAccessoryRecord {
     unsigned short size;
     unsigned short type;
 } JntAccessoryRecord;
+
+
+
+
+
 
 typedef struct JntMoveResource {
     unsigned char unmodeled_00[0x10];
     int accessory_size;
 } JntMoveResource;
 
+
+
+
+
+
 typedef void (*JntFilterFn)(void *work, void *param, int flag);
+
+
+
+
+
 
 typedef struct JntFilterList {
     int count;
     int flags[8];
     JntFilterFn filters[8];
 } JntFilterList;
+
+
+
+
+
 
 /*
  * The JNT producer's work area is in the EE scratchpad (SPR, 0x70000000).
@@ -90,7 +179,145 @@ typedef struct JntFilterList {
 
 #define JNT_MATRIX_BUFFER_OFFSET 0x7A0
 
+
+
+
 #define JNT_MATRIX_SELECT_OFFSET 0x4BC
+
+
+
+
+typedef union JntRotationPayload {
+    float values[3];
+    int bits[3];
+} JntRotationPayload;
+
+
+
+
+struct JntStaticChannel {
+    unsigned short type;           /* 0x00 */
+    unsigned short interpolation_flags; /* 0x02 */
+    int rotation_limits_offset;
+    unsigned char unmodeled_08[6];
+    unsigned short matrix_index;   /* 0x0E */
+    float translate[3];            /* 0x10 */
+    unsigned char unmodeled_1c[4];
+    JntRotationPayload rotate;     /* 0x20 */
+    unsigned char unmodeled_2C[0x14];
+};
+
+
+
+
+typedef struct JntChainSlot {
+    void *attribute;               /* 0x00 */
+    unsigned char unmodeled_04[0x0c];
+    Vector4 translation;           /* 0x10 */
+    Vector4 scale;                 /* 0x20 */
+    Vector4 rotation;              /* 0x30 */
+} JntChainSlot;
+
+
+
+typedef struct JntProductionOwner JntProductionOwner;
+
+
+typedef struct JntTransformRecord {
+    Vector4 translation;
+    Vector4 rotation;
+} JntTransformRecord;
+
+
+struct JntProducer {
+    int count;              /* 0x00 */
+    int consumer_ids[8];
+    JntProductionConsumer consumers[8]; /* 0x24, called by JNT_startProduction */
+    int consumer_arguments[8];         /* 0x44 */
+    int pending_output;     /* 0x64 */
+    int output_count;       /* 0x68, only evidenced as cleared by JNT_initProducer */
+    int current_index;      /* 0x6C, -1 when none */
+    int state;              /* 0x70, cleared by JNT_startProduction */
+};
+struct JntWork {
+    JntProducer *producer;         /* +0x000 */
+    unsigned short *cursor;        /* +0x004: FCV2 packed-curve state */
+    unsigned char unmodeled_008[0x10 - 0x08];
+    unsigned int requested_attribute_key; /* 0x10 */
+    unsigned char unmodeled_014[0x28 - 0x14];
+    struct JntHairIdSource *hair_id_source;
+    /*
+     * JNT_getStaticVal2/JNT_getVal2 read this as the default matrix slot for
+     * their CUR_MATRIX_Get call and unconditionally increment it once per
+     * call (`lw/sw ...,44($.)`).
+     */
+    int current_index; /* 0x2C */
+    void *channels;                /* +0x030 */
+    void *model;
+    unsigned int flags;            /* +0x038 */
+    unsigned short channel_index;  /* +0x03c */
+    unsigned char unmodeled_03e[2];
+    Vector4 root_translation;      /* +0x040 */
+    Vector4 root_rotation;         /* +0x050 */
+    Vector4 root_scale;            /* +0x060 */
+    Vector4 channel_translation; /* 0x070 */
+    Vector4 channel_rotation;    /* 0x080 */
+    Vector4 channel_scale;       /* 0x090 */
+    JntChainSlot slots[4];       /* 0x0A0: one 0x40-byte slot per chain joint */
+    unsigned char unmodeled_1a0[0x4bc - 0x1a0];
+    JntMatrixSelect matrix_select;
+    unsigned short matrix_index;   /* +0x4c0 */
+    unsigned char unmodeled_4c2[0x4d0 - 0x4c2];
+    float transform_basis[3][4]; /* 0x4d0: three rows used by vector transforms */
+    unsigned char unmodeled_500[0x720 - 0x500];
+    JntMatrix root_matrix;
+    Matrix4 interpolation_root;
+    /*
+     * JNT_getStaticVal2/JNT_getVal2 read this as the matrix table their
+     * CUR_MATRIX_Set/Get calls index by joint slot (`lw ...,1952($.)`);
+     * JNT_setMatrix/JNT_setMatrix2 write it through JNT_MATRIX_BUFFER_OFFSET
+     * above (same 0x7A0 slot, kept as a raw offset there for the codegen
+     * reason given on that macro).
+     */
+    JntMatrix *matrix_buffer; /* 0x7A0 */
+    JntMatrixBuffer interp_matrix; /* 0x7A4, JNT_setInterpMatrix */
+    JntTransformRecord (*static_value_records)[];    /* 0x7A8, JNT_setCurve arg0; read by JNT_getStaticVal */
+    void *value_records;           /* 0x7AC, JNT_setCurve arg1; read by JNT_getVal */
+    unsigned char unmodeled_7b0[0x7f0 - 0x7b0];
+    unsigned int attribute_key;
+    unsigned int attribute_difference; /* 0x7F4 */
+    unsigned char unmodeled_7f8[4];
+    float current_frame;           /* +0x7fc */
+    float interpolation; /* 0x800, JNT_setInterpMatrix */
+    unsigned char unmodeled_804[4];
+    unsigned char *current_value;  /* +0x808 */
+    char *attribute_name;          /* +0x80c */
+    unsigned int animation_flags;  /* +0x810 */
+    float clip_radius; /* 0x814 */
+    JntInterruptElement *elements;
+    int channel_start_index;       /* +0x81c */
+    JntProductionOwner *owner;     /* +0x820 */
+    unsigned char unmodeled_824[0x0c];
+    JntInterruptElement default_element; /* +0x830: default element storage */
+};
+typedef void *(*JntProductionConsumer)(JntWork *work,
+                                      struct JntStaticChannel *channels,
+                                      int argument);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 #define JNT_MATRIX_BUFFER(scratch) (((JntWork *)(scratch))->matrix_buffer)
 
@@ -113,62 +340,10 @@ typedef struct JntFilterList {
  *     $3 = lw 0x7AC($17) -- 0x7AC is the table it reads, value_records.
  */
 
-typedef struct JntProductionOwner JntProductionOwner;
-typedef struct JntTransformRecord {
-    Vector4 translation;
-    Vector4 rotation;
-} JntTransformRecord;
 
-struct JntWork {
-    JntProducer *producer;         /* +0x000 */
-    unsigned short *cursor;        /* +0x004: FCV2 packed-curve state */
-    unsigned char unmodeled_008[0x28 - 0x08];
-    JntHairIdSource *hair_id_source;
-    /*
-     * JNT_getStaticVal2/JNT_getVal2 read this as the default matrix slot for
-     * their CUR_MATRIX_Get call and unconditionally increment it once per
-     * call (`lw/sw ...,44($.)`).
-     */
-    int current_index; /* 0x2C */
-    void *channels;                /* +0x030 */
-    void *model;
-    unsigned int flags;            /* +0x038 */
-    unsigned short channel_index;  /* +0x03c */
-    unsigned char unmodeled_03e[2];
-    Vector4 root_translation;      /* +0x040 */
-    Vector4 root_rotation;         /* +0x050 */
-    Vector4 root_scale;            /* +0x060 */
-    unsigned char unmodeled_070[0x4bc - 0x70];
-    JntMatrixSelect matrix_select;
-    unsigned short matrix_index;   /* +0x4c0 */
-    unsigned char unmodeled_4c2[0x7a0 - 0x4c2];
-    /*
-     * JNT_getStaticVal2/JNT_getVal2 read this as the matrix table their
-     * CUR_MATRIX_Set/Get calls index by joint slot (`lw ...,1952($.)`);
-     * JNT_setMatrix/JNT_setMatrix2 write it through JNT_MATRIX_BUFFER_OFFSET
-     * above (same 0x7A0 slot, kept as a raw offset there for the codegen
-     * reason given on that macro).
-     */
-    JntMatrix *matrix_buffer; /* 0x7A0 */
-    JntMatrixBuffer interp_matrix; /* 0x7A4, JNT_setInterpMatrix */
-    JntTransformRecord (*static_value_records)[];    /* 0x7A8, JNT_setCurve arg0; read by JNT_getStaticVal */
-    void *value_records;           /* 0x7AC, JNT_setCurve arg1; read by JNT_getVal */
-    unsigned char unmodeled_7b0[0x7f0 - 0x7b0];
-    unsigned int attribute_key;
-    unsigned char unmodeled_7f4[8];
-    float current_frame;           /* +0x7fc */
-    float interpolation; /* 0x800, JNT_setInterpMatrix */
-    unsigned char unmodeled_804[4];
-    unsigned char *current_value;  /* +0x808 */
-    char *attribute_name;          /* +0x80c */
-    unsigned int animation_flags;  /* +0x810 */
-    unsigned char unmodeled_814[4];
-    JntInterruptElement *elements;
-    int channel_start_index;       /* +0x81c */
-    JntProductionOwner *owner;     /* +0x820 */
-    unsigned char unmodeled_824[0x0c];
-    JntInterruptElement default_element; /* +0x830: default element storage */
-};
+
+
+
 
 /*
  * A joint element is a fixed-size record: JNT_getElement indexes an array of
@@ -181,6 +356,11 @@ typedef struct JntElement {
     unsigned char unmodeled_00[0x40];
 } JntElement;
 
+
+
+
+
+
 /*
  * The joint resource header JNT_getRootElement reads: 0x10 bytes not
  * recovered here, then a self-relative offset field whose own address plus
@@ -191,6 +371,11 @@ typedef struct JntElementHeader {
     unsigned char unmodeled_00[0x10];
     int root_element_offset;
 } JntElementHeader;
+
+
+
+
+
 
 /*
  * Another partial view of the same scratchpad work area as JntWork (it is
@@ -207,6 +392,11 @@ typedef struct JntFlagsWork {
     int flags;
 } JntFlagsWork;
 
+
+
+
+
+
 /*
  * A view of the same work area for two adjacent slots past the end of
  * JntWork:
@@ -222,7 +412,17 @@ typedef struct JntAnimWork {
     float clip_radius;
 } JntAnimWork;
 
+
+
+
+
+
 typedef unsigned int JntRootStorage __attribute__((mode(TI)));
+
+
+
+
+
 
 typedef union JntRootSlot {
     JntRootStorage storage;
@@ -234,12 +434,22 @@ typedef union JntRootSlot {
     } components;
 } JntRootSlot;
 
+
+
+
+
+
 typedef struct JntRootScratch {
     unsigned char unmodeled_00[0x40];
     JntRootSlot translation;
     JntRootSlot rotation;
     JntRootSlot scale;
 } JntRootScratch;
+
+
+
+
+
 
 /*
  * The matrix_print current-matrix API transfers native 64-byte matrices,
@@ -257,10 +467,7 @@ void CUR_MATRIX_Rzyx4s(const int *rotate);
 
 /* Static-value copying uses floating point, while the matrix API transports
  * these same angle representations as raw words into VU0. */
-typedef union JntRotationPayload {
-    float values[3];
-    int bits[3];
-} JntRotationPayload;
+
 
 /*
  * A joint static-value channel: JNT_getStaticVal2 reads its type (dispatch,
@@ -270,30 +477,11 @@ typedef union JntRotationPayload {
  * 0x40 bytes, the same stride as JntElement.
  */
 
-struct JntStaticChannel {
-    unsigned short type;           /* 0x00 */
-    unsigned char unmodeled_02[2];
-    int rotation_limits_offset;
-    unsigned char unmodeled_08[6];
-    unsigned short matrix_index;   /* 0x0E */
-    float translate[3];            /* 0x10 */
-    unsigned char unmodeled_1c[4];
-    JntRotationPayload rotate;     /* 0x20 */
-    unsigned char unmodeled_2C[0x14];
-};
 
 
 
-struct JntProducer {
-    int count;              /* 0x00 */
-    int consumer_ids[8];
-    JntProductionConsumer consumers[8]; /* 0x24, called by JNT_startProduction */
-    int consumer_arguments[8];         /* 0x44 */
-    int pending_output;     /* 0x64 */
-    int output_count;       /* 0x68, only evidenced as cleared by JNT_initProducer */
-    int current_index;      /* 0x6C, -1 when none */
-    int state;              /* 0x70, cleared by JNT_startProduction */
-};
+
+
 
 /*
  * Hair-smoothing toggle at VA 0x004DC248: JNT_computeMatrix reads it with
@@ -308,12 +496,22 @@ typedef struct JntMoveElement {
     unsigned char unmodeled_02[0x3E];
 } JntMoveElement;
 
+
+
+
+
+
 typedef struct JntMoveElementHeader {
     unsigned char unmodeled_00[0x08];
     unsigned short element_count;
     unsigned char unmodeled_0A[0x06];
     int element_offset;
 } JntMoveElementHeader;
+
+
+
+
+
 
 char *strncpy(char *destination, const char *source, unsigned int count);
 
@@ -327,6 +525,11 @@ struct FcvPackAttribute {
     unsigned short value_mask; /* 0x06 */
 };
 
+
+
+
+
+
 struct FcvPackAttribute *FCV2_getPackAttribute(unsigned short **cursor);
 
 unsigned char dummyCntFree[0x10] = {0};
@@ -339,9 +542,97 @@ unsigned short *JNT_setMDLMatrix(JntWork *work,
 void FCV2_resetPack(void *pack_state, void *pack);
 
 struct JntProductionOwner {
-    unsigned char unmodeled_000[0xA60];
+    unsigned char unmodeled_000[0x10];
+    Vector4 position; /* 0x10 */
+    unsigned char unmodeled_020[0x50 - 0x20];
+    Vector4 rotation; /* 0x50 */
+    unsigned char unmodeled_060[0xA40 - 0x60];
+    unsigned char movement_flags; /* 0xA40 */
+    unsigned char unmodeled_A41[3];
+    float movement_delay; /* 0xA44 */
+    unsigned char unmodeled_A48[8];
+    Vector4 movement; /* 0xA50 */
     JntMatrix *matrix_buffer; /* 0xA60 */
 };
+
+
+
+
+
+
+typedef struct JntRotationLimitHeader {
+    unsigned short values_offset;
+} JntRotationLimitHeader;
+
+
+
+
+
+
+typedef struct JntRotationLimits {
+    float minimum[3];
+    unsigned short flags;
+    unsigned char unmodeled_0e[2];
+    float maximum[3];
+} JntRotationLimits;
+
+
+
+
+
+
+typedef struct JntPreviousTransform {
+    Vector4 translation;
+    Vector4 rotation;
+} JntPreviousTransform;
+
+
+
+
+
+
+void MATRIX_translate4s(Matrix4 matrix, float x, float y, float z);
+
+void xglMatrix2Quaternion(float quaternion[4], const void *matrix);
+
+void xglQuaternion2Matrix(Matrix4 destination, const Vector4 *quaternion);
+
+void xglQuaternionInterpolateLinear(Vector4 *destination, const Vector4 *left, const Vector4 *right, float left_weight, float right_weight);
+
+
+
+JntStaticChannel *JNT_getVal2(JntWork *work, JntStaticChannel *channel, float frame);
+
+JntStaticChannel *JNT_getVal_HOGE2(JntWork *work, JntStaticChannel *channel, float frame);
+
+JntStaticChannel *EXM_CalcExMotion(JntWork *work, JntStaticChannel *channel);
+
+void MATRIX_convert4(Matrix4 destination, Matrix4 source);
+
+void xglMatrixMul(Matrix4 destination, Matrix4 left, Matrix4 right);
+
+void xglMatrixUnit4s(Matrix4 destination);
+
+JntStaticChannel *JNT_interpolate(JntWork *work, JntStaticChannel *channel);
+
+
+
+JntStaticChannel *JNT_constructMatrix(JntWork *work, JntStaticChannel *channel);
+
+void get_fcvpack(float *destination, const float *fallback_values,
+                 JntWork *pack, unsigned int pack_mask, float frame);
+
+void get_fcvpack_fix(float *destination, float default_value,
+                    JntWork *pack, unsigned int pack_mask, float frame);
+
+void get_fcvpack_flag(JntWork *pack, int channel_flags, float frame);
+
+JntStaticChannel *JNT_getVal(JntWork *work, JntStaticChannel *channel,
+                             float frame);
+
+JntStaticChannel *JNT_getVal_staticChain(JntWork *work,
+                                         JntStaticChannel *channel,
+                                         float frame);
 
 void get_fcvpack(float *destination, const float *fallback_values,
                  JntWork *pack, unsigned int pack_mask,
@@ -361,8 +652,8 @@ void get_fcvpack(float *destination, const float *fallback_values,
     }
 }
 
-void get_fcvpack_fix(float *destination, JntWork *pack,
-                     unsigned int pack_mask, float default_value, float frame)
+void get_fcvpack_fix(float *destination, float default_value,
+                    JntWork *pack, unsigned int pack_mask, float frame)
 {
     int index = 0;
 
@@ -510,9 +801,354 @@ struct FcvPackAttribute *FCV_getAttrAndValue(float *values,
 
 
 
-INCLUDE_ASM("asm/main/nonmatchings/jnt", JNT_getVal);
+JntStaticChannel *JNT_getVal(JntWork *work, JntStaticChannel *channel,
+                            float frame)
+{
+    JntInterruptElement *element = &work->elements[work->current_index];
+    const float *translation = channel->translate;
+    const float *rotation = channel->rotate.values;
+    void *attribute_data;
+    unsigned int channel_flags;
+    unsigned int value_mask;
+    int inherit_channels;
+    JntStaticChannel *next_channel;
+    const float unit_scale = 1.0f;
+    unsigned int scale_mask;
 
-INCLUDE_ASM("asm/main/nonmatchings/jnt", JNT_getVal_staticChain);
+    element->interrupt_channel = 0;
+    if (work->flags & 4) {
+        value_mask = 0;
+        attribute_data = dummyAttr;
+        channel_flags = 0;
+    } else {
+        struct FcvPackAttribute *attribute = FCV2_getPackAttribute(&work->cursor);
+
+        attribute_data = attribute;
+        if (attribute->channel_flags == 0xffff) {
+            element->key = 0;
+            element->attribute_data = 0;
+            work->flags |= 4;
+            return channel;
+        }
+        channel_flags = attribute->channel_flags;
+        value_mask = attribute->value_mask;
+    }
+    inherit_channels = channel_flags & 0x8000;
+    element->attribute_data = attribute_data;
+    element->key = channel_flags;
+    next_channel = channel + 1;
+    if (inherit_channels) {
+        work->channel_start_index = work->current_index;
+        get_fcvpack(element->translation, translation, work, value_mask, frame);
+        value_mask >>= 3;
+        get_fcvpack(element->rotation, rotation, work, value_mask, frame);
+        value_mask >>= 3;
+        get_fcvpack_fix(element->scale, unit_scale, work, value_mask, frame);
+        get_fcvpack_flag(work, value_mask >> 1, frame);
+        value_mask = 0;
+    }
+    switch (channel->type) {
+    case 0:
+    case 1:
+        if (!inherit_channels) {
+            get_fcvpack(element->translation, translation, work, value_mask, frame);
+            value_mask >>= 3;
+            get_fcvpack(element->rotation, rotation, work, value_mask, frame);
+            get_fcvpack_fix(element->scale, 1.0f, work, value_mask >> 3, frame);
+        }
+        break;
+    case 3:
+        get_fcvpack(element->translation, translation, work, value_mask, frame);
+        get_fcvpack(element->rotation, rotation, work, value_mask >> 3, frame);
+        break;
+    case 2:
+        {
+            float (*angles)[3] = &element->rotation;
+            float *sampled_translation;
+            int limits_offset;
+
+            value_mask >>= 3;
+            get_fcvpack(*angles, rotation, work, value_mask, frame);
+            get_fcvpack_fix(element->scale, unit_scale, work, value_mask >> 3, frame);
+            sampled_translation = element->translation;
+            limits_offset = channel->rotation_limits_offset;
+            sampled_translation[0] = translation[0];
+            sampled_translation[1] = translation[1];
+            sampled_translation[2] = translation[2];
+            if (limits_offset != 0) {
+                JntRotationLimitHeader *header = (JntRotationLimitHeader *)
+                    ((unsigned char *)channel + limits_offset);
+                int index = 0;
+
+                if (header->values_offset != 0) {
+                    JntRotationLimits *limits = (JntRotationLimits *)
+                        ((unsigned char *)header + header->values_offset);
+                    unsigned short flags = limits->flags;
+                    const float *minimum = limits->minimum;
+
+                    do {
+                        if ((flags >> index) & 1) {
+                            float angle = (*angles)[(unsigned int)index];
+                            float limit = minimum[index];
+
+                            if (angle < limit) {
+                                (*angles)[(unsigned int)index] = limit;
+                            }
+                        }
+                        index++;
+                    } while (index < 3);
+                    {
+                        const float *maximum = limits->maximum;
+
+                        flags >>= 3;
+                        index = 0;
+                        do {
+                            if ((flags >> index) & 1) {
+                                float angle = (*angles)[(unsigned int)index];
+                                float limit = maximum[index];
+
+                                if (angle > limit) {
+                                    (*angles)[(unsigned int)index] = limit;
+                                }
+                            }
+                            index++;
+                        } while (index < 3);
+                    }
+                }
+            }
+        }
+        break;
+    case 4:
+        {
+            float *sampled_translation = element->translation;
+
+            sampled_translation[0] = translation[0];
+            sampled_translation[1] = translation[1];
+            sampled_translation[2] = translation[2];
+        }
+        break;
+    case 5:
+        {
+            get_fcvpack(element->translation, translation, work, value_mask, frame);
+            value_mask >>= 3;
+            get_fcvpack(element->rotation, rotation, work, value_mask, frame);
+            scale_mask = value_mask >> 3;
+            get_fcvpack_fix(element->scale, unit_scale, work, scale_mask, frame);
+        }
+        break;
+    case 6:
+        break;
+    }
+    {
+        const JntPreviousTransform *previous = work->value_records;
+
+    if (previous != 0 && work->static_value_records != 0) {
+        JntTransformRecord *records = *work->static_value_records;
+
+        if (work->flags & 0x80) {
+            const Vector4 *previous_translation;
+            const Vector4 *previous_rotation;
+
+            previous_translation = (const Vector4 *)((work->current_index << 5) +
+                (unsigned int)previous);
+
+            if (previous_translation->w != 0.0f) {
+                previous_rotation = previous_translation + 1;
+                element->translation[0] = previous_translation->x +
+                    (element->translation[0] - previous_translation->x) * work->interpolation;
+                element->translation[1] = previous_translation->y +
+                    (element->translation[1] - previous_translation->y) * work->interpolation;
+                element->translation[2] = previous_translation->z +
+                    (element->translation[2] - previous_translation->z) * work->interpolation;
+                element->rotation[0] = previous_rotation->x +
+                    (element->rotation[0] - previous_rotation->x) * work->interpolation;
+                element->rotation[1] = previous_rotation->y +
+                    (element->rotation[1] - previous_rotation->y) * work->interpolation;
+                element->rotation[2] = previous_rotation->z +
+                    (element->rotation[2] - previous_rotation->z) * work->interpolation;
+            }
+        }
+        {
+            float *sampled_translation = element->translation;
+            float *sampled_rotation = element->rotation;
+            JntTransformRecord *record = (JntTransformRecord *)
+                ((work->current_index << 5) + (unsigned int)records);
+            Vector4 *stored_rotation = &record->rotation;
+
+            record->translation.x = sampled_translation[0];
+            record->translation.y = sampled_translation[1];
+            record->translation.z = sampled_translation[2];
+            stored_rotation->x = sampled_rotation[0];
+            stored_rotation->y = sampled_rotation[1];
+            stored_rotation->z = sampled_rotation[2];
+            record->translation.w = 1.0f;
+            stored_rotation->w = 1.0f;
+        }
+    }
+    }
+    work->current_index++;
+    return next_channel;
+}
+
+JntStaticChannel *JNT_getVal_staticChain(JntWork *work,
+                                        JntStaticChannel *channel, float frame)
+{
+    int index;
+    JntInterruptElement *element = &work->elements[work->current_index];
+    const float *translation = channel->translate;
+    const float *rotation = channel->rotate.values;
+    void *attribute_data;
+    unsigned int channel_flags;
+    unsigned int value_mask;
+    int inherit_channels;
+    JntStaticChannel *next_channel;
+
+    element->interrupt_channel = 0;
+    if (work->flags & 4) {
+        value_mask = 0;
+        attribute_data = dummyAttr;
+        channel_flags = 0;
+    } else {
+        struct FcvPackAttribute *attribute = FCV2_getPackAttribute(&work->cursor);
+
+        attribute_data = attribute;
+        if (attribute->channel_flags == 0xffff) {
+            element->key = 0;
+            element->attribute_data = 0;
+            work->flags |= 4;
+            return channel;
+        }
+        channel_flags = attribute->channel_flags;
+        value_mask = attribute->value_mask;
+    }
+    element->key = channel_flags;
+    inherit_channels = (unsigned int)channel_flags & 0x8000;
+    next_channel = channel + 1;
+    element->attribute_data = attribute_data;
+    if (inherit_channels) {
+        work->channel_start_index = work->current_index;
+        get_fcvpack(element->translation, translation, work, value_mask, frame);
+        value_mask >>= 3;
+        get_fcvpack(element->rotation, rotation, work, value_mask, frame);
+        value_mask >>= 3;
+        get_fcvpack_fix(element->scale, 1.0f, work, value_mask, frame);
+        get_fcvpack_flag(work, value_mask >> 1, frame);
+        value_mask = 0;
+    }
+    switch (channel->type) {
+    case 0:
+    case 1:
+        if (!inherit_channels) {
+            unsigned int scale_mask;
+
+            get_fcvpack(element->translation, translation, work, value_mask, frame);
+            value_mask >>= 3;
+            get_fcvpack(element->rotation, rotation, work, value_mask, frame);
+            scale_mask = value_mask >> 3;
+            get_fcvpack_fix(element->scale, 1.0f, work, scale_mask, frame);
+        }
+        break;
+    case 3:
+        {
+            for (index = 0; index < 3; index++) {
+                int channel_bit = 1 << index;
+
+                if (value_mask & channel_bit) {
+                    element->translation[index] = FCV2_getPackValue(&work->cursor, frame);
+                }
+                {
+                    const float *static_sample = translation;
+
+                    static_sample += index;
+                    element->translation[index] = *static_sample;
+                }
+            }
+        }
+        {
+            unsigned int rotation_mask = value_mask >> 3;
+
+            get_fcvpack(element->rotation, rotation, work, rotation_mask, frame);
+        }
+        break;
+    case 2:
+        {
+            float (*angles)[3];
+            float *sampled_translation;
+            int limits_offset;
+
+            value_mask >>= 3;
+            angles = &element->rotation;
+            get_fcvpack(*angles, rotation, work, value_mask, frame);
+            get_fcvpack_fix(element->scale, 1.0f, work, value_mask >> 3, frame);
+            sampled_translation = element->translation;
+            limits_offset = channel->rotation_limits_offset;
+            sampled_translation[0] = translation[0];
+            sampled_translation[1] = translation[1];
+            sampled_translation[2] = translation[2];
+            if (limits_offset != 0) {
+                JntRotationLimitHeader *header = (JntRotationLimitHeader *)
+                    ((unsigned char *)channel + limits_offset);
+
+                index = 0;
+                if (header->values_offset != 0) {
+                    JntRotationLimits *limits = (JntRotationLimits *)
+                        ((unsigned char *)header + header->values_offset);
+                    unsigned short flags = limits->flags;
+                    const float *axis_limits = limits->minimum;
+
+                    for (index = 0; index < 3; index++) {
+                        if ((flags >> index) & 1) {
+                            float angle = (*angles)[(unsigned int)index];
+                            float limit = axis_limits[index];
+
+                            if (angle < limit) {
+                                (*angles)[(unsigned int)index] = limit;
+                            }
+                        }
+                    }
+                    {
+                        axis_limits = limits->maximum;
+
+                        flags >>= 3;
+                        index = 0;
+                        do {
+                            if ((flags >> index) & 1) {
+                                float angle = (*angles)[(unsigned int)index];
+                                float limit = axis_limits[index];
+
+                                if (angle > limit) {
+                                    (*angles)[(unsigned int)index] = limit;
+                                }
+                            }
+                            index++;
+                        } while (index < 3);
+                    }
+                }
+            }
+        }
+        break;
+    case 4:
+        {
+            float *sampled_translation = element->translation;
+
+            sampled_translation[0] = translation[0];
+            sampled_translation[1] = translation[1];
+            sampled_translation[2] = translation[2];
+        }
+        break;
+    case 6:
+        work->current_index++;
+        return next_channel;
+    case 5:
+        get_fcvpack(element->translation, translation, work, value_mask, frame);
+        value_mask >>= 3;
+        get_fcvpack(element->rotation, rotation, work, value_mask, frame);
+        get_fcvpack_fix(element->scale, 1.0f, work, value_mask >> 3, frame);
+        break;
+    }
+    work->current_index++;
+    return next_channel;
+}
 
 INCLUDE_ASM("asm/main/nonmatchings/jnt", JNT_constructMatrix);
 
@@ -605,7 +1241,114 @@ static void liner_interpolate(JntMatrix *matrix, const JntMatrix *other_matrix, 
         : "memory");
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/jnt", JNT_interpolate);
+static inline void jntCopyTranslation(float destination[3],
+                                      const float translation[3])
+{
+    destination[0] = translation[0];
+    destination[1] = translation[1];
+    destination[2] = translation[2];
+}
+
+
+
+
+
+JntStaticChannel *JNT_interpolate(JntWork *work, JntStaticChannel *channel)
+{
+    JntMatrix result_matrix;
+    Vector4 left_quaternion;
+    Vector4 right_quaternion;
+    Vector4 result_quaternion;
+    JntStaticChannel *next_channel = channel + 1;
+    float left_weight = 1.0f - work->interpolation;
+    float right_weight = work->interpolation;
+
+    switch (channel->type) {
+    case 0:
+    case 1:
+        liner_interpolate(&work->matrix_buffer[work->current_index],
+                          &work->interp_matrix[work->current_index],
+                          work->interpolation);
+        break;
+    case 3:
+        {
+        jntCopyMatrix((JntMatrix *)&work->interpolation_root, &work->matrix_buffer[channel->matrix_index]);
+        MATRIX_translate4s(work->interpolation_root, channel->translate[0],
+                           channel->translate[1], channel->translate[2]);
+        {
+            jntCopyMatrix(&work->matrix_buffer[work->current_index], (JntMatrix *)&work->interpolation_root);
+            jntCopyTranslation(work->matrix_buffer[work->current_index + 1].elements[3],
+                               work->matrix_buffer[work->current_index].elements[3]);
+        }
+        break;
+        }
+    case 4:
+        {
+        if (channel->interpolation_flags != 0) {
+            xglMatrix2Quaternion((float *)&left_quaternion,
+                                 &work->interp_matrix[work->current_index]);
+            xglMatrix2Quaternion((float *)&right_quaternion,
+                                 &work->matrix_buffer[work->current_index]);
+            xglQuaternionInterpolateLinear(&result_quaternion,
+                                           &left_quaternion,
+                                           &right_quaternion,
+                                           left_weight, right_weight);
+            xglQuaternion2Matrix(result_matrix.elements, &result_quaternion);
+            result_matrix.elements[0][3] = result_matrix.elements[1][3] =
+                result_matrix.elements[2][3] = result_matrix.elements[3][3] = 1.0f;
+            jntCopyTranslation(result_matrix.elements[3],
+                               work->matrix_buffer[work->current_index].elements[3]);
+            jntCopyMatrix(&work->matrix_buffer[work->current_index], &result_matrix);
+        }
+        break;
+        }
+    case 2:
+        {
+        float scale;
+        if (work->flags & 0x40000) {
+            if ((work->current_index == 0x30) ||
+                (work->current_index == 0x24)) {
+                left_weight = 0.0f;
+                right_weight = 1.0f;
+            }
+        }
+        xglMatrix2Quaternion((float *)&left_quaternion,
+                             &work->interp_matrix[work->current_index]);
+        xglMatrix2Quaternion((float *)&right_quaternion,
+                             &work->matrix_buffer[work->current_index]);
+        xglQuaternionInterpolateLinear(&result_quaternion, &left_quaternion,
+                                       &right_quaternion, left_weight,
+                                       right_weight);
+        xglQuaternion2Matrix(result_matrix.elements, &result_quaternion);
+        if (work->flags & 0x20000) {
+            scale = 0.0f;
+            xglVectorLength(&scale, (const Vector4 *)&work->interp_matrix[work->current_index].elements[0][0]);
+            result_matrix.elements[0][3] = scale;
+            xglVectorLength(&scale, (const Vector4 *)&work->interp_matrix[work->current_index].elements[1][0]);
+            result_matrix.elements[1][3] = scale;
+            xglVectorLength(&scale, (const Vector4 *)&work->interp_matrix[work->current_index].elements[2][0]);
+            result_matrix.elements[2][3] = scale;
+            result_matrix.elements[3][3] = 1.0f;
+        } else {
+            result_matrix.elements[0][3] = result_matrix.elements[1][3] =
+                result_matrix.elements[2][3] = result_matrix.elements[3][3] = 1.0f;
+        }
+        jntCopyMatrixRow(result_matrix.elements[3],
+                         work->matrix_buffer[work->current_index].elements[3]);
+        jntCopyMatrix(&work->matrix_buffer[work->current_index], &result_matrix);
+        MATRIX_translate4s(result_matrix.elements,
+                           next_channel->translate[0], 0.0f, 0.0f);
+        jntCopyTranslation(work->matrix_buffer[work->current_index + 1].elements[3],
+                           result_matrix.elements[3]);
+        break;
+        }
+    case 5:
+    case 6:
+        break;
+    }
+    work->current_index++;
+    return next_channel;
+}
 
 void JNT_setFlags(int flags)
 {
@@ -1055,7 +1798,53 @@ JntFilterFn JNT_getFilter(void *work, JntFilterList *list)
     return 0;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/jnt", JNT_resetMatrix);
+JntStaticChannel *JNT_resetMatrix(JntWork *work, JntStaticChannel *channel)
+{
+    JntMatrix base_matrix;
+    JntMatrix result_matrix;
+    JntMatrix source_matrix;
+    JntStaticChannel *next;
+    int matrix_end;
+    int matrix_start;
+    int has_matrix_range;
+
+    jntCopyMatrix(&work->root_matrix, &work->matrix_buffer[0]);
+    xglMatrixUnit4s(work->matrix_buffer[0].elements);
+    next = channel;
+
+    {
+        JntHairIdSource *source = work->hair_id_source;
+        matrix_start = work->current_index;
+        matrix_end = source->primary_id;
+        matrix_end += source->secondary_id;
+        matrix_end += source->additional_primary_count;
+    }
+    while (matrix_start < matrix_end) {
+        next = JNT_getStaticVal2(work, next);
+        matrix_start = work->current_index;
+    }
+
+    matrix_end += work->hair_id_source->additional_secondary_count;
+    has_matrix_range = matrix_start < matrix_end;
+    if (has_matrix_range) {
+        do {
+            next = JNT_getStaticVal2(work, next);
+        } while (work->current_index < matrix_end);
+    }
+
+    MATRIX_convert4(base_matrix.elements, work->root_matrix.elements);
+    work->current_index = matrix_start;
+    if (has_matrix_range) {
+        do {
+            MATRIX_convert4(source_matrix.elements,
+                            work->matrix_buffer[work->current_index].elements);
+            xglMatrixMul(result_matrix.elements, base_matrix.elements, source_matrix.elements);
+            jntCopyMatrix(&work->matrix_buffer[work->current_index], &result_matrix);
+            work->current_index++;
+        } while (work->current_index < matrix_end);
+    }
+    return next;
+}
 
 INCLUDE_ASM("asm/main/nonmatchings/jnt", JNT_computeMatrix);
 
