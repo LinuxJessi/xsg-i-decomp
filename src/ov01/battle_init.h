@@ -22,10 +22,20 @@ typedef struct CursorCommand CursorCommand;
  * the only evidenced facts (each observed as an explicit load/store width
  * in the original body) and are documented at the accessors in candidate.c.
  */
-struct CursorObject;
+/*
+ * The one exception: objDispCur (0x00a106a4) loads the state record with
+ * `lw $3,0x10($17)` from the cursor and its flags with `lw $2,0x0($3)`, so
+ * the two records below are completed with only those two words. No record
+ * size is claimed by either; unmodeled_00 spans just the bytes before +0x10.
+ */
+struct CursorObject {
+    unsigned char unmodeled_00[0x10];
+    CursorCommandState *state; /* +0x10 (CURSOR_STATE_OFF) */
+};
 
-/* from src/math/ov01/w3-00a0f900-curcmdset/private.h (unit math-ov01-w3-00a0f900, function curCmdSet @ 0x00a0f900) */
-struct CursorCommandState;
+struct CursorCommandState {
+    unsigned int flags; /* +0x00 (STATE_FLAGS_OFF) */
+};
 
 /* from src/math/ov01/w3-00a0f900-curcmdset/private.h (unit math-ov01-w3-00a0f900, function curCmdSet @ 0x00a0f900) */
 /*

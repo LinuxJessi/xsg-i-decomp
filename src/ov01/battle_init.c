@@ -17,15 +17,12 @@ const char s_battleCtrlBoostEnFormat[32] = "** BOOST EN=%d %d%% (%d)\n";
 #define STATE_UNK74_OFF 0x74
 
 /*
- * Two CalcUnitParam (include/ov01/calc.h, defined in ov01/tu004) bytes
- * battleCtrlBoostPl/battleCtrlBoostEn read as signed: the enemy AI's own
- * boost chance percentage (lb at +0x20, inside calc.h's unmodeled_1e span)
- * and the boost-level value both functions log (lb at +0x3C, inside
- * calc.h's unmodeled_3a span). calc.h is owned by a different TU and is not
- * completed here.
+ * The enemy AI's own boost chance percentage: a signed byte at CalcUnitParam
+ * +0x20 (`lb` at 0x00a08808 in battleCtrlBoostEn), inside calc.h's
+ * unmodeled_1e span; calc.h is owned by a different TU and is not completed
+ * here. The boost level both functions log is calc.h's bcValue (+0x3C).
  */
 #define CALC_PARAM_BOOST_CHANCE_OFF 0x20
-#define CALC_PARAM_BOOST_LEVEL_OFF 0x3C
 
 static int escapeFlag;
 extern int printf(const char *format, ...);
@@ -206,9 +203,20 @@ typedef struct ScenarioStep {
     unsigned char unmodeled_00[0x10];
     int stride; /* +0x10: added into ScenarioBatState.index by scenarioBatNext */
 } ScenarioStep;
-typedef void (*ScenarioPhaseFunc)(void);
 /*
- * One destination record. scenarioDstSet (still asm) appends a whole 0x28-byte
+ * Two-parameter spelling of the phase callback: a compiler-specific matching
+ * workaround for scenarioBatExec's indirect call, not standards-correct
+ * prototyping. That call (`jalr $3` at 0x00a0bc1c) sets $a0 to
+ * scenarioSrcGet(0)'s return and $a1 to scenarioDstGet(0)'s record (`daddu
+ * $5,$16,$0` at 0x00a0bc08, `daddu $4,$2,$0` at 0x00a0bc10); only this
+ * parameter list makes the compiler emit that set-up. Whether any phase
+ * handler reads the two values is not established; the handlers themselves
+ * (scenarioBatExecPhase10 and the ones chained from it) are still asm here.
+ */
+typedef struct ScenarioDstEntry ScenarioDstEntry;
+typedef void (*ScenarioPhaseFunc)(int source, ScenarioDstEntry *dest);
+/*
+ * One destination record. scenarioDstSet appends a whole 0x28-byte
  * record built by unitJobTypeAtk/unitCmdItemSub (src/ov01/unit_cmd.c) at
  * dest[count]; scenarioDstGet hands out &dest[index + offset]. Only the words
  * this TU's callers of scenarioDstGet touch are modeled:
@@ -218,14 +226,14 @@ typedef void (*ScenarioPhaseFunc)(void);
  *   +0x08: battleExec copies it into D_00A57B78.
  *   +0x14: scenarioBatExecPhase30 zeroes it after scenarioEffCall.
  */
-typedef struct ScenarioDstEntry {
+struct ScenarioDstEntry {
     ObjectTask *unit;                 /* +0x00 */
     unsigned char unmodeled_04[4];
     int word08;                       /* +0x08 */
     unsigned char unmodeled_0c[8];
     int word14;                       /* +0x14 */
     unsigned char unmodeled_18[0x10];
-} ScenarioDstEntry;
+};
 
 /*
  * The record limit scenarioDstSet and scenarioDstGet both test (`slti 0xD`).
@@ -336,7 +344,44 @@ extern int unitTblGet(int side, BattleUnit ***table);
 extern int calcBoostChk(BattleUnit *unit, int mode);
 extern int calcBoost(BattleUnit *unit, int mode);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", battleCtrlBoostPl);
+/* "** BOOST PL=%d (%d)\n" (data still asm-owned; original ELF symbol name). */
+extern const char D_00A43D78[];
+
+extern int dataPadRead(int padNo);
+extern void menuBoostDisp(int enabled);
+
+int battleCtrlBoostPl(void)
+{
+    BattleUnit **table;
+    int selection;
+    int held;
+
+    held = dataPadRead(1);
+    if (dataPadRead(0) & 0xA) {
+        menuBoostDisp(1);
+        selection = -1;
+        if (held & 0x80) {
+            selection = 0;
+        } else if (held & 0x10) {
+            selection = 1;
+        } else if (held & 0x20) {
+            selection = 2;
+        }
+
+        unitTblGet(0, &table);
+        if (selection != -1 && table[selection] != 0 &&
+            calcBoostChk(table[selection], 1) != 0) {
+            printf(D_00A43D78, calcUPGet((ObjectTask *)table[selection])->charaId,
+                   calcUPGet((ObjectTask *)table[selection])->bcValue);
+            calcBoost(table[selection], 1);
+            return 1;
+        }
+        return 0;
+    }
+
+    menuBoostDisp(0);
+    return 0;
+}
 
 extern int rnd(int max);
 
@@ -353,7 +398,7 @@ int battleCtrlBoostEn(void)
             chance = ((signed char *)calcUPGet((ObjectTask *)table[i]))[CALC_PARAM_BOOST_CHANCE_OFF];
             if (calcBoostChk(table[i], 1) != 0 && rnd(100) < chance) {
                 printf(s_battleCtrlBoostEnFormat, calcUPGet((ObjectTask *)table[i])->charaId, chance,
-                       ((signed char *)calcUPGet((ObjectTask *)table[i]))[CALC_PARAM_BOOST_LEVEL_OFF]);
+                       calcUPGet((ObjectTask *)table[i])->bcValue);
                 calcBoost(table[i], 1);
                 return 1;
             }
@@ -780,7 +825,7 @@ void scenarioPtrFuncSet(ScenarioPhaseFunc func)
     scenarioPtr.phaseTimer = 0;
 }
 
-void scenarioBatExecPhase10(void);
+void scenarioBatExecPhase10(int source, ScenarioDstEntry *dest);
 extern void sndInit2(void);
 void scenarioBatInit(void)
 {
@@ -800,13 +845,22 @@ int scenarioSrcSet(const ScenarioStep *source)
     return 1;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", scenarioDstSet);
+/* Append a copy of `entry` at dest[count]; 0 once the record limit is reached. */
+int scenarioDstSet(const ScenarioDstEntry *entry)
+{
+    if (scenarioPtr.count >= SCENARIO_DST_LIMIT) {
+        return 0;
+    }
+    scenarioPtr.dest[scenarioPtr.count] = *entry;
+    scenarioPtr.count++;
+    return 1;
+}
 
 /*
  * The scenario source index (data still asm-owned, splat name kept); a
  * different object from the ScenarioBatState record above.
  */
-int scenarioSrcGet(void)
+int scenarioSrcGet(int unused)
 {
     return (int)scenarioPtr.source;
 }
@@ -837,7 +891,26 @@ int scenarioBatNext(void)
 
 INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", scenarioCam);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", scenarioBatExec);
+void scenarioBatEnd(void);
+
+/*
+ * Run the installed scenario phase on the current destination record; 1 once
+ * no record is left (scenarioBatEnd has run), 0 while records remain.
+ */
+int scenarioBatExec(void)
+{
+    ScenarioDstEntry *dest = scenarioDstGet(0);
+    int source = scenarioSrcGet(0);
+
+    if (dest) {
+        scenarioPtr.nextPhase(source, dest);
+        if (scenarioDstGet(0)) {
+            return 0;
+        }
+    }
+    scenarioBatEnd();
+    return 1;
+}
 
 int sefCheckLoad(void);
 int dataCdSync(void);
@@ -1670,9 +1743,79 @@ void objDispPlCur(void)
 
 INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", objDispEnCur);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", objDispCur);
+/*
+ * Bit 0x40 of the target's work-record flags word (`lw $3,0x10($2)`/`lw
+ * $2,0x0($3)`/`andi $2,$2,0x40` at 0x00a106e8..0x00a106f0); the name is the
+ * one src/ov01/data_unit_org_get.h gives the same Actor.flags bit (that
+ * header is not included here).
+ */
+#define BATTLE_ACTOR_FLAG_ENEMY 0x40
+/*
+ * Bit 0x8 of the cursor state's flags word (`andi $2,$2,0x8` at
+ * 0x00a106ac): set, objDispCur runs the tgtUnitGet/calcLineChk test below.
+ * Nothing here shows what sets it, so it is named by the bit only.
+ */
+#define CURSOR_STATE_FLAG_BIT3 0x8
 
-void objDispCurSubPl(void)
+/*
+ * objDispCur calls it with $a0 = packet (`daddu $4,$29,$0` at 0x00a1072c, the
+ * delay slot of the `jal` at 0x00a10728) and $a1 = cursor (`daddu $5,$17,$0`
+ * at 0x00a10698); the original body is empty, so neither is read.
+ */
+void objDispCurSubPl(void *packet, CursorObject *cursor);
+/* Defined by ov01/tu008 (src/ov01/gr_gp_init.c). Declared here because
+ * objDispCur calls them ahead of the declarations further down; without them
+ * gcc 2.96 reports "type mismatch with previous implicit declaration". */
+extern void grGpInit(void *packet);
+extern void grPacketSend(void *packet);
+extern void curEnvMake(void *packet, int isAlly);
+extern void objDispCurSubEn(void *packet, CursorObject *cursor, int outOfLine);
+extern void curPutSub(void *packet, CursorObject *cursor);
+extern void *objCmdPtrGet(ObjectTask *task);
+extern int calcLineChk(ObjectTask *unit);
+
+/*
+ * Draw the battle cursor into one GS packet: the player-side cursor, or the
+ * enemy-side one, coloured by the target's side and marked when the state's
+ * 0x8 flag is set and the target fails calcLineChk.
+ */
+void objDispCur(CursorObject *cursor, int isPlayer)
+{
+    int packet[2]; /* grGpInit's record, as in curTexTrans */
+    int outOfLine;
+    int isAlly;
+
+    grGpInit(packet);
+    if (!isPlayer) {
+        /* The original calls it (0x00a1069c) and ignores the result. */
+        objCmdPtrGet((ObjectTask *)cursor);
+        if ((cursor->state->flags & CURSOR_STATE_FLAG_BIT3) &&
+            tgtUnitGet() != 0 && calcLineChk((ObjectTask *)tgtUnitGet()) == 0) {
+            outOfLine = 1;
+            isAlly = 0;
+        } else {
+            unsigned int isEnemy;
+
+            outOfLine = 0;
+            /*
+             * The original performs an unguarded read through tgtUnitGet()'s
+             * return here (`lw $3,0x10($2)` at 0x00a106e8 straight after the
+             * `jal tgtUnitGet` at 0x00a106e0): no null test exists on this
+             * path, so none is written.
+             */
+            isEnemy = tgtUnitGet()->work->flags & BATTLE_ACTOR_FLAG_ENEMY;
+            isAlly = isEnemy == 0;
+        }
+        curEnvMake(packet, isAlly);
+        objDispCurSubEn(packet, cursor, outOfLine);
+        curPutSub(packet, cursor);
+    } else {
+        objDispCurSubPl(packet, cursor);
+    }
+    grPacketSend(packet);
+}
+
+void objDispCurSubPl(void *packet, CursorObject *cursor)
 {
 }
 
@@ -1720,4 +1863,33 @@ void curTexTrans(void)
     grPacketSend(packet);
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", curEnvMake);
+/*
+ * Local compatibility spelling of GS_REG_SET: the definition
+ * (src/ov01/gr_gp_init.c) takes (GrPacket *, long long, long long); `void *`
+ * stands in for GrPacket here because this file passes the `int packet[]`
+ * record grGpInit fills, the same spelling src/ov01/entry_first_init.c's
+ * encEnvMake already uses for that idiom.
+ */
+extern void GS_REG_SET(void *packet, long long register_id, long long control);
+extern unsigned short dataXtxAdrGet(int index);
+
+void curEnvMake(void *packet, int isAlly)
+{
+    unsigned short tbp0, tbp1;
+
+    if (!isAlly) {
+        tbp0 = dataXtxAdrGet(0xF);
+        tbp1 = dataXtxAdrGet(0x10);
+    } else {
+        tbp0 = dataXtxAdrGet(0xF);
+        tbp1 = dataXtxAdrGet(0x12);
+    }
+
+    GS_REG_SET(packet, 0xE, 0x1000000000008005LL);
+    GS_REG_SET(packet, 0x6,
+               tbp0 | ((long long)tbp1 << 37) | 0x20000005DD340000LL);
+    GS_REG_SET(packet, 0x42, 0);
+    GS_REG_SET(packet, 0x47, 0x5000D);
+    GS_REG_SET(packet, 0x8, 0);
+    GS_REG_SET(packet, 0x14, 0);
+}
