@@ -1,10 +1,12 @@
 """Prepare ELF object pairs for objdiff, without calculating report scores.
 
-Targets contain original disassembly and original TU data. Bases are fresh C
-compilations with SKIP_ASM: neither fallback nor standalone assembly earns C
-credit. IOP originals have no base. All binary inputs remain local.
+Targets contain original disassembly and original TU data. Bases assemble the
+verified compiler output against declaration-only scaffold includes: neither
+fallback nor standalone assembly earns C credit. IOP originals have no base.
+All binary inputs remain local.
 """
 from concurrent.futures import ThreadPoolExecutor
+from collections import Counter
 from bisect import bisect_left
 from functools import lru_cache
 import hashlib
@@ -18,6 +20,7 @@ import subprocess
 import coverage_report as cov
 from tu import data_carve
 from tu import data_gate
+from tu import cinc
 from tu.storage_directives import emitted_storage as parse_emitted_storage
 from tu import verify_report as verification
 from tu.elfinfo import Elf
@@ -26,13 +29,15 @@ from tu.toolchain import Toolchain
 
 emitted_storage = lru_cache(maxsize=16)(parse_emitted_storage)
 _compiler_only_section = lru_cache(maxsize=32)(data_gate.compiler_only_section)
+_compiler_include_views = {}
 
 
 def compiler_only_section(assembly, preprocessed, unit_dir, section):
     # Includes have external file dependencies: always re-check their contents.
     # Without includes the proof depends only on these immutable text inputs.
     if re.search(r'\.include\b', assembly):
-        return data_gate.compiler_only_section(assembly, preprocessed, unit_dir, section)
+        view = _compiler_include_views.get(assembly, unit_dir)
+        return data_gate.compiler_only_section(assembly, preprocessed, view, section)
     return _compiler_only_section(assembly, preprocessed, unit_dir, section)
 
 
@@ -287,15 +292,55 @@ def registered_data_symbol_mappings(target, base, original, assembly, preprocess
     return mappings,proofs
 
 
-def compile_source(root, unit_dir, source, output, ccdir, assembler, flags, skip_asm):
+def compile_source(root, unit_dir, source, output, ccdir, assembler, flags, skip_asm,
+                   verified_assembly=None):
     common = [ccdir / 'ee-gcc', f'-B{ccdir}/', '-nostdinc', '-fno-builtin']
     preprocessed, assembly = Path(str(output) + '.i'), Path(str(output) + '.s')
-    run([*common, '-E', *flags, *(['-DSKIP_ASM'] if skip_asm else []), '-Iinclude', '-I.',
-         f'-I{root / "include"}', f'-I{source.parent}', source, '-o', preprocessed], unit_dir)
-    run([*common, '-S', *flags, preprocessed, '-o', assembly], unit_dir)
+    if verified_assembly is not None:
+        # Preserve the actual compiler context, including file-scope asm.
+        # Even empty replacement markers can change GCC 2.96's C emission.
+        assembly.write_bytes(verified_assembly.read_bytes())
+        preprocessed.write_bytes(Path(str(verified_assembly)[:-2] + '.i').read_bytes())
+    else:
+        run([*common, '-E', *flags, '-Iinclude', '-I.',
+             f'-I{root / "include"}', f'-I{source.parent}', source, '-o', preprocessed], unit_dir)
+        run([*common, '-S', *flags, preprocessed, '-o', assembly], unit_dir)
+    cwd = unit_dir
+    if skip_asm:
+        # Assemble unchanged cc1 output with no included fallback bodies.
+        # Keep only the extern declarations that the normal cinc rule retains:
+        # they carry assembler ABI information, but emit no code or storage.
+        body = assembly.read_text()
+        declared = set(re.findall(r'^\s*\.extern\s+([A-Za-z_.$][\w.$]*)\s*,', body, re.M))
+        declared.update(re.findall(r'^([A-Za-z_.$][\w.$]*):', body, re.M))
+        declared.update(re.findall(r'^\s*\.(?:l?comm)\s+([A-Za-z_.$][\w.$]*)\s*,', body, re.M))
+        cwd = output.parent / 'compiler-includes'
+        cwd.mkdir(exist_ok=True)
+        includes = {}
+        for name in cinc.INCLUDE.findall(body):
+            if not name.endswith('.s'):
+                continue
+            relative = Path(name)
+            verification.require(not relative.is_absolute() and '..' not in relative.parts,
+                                 'nonlocal compiler scaffold include: ' + name)
+            original = unit_dir / relative
+            declarations = [line for line in original.read_text().splitlines()
+                            if cinc.EXTERN.match(line) and cinc.EXTERN.match(line)[1] not in declared]
+            local = cwd / relative
+            local.parent.mkdir(parents=True, exist_ok=True)
+            local.write_text('\n'.join(declarations) + '\n')
+            includes[name] = dict(original_sha256=verification.digest(original),
+                                  declaration_only_sha256=verification.digest(local))
+        _compiler_include_views[body] = cwd
+        output.with_suffix('.compiler-only.proof.json').write_text(json.dumps(dict(
+            compiler_assembly=str(verified_assembly) if verified_assembly else str(assembly),
+            compiler_assembly_sha256=verification.digest(assembly),
+            preprocessed_sha256=verification.digest(preprocessed),
+            compiler_output_unchanged=True, scaffold_includes=includes,
+            scaffold_code_and_storage_emitted=False), indent=2) + '\n')
     gflag = next(flag for flag in flags if flag.startswith('-G'))
     run([assembler, '-EL', '-m5900', '-mabi=eabi', gflag, '-I.',
-         '-Iinclude', '-o', output, assembly], unit_dir)
+         f'-I{unit_dir}', f'-I{unit_dir / "include"}', '-o', output, assembly], cwd)
     return assembly
 
 
@@ -487,71 +532,39 @@ def original_text(reference, original_path, start, end, destination, cwd, obj, a
 
 def original_literal_pool(reference, original_path, start, extent, destination, cwd, obj,
                           assembler, flags):
-    """Recover the assembler's literal association from original GP loads.
+    """Retain anonymous original literal storage without inventing relocations.
 
-    Old ee-as creates .lit4 and R_MIPS_LITERAL for li.s. Splat instead emits
-    independently named data and a numeric GP load, losing that association.
-    Reconstruct it only when the original has no OBJECT/FUNC in the pool and
-    the contractual assembler reproduces the entire original pool, in order,
-    with every load resolving to its exact original address/instruction.
-    No C output supplies these constants or bytes; a rejected hypothesis leaves
-    the ordinary reference unchanged.
+    The retail ELF proves the pool bytes and numeric GP operands, but no
+    R_MIPS_LITERAL versus R_MIPS_GPREL16 distinction survives the final link.
+    Reassembling loads as li.s invents that distinction and makes objdiff reject
+    otherwise identical C loads. Keep the original instructions/relocations and
+    describe only the original anonymous, finite single-precision pool here.
     """
     if not extent:
         return reference, False
     original = parsed_elf(original_path.read_bytes())
     before = parsed_elf(reference.read_bytes())
-    gp = original.gp
     lo, hi = extent
-    lit = next((s for s in original.sections if s.name == '.lit4' and s.addr <= lo < hi <= s.addr+s.size), None)
-    if lit is None or any(s.type in (1, 2) and lo <= s.value < hi for s in original.symbols):
+    lit = next((s for s in original.sections
+                if s.name == '.lit4' and s.addr <= lo < hi <= s.addr+s.size), None)
+    if (lit is None or (hi-lo) % 4 or lo % lit.align
+            or any(s.type in (1, 2) and lo <= s.value < hi for s in original.symbols)
+            or any(s.name == '.lit4' and s.size for s in before.sections)):
         return reference, False
-    if any(s.name == '.lit4' and s.size for s in before.sections):
-        return reference, False
-    text = before.section('.text')
     source = Path(str(reference) + '.s')
     if not source.is_file():
         source = reference.with_suffix('.s')
     if not source.is_file():
         return reference, False
-    loads = {}
-    body = source.read_text()
-    row = re.compile(r'^(\s*/\*\s+\S+\s+([0-9A-Fa-f]{8})\s+([0-9A-Fa-f]{8})\s+\*/\s*)'
-                     r'lwc1\s+(\$f\d+),\s*(-?\d+)\(\$gp\)\s*$', re.M)
-
-    def include(match):
-        path = Path(match[1])
-        path = path if path.is_absolute() else cwd/path
-        def load(line):
-            address = gp + int(line[5]) if gp else -1
-            if not lo <= address <= hi-4:
-                return line[0]
-            va = int(line[2], 16)
-            data = bytes.fromhex(line[3])
-            code = next((s for s in original.sections if s.flags & 4 and s.addr <= va < s.addr+s.size), None)
-            if code is None or original.data[code.offset+va-code.addr:code.offset+va-code.addr+4] != data:
-                return line[0]
-            word, = struct.unpack('<I', data)
-            if word >> 26 != 0x31 or word >> 21 & 31 != 28 or word >> 16 & 31 != int(line[4][2:]):
-                return line[0]
-            value, = struct.unpack_from('<f', original.data, lit.offset+address-lit.addr)
-            if not float('-inf') < value < float('inf'):
-                return line[0]
-            loads[va-start] = dict(address=address, word=word)
-            return f'{line[1]}li.s {line[4]}, {value:.20e}'
-        old = path.read_text()
-        new = row.sub(load, old)
-        if new == old:
-            return match[0]
-        local = destination.parent/'original-literals'/path.name
-        local.parent.mkdir(exist_ok=True)
-        local.write_text(new)
-        return '.include '+json.dumps(str(local))
-    rewritten = re.sub(r'\.include\s+"([^\"]+\.s)"', include, body)
-    if not loads:
+    expected_pool = original.data[lit.offset+lo-lit.addr:lit.offset+hi-lit.addr]
+    values = struct.unpack('<' + 'f' * ((hi-lo)//4), expected_pool)
+    if not all(float('-inf') < value < float('inf') for value in values):
         return reference, False
     assembly = destination.with_suffix('.s')
-    assembly.write_text(rewritten)
+    body = source.read_text()
+    pool = '\n.section .lit4\n.align ' + str(lit.align.bit_length()-1) + '\n'
+    pool += ''.join(f'.float {value:.20e}\n' for value in values)
+    assembly.write_text(body + pool)
     try:
         gflag = next(flag for flag in flags if flag.startswith('-G'))
         run([assembler, '-EL', '-m5900', '-mabi=eabi', gflag, '-I.', '-Iinclude',
@@ -560,62 +573,42 @@ def original_literal_pool(reference, original_path, start, extent, destination, 
         actual_lit = after.section('.lit4')
     except (subprocess.CalledProcessError, StopIteration):
         return reference, False
-    expected_pool = original.data[lit.offset+lo-lit.addr:lit.offset+hi-lit.addr]
-    if ((actual_lit.type, actual_lit.flags, actual_lit.align) != (lit.type, lit.flags, lit.align)
-            or after.section_bytes(actual_lit) != expected_pool or functions(destination) != functions(reference)):
-        return reference, False
-    current = after.section_bytes(after.section('.text'))
-    previous = before.section_bytes(text)
-    if len(current) != len(previous):
+    if ((actual_lit.type, actual_lit.flags, actual_lit.align) !=
+            (lit.type, lit.flags, lit.align)
+            or after.section_bytes(actual_lit) != expected_pool):
         return reference, False
     for section in before.sections:
-        if section.flags & 2 and section.name != '.text':
-            candidates = [s for s in after.sections if s.name == section.name]
-            if (len(candidates) != 1 or (section.type,section.flags,section.size) !=
-                    (candidates[0].type,candidates[0].flags,candidates[0].size) or
-                    before.section_bytes(section) != after.section_bytes(candidates[0])):
-                return reference, False
-    def retained_relocations(elf):
-        return {(elf.sections[rel.info].name, offset, info & 0xff,
-                 next(s.name for s in elf.symbols if s.index == info >> 8))
+        if not section.flags & 2:
+            continue
+        candidates = [s for s in after.sections if s.name == section.name]
+        if (len(candidates) != 1 or (section.type, section.flags, section.size, section.align) !=
+                (candidates[0].type, candidates[0].flags, candidates[0].size, candidates[0].align)
+                or before.section_bytes(section) != after.section_bytes(candidates[0])):
+            return reference, False
+    def relocations(elf):
+        return Counter((elf.sections[rel.info].name, offset, info & 0xff,
+                        symbol.name, symbol.value, symbol.size, symbol.bind,
+                        symbol.type, symbol.other,
+                        elf.sections[symbol.shndx].name
+                        if 0 < symbol.shndx < len(elf.sections) else symbol.shndx)
                 for rel in elf.sections if rel.type == 9
                 for i in range(0, rel.size, rel.entsize)
                 for offset, info in [struct.unpack_from('<II', elf.data, rel.offset+i)]
-                if elf.sections[rel.info].name != '.text' or offset not in loads}
-    if retained_relocations(before) != retained_relocations(after):
-        return reference, False
-    relocations = {}
-    # ELF MIPS REL literal addends include the assembler's provisional GP.
-    # Read that normal ABI metadata; never modify the emitted object.
-    reginfo = after.section('.reginfo')
-    assembler_gp, = struct.unpack_from('<I', after.data, reginfo.offset+20)
-    for rel in after.sections:
-        if rel.type == 9 and rel.info == after.section('.text').index:
-            for i in range(0, rel.size, rel.entsize):
-                offset, info = struct.unpack_from('<II', after.data, rel.offset+i)
-                symbol = next(s for s in after.symbols if s.index == info >> 8)
-                if info & 0xff == 8 and symbol.shndx == actual_lit.index:
-                    relocations[offset] = symbol.value
-    for offset in range(0, len(current), 4):
-        if offset not in loads:
-            if current[offset:offset+4] != previous[offset:offset+4]:
-                return reference, False
-            continue
-        if offset not in relocations:
-            return reference, False
-        word, = struct.unpack_from('<I', current, offset)
-        addend = (word & 0xffff) - (0x10000 if word & 0x8000 else 0)
-        address = lo+relocations[offset]+addend+assembler_gp
-        resolved = word & 0xffff0000 | ((address-gp) & 0xffff)
-        if address != loads[offset]['address'] or resolved != loads[offset]['word']:
-            return reference, False
-    identities = lambda elf: {(s.name,s.value,s.size,s.type,s.bind) for s in elf.symbols if s.type == 2}
-    verification.require(identities(before) == identities(after), f'{obj["id"]}: literal reconstruction changed FUNC identities')
+                for symbol in [elf.symbols[info >> 8]])
+    verification.require(relocations(before) == relocations(after),
+                         f'{obj["id"]}: literal storage changed original relocations')
+    identities = lambda elf: {(s.name, s.value, s.size, s.type, s.bind)
+                               for s in elf.symbols if s.type == 2}
+    verification.require(identities(before) == identities(after),
+                         f'{obj["id"]}: literal storage changed FUNC identities')
     destination.with_suffix('.proof.json').write_text(json.dumps(dict(
-        schema='objdiff-original-literal-pool/1', tu=obj['id'], original_sha256=hashlib.sha256(original.data).hexdigest(),
-        address=f'0x{lo:08X}', size=hi-lo, initializer_sha256=hashlib.sha256(expected_pool).hexdigest(),
-        loads={hex(k):v for k,v in loads.items()}, complete_original_pool_exact=True,
-        all_original_load_addresses_and_instructions_exact=True), indent=2)+'\n')
+        schema='objdiff-original-literal-pool/2', tu=obj['id'],
+        original_sha256=hashlib.sha256(original.data).hexdigest(),
+        address=f'0x{lo:08X}', size=hi-lo,
+        initializer_sha256=hashlib.sha256(expected_pool).hexdigest(),
+        complete_original_pool_exact=True,
+        all_original_allocated_bytes_and_relocations_unchanged=True,
+        no_invented_text_relocations=True), indent=2)+'\n')
     return destination, True
 
 
@@ -3441,8 +3434,11 @@ def prepare(root, evidence):
                        if section in data_carve.SECTIONS and section!='.text'))
         compile_base=bool(checked['functions']) or data_only
         if compile_base:
+            verified_assembly = (verification.build_object(root, build, obj)[1]
+                                 if checked['functions'] else None)
             assembly = compile_source(root, unit_dir, root / obj['source'], base,
-                                      ccdir, assembler, flags, skip_asm=True)
+                                      ccdir, assembler, flags, skip_asm=True,
+                                      verified_assembly=verified_assembly)
         if checked['functions']:
             start, end = ([int(tu['text'][k], 16) for k in ('start', 'end')] if unit == 'main'
                           else [int(v, 16) for v in tu['text']])
@@ -3458,7 +3454,7 @@ def prepare(root, evidence):
                 destination/'literal.text.o', unit_dir, obj, assembler, flags)
         for source in data_sources:
             if literal_pool and source.stem.endswith('.lit4'):
-                continue  # The exact entire original pool now comes from the original li.s loads.
+                continue  # The exact anonymous original pool is already in the reference.
             output = destination / (source.stem + '.o')
             run([str(prefix) + 'as', '-EL', '-march=r5900', '-mabi=eabi', '-mgp64',
                  '-G0', '-no-pad-sections', '-mno-fix-r5900', '-I.', '-Iinclude',
@@ -3494,12 +3490,11 @@ def prepare(root, evidence):
             emitted = verification.compiler_functions(assembly.read_text())
             actual = functions(base)
             nested = nested_base_names(root, obj['id'], allowed, actual)
-            # Removing inline scaffold blocks can change scheduling/alignment.
-            # Native objdiff measures that difference; the unmodified published
-            # build remains the authority for exact linked sizes and bytes.
-            verification.require(set(actual) == {nested.get(n, n) for n in allowed}
+            # Every remaining definition must be emitted C in the verified scope,
+            # with its verified size; the include view cannot supply any body.
+            verification.require(actual == {nested.get(n, n): size for n, size in allowed.items()}
                                  and set(actual) <= emitted,
-                                 f'{name}: SKIP_ASM emission differs from verified C scope')
+                                 f'{name}: compiler-only emission differs from verified C scope')
             stripped_base = destination / 'base.nodebug.o'
             comparison_base=base
             if obj['id']=='main/tu237':
@@ -3640,6 +3635,9 @@ def validate(report, expected):
             verification.require(not function.get('fuzzy_match_percent', 0) or
                                  function['name'] in checked['allowed'],
                                  f'{name}/{function["name"]}: scaffolding received matching credit')
+            if function['name'] in checked['allowed']:
+                verification.require(function.get('fuzzy_match_percent') == 100,
+                                     f'{name}/{function["name"]}: verified C is not a native 100% match')
         # Keep objdiff's native BSS measure. It describes uninitialized storage
         # matching, never recovered C declarations or source/link completeness.
         if not checked['allowed'] and not checked.get('data_only', False):

@@ -270,7 +270,8 @@ def finish(root, build, snapshot):
                 object_path, assembly_path = build_object(root, build, obj)
                 compiled = Elf(object_path.read_bytes())
                 emitted = compiler_functions(assembly_path.read_text())
-                for path in (object_path, assembly_path):
+                preprocessed_path = Path(str(assembly_path)[:-2] + '.i')
+                for path in (object_path, assembly_path, preprocessed_path):
                     artifacts[str(path.relative_to(root))] = fresh(path)
                 for name, va, size in obj['functions']:
                     if va not in claimed:
