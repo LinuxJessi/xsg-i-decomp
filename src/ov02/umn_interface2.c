@@ -18,11 +18,11 @@ extern void nmlModelSetTexture(const char *texture);
 extern void nmlModelSetPlace(const Vector4 *place);
 extern void nmlModelEntry(int entry);
 
-typedef struct UmnBgCubeVec {
-    float x;
-    float y;
-    float z;
-    float w;
+/* A 16-byte vector that can be read as x/y/z/w (Vector4) or as a component
+ * array; aligned(8) because the original copies it with ld/sd pairs. */
+typedef union UmnBgCubeVec {
+    Vector4 v;
+    float f[4];
 } UmnBgCubeVec __attribute__((aligned(8)));
 
 typedef struct UmnBgCubeLights {
@@ -37,8 +37,17 @@ typedef struct UmnBgCubeData {
     UmnBgCubeVec rotation;
     UmnBgCubeVec spare;
     UmnBgCubeVec scale;
-    UmnBgCubeVec matrix[4];
+    Matrix4 matrix;
 } UmnBgCubeData;
+
+/* One contiguous 0xF0-byte light workspace: the light object proper (0x00-0x6F)
+ * followed by the two matrices xglLightCalcMatrix fills in (0x70 and 0xB0),
+ * which are what nmlModelSetLight receives. */
+typedef struct UmnBgCubeLightWork {
+    unsigned char light[0x70];
+    Matrix4 model_set;
+    Matrix4 model_light;
+} UmnBgCubeLightWork __attribute__((aligned(16)));
 
 typedef struct UmnBgCubeMainTask {
     XglTaskPrefix base;
@@ -54,19 +63,16 @@ typedef struct UmnBgCubeMainTask {
 void tskUmnBgCubeMain(XglTaskPrefix *task_opaque)
 {
     UmnBgCubeMainTask *task = (UmnBgCubeMainTask *)task_opaque;
-    UmnBgCubeVec *position = (UmnBgCubeVec *)task->data;
-    UmnBgCubeVec *rotation = position + 1;
-    UmnBgCubeVec *spare = position + 2;
-    UmnBgCubeVec *scale = position + 3;
-    UmnBgCubeVec *matrix = position + 4;
+    UmnBgCubeVec *position = &task->data->position;
+    UmnBgCubeVec *rotation = &task->data->rotation;
+    UmnBgCubeVec *spare = &task->data->spare;
+    UmnBgCubeVec *scale = &task->data->scale;
+    float (*matrix)[4] = task->data->matrix;
     UmnBgCubeVec zero;
     UmnBgCubeVec scale_init;
-    unsigned char light[0x70];
-    unsigned char model_set[0x40];
-    unsigned char model_light[0x40];
+    UmnBgCubeLightWork work;
     UmnBgCubeLights lights;
     StudioCamera *camera;
-    float *angles;
     int i;
 
     if (UmnWork[1] == 0xFF)
@@ -77,25 +83,24 @@ void tskUmnBgCubeMain(XglTaskPrefix *task_opaque)
         task->state = 1;
         task->enabled = 1;
         memset(&zero, 0, 16);
-        zero.w = 1.0f;
+        zero.v.w = 1.0f;
         scale_init = D_00A11E60;
         *position = zero;
         *rotation = zero;
         *spare = zero;
         *scale = scale_init;
-        rotation->x = xglFRand();
-        rotation->y = xglFRand();
-        rotation->z = xglFRand();
-        spare->x = xglFRand();
-        spare->y = xglFRand();
-        spare->z = xglFRand();
-        scale->z = 7.5f;
-        scale->y = 7.5f;
-        scale->x = 7.5f;
+        rotation->v.x = xglFRand();
+        rotation->v.y = xglFRand();
+        rotation->v.z = xglFRand();
+        spare->v.x = xglFRand();
+        spare->v.y = xglFRand();
+        spare->v.z = xglFRand();
+        scale->v.z = 7.5f;
+        scale->v.y = 7.5f;
+        scale->v.x = 7.5f;
     case 1:
-        angles = &rotation->x;
         for (i = 0; i < 3; i++)
-            angles[i] += 0.001f;
+            rotation->f[i] += 0.001f;
         break;
     case 99:
         xglTaskWaitRemove(task_opaque);
@@ -106,22 +111,22 @@ void tskUmnBgCubeMain(XglTaskPrefix *task_opaque)
     camera = xglStudioGetCamera2(task->camera_id);
     camera->active = 1;
     xglMatrixStackUnit();
-    xglMatrixStackScale(&scale->x);
-    xglMatrixStackTrans(&position->x);
-    xglMatrixStackRotZ(rotation->z);
-    xglMatrixStackRotY(rotation->y);
-    xglMatrixStackRotX(rotation->x);
-    xglMatrixStackSave((float (*)[4])matrix);
+    xglMatrixStackScale(scale->f);
+    xglMatrixStackTrans(position->f);
+    xglMatrixStackRotZ(rotation->v.z);
+    xglMatrixStackRotY(rotation->v.y);
+    xglMatrixStackRotX(rotation->v.x);
+    xglMatrixStackSave(matrix);
     lights = D_00A11E70;
-    xglLightIntensityAmbient(light, (const Vector4 *)&lights.v[0]);
-    xglLightIntensityParallel(light, 0, (const Vector4 *)&lights.v[1]);
-    xglLightDirection(light, 0, (const Vector4 *)&lights.v[4]);
-    xglLightIntensityParallel(light, 1, (const Vector4 *)&lights.v[2]);
-    xglLightDirection(light, 1, (const Vector4 *)&lights.v[5]);
-    xglLightIntensityParallel(light, 2, (const Vector4 *)&lights.v[3]);
-    xglLightDirection(light, 2, (const Vector4 *)&lights.v[6]);
-    xglLightCalcMatrix(light);
-    nmlModelSetLight(model_light, model_set);
+    xglLightIntensityAmbient(&work, &lights.v[0].v);
+    xglLightIntensityParallel(&work, 0, &lights.v[1].v);
+    xglLightDirection(&work, 0, &lights.v[4].v);
+    xglLightIntensityParallel(&work, 1, &lights.v[2].v);
+    xglLightDirection(&work, 1, &lights.v[5].v);
+    xglLightIntensityParallel(&work, 2, &lights.v[3].v);
+    xglLightDirection(&work, 2, &lights.v[6].v);
+    xglLightCalcMatrix(&work);
+    nmlModelSetLight(&work.model_light, &work.model_set);
     nmlModelSetTexture((const char *)task->texture);
     nmlModelSetPlace((const Vector4 *)matrix);
     nmlModelEntry(task->model);

@@ -127,12 +127,10 @@ static void Rotation(float *out, float *position, float *base, float *rotation)
 
 INCLUDE_ASM("asm/nonmatchings/ov02/umn_procurator", UmnProcuratorManzai);
 
-typedef struct UmnMailVec {
-    float x;
-    float y;
-    float z;
-    float w;
-} UmnMailVec __attribute__((aligned(8)));
+/* The shared Vector4 with the 8-byte alignment the original relies on: it moves
+ * these vectors with ld/sd pairs. Plain Vector4 member assignments compile to
+ * ldl/ldr/sdl/sdr instead (135 vs 126 instructions). */
+typedef Vector4 UmnMailVec __attribute__((aligned(8)));
 
 typedef struct UmnMailTask {
     unsigned char unmodeled_00[0x11];
