@@ -1,8 +1,11 @@
 #include "common.h"
 
+static short pause_check;
+
 #include "shared.h"
 
 #include "game.h"
+#include "main/sdv.h"
 void GameStateSave(void);
 
 
@@ -18,9 +21,7 @@ typedef struct GameOrgRecord {
 
 
 
-typedef struct GamePlayerRecord {
-    u8 unmodeled_00[0xa8];
-} GamePlayerRecord;
+
 
 
 
@@ -104,20 +105,56 @@ typedef struct GameClearEnvironment {
 
 
 
+typedef struct GamePackedXyz2 {
+    u32 x;
+    u32 y;
+    u32 z;
+    u32 adc;
+} GamePackedXyz2;
+
 typedef struct GameTestEnvironment {
-    u8 unmodeled_00[0x30];
+    u32 vif_nop[3];
+    u32 vif_directhl;
+    u64 gif_tag;
+    u64 gif_registers;
+    u64 test;
+    u64 test_register;
     u32 red;
     u32 green;
     u32 blue;
     u32 alpha;
-    u8 unmodeled_40[0x60 - 0x40];
+    GamePackedXyz2 vertices[2];
 } GameTestEnvironment;
 
 
 
 extern GameClearEnvironment ClearEnv;
 
-extern GameTestEnvironment TestEnv_2_00338620;
+static char str_0[12] = "\014\000\000\000%4x\n%6x";
+static char str_1[12] = "\014\000\000\000%4x\n%6x";
+static GameTestEnvironment TestEnv_2_00338620 = {
+    .vif_nop = { 0, 0, 0 },
+    .vif_directhl = 0x51000005U,
+    .gif_tag = 0x4003400000008001ULL,
+    .gif_registers = 0x551eULL,
+    .test = 0x00071001ULL,
+    .test_register = 0x47ULL,
+    .red = 0, .green = 0, .blue = 0, .alpha = 0,
+    .vertices = {
+        { .x = 0x6ff8, .y = 0x71f7, .z = 0x40000000U, .adc = 0 },
+        { .x = 0x8ff8, .y = 0x8df7, .z = 0x40000000U, .adc = 0 }
+    }
+};
+
+const char D_004BE2B0[9] = "REGISTCF";
+const char D_004BE2C0[11] = "EOB_Always";
+const char D_004BE2D0[11] = "EOB_Escape";
+
+static SchedulerState *saveEffe = 0;
+static SchedulerState *shopEffe = 0;
+static SchedulerState *evsEffe = 0;
+static SchedulerState *retEffe = 0;
+const char D_004D8A60[8] = "%4x\n%6x";
 
 extern int StudioEntrySkip;
 
@@ -446,9 +483,7 @@ typedef struct GameLoopStateLayout {
 
 GameLoopStateLayout GameLoopState = {0};
 
-unsigned char SnapDrawCreditFlag = 0;
-
-unsigned char UseTestPath = 0;
+/* Small initialized flags follow the existing evsExit literal below. */
 
 /*
  * PadData (0xd0-byte object at 0x490d90) through the shared
@@ -529,7 +564,11 @@ void GameStateRestoreCameraLight(void);
 
 extern void GameStateRestoreKoware(void);
 
+static short pause_check;
+static int shopNo;
+static unsigned char GameCFSoundMenuPurgeFlag;
 static u64 attrPrev;
+static int prevTouch;
 
 typedef struct GameActorAttributeView {
     u8 unmodeled_00[0x4e8];
@@ -623,13 +662,6 @@ extern void xglRenderCopyDisp2Draw(void);
 
 extern GameLightSet GameIdLight[16];
 
-extern SchedulerState *saveEffe;
-
-extern SchedulerState *shopEffe;
-
-extern SchedulerState *evsEffe;
-
-extern SchedulerState *retEffe;
 
 extern float CheckDist3D(const Vector4 *a, const Vector4 *b);
 
@@ -666,7 +698,6 @@ extern short NowTester;
 
 extern signed char FLAG_FRAME_60;
 
-extern int prevTouch;
 
 extern void *const stageVM;
 
@@ -726,7 +757,6 @@ extern void TWSYS_init(void);
 
 extern void xglSoundStreamStop(int stream);
 
-extern short pause_check;
 
 extern void nmlModelSetFadeInCancel(int frames);
 
@@ -792,7 +822,6 @@ extern void GameOver(void);
 
 extern void sefDeleteEffectCf(SchedulerState *effect);
 
-extern int shopNo;
 
 extern void PartyTimePauseStart(void);
 
@@ -2180,6 +2209,8 @@ int GameModeCfMain(void)
     return 0;
 }
 
+const char D_004D8A68[4] = "EOB";
+
 void checkTalkPoint(void)
 {
     ActorHead *talker;
@@ -2444,3 +2475,8 @@ void Game(void)
     xglSleep();
     xglSleep();
 }
+
+unsigned char SnapDrawCreditFlag = 0;
+unsigned char UseTestPath = 0;
+const char D_004D8A80[1] = "";
+const char D_004D8A88[8] = "MC_TEST";

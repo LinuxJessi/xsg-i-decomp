@@ -13,7 +13,7 @@ extern const char D_004CB990[], D_004CB9F0[];
 #include "main/xgl_studio.h"
 
 extern short Times;
-extern float D_004D8160;
+#define D_004D8160 (6.2831854820251465f)
 
 void xglLightCalcMatrix(StudioLight *light);
 void nmlModelSetLight(Matrix4 colorMatrix, Matrix4 normalMatrix);
@@ -222,25 +222,25 @@ extern const char D_004CAF90[];
 
 extern const char D_004CAFA0[];
 
-extern const char D_004CAFF8[];
+#define D_004CAFF8 ("\245\316\241\274\245\336\245\353")
 
-extern const char D_004CB008[];
+#define D_004CB008 ("\245\353\241\274\245\310\277\250\274\352")
 
-extern const char D_004CB018[];
+#define D_004CB018 ("\261\375\311\374\277\250\274\352")
 
-extern const char D_004CB028[];
+#define D_004CB028 ("\277\250\274\352\314\347\310\326")
 
-extern const char D_004CB038[];
+#define D_004CB038 ("\245\353\241\274\245\310\304\311\300\327")
 
-extern const char D_004CB0C8[];
+#define D_004CB0C8 ("\245\242\245\353\245\264\245\352\245\272\245\340\304\344\273\337")
 
-extern const char D_004CB0E0[];
+#define D_004CB0E0 ("\264\260\301\264\304\344\273\337")
 
-extern const char D_004CB0F0[];
+#define D_004CB0F0 ("\264\260\301\264\304\344\273\337\241\312\243\303\243\310\243\322\267\277\273\310\315\321\262\304\307\275\241\313")
 
-extern const char D_004CB120[];
+#define D_004CB120 ("\244\323\244\303\244\257\244\352\245\336\241\274\245\257")
 
-extern const char D_004CB130[];
+#define D_004CB130 ("\244\317\244\306\244\312\245\336\241\274\245\257")
 
 extern const char D_004DB868[];
 
@@ -296,11 +296,11 @@ extern const char D_004DB930[];
 
 extern const char D_004DB938[];
 
-extern const char D_004DB940[];
+#define D_004DB940 ("\244\244\244\244\244\250")
 
-extern const char D_004DB948[];
+#define D_004DB948 ("\244\317\244\244")
 
-extern const char D_004DB958[];
+#define D_004DB958 ("\304\276\300\376")
 
 extern const char D_004CB1C0[];
 
@@ -332,7 +332,7 @@ extern const char D_004CB318[];
 
 extern const char D_004CB358[];
 
-extern const char D_004DB968[];
+#define D_004DB968 ("\243\316\243\320\243\303")
 
 extern const char D_004CB368[];
 
@@ -450,11 +450,11 @@ extern const char D_004CBA48[];
 
 extern const char D_004CBA78[];
 
-extern const char D_004DB978[];
+#define D_004DB978 ("%3d[%s]")
 
-extern const char D_004DB980[];
+#define D_004DB980 ("%2d:")
 
-extern const char D_004DB988[];
+#define D_004DB988 ("--")
 
 extern const char D_004DB998[];
 

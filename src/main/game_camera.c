@@ -180,7 +180,7 @@ typedef struct HokanState {
 
 
 
-extern HokanState HokanNow;
+static HokanState HokanNow;
 
 typedef struct LayoutHeader LayoutHeader;
 
@@ -228,10 +228,10 @@ typedef struct CameraUnduParam {
 
 
 
-extern CameraUnduParam CamLookAt;
-extern Vector4 CamLookAtPos;
-extern CameraUnduParam CamPos;
-extern Vector4 CamPosPos;
+static CameraUnduParam CamLookAt;
+static Vector4 CamLookAtPos;
+static CameraUnduParam CamPos;
+static Vector4 CamPosPos;
 
 extern LayoutHeader *UnduDataGetHeader(int, int);
 
@@ -305,15 +305,15 @@ typedef struct CameraEnemyWork {
 
 extern CameraEnemyWork enepc[16];
 
-extern unsigned char pre_mode;
+static unsigned char pre_mode;
 
-extern float pa_0;
+static float pa_0;
 
-extern int t_1;
+static int t_1;
 
-extern CameraUnduParam CamPlayer;
+static CameraUnduParam CamPlayer;
 
-extern Vector4 CamPlyPosOld;
+static Vector4 CamPlyPosOld;
 
 extern void xglMatrixStackUnit(void);
 
@@ -1468,3 +1468,15 @@ void GameCamera(void)
     }
     GameLoopState.camera_flags &= 0x3f;
 }
+
+
+
+const float D_004D7BB8 = 1000000.0f;
+
+const float D_004D7BBC = 0.3333333432674408f;
+
+const float D_004D7BC0 = 0.3333333432674408f;
+
+const float D_004D7BF0 = 0.0099999997764825821f;
+
+const float D_004D7C08 = 3.1415927410125732f;

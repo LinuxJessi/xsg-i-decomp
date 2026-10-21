@@ -9,25 +9,38 @@
 #include "main/xgl_packet.h"
 
 #include "seisan_count_init1.h"
+/* Original tu171 digit literals: each is an eight-byte character item.
+ * tu172's original readers copy the first aligned halfword into a label.
+ * The casts in msg_number express that existing reader view; these declarations
+ * do not recover or allocate storage belonging to tu171. */
+extern const char D_004DB068[8];
+extern const char D_004DB060[8];
+extern const char D_004DB058[8];
+extern const char D_004DB050[8];
+extern const char D_004DB048[8];
+extern const char D_004DB040[8];
+extern const char D_004DB038[8];
+extern const char D_004DB030[8];
+extern const char D_004DB028[8];
+extern const char D_004DB020[8];
+extern const char D_004DB078[8];
+extern const char D_004C72E0[16];
+extern const char D_004DB070[8];
+extern const char D_004DB088[8];
+extern const char D_004DB080[8];
+extern const char D_004C7300[16];
+extern const char D_004C72F0[16];
+extern const char D_004C7310[16];
+extern const char D_004C7330[16];
+extern const char D_004C7320[16];
+extern const char D_004DB0A0[7];
+extern const char D_004DB0A8[7];
+extern const char D_004DB0B0[7];
+
 
 typedef struct SeisanLabelBytes {
     unsigned char bytes[5];
 } SeisanLabelBytes;
-
-const SeisanRibbonData D_004C7350 = {
-    { 0x00000000, 0x0000FFFF, 0x80000000, 0x01C00000,
-      0x0000FFFF, 0x80000000, 0x00000200, 0x0000FFFF,
-      0x80000000, 0x01C00200, 0x0000FFFF, 0x80000000,
-      0x00000000, 0x00000000, 0x00000000 }
-};
-
-unsigned char *SeisanWork = 0;
-
-XglTaskScheduler *SeisanBgTask = 0;
-
-XglTaskScheduler *SeisanTask = 0;
-
-SeisanResultData *SeisanResult = 0;
 
 static SeisanCountData SeisanCN;
 
@@ -1305,3 +1318,76 @@ void SeisanInit(void)
     GameResourcePreLoad(GameLoopState[6]);
     MenuWorkEndCheck(work);
 }
+
+
+
+static const unsigned short *msg_number[10]  = {
+    (const unsigned short *)D_004DB068,
+    (const unsigned short *)D_004DB060,
+    (const unsigned short *)D_004DB058,
+    (const unsigned short *)D_004DB050,
+    (const unsigned short *)D_004DB048,
+    (const unsigned short *)D_004DB040,
+    (const unsigned short *)D_004DB038,
+    (const unsigned short *)D_004DB030,
+    (const unsigned short *)D_004DB028,
+    (const unsigned short *)D_004DB020
+};
+static const char *msg00_0_0036DAB8[3]  = {
+    D_004DB078, D_004C72E0, D_004DB070
+};
+static const char *msg00_1_0036DAC8[2] __attribute__((section(".data"))) = {
+    D_004DB088, D_004DB080
+};
+static const char *msg00_2_0036DAD0[2] __attribute__((section(".data"))) = {
+    D_004C7300, D_004C72F0
+};
+static const char *msg00_3_0036DAD8[4]  = {
+    D_004DB0B0, D_004DB0A8, D_004DB0A0, D_004C7310
+};
+static const char *msg01_4_0036DAE8[2] __attribute__((section(".data"))) = {
+    D_004C7330, D_004C7320
+};
+
+
+const char D_004C7340[10] = "Combatant";
+
+const SeisanRibbonData D_004C7350 = {
+    { 0x00000000, 0x0000FFFF, 0x80000000, 0x01C00000,
+      0x0000FFFF, 0x80000000, 0x00000200, 0x0000FFFF,
+      0x80000000, 0x01C00200, 0x0000FFFF, 0x80000000,
+      0x00000000, 0x00000000, 0x00000000 }
+};
+
+
+const char D_004DB090[5] = "\241\241\241\246";
+const char D_004DB098[5] = "\241\337\241\241";
+const char D_004DB0A0[7] = "\001S.Pts";
+const char D_004DB0A8[7] = "\001E.Pts";
+const char D_004DB0B0[7] = "\001T.Pts";
+const SeisanItemCategoryTable D_004DB0B8[1] = { { .entries = { 1, 3, 4, 5 } } };
+
+unsigned char *SeisanWork = 0;
+
+XglTaskScheduler *SeisanBgTask = 0;
+
+XglTaskScheduler *SeisanTask = 0;
+
+SeisanResultData *SeisanResult = 0;
+
+/* Remaining original small data, in address order. */
+SeisanMoneyData *SeisanMg = 0;
+SeisanItemEntry *SeisanItemBox = 0;
+SeisanFadeData *SeisanFade = 0;
+const char D_004DB0E0[6] = "Cards";
+const char D_004DB0E8[6] = "Items";
+const char D_004DB0F0[5] = "Sell";
+const char D_004DB0F8[4] = "Buy";
+const char D_004DB100[5] = "Shop";
+const char D_004DB108[6] = "Quit.";
+const char D_004DB110[8] = "Select ";
+const char D_004DB118[5] = " is ";
+const char D_004DB120[3] = "G.";
+const char D_004DB128[8] = " sold.\037";
+const char D_004DB130[3] = ".\n";
+

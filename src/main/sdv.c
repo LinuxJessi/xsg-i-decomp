@@ -13,7 +13,7 @@ typedef union SdvQuadColor {
     unsigned int word[4];
 } SdvQuadColor;
 
-extern const short blksiz_2[9];
+
 
 typedef union SdvColor {
     struct {
@@ -30,18 +30,15 @@ typedef union SdvScreenQuad {
     Quadword quad;
 } SdvScreenQuad;
 
-extern const unsigned long long alphaTbl_004CC8D8[4];
+static const unsigned long long alphaTbl_004CC8D8[4];
 
 static float _sdvMapRgb[4] = {1.0f, 1.0f, 1.0f, 1.0f};
 
 static float _sdvAmbient[4] = {0.25f, 0.25f, 0.25f, 1.0f};
 
-const float McMathUnitMatrix[4][4] = {
-    {1.0f, 0.0f, 0.0f, 0.0f},
-    {0.0f, 1.0f, 0.0f, 0.0f},
-    {0.0f, 0.0f, 1.0f, 0.0f},
-    {0.0f, 0.0f, 0.0f, 1.0f},
-};
+static short blksiz_2[9] = { 1, 3, 7, 15, 31, 63, 127, 255, 511 };
+
+
 
 static short _sdvSpecialBuf[8];
 
@@ -55,6 +52,10 @@ static unsigned char charID_0;
 
 static int eftCate_1;
 
+unsigned char orgData[33][0x180] = {{0}};
+
+GamePlayerRecord plChaData[16] = { { .unmodeled_00 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }, { .unmodeled_00 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }, { .unmodeled_00 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }, { .unmodeled_00 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }, { .unmodeled_00 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }, { .unmodeled_00 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }, { .unmodeled_00 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }, { .unmodeled_00 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }, { .unmodeled_00 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }, { .unmodeled_00 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }, { .unmodeled_00 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }, { .unmodeled_00 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }, { .unmodeled_00 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }, { .unmodeled_00 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }, { .unmodeled_00 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }, { .unmodeled_00 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } } };
+
 unsigned short itmBox[255] = {0};
 
 unsigned short wpnBox[255] = {0};
@@ -67,13 +68,20 @@ unsigned short evtBox[255] = {0};
 
 long long moneyBox = 0;
 
-unsigned char orgData[33][0x180] = {{0}};
-
 BattleDataStorage batDatBuf = {0};
 
 unsigned char thinkBuf[0x4000] = {0};
 
 MEfObjCamParams mefCamParams = {0};
+
+/*
+ * Partial object-representation view. The original mdstr is a GLOBAL
+ * 256-byte OBJECT in initialized .data, with every byte zero. Its original
+ * source type and use are unresolved; these unsigned-character units describe
+ * storage only, without string, element-format, or pointer-layout semantics.
+ */
+unsigned char mdstr[256] = {0};
+
 
 extern void *memset(void *, int, unsigned int);
 
@@ -105,7 +113,7 @@ typedef struct SdvSpecial {
 
 extern void sefMemZero(void *data, unsigned int size);
 
-const Vector4 McMathUnitVector = {0.0f, 0.0f, 0.0f, 1.0f};
+
 
 static int serial_3 = 0;
 
@@ -1350,6 +1358,236 @@ extern void SGsAddGifRGBA(SdvGifPacket *packet, Quadword rgba);
 extern void SGsAddGifData(SdvGifPacket *packet, Quadword data);
 extern void SGsSendPacket(SdvGifPacket *packet);
 
+extern const char D_004DBFC8[8];
+extern const char D_004CD080[16];
+extern const char D_004CD070[16];
+extern const char D_004CD060[16];
+extern const char D_004CD050[16];
+extern const char D_004CD040[16];
+extern const char D_004CD030[16];
+extern const char D_004CD020[16];
+extern const char D_004CD010[16];
+extern const char D_004CD000[16];
+extern const char D_004CCFF0[16];
+extern const char D_004CCFE0[16];
+extern const char D_004CCFD0[16];
+extern const char D_004CCFC0[16];
+extern const char D_004CCFB0[16];
+extern const char D_004CCFA0[16];
+extern const char D_004DBFC0[8];
+extern const char D_004DBFB8[8];
+extern const char D_004DBFB0[8];
+extern const char D_004DBFA8[8];
+extern const char D_004DBFA0[8];
+extern const char D_004DBF98[8];
+extern const char D_004DBF90[8];
+extern const char D_004DBF88[8];
+extern const char D_004DBF80[8];
+extern const char D_004DBF78[8];
+extern const char D_004DBF70[8];
+extern const char D_004DBF68[8];
+extern const char D_004DBF60[8];
+extern const char D_004DBF58[8];
+extern const char D_004DBF50[8];
+extern const char D_004DBF48[8];
+extern const char D_004DBF40[8];
+extern const char D_004DBF38[8];
+extern const char D_004DBF30[8];
+extern const char D_004DBF28[8];
+extern const char D_004DBF20[8];
+extern const char D_004DBF18[8];
+extern const char D_004DBF10[8];
+extern const char D_004DBF08[8];
+extern const char D_004DBF00[8];
+extern const char D_004DBEF8[8];
+extern const char D_004DBEF0[8];
+extern const char D_004DBEE8[8];
+extern const char D_004DBEE0[8];
+extern const char D_004DBED8[8];
+extern const char D_004DBED0[8];
+extern const char D_004DBEC8[8];
+extern const char D_004DBEC0[8];
+extern const char D_004DBEB8[8];
+extern const char D_004DBEB0[8];
+extern const char D_004DBEA8[8];
+extern const char D_004DBEA0[8];
+extern const char D_004DBE98[8];
+extern const char D_004DBE90[8];
+extern const char D_004DBE88[8];
+extern const char D_004DBE80[8];
+extern const char D_004DBE78[8];
+extern const char D_004DBE70[8];
+extern const char D_004CCF90[16];
+extern const char D_004CCF80[16];
+extern const char D_004CCF70[16];
+extern const char D_004CCF60[16];
+extern const char D_004CCF50[16];
+extern const char D_004CCF40[16];
+extern const char D_004CCF30[16];
+extern const char D_004CCF20[16];
+extern const char D_004CCF10[16];
+extern const char D_004CCF00[16];
+extern const char D_004CCEF0[16];
+extern const char D_004CCEE0[16];
+extern const char D_004CCED0[16];
+extern const char D_004CCEC0[16];
+extern const char D_004CCEB0[16];
+extern const char D_004CCEA0[16];
+extern const char D_004CCE90[16];
+extern const char D_004CCE80[16];
+extern const char D_004CCE70[16];
+extern const char D_004CCE60[16];
+extern const char D_004DBE68[8];
+extern const char D_004DBE60[8];
+extern const char D_004DBE58[8];
+extern const char D_004DBE50[8];
+extern const char D_004DBE48[8];
+extern const char D_004DBE40[8];
+extern const char D_004DBE38[8];
+extern const char D_004DBE30[8];
+extern const char D_004DBE28[8];
+extern const char D_004DBE20[8];
+extern const char D_004DBE18[8];
+extern const char D_004DBE10[8];
+extern const char D_004DBE08[8];
+extern const char D_004DBE00[8];
+extern const char D_004DBDF8[8];
+extern const char D_004DBDF0[8];
+extern const char D_004DBDE8[8];
+extern const char D_004DBDE0[8];
+extern const char D_004DBDD8[8];
+extern const char D_004DBDD0[8];
+extern const char D_004DBDC8[8];
+extern const char D_004DBDC0[8];
+extern const char D_004DBDB8[8];
+extern const char D_004DBDB0[8];
+extern const char D_004DBDA8[8];
+extern const char D_004DBDA0[8];
+extern const char D_004DBD98[8];
+extern const char D_004DBD90[8];
+extern const char D_004DBD88[8];
+extern const char D_004DBD80[8];
+extern const char D_004DBD78[8];
+extern const char D_004DBD70[8];
+extern const char D_004DBD68[8];
+extern const char D_004DBD60[8];
+extern const char D_004DBD58[8];
+extern const char D_004DBD50[8];
+extern const char D_004DBD48[8];
+extern const char D_004DBD40[8];
+extern const char D_004DBD38[8];
+extern const char D_004DBD30[8];
+extern const char D_004DBD28[8];
+extern const char D_004DBD20[8];
+extern const char D_004DBD18[8];
+extern const char D_004DBD10[8];
+extern const char D_004DBD08[8];
+extern const char D_004DBD00[8];
+extern const char D_004DBCF8[8];
+extern const char D_004DBCF0[8];
+extern const char D_004DBCE8[8];
+extern const char D_004DBCE0[8];
+extern const char D_004DBCD8[8];
+extern const char D_004DBCD0[8];
+extern const char D_004DBCC8[8];
+extern const char D_004DBCC0[8];
+extern const char D_004DBCB8[8];
+extern const char D_004DBCB0[8];
+extern const char D_004DBCA8[8];
+extern const char D_004DBCA0[8];
+extern const char D_004DBC98[8];
+extern const char D_004DBC90[8];
+extern const char D_004DBC88[8];
+extern const char D_004DBC80[8];
+extern const char D_004DBC78[8];
+extern const char D_004DBC70[8];
+extern const char D_004DBC68[8];
+extern const char D_004DBC60[8];
+extern const char D_004CCE50[16];
+extern const char D_004CCE40[16];
+extern const char D_004CCE30[16];
+extern const char D_004DBC58[8];
+extern const char D_004DBC50[8];
+extern const char D_004DBC48[8];
+extern const char D_004DBC40[8];
+extern const char D_004DBC38[8];
+extern const char D_004DBC30[8];
+extern const char D_004DBC28[8];
+extern const char D_004DBC20[8];
+extern const char D_004DBC18[8];
+extern const char D_004DBC10[8];
+extern const char D_004DBC08[8];
+extern const char D_004CCE20[16];
+extern const char D_004CCE10[16];
+extern const char D_004CCE00[16];
+extern const char D_004CCDF0[16];
+extern const char D_004CCDE0[16];
+extern const char D_004CCDD0[16];
+extern const char D_004CCDC0[16];
+extern const char D_004CCDB0[16];
+extern const char D_004DBC00[8];
+extern const char D_004DBBF8[8];
+extern const char D_004DBBF0[8];
+extern const char D_004CCDA0[16];
+extern const char D_004CCD90[16];
+extern const char D_004DBBE8[8];
+extern const char D_004DBBE0[8];
+extern const char D_004DBBD8[8];
+extern const char D_004DBBD0[8];
+extern const char D_004DBBC8[8];
+extern const char D_004DBBC0[8];
+extern const char D_004CCD80[16];
+extern const char D_004CCD70[16];
+extern const char D_004CCD60[16];
+extern const char D_004CCD50[16];
+extern const char D_004CCD40[16];
+extern const char D_004CCD30[16];
+extern const char D_004CCD20[16];
+extern const char D_004CCD10[16];
+extern const char D_004DBBB8[4];
+extern const char D_004DBBB0[8];
+extern const char D_004CCD00[16];
+extern const char D_004CCCF0[16];
+extern const char D_004CCCE0[16];
+extern const char D_004DBBA8[8];
+extern const char D_004CCCD0[16];
+extern const char D_004CCCC0[16];
+extern const char D_004CCCB0[16];
+extern const char D_004CCCA0[16];
+extern const char D_004DBBA0[8];
+extern const char D_004CCC90[16];
+extern const char D_004DBB98[8];
+extern const char D_004CCC80[16];
+extern const char D_004DBB90[8];
+extern const char D_004DBB88[8];
+extern const char D_004CCC70[16];
+extern const char D_004CCC60[16];
+extern const char D_004CCC50[16];
+
+typedef union SdvTextureCoordinate {
+    float stq[4];
+    Quadword quad;
+} SdvTextureCoordinate;
+
+
+static const unsigned long long alphaTbl_004CC8D8[4] = {68ULL, 72ULL, 549755813954ULL, 106ULL};
+
+static const SdvTextureCoordinate stqTbl_004CC900[4] = {
+    {{0.0f, 0.0f, 1.0f, 0.0f}},
+    {{1.0f, 0.0f, 1.0f, 0.0f}},
+    {{0.0f, 1.0f, 1.0f, 0.0f}},
+    {{1.0f, 1.0f, 1.0f, 0.0f}}
+};
+
+const Vector4 McMathUnitVector = {0.0f, 0.0f, 0.0f, 1.0f};
+
+const float McMathUnitMatrix[4][4] = {
+    {1.0f, 0.0f, 0.0f, 0.0f},
+    {0.0f, 1.0f, 0.0f, 0.0f},
+    {0.0f, 0.0f, 1.0f, 0.0f},
+    {0.0f, 0.0f, 0.0f, 1.0f},
+};
+
 void sdvDrawAlter(SdvAlter *alter, SdvGifPacket *packet)
 {
     HermiteVector tangent[2];
@@ -1549,3 +1787,252 @@ void sdvDrawAlters(int category)
         }
     }
 }
+
+extern const char D_004DBFC8[8];
+extern const char D_004CD080[16];
+extern const char D_004CD070[16];
+extern const char D_004CD060[16];
+extern const char D_004CD050[16];
+extern const char D_004CD040[16];
+extern const char D_004CD030[16];
+extern const char D_004CD020[16];
+extern const char D_004CD010[16];
+extern const char D_004CD000[16];
+extern const char D_004CCFF0[16];
+extern const char D_004CCFE0[16];
+extern const char D_004CCFD0[16];
+extern const char D_004CCFC0[16];
+extern const char D_004CCFB0[16];
+extern const char D_004CCFA0[16];
+extern const char D_004DBFC0[8];
+extern const char D_004DBFB8[8];
+extern const char D_004DBFB0[8];
+extern const char D_004DBFA8[8];
+extern const char D_004DBFA0[8];
+extern const char D_004DBF98[8];
+extern const char D_004DBF90[8];
+extern const char D_004DBF88[8];
+extern const char D_004DBF80[8];
+extern const char D_004DBF78[8];
+extern const char D_004DBF70[8];
+extern const char D_004DBF68[8];
+extern const char D_004DBF60[8];
+extern const char D_004DBF58[8];
+extern const char D_004DBF50[8];
+extern const char D_004DBF48[8];
+extern const char D_004DBF40[8];
+extern const char D_004DBF38[8];
+extern const char D_004DBF30[8];
+extern const char D_004DBF28[8];
+extern const char D_004DBF20[8];
+extern const char D_004DBF18[8];
+extern const char D_004DBF10[8];
+extern const char D_004DBF08[8];
+extern const char D_004DBF00[8];
+extern const char D_004DBEF8[8];
+extern const char D_004DBEF0[8];
+extern const char D_004DBEE8[8];
+extern const char D_004DBEE0[8];
+extern const char D_004DBED8[8];
+extern const char D_004DBED0[8];
+extern const char D_004DBEC8[8];
+extern const char D_004DBEC0[8];
+extern const char D_004DBEB8[8];
+extern const char D_004DBEB0[8];
+extern const char D_004DBEA8[8];
+extern const char D_004DBEA0[8];
+extern const char D_004DBE98[8];
+extern const char D_004DBE90[8];
+extern const char D_004DBE88[8];
+extern const char D_004DBE80[8];
+extern const char D_004DBE78[8];
+extern const char D_004DBE70[8];
+extern const char D_004CCF90[16];
+extern const char D_004CCF80[16];
+extern const char D_004CCF70[16];
+extern const char D_004CCF60[16];
+extern const char D_004CCF50[16];
+extern const char D_004CCF40[16];
+extern const char D_004CCF30[16];
+extern const char D_004CCF20[16];
+extern const char D_004CCF10[16];
+extern const char D_004CCF00[16];
+extern const char D_004CCEF0[16];
+extern const char D_004CCEE0[16];
+extern const char D_004CCED0[16];
+extern const char D_004CCEC0[16];
+extern const char D_004CCEB0[16];
+extern const char D_004CCEA0[16];
+extern const char D_004CCE90[16];
+extern const char D_004CCE80[16];
+extern const char D_004CCE70[16];
+extern const char D_004CCE60[16];
+extern const char D_004DBE68[8];
+extern const char D_004DBE60[8];
+extern const char D_004DBE58[8];
+extern const char D_004DBE50[8];
+extern const char D_004DBE48[8];
+extern const char D_004DBE40[8];
+extern const char D_004DBE38[8];
+extern const char D_004DBE30[8];
+extern const char D_004DBE28[8];
+extern const char D_004DBE20[8];
+extern const char D_004DBE18[8];
+extern const char D_004DBE10[8];
+extern const char D_004DBE08[8];
+extern const char D_004DBE00[8];
+extern const char D_004DBDF8[8];
+extern const char D_004DBDF0[8];
+extern const char D_004DBDE8[8];
+extern const char D_004DBDE0[8];
+extern const char D_004DBDD8[8];
+extern const char D_004DBDD0[8];
+extern const char D_004DBDC8[8];
+extern const char D_004DBDC0[8];
+extern const char D_004DBDB8[8];
+extern const char D_004DBDB0[8];
+extern const char D_004DBDA8[8];
+extern const char D_004DBDA0[8];
+extern const char D_004DBD98[8];
+extern const char D_004DBD90[8];
+extern const char D_004DBD88[8];
+extern const char D_004DBD80[8];
+extern const char D_004DBD78[8];
+extern const char D_004DBD70[8];
+extern const char D_004DBD68[8];
+extern const char D_004DBD60[8];
+extern const char D_004DBD58[8];
+extern const char D_004DBD50[8];
+extern const char D_004DBD48[8];
+extern const char D_004DBD40[8];
+extern const char D_004DBD38[8];
+extern const char D_004DBD30[8];
+extern const char D_004DBD28[8];
+extern const char D_004DBD20[8];
+extern const char D_004DBD18[8];
+extern const char D_004DBD10[8];
+extern const char D_004DBD08[8];
+extern const char D_004DBD00[8];
+extern const char D_004DBCF8[8];
+extern const char D_004DBCF0[8];
+extern const char D_004DBCE8[8];
+extern const char D_004DBCE0[8];
+extern const char D_004DBCD8[8];
+extern const char D_004DBCD0[8];
+extern const char D_004DBCC8[8];
+extern const char D_004DBCC0[8];
+extern const char D_004DBCB8[8];
+extern const char D_004DBCB0[8];
+extern const char D_004DBCA8[8];
+extern const char D_004DBCA0[8];
+extern const char D_004DBC98[8];
+extern const char D_004DBC90[8];
+extern const char D_004DBC88[8];
+extern const char D_004DBC80[8];
+extern const char D_004DBC78[8];
+extern const char D_004DBC70[8];
+extern const char D_004DBC68[8];
+extern const char D_004DBC60[8];
+extern const char D_004CCE50[16];
+extern const char D_004CCE40[16];
+extern const char D_004CCE30[16];
+extern const char D_004DBC58[8];
+extern const char D_004DBC50[8];
+extern const char D_004DBC48[8];
+extern const char D_004DBC40[8];
+extern const char D_004DBC38[8];
+extern const char D_004DBC30[8];
+extern const char D_004DBC28[8];
+extern const char D_004DBC20[8];
+extern const char D_004DBC18[8];
+extern const char D_004DBC10[8];
+extern const char D_004DBC08[8];
+extern const char D_004CCE20[16];
+extern const char D_004CCE10[16];
+extern const char D_004CCE00[16];
+extern const char D_004CCDF0[16];
+extern const char D_004CCDE0[16];
+extern const char D_004CCDD0[16];
+extern const char D_004CCDC0[16];
+extern const char D_004CCDB0[16];
+extern const char D_004DBC00[8];
+extern const char D_004DBBF8[8];
+extern const char D_004DBBF0[8];
+extern const char D_004CCDA0[16];
+extern const char D_004CCD90[16];
+extern const char D_004DBBE8[8];
+extern const char D_004DBBE0[8];
+extern const char D_004DBBD8[8];
+extern const char D_004DBBD0[8];
+extern const char D_004DBBC8[8];
+extern const char D_004DBBC0[8];
+extern const char D_004CCD80[16];
+extern const char D_004CCD70[16];
+extern const char D_004CCD60[16];
+extern const char D_004CCD50[16];
+extern const char D_004CCD40[16];
+extern const char D_004CCD30[16];
+extern const char D_004CCD20[16];
+extern const char D_004CCD10[16];
+extern const char D_004DBBB8[4];
+extern const char D_004DBBB0[8];
+extern const char D_004CCD00[16];
+extern const char D_004CCCF0[16];
+extern const char D_004CCCE0[16];
+extern const char D_004DBBA8[8];
+extern const char D_004CCCD0[16];
+extern const char D_004CCCC0[16];
+extern const char D_004CCCB0[16];
+extern const char D_004CCCA0[16];
+extern const char D_004DBBA0[8];
+extern const char D_004CCC90[16];
+extern const char D_004DBB98[8];
+extern const char D_004CCC80[16];
+extern const char D_004DBB90[8];
+extern const char D_004DBB88[8];
+extern const char D_004CCC70[16];
+extern const char D_004CCC60[16];
+extern const char D_004CCC50[16];
+
+const char *instructionCodeName[240] = {
+    D_004DBFC8, D_004CD080, D_004CD070, D_004CD060, D_004CD050, D_004CD040,
+    D_004CD030, D_004CD020, D_004CD010, D_004CD000, D_004CCFF0, D_004CCFE0,
+    D_004CCFD0, D_004CCFC0, D_004CCFB0, D_004CCFA0, D_004DBFC0, D_004DBFB8,
+    D_004DBFB0, D_004DBFA8, D_004DBFA0, D_004DBF98, D_004DBF90, D_004DBF88,
+    D_004DBF80, D_004DBF78, D_004DBF70, D_004DBF68, D_004DBF60, D_004DBF58,
+    D_004DBF50, D_004DBF48, D_004DBF40, D_004DBF38, D_004DBF30, D_004DBF28,
+    D_004DBF20, D_004DBF18, D_004DBF10, D_004DBF08, D_004DBF00, D_004DBEF8,
+    D_004DBEF0, D_004DBEE8, D_004DBEE0, D_004DBED8, D_004DBED0, D_004DBEC8,
+    D_004DBEC0, D_004DBEB8, D_004DBEB0, D_004DBEA8, D_004DBEA0, D_004DBE98,
+    D_004DBE90, D_004DBE88, D_004DBE80, D_004DBE78, D_004DBE70, D_004CCF90,
+    D_004CCF80, D_004CCF70, D_004CCF60, D_004CCF50, D_004CCF40, D_004CCF30,
+    D_004CCF20, D_004CCF10, D_004CCF00, D_004CCEF0, D_004CCEE0, D_004CCED0,
+    D_004CCEC0, D_004CCEB0, D_004CCEA0, D_004CCE90, D_004CCE80, D_004CCE70,
+    D_004CCE60, D_004DBE68, D_004DBE60, D_004DBE58, D_004DBE50, D_004DBE48,
+    D_004DBE40, D_004DBE38, D_004DBE30, D_004DBE28, D_004DBE20, D_004DBE18,
+    D_004DBE10, D_004DBE08, D_004DBE00, D_004DBDF8, D_004DBDF0, D_004DBDE8,
+    D_004DBDE0, D_004DBDD8, D_004DBDD0, D_004DBDC8, D_004DBDC0, D_004DBDB8,
+    D_004DBDB0, D_004DBDA8, D_004DBDA0, D_004DBD98, D_004DBD90, D_004DBD88,
+    D_004DBD80, D_004DBD78, D_004DBD70, D_004DBD68, D_004DBD60, D_004DBD58,
+    D_004DBD50, D_004DBD48, D_004DBD40, D_004DBD38, D_004DBD30, D_004DBD28,
+    D_004DBD20, D_004DBD18, D_004DBD10, D_004DBD08, D_004DBD00, D_004DBCF8,
+    D_004DBCF0, D_004DBCE8, D_004DBCE0, D_004DBCD8, D_004DBCD0, D_004DBCC8,
+    D_004DBCC0, D_004DBCB8, D_004DBCB0, D_004DBCA8, D_004DBCA0, D_004DBC98,
+    D_004DBC90, D_004DBC88, D_004DBC80, D_004DBC78, D_004DBC70, D_004DBC68,
+    D_004DBC60, D_004CCE50, D_004CCE40, D_004CCE30, D_004DBC58, D_004DBC50,
+    D_004DBC48, D_004DBC40, D_004DBC38, D_004DBC30, D_004DBC28, D_004DBC20,
+    D_004DBC18, D_004DBC10, D_004DBC08, D_004CCE20, D_004CCE10, D_004CCE00,
+    D_004CCDF0, D_004CCDE0, D_004CCDD0, D_004CCDC0, D_004CCDB0, D_004DBC00,
+    D_004DBBF8, D_004DBBF0, D_004CCDA0, D_004CCD90, D_004DBBE8, D_004DBBE0,
+    D_004DBBD8, D_004DBBD0, D_004DBBC8, D_004DBBC0, D_004CCD80, D_004CCD70,
+    D_004CCD60, D_004CCD50, D_004CCD40, D_004CCD30, D_004CCD20, D_004CCD10,
+    D_004DBBB8, D_004DBBB0, D_004CCD00, D_004CCCF0, D_004CCCE0, D_004DBBA8,
+    D_004CCCD0, D_004CCCC0, D_004CCCB0, D_004CCCA0, D_004DBBA0, D_004CCC90,
+    D_004DBB98, D_004CCC80, D_004DBB90, D_004DBB88, D_004CCC70, D_004DBBB8,
+    D_004DBBB8, D_004DBBB8, D_004DBBB8, D_004DBBB8, D_004DBBB8, D_004DBBB8,
+    D_004DBBB8, D_004DBBB8, D_004DBBB8, D_004DBBB8, D_004DBBB8, D_004DBBB8,
+    D_004DBBB8, D_004DBBB8, D_004DBBB8, D_004DBBB8, D_004DBBB8, D_004DBBB8,
+    D_004DBBB8, D_004DBBB8, D_004DBBB8, D_004DBBB8, D_004DBBB8, D_004DBBB8,
+    D_004DBBB8, D_004DBBB8, D_004DBBB8, D_004DBBB8, D_004DBBB8, D_004DBBB8,
+    D_004DBBB8, D_004DBBB8, D_004DBBB8, D_004DBBB8, D_004CCC60, D_004CCC50
+};

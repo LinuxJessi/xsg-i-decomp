@@ -4,6 +4,139 @@
 
 #include "main/control_entry.h"
 
+/* Exact existing light view from src/main/game_id_light_set.h:8-20. */
+typedef unsigned int IdLightQuadword __attribute__((mode(TI)));
+typedef struct IdLightPair {
+    IdLightQuadword color;
+    IdLightQuadword direction;
+} IdLightPair;
+typedef struct IdLightSet {
+    IdLightQuadword ambientColor;
+    IdLightPair lights[3];
+    IdLightQuadword unmodeled_70[8];
+} IdLightSet;
+
+/* Hardware-reserved bits are not C padding. */
+typedef struct GameBgSetupEnvironment {
+    unsigned int vif_nops[3];
+    struct {
+        unsigned int quadwords : 16;
+        unsigned int count : 8;
+        unsigned int command : 7;
+        unsigned int interrupt : 1;
+    } directhl;
+    struct {
+        unsigned long loop_count : 15;
+        unsigned long end_of_packet : 1;
+        unsigned long reserved_10 : 30;
+        unsigned long primitive_enable : 1;
+        unsigned long primitive : 11;
+        unsigned long format : 2;
+        unsigned long register_count : 4;
+    } gif_tag;
+    unsigned long gif_registers;
+    struct {
+        unsigned long source_color : 2;
+        unsigned long subtract_color : 2;
+        unsigned long alpha_source : 2;
+        unsigned long add_color : 2;
+        unsigned long reserved_08 : 24;
+        unsigned long fixed_alpha : 8;
+        unsigned long reserved_28 : 24;
+        unsigned long address;
+    } alpha;
+    struct {
+        unsigned long alpha_test_enable : 1;
+        unsigned long alpha_test_method : 3;
+        unsigned long alpha_reference : 8;
+        unsigned long alpha_fail : 2;
+        unsigned long destination_alpha_test_enable : 1;
+        unsigned long destination_alpha_test_method : 1;
+        unsigned long depth_test_enable : 1;
+        unsigned long depth_test_method : 2;
+        unsigned long reserved_13 : 45;
+        unsigned long address;
+    } test;
+    struct {
+        unsigned long texture_base : 14;
+        unsigned long buffer_width : 6;
+        unsigned long pixel_format : 6;
+        unsigned long width_log2 : 4;
+        unsigned long height_log2 : 4;
+        unsigned long color_components : 1;
+        unsigned long texture_function : 2;
+        unsigned long clut_base : 14;
+        unsigned long clut_pixel_format : 4;
+        unsigned long clut_storage : 1;
+        unsigned long clut_offset : 5;
+        unsigned long clut_load : 3;
+        unsigned long address;
+    } tex0;
+    struct {
+        unsigned long lod_method : 1;
+        unsigned long reserved_01 : 1;
+        unsigned long maximum_mipmap_level : 3;
+        unsigned long magnification_filter : 1;
+        unsigned long minification_filter : 3;
+        unsigned long automatic_mipmap_base : 1;
+        unsigned long reserved_0a : 9;
+        unsigned long lod_scale : 2;
+        unsigned long reserved_15 : 11;
+        unsigned long lod_bias : 12;
+        unsigned long reserved_2c : 20;
+        unsigned long address;
+    } tex1;
+    struct {
+        unsigned long wrap_s : 2;
+        unsigned long wrap_t : 2;
+        unsigned long minimum_u : 10;
+        unsigned long maximum_u : 10;
+        unsigned long minimum_v : 10;
+        unsigned long maximum_v : 10;
+        unsigned long reserved_2c : 20;
+        unsigned long address;
+    } clamp;
+    struct {
+        unsigned long source_base : 14;
+        unsigned long reserved_0e : 2;
+        unsigned long source_width : 6;
+        unsigned long reserved_16 : 2;
+        unsigned long source_format : 6;
+        unsigned long reserved_1e : 2;
+        unsigned long destination_base : 14;
+        unsigned long reserved_2e : 2;
+        unsigned long destination_width : 6;
+        unsigned long reserved_36 : 2;
+        unsigned long destination_format : 6;
+        unsigned long reserved_3e : 2;
+        unsigned long address;
+    } bitbltbuf;
+    struct {
+        unsigned long source_x : 11;
+        unsigned long reserved_0b : 5;
+        unsigned long source_y : 11;
+        unsigned long reserved_1b : 5;
+        unsigned long destination_x : 11;
+        unsigned long reserved_2b : 5;
+        unsigned long destination_y : 11;
+        unsigned long pixel_order : 2;
+        unsigned long reserved_3d : 3;
+        unsigned long address;
+    } trxpos;
+    struct {
+        unsigned long width : 12;
+        unsigned long reserved_0c : 20;
+        unsigned long height : 12;
+        unsigned long reserved_2c : 20;
+        unsigned long address;
+    } trxreg;
+    struct {
+        unsigned long direction : 2;
+        unsigned long reserved_02 : 62;
+        unsigned long address;
+    } trxdir;
+} GameBgSetupEnvironment;
+
 extern float xglFRand(void);
 
 static unsigned char TestEnv_0_00367AA0[0x60] = {
@@ -40,6 +173,35 @@ typedef struct GameLoopBackgroundCallbacks {
     void (*background_sync)(void);
     u8 unmodeled_34[0x2a030 - 0x34];
 } GameLoopBackgroundCallbacks;
+
+/* Original TestEnv.1, main VA 0x00367b00, 11 quadwords. */
+static GameBgSetupEnvironment TestEnv_1_00367B00[1] = {
+    {
+        .directhl = { .quadwords = 10, .command = 0x51 },
+        .gif_tag = { .loop_count = 9, .end_of_packet = 1,
+                     .format = 0, .register_count = 1 },
+        .gif_registers = 0x0e,
+        .alpha = { .source_color = 0, .subtract_color = 2,
+                   .alpha_source = 0, .add_color = 1, .address = 0x42 },
+        .test = { .alpha_test_enable = 1, .alpha_fail = 1,
+                  .depth_test_enable = 1, .depth_test_method = 3,
+                  .address = 0x47 },
+        .tex0 = { .texture_base = 0x3800, .buffer_width = 8,
+                  .pixel_format = 0, .width_log2 = 5, .height_log2 = 6,
+                  .color_components = 1, .texture_function = 0,
+                  .clut_load = 1, .address = 0x06 },
+        .tex1 = { .magnification_filter = 1, .minification_filter = 1,
+                  .address = 0x14 },
+        .clamp = { .wrap_s = 0, .wrap_t = 0, .address = 0x08 },
+        .bitbltbuf = { .destination_base = 0x3800,
+                      .destination_width = 8, .destination_format = 0,
+                      .address = 0x50 },
+        .trxpos = { .source_x = 0, .source_y = 0, .destination_x = 0,
+                    .destination_y = 0, .pixel_order = 0, .address = 0x51 },
+        .trxreg = { .width = 32, .height = 64, .address = 0x52 },
+        .trxdir = { .direction = 0, .address = 0x53 }
+    }
+};
 
 GameBgDrawType1Parameters GameBgDrawType1Param = {0};
 
@@ -197,7 +359,7 @@ extern void xglRenderClearColor(unsigned int color);
 
 extern unsigned int xglLRand(void);
 
-extern unsigned char TestEnv_1_00367B00[];
+
 
 extern void xglRotTransPersN(GameBgProjectedPoint *destination, Matrix4 *matrix,
                            const Vector4 *source, int count, int mode);
@@ -333,7 +495,9 @@ typedef struct GameBgBandParameters {
     GameBgBandTexture *texture_packet;
 } GameBgBandParameters;
 
-extern GameBgBandParameters GameBgDrawType2Param;
+GameBgBandParameters GameBgDrawType2Param = {0};
+
+IdLightSet GameIdLight[16] = {0};
 void GameBgDrawType2(void);
 
 struct GameBgBandTexture {

@@ -276,3 +276,9 @@ void Java_xeno_vm_System_methodSignal__I(JThread *thread, void *arguments,
         SCRIPT_methodClearSet();
     }
 }
+
+
+
+const char D_004DC090[6] = "%8.2f";
+
+static char tmpString[512];

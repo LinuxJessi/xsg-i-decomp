@@ -269,9 +269,8 @@ typedef struct WindowOwnerPrefix {
 } WindowOwnerPrefix;
 
 
-extern Vector4 vSample;
+static Vector4 vSample = { .x = 0.0f, .y = 0.0f, .z = 0.0f, .w = 1.0f };
 
-extern float D_004D7C94;
 
 typedef struct EwSpriteState {
     short flags;
@@ -622,7 +621,7 @@ void TW_setPos(TComponent *component)
     projected = (Vector4 *)0x70001680;
     ownerPosition = &owner->position;
     anchorPosition.x = ownerPosition->x;
-    anchorPosition.y = ownerPosition->y + D_004D7C94;
+    anchorPosition.y = ownerPosition->y + 1.6f;
     anchorPosition.z = ownerPosition->z;
     component->ownerPosition = ownerPosition;
     anchorPosition.w = 1.0f;
@@ -1161,6 +1160,11 @@ void TWIN_update2(TComponent *component)
     }
 }
 
+/* Font parameters installed before ordinary text and scene-window labels. */
+const char D_004C1C48[19] = "\r\002\016\002\003\030\030\030\017\000\000\200\014\200\200\200\031\003";
+
+const unsigned char D_004C1C60[26] = "\r\003\016\002\002\030\030\030\017\000\000\200\014\200\200\200\025\002\002\004\025\003\003\000\000";
+
 void TWIN_draw2(TComponent *component)
 {
     TWindow *window = (TWindow *)component;
@@ -1242,6 +1246,8 @@ void TWIN_draw2(TComponent *component)
     xglFontPrint(x, y, 0x00FFFFF0, window->textOutput);
     xglFontPrintDirectOT(0x00FFFFF0, D_004DA428);
 }
+
+const char D_004DA428[3] = "\031\000";
 
 void TWIN_drawScene2(TComponent *component)
 {

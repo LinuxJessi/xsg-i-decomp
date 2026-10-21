@@ -161,40 +161,13 @@ extern ActShadowRenderState sRender;
 
 extern void nmlModelDirectSend(int mode, u8 *data, int count);
 
-static ActShadowCommand Head_9 = {
-        .dma_tag = 0,
-        .vif_nop = 0,
-        .vif_direct = 0x51000009,
-        .gif_tag = {
-            GIF_TAG_NLOOP_1 | GIF_TAG_EOP,
-            GIF_TAG_NREG_8 | GIF_TAG_PRE | GIF_TAG_PRIM_SPRITE,
-            SHADOW_GIF_REGISTERS,
-            0
-        },
-        .set_gs_mode = { { .words = { 0x31000000, 1 } }, 0x4E, 0 },
-        .set_draw_environment = { { .value = 0x00071001 }, 0x47, 0 },
-        .set_clamp_1 = { { .value = GS_CLAMP_1_VALUE }, 0x08, 0 },
-        .set_color_control = { { .value = 0 }, 0x4C, 0 },
-        .base_color = { { .value = 0 }, 0, 0x80 },
-        .top_left = { 0x6FF8, 0, 0x71F7, 0, 0x00F00000, 0 },
-        .bottom_right = { 0x8FF8, 0, 0x8DF7, 0, 0x00F00000, 0 },
-        .set_shadow_context = { { .value = 0 }, 0x4C, 0 },
-};
-
-static ActShadowEndPacket Tail_10 = {
-    .dma_tag = 0,
-    .vif_nop = 0,
-    .vif_direct = 0x51000002,
-    .gif_tag = {
-        GIF_TAG_NLOOP_1 | GIF_TAG_EOP,
-        GIF_TAG_NREG_1,
-        GIF_REG_A_D,
-        0
-    },
-    .set_shadow_register = { { .value = 0x31000000 }, 0x4E, 0 },
-};
-
 typedef unsigned int ActShadowQuadword __attribute__((mode(TI)));
+
+/* Partial packet storage: each element is one native quadword. */
+typedef union {
+    u32 words[4];
+    ActShadowQuadword quad;
+} ActShadowPacketQuadword;
 
 /* DMA TTE carries DIRECT; its payload is one GIFtag and eight packed registers. */
 
@@ -426,6 +399,7 @@ typedef struct {
 } ActFootstepCollision;
 
 extern u8 *D_00478CCC[];
+static u8 *foot_tbl[6];
 
 extern float D_004D85C8;
 
@@ -569,14 +543,7 @@ typedef struct {
 
 /* Original aligned matrices at scratchpad +0x60 and +0xa0. */
 
-static u8 TestEnv_3_00478D80[0x30] = {
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x51,
-    0x01, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10,
-    0x0e, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x3f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-};
+
 
 
 
@@ -671,11 +638,11 @@ typedef struct {
 
 extern void xglMatrixRotY(Matrix4 destination, Matrix4 source, float angle);
 
-extern u8 Head_1[80];
+static ActShadowPacketQuadword Head_1[5];
 
-extern u8 Tail_2[48];
+static u32 Tail_2[12];
 
-extern u8 rgbaw_0[16];
+static u8 rgbaw_0[16];
 
 extern const float D_004D85F8;
 
@@ -716,23 +683,104 @@ typedef struct {
     DropShadowContactRecord *contacts;
 } DropShadowContactDefinition;
 
-extern DropShadowHeadPacket Head_4_00478DB0;
+static DropShadowHeadPacket Head_4_00478DB0;
 
-extern ActShadowEndPacket Tail_5;
+static ActShadowEndPacket Tail_5;
 
 extern DropShadowContactDefinition DropShadowDefineTable[10];
 
-extern DropShadowHeadPacket Head_6_00478E30;
+static DropShadowHeadPacket Head_6_00478E30;
 
-extern u8 TestEnv_7[48];
+static u32 TestEnv_7[12];
 
-extern ActShadowEndPacket Tail_8;
+static ActShadowEndPacket Tail_8;
 
 extern const DrawDropCircleIndexTable D_004D1DD8;
 
 extern const float D_004D8604;
 
 extern const float D_004D8608;
+
+/* Original DATA order; zero alignment is supplied by allocation metadata. */
+static u8 foot_sion[4] __attribute__((section(".data"))) = { 2, 16, 1, 12 };
+
+static u8 foot_kosmos[4] __attribute__((section(".data"))) = { 2, 16, 1, 12 };
+
+static u8 foot_chaos[4] __attribute__((section(".data"))) = { 2, 16, 1, 12 };
+
+static u8 foot_momo[4] __attribute__((section(".data"))) = { 2, 15, 1, 12 };
+
+static u8 foot_ziggy[4] __attribute__((section(".data"))) = { 2, 16, 1, 12 };
+
+static u8 foot_jr[4] __attribute__((section(".data"))) = { 2, 16, 1, 12 };
+
+static u8 * foot_tbl[6] = { foot_sion, foot_kosmos, foot_chaos, foot_momo, foot_ziggy, foot_jr };
+
+static u8 rgbaw_0[16] = { 2, 3, 1, 1, 1, 1, 1, 0, 2, 3, 1, 1, 1, 1, 1, 0 };
+
+static ActShadowPacketQuadword Head_1[5] = {
+    { .words = { 0x00000000U, 0x00000000U, 0x00000000U, 0x51000004U } },
+    { .words = { 0x00008001U, 0x30000000U, 0x00000eeeU, 0x00000000U } },
+    { .words = { 0x31000000U, 0x00000001U, 0x0000004eU, 0x00000000U } },
+    { .words = { 0x00053001U, 0x00000000U, 0x00000047U, 0x00000000U } },
+    { .words = { 0x00000044U, 0x00000000U, 0x00000042U, 0x00000000U } },
+};
+
+static u32 Tail_2[12] = { 0x00000000U, 0x00000000U, 0x00000000U, 0x51000002U, 0x00008001U, 0x10000000U, 0x0000000eU, 0x00000000U, 0x31000000U, 0x00000000U, 0x0000004eU, 0x00000000U };
+
+static u8 TestEnv_3_00478D80[0x30] = {
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x51,
+    0x01, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10,
+    0x0e, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x3f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+};
+
+static DropShadowHeadPacket Head_4_00478DB0 = { .dma_tag = 0ULL, .vif_nop = 0U, .vif_direct = 1358954500U, .gif_tag = { .control_low = 32769U, .control_high = 805306368U, .registers_low = 3822U, .registers_high = 0U }, .set_shadow_alpha = { .data = { .value = 0ULL }, .register_address = 66U, .unused = 0U }, .set_render_state = { .data = { .value = 0ULL }, .register_address = 6U, .unused = 0U }, .unused_command = { .data = { .value = 0ULL }, .register_address = 20U, .unused = 0U } };
+
+static ActShadowEndPacket Tail_5 = { .dma_tag = 0ULL, .vif_nop = 0U, .vif_direct = 1358954498U, .gif_tag = { .control_low = 32769U, .control_high = 268435456U, .registers_low = 14U, .registers_high = 0U }, .set_shadow_register = { .data = { .value = 0ULL }, .register_address = 76U, .unused = 0U } };
+
+static DropShadowHeadPacket Head_6_00478E30 = { .dma_tag = 0ULL, .vif_nop = 0U, .vif_direct = 1358954500U, .gif_tag = { .control_low = 32769U, .control_high = 805306368U, .registers_low = 3822U, .registers_high = 0U }, .set_shadow_alpha = { .data = { .value = 0ULL }, .register_address = 66U, .unused = 0U }, .set_render_state = { .data = { .value = 0ULL }, .register_address = 6U, .unused = 0U }, .unused_command = { .data = { .value = 0ULL }, .register_address = 20U, .unused = 0U } };
+
+static u32 TestEnv_7[12] = { 0x00000000U, 0x00000000U, 0x00000000U, 0x51000002U, 0x00008001U, 0x10000000U, 0x0000000eU, 0x00000000U, 0x00000000U, 0x00000000U, 0x0000003fU, 0x00000000U };
+
+static ActShadowEndPacket Tail_8 = { .dma_tag = 0ULL, .vif_nop = 0U, .vif_direct = 1358954498U, .gif_tag = { .control_low = 32769U, .control_high = 268435456U, .registers_low = 14U, .registers_high = 0U }, .set_shadow_register = { .data = { .value = 0ULL }, .register_address = 76U, .unused = 0U } };
+
+static ActShadowCommand Head_9 = {
+        .dma_tag = 0,
+        .vif_nop = 0,
+        .vif_direct = 0x51000009,
+        .gif_tag = {
+            GIF_TAG_NLOOP_1 | GIF_TAG_EOP,
+            GIF_TAG_NREG_8 | GIF_TAG_PRE | GIF_TAG_PRIM_SPRITE,
+            SHADOW_GIF_REGISTERS,
+            0
+        },
+        .set_gs_mode = { { .words = { 0x31000000, 1 } }, 0x4E, 0 },
+        .set_draw_environment = { { .value = 0x00071001 }, 0x47, 0 },
+        .set_clamp_1 = { { .value = GS_CLAMP_1_VALUE }, 0x08, 0 },
+        .set_color_control = { { .value = 0 }, 0x4C, 0 },
+        .base_color = { { .value = 0 }, 0, 0x80 },
+        .top_left = { 0x6FF8, 0, 0x71F7, 0, 0x00F00000, 0 },
+        .bottom_right = { 0x8FF8, 0, 0x8DF7, 0, 0x00F00000, 0 },
+        .set_shadow_context = { { .value = 0 }, 0x4C, 0 },
+};
+
+static ActShadowEndPacket Tail_10 = {
+    .dma_tag = 0,
+    .vif_nop = 0,
+    .vif_direct = 0x51000002,
+    .gif_tag = {
+        GIF_TAG_NLOOP_1 | GIF_TAG_EOP,
+        GIF_TAG_NREG_1,
+        GIF_REG_A_D,
+        0
+    },
+    .set_shadow_register = { { .value = 0x31000000 }, 0x4E, 0 },
+};
+
+const DrawDropCircleIndexTable D_004D1DD8 = { .quad_indices = { { 4, 0, 1, 6 }, { 1, 6, 7, 2 }, { 7, 2, 3, 5 }, { 12, 9, 8, 15 }, { 8, 15, 14, 11 }, { 14, 11, 10, 13 }, { 0, 4, 8, 12 }, { 4, 1, 12, 9 }, { 1, 7, 9, 15 }, { 7, 3, 15, 11 }, { 3, 5, 11, 13 }, { 5, 2, 13, 10 }, { 2, 6, 10, 14 }, { 6, 0, 14, 8 } } };
 
 static void Footstep(ActShadowActor *actor)
 {
@@ -895,7 +943,7 @@ static void DrawCircleShadow(void *actor_pointer)
             }
         }
     }
-    nmlModelDirectSend(1, Head_1, 5);
+    nmlModelDirectSend(1, (u8 *)Head_1, 5);
     flags = rgbaw_0;
     scratchpad->packet.vif_command = 0x5100001100000000ULL;
     scratchpad->packet.gif_control = 0x0026c00000008001ULL;
@@ -920,7 +968,7 @@ static void DrawCircleShadow(void *actor_pointer)
         }
         nmlModelDirectSend(1, (u8 *)&scratchpad->packet, 18);
     }
-    nmlModelDirectSend(1, Tail_2, 3);
+    nmlModelDirectSend(1, (u8 *)Tail_2, 3);
 }
 
 static void DrawZeldaShadowSub(ActShadowScratchpad *scratchpad,
@@ -1656,7 +1704,7 @@ static void DrawDropCircle(ActShadowActor *actor)
         if (DrawDropShadowSubChk(work, &indices.quad_indices[0][0], 0, 14)) {
             /* Retain the immutable helper interfaces pending header composition. */
             DrawDropShadowSubBack((void *)work, 14, 0);
-            nmlModelDirectSend(2, TestEnv_7, 3);
+            nmlModelDirectSend(2, (u8 *)TestEnv_7, 3);
             DrawDropShadowSubFront((void *)work, 14);
             DrawDropShadowSubBack((void *)work, 14, 128);
             Tail_8.set_shadow_register.data.value = (u64)sRender.shadow_state | 0x80000;
@@ -1730,3 +1778,14 @@ void ACT_DrawShadow(ActDrawShadowActor *actor)
 void ACT_DrawShadowInit(void)
 {
 }
+
+/* Explicit scalar literals retained at the original compiler-mapped locations. */
+float D_004D85C8 = 0.033333335071802139f;
+
+float D_004D85F4 = 0.15000000596046448f;
+
+const float D_004D85F8 = 0.0099999997764825821f;
+
+const float D_004D8604 = 0.69999998807907104f;
+
+const float D_004D8608 = 0.20000000298023224f;

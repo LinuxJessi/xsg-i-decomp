@@ -12,7 +12,12 @@ struct CalcUnitParam {
     short maxEp;                /* +0x02: calcEp's clamp ceiling */
     unsigned char unmodeled_04[0x0C - 0x04];
     unsigned char hitStat;      /* +0x0C: calcHitParaGet's own signed view */
-    unsigned char unmodeled_0d[0x0E - 0x0D];
+    /*
+     * +0x0D: calcHitRate (this TU, 0x00a13010) loads the target's byte with
+     * `lbu $3,0xD($2)` and reinterprets it as signed (`sll $18,$3,24`/
+     * `sra $16,$18,24`) as the evasion term it subtracts from the hit rate.
+     */
+    unsigned char evadeStat;
     signed char agility;       /* +0x0E: calcWct's wait-count formula */
     signed char moveKindId;    /* +0x0F: unitCmdMove compares it with 4 */
     /*
@@ -50,7 +55,8 @@ struct CalcUnitParam {
     unsigned char unmodeled_54[0x5E - 0x54];
     short weaponId[3];       /* +0x5E: per-slot weapon ids */
     short accessoryId[3];    /* +0x64: calcMagDefGet's per-slot item ids */
-    unsigned char unmodeled_6a[0x70 - 0x6A];
+    short attachmentId[3];   /* +0x6A: calcWpnEnableChk's `lh $3,0x6A($3)`,
+                              * mirroring CalcCharParaData's attachmentId */
     short wpnSlotValue[3];   /* +0x70: calcDblActChk, per weapon slot */
     short normalTechniqueId[CALC_NORMAL_TECHNIQUE_COUNT]; /* +0x76 */
     short slotTechniqueId[2];   /* +0x82: calcSlotAChk's own pair, right
@@ -84,5 +90,13 @@ typedef struct BattleActor {
     unsigned char unmodeled_0c[0x84 - 0x0C];
     struct CalcUnitParam *up; /* +0x84 */
 } BattleActor;
+
+/*
+ * Writes every unit's HP/EP back to its persistent origin record, and the
+ * linked unit's through calcTotalParaMenuSub's fake-unit pattern; a unit
+ * carrying CalcUnitParam flag 0x40 hands its own currentEp to the linked
+ * unit first.
+ */
+void calcPara2Org(void);
 
 #endif /* INCLUDE_OV01_CALC_H */

@@ -30,7 +30,19 @@
 
 #define D_004D8018 0.01f
 
+EnemyVector4 EnemyTarget = { .vector = { .x = 0.0f, .y = 0.0f, .z = 0.0f, .w = 0.0f } };
+
 EnemyWorkEntry enepc[16] = {{0}};
+
+const char D_004DB7F8[5] = "\314\334\267\342";
+
+const char D_004DB800[5] = "\276\345\312\252";
+
+const char D_004DB808[5] = "\277\267\265\254";
+
+const char D_004DB810[5] = "\304\276\277\312";
+
+const char D_004DB818[5] = "\304\311\262\303";
 
 static unsigned short CoolDown_0 = 0;
 
@@ -47,6 +59,17 @@ void *AdrsEnemyQuestion = 0;
 void *AdrsEnemySphere = 0;
 
 void *AdrsEnemySquare = 0;
+
+EnemyPreset * AdrsEnemy = 0;
+
+/* Partial representation of the original two-byte object. No original consumer
+ * establishes its signedness or semantic type; this scalar preserves zero bits. */
+u16 MostNearActor = 0;
+
+/* Partial representation of the original four-byte object. Its semantic type
+ * remains unknown; no numeric, floating-point or pointer interpretation is claimed. */
+u32 MostNear = 0;
+
 
 /* Distance thresholds and retreat speeds used by the two look-back paths.
  * The original has no named objects for them: cc1 emits each use as an
@@ -94,6 +117,8 @@ int Get_EffectCode(int attr)
     }
     return -1;
 }
+
+const char D_004CAB00[11] = "Final_init";
 
 void Enemy_Init(EnemyActor *self)
 {
@@ -827,6 +852,18 @@ void Enemy_Unique(EnemyActor *actor)
         }
     }
 }
+
+const char D_004CAB48[20] = "%3d AnimTime  = %8f";
+
+const char D_004CAB60[20] = "%3d AnimStart = %8f";
+
+const char D_004CAB78[20] = "%3d AnimFinal = %8f";
+
+const char D_004CAB90[20] = "%3d AnimSped  = %8f";
+
+const char D_004CABA8[20] = "%3d AnimNumb  = %3d";
+
+const char D_004CABC0[20] = "%3d Hokan     = %8f";
 
 void ACT_updateEnemy(EnemyActor *self)
 {

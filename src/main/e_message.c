@@ -114,11 +114,23 @@ typedef struct EMessageSprite {
     unsigned char colorize;
 } EMessageSprite;
 
-extern unsigned char moji[];
+/* Font command/text output buffer, ending where msg_spr begins. */
+static unsigned char moji[4096];
 
-extern unsigned char otb[];
+/* Font command defaults copied by eMessageDrawType01. */
+static unsigned char otb[28] = {
+    11,
+    12, 128, 128, 128,      /* RGB channels, scaled by message color. */
+    13, 2,
+    14, 2, 2, 0, 0, 0,
+    15, 68, 0, 127,        /* The last parameter is scaled by message alpha. */
+    24, 0,
+    25, 3,                /* Proportional font width mode. */
+    21, 2, 1, 12,
+    0, 0, 0
+};
 
-extern EMessageSprite msg_spr[];
+static EMessageSprite msg_spr[16];
 
 int xglFontGetStringWidth(const char *text);
 
@@ -778,3 +790,4 @@ void eMessageCat(char *src)
         MessageCpyEnd = dst;
     }
 }
+

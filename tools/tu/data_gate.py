@@ -964,14 +964,36 @@ def linked_storage_proof(root, entry, record, packet, packet_tu, object_elf, ass
         require(mapped_range and mapped_range[0] <= owner_va < owner_end <= mapped_range[1],
                 entry['tu'] + '/' + owner_name + ': C storage extent is outside the original TU section map')
         original_identities = [s for s in original_elf.symbols
-                               if s.shndx not in (0, 0xfff1) and s.value == owner_va
+                               if 0 < s.shndx < len(original_elf.sections)
+                               and original_elf.sections[s.shndx].name == section
+                               and s.type not in (3, 4) and s.value == owner_va
                                and mapped_range[0] <= s.value < mapped_range[1]]
+        if original_identities or any(item.get('original_symbol_size') is not None
+                                      for item in owner_map):
+            # A linker boundary can share a zero-size local's address. Resolve
+            # the frozen registered name; address equality alone is no identity.
+            registered = [s for s in original_identities if s.name == owner_map_name]
+            if not registered:
+                require('map_name' not in owner,
+                        entry['tu'] + '/' + owner_name + ': explicit original storage map name is missing')
+                map_names = {name for item in owner_map for name in item.get('names', [])}
+                registered = [s for s in original_identities if s.name in map_names]
+            require(len(registered) == 1,
+                    entry['tu'] + '/' + owner_name + ': no unique original registered storage identity')
+            # Every genuine positive OBJECT at this address keeps its existing
+            # binding/type/extent guard, including aliases of the selected name.
+            original_identities = [s for s in original_identities
+                                   if (s.type == 1 and s.size > 0) or s is registered[0]]
         for original_symbol in original_identities:
             if original_symbol.type == 1 and original_symbol.size > 0:
                 require((symbol.bind, symbol.type, size) ==
                         (original_symbol.bind, original_symbol.type, original_symbol.size),
                         entry['tu'] + '/' + owner_name + ': C storage binding/type/size differs from meaningful original OBJECT at the same address (' + original_symbol.name + ')')
             else:
+                if exact_local_space_extent:
+                    require((original_symbol.type, original_symbol.size) ==
+                            (symbol.type, symbol.size),
+                            entry['tu'] + '/' + owner_name + ': C storage label type/size differs from original registered identity (' + original_symbol.name + ')')
                 require(symbol.bind == original_symbol.bind,
                         entry['tu'] + '/' + owner_name + ': C storage binding differs from original zero-size symbol at the same address (' + original_symbol.name + ')')
         item_size = original.get('original_symbol_size')
@@ -2688,6 +2710,123 @@ def uncredited_inline_asm_data_dependency(entry, record, section, span, items,
 _REPRODUCED_CARVES = {}
 
 
+def uncredited_character_scaffold_suffix(ctx, data_carve, section, lo, cut, hi,
+                                         raw_path, selected_path, linked_path,
+                                         source_path, assembly_path, preprocessed_path,
+                                         registry_path, semantic_proposal=None, tu_id=None):
+    """Transport a real literal-prefix C object and its unknown scaffold suffix.
+
+    This proves current physical ownership and byte preservation. It does not
+    establish original array capacity, alignment, consumer semantics or source
+    admission; the independent partial-view review remains required.
+    """
+    if not lo < cut < hi:
+        return None
+    items = [item for item in data_carve.section_items(ctx, section)
+             if item['start'] == lo and item['end'] == hi]
+    if len(items) != 1 or len(items[0].get('labels') or []) != 1:
+        return None
+    item, name = items[0], items[0]['name']
+    paths = dict(source=Path(source_path), preprocessed=Path(preprocessed_path),
+                 assembly=Path(assembly_path), raw=Path(raw_path), selected=Path(selected_path),
+                 linked=Path(linked_path), original=Path(ctx['orig']), registry=Path(registry_path))
+    unit_dir = Path(ctx.get('unit_dir') or Path(raw_path).parents[2])
+    require(isinstance(tu_id,str) and tu_id.startswith('main/'),
+            name+': suffix requires an explicit actual MAIN TU identity')
+    manifest_path = unit_dir/'tu-manifest.json'
+    require(manifest_path.is_file(),name+': suffix lacks current TU manifest')
+    manifest = json.loads(manifest_path.read_bytes())
+    tus = [t for t in manifest.get('tus',[]) if t.get('id') == tu_id and t.get('name') == ctx['name']]
+    require(len(tus) == 1,name+': suffix TU identity differs from original context')
+    tu = tus[0]
+    source_relative = (tu.get('source') or {}).get('path') or tu.get('path')
+    require(isinstance(source_relative,str) and
+            (unit_dir.parents[1]/source_relative).resolve() == paths['source'].resolve(),
+            name+': suffix source belongs to a different TU')
+    paths['unit_manifest'] = manifest_path
+    require(all(path.is_file() for path in paths.values()), name+': suffix lacks actual current file chain')
+    source = paths['source'].read_text(errors='surrogateescape')
+    import tu_edit
+    tu, (declaration, tokens, payload) = data_carve._character_definition(source, name,allow_initializer_references=True)
+    require(len(payload) == cut-lo, name+': suffix does not start at complete typed literal bound')
+    pp = tu_audit.Preprocessed(paths['preprocessed'].read_text(errors='surrogateescape'))
+    _, (predecl, pretokens, prebytes) = data_carve._character_definition(pp.text, name,allow_initializer_references=True)
+    origin, line = pp.attribute(predecl.start)
+    origin_path = Path(origin or '')
+    if not origin_path.is_absolute():
+        origin_path = unit_dir/origin_path
+    require(tokens == pretokens and payload == prebytes and
+            origin_path.resolve() == paths['source'].resolve() and
+            tu_edit.line_of(source, declaration.start) <= line <= tu_edit.line_of(source, declaration.end),
+            name+': suffix CPP declaration/origin differs')
+    assembly = paths['assembly'].read_text(errors='surrogateescape')
+    compiler_only_section(assembly, pp.text, unit_dir, section)
+    require(not any(name in tu_edit.c_tokens(row) for row in tu_audit.asm_statement_lines(source)),
+            name+': authored ASM supplies suffix owner')
+    require(data_carve._character_compiler_bytes(assembly,name,len(payload),section) == payload,
+            name+': suffix cc1 bytes differ from initializer')
+    raw, selected, linked, original = [Elf(paths[k].read_bytes()) for k in ('raw','selected','linked','original')]
+    owners = [s for s in raw.symbols if s.name == name and s.type == 1 and s.size == cut-lo
+              and s.bind in (0,1) and 0 < s.shndx < len(raw.sections)]
+    require(len(owners) == 1, name+': suffix lacks exact current raw character OBJECT')
+    owner = owners[0]
+    rawsec = raw.sections[owner.shndx]
+    require(rawsec.name == section and rawsec.type == 1 and rawsec.flags & 2 and
+            raw.section_bytes(rawsec)[owner.value:owner.value+owner.size] == payload,
+            name+': suffix raw section/bytes differ')
+    registry = json.loads(paths['registry'].read_bytes())
+    registered = [part for run in registry.get('tus',{}).get(tu_id,{}).get(section,[])
+                  for part in run.get('c_input_spans',[]) if part.get('symbols') == [name] and
+                  list(map(data_carve.hx,part.get('range',[]))) == [lo,cut] and
+                  part.get('object_range') == [owner.value,owner.value+owner.size] and
+                  data_carve.base_section_name(part.get('section','')) == section]
+    require(len(registered) == 1, name+': suffix lacks unique actual registry prefix mapping')
+    require(not any(s.type == 1 and s.size > 0 and 0 < s.shndx < len(original.sections) and
+                    s.value < hi and lo < s.value+s.size for s in original.symbols),
+            name+': unknown suffix overlaps positive original OBJECT')
+    require(not any(s.name and s.type not in (3,4) and 0 < s.shndx < len(original.sections) and
+                    lo < s.value < hi for s in original.symbols),
+            name+': unknown suffix contains original interior identity')
+    require(not any(s.index != owner.index and s.shndx == rawsec.index and s.type == 1 and s.size and
+                    s.value < owner.value+owner.size and owner.value < s.value+s.size for s in raw.symbols),
+            name+': suffix owner overlaps another raw OBJECT')
+    require(not any(owner.value < at+4 and at < owner.value+owner.size for at,_,_ in
+                    data_carve.read_relocations(raw).get(rawsec.index,[])),
+            name+': literal owner has a genuine payload relocation')
+    for elf, linked_coordinates in [(selected,False),(linked,True)]:
+        matches = [s for s in elf.symbols if s.name == name and (s.type,s.size,s.bind) ==
+                   (owner.type,owner.size,owner.bind) and 0 < s.shndx < len(elf.sections) and
+                   (not linked_coordinates or s.value == lo)]
+        require(len(matches) == 1, name+': selected/linked character identity differs')
+        symbol = matches[0]
+        sec = elf.sections[symbol.shndx]
+        offset = symbol.value-sec.addr if linked_coordinates else symbol.value
+        require(elf.section_bytes(sec)[offset:offset+owner.size] == payload,
+                name+': selected/linked character bytes differ')
+    require(data_carve.va_bytes(original,lo,cut-lo) == payload and
+            data_carve.va_bytes(original,lo,hi-lo) == data_carve.va_bytes(linked,lo,hi-lo),
+            name+': original/prefix/full linked physical bytes differ')
+    proposal = None
+    if semantic_proposal is not None:
+        path = Path(semantic_proposal.get('path',''))
+        require(path.is_file() and sha(path) == semantic_proposal.get('sha256'),
+                name+': stale source semantic proposal pin')
+        doc = json.loads(path.read_bytes())
+        records = [r for r in doc.get('partial_view_record_drafts',[]) if r.get('name') == name and
+                   r.get('semantic_range') == [lo,cut] and r.get('original_physical_slot') == [lo,hi] and
+                   r.get('unknown_ranges') == [[cut,hi]] and r.get('unknown_credited_bytes') == 0]
+        require(len(records) == 1, name+': source semantic proposal does not bind physical prefix/suffix')
+        proposal = dict(semantic_proposal, record_name=name, independently_admitted=False)
+    return dict(kind='uncredited_scaffold_suffix', disposition='uncredited_scaffold_suffix', credited=False,
+                tu=tu_id, section=section, owner=name, range=[cut,hi], compiler_range=[lo,cut],
+                original_item_range=[lo,hi], input_section=section, input_offset=owner.value,
+                prefix_sha256=hashlib.sha256(payload).hexdigest(),
+                suffix_sha256=hashlib.sha256(data_carve.va_bytes(original,cut,hi-cut)).hexdigest(),
+                inputs={kind:dict(path=str(path),sha256=sha(path)) for kind,path in paths.items()},
+                source_semantic_proposal=proposal, original_capacity_proved=False,
+                alignment_proved=False, grants_source_eligibility=False, credited_bytes=0)
+
+
 def original_string_item_tail(ctx, data_carve, section, lo, cut, hi,
                               raw_elf, raw_section, offset, original_elf):
     """Prove an uncredited zero tail inside one original string item.
@@ -3039,6 +3178,7 @@ def exact_carved_section_plan(entry, section, spans, unit_dir, raw_path,
                                                 data_carve.section_items(ctx,section))
     for lo,hi in spans:
         item_tail = None
+        scaffold_suffix = None
         copied_padding = None
         matches=[p for p in pieces if int(p['va'],0)==lo and int(p['run_end'],0)==hi]
         require(len(matches)==1,entry['tu']+': carve sidecar has no unique run-to-VA mapping')
@@ -3083,7 +3223,15 @@ def exact_carved_section_plan(entry, section, spans, unit_dir, raw_path,
                     if padding != [(lo+owned_size,hi)]:
                         item_tail = original_string_item_tail(
                             ctx,data_carve,section,lo,lo+size,hi,raw_elf,rawsec,off,original_elf)
-                    require((padding==[(lo+owned_size,hi)] or item_tail is not None) and
+                        if item_tail is None and unit == 'main':
+                            root = unit_dir.parents[1]
+                            scaffold_suffix = uncredited_character_scaffold_suffix(
+                                ctx,data_carve,section,lo,lo+size,hi,raw_path,selected_path,linked_path,
+                                root/'src/main'/(ctx['name']+'.c'),Path(str(raw_path)+'.s'),
+                                Path(str(raw_path)+'.i'),data_carve.registry_input_path(root),
+                                (run.get('typed_character_prefix_proof') or {}).get('source_semantic_proposal'),
+                                tu_id=entry['tu'])
+                    require((padding==[(lo+owned_size,hi)] or item_tail is not None or scaffold_suffix is not None) and
                             data_carve.va_bytes(original_elf,lo+size,hi-lo-size)==bytes(hi-lo-size),
                             entry['tu']+': direct carve gap lacks exact original alignment-padding proof')
             else:
@@ -3105,6 +3253,7 @@ def exact_carved_section_plan(entry, section, spans, unit_dir, raw_path,
                            input_section=input_section,
                            selected_section=p['section'],selected_offset=0,
                            **({'uncredited_original_alignment_padding':copied_padding} if copied_padding else {}),
+                           **({'uncredited_scaffold_suffix':scaffold_suffix} if scaffold_suffix else {}),
                            **({'uncredited_original_item_tail':item_tail} if item_tail else {})))
     return dict(pieces=result)
 
@@ -3243,7 +3392,17 @@ def uncredited_linker_map_alias(root, entry, alias_section, alias, owner,
     # Interior linker names need not have their own frozen allocation row: the
     # packet may claim the enclosing C owner at its base, while the original
     # scaffold supplies an interior label. Keep this dependency zero-credit.
-    require(packet_items or (va > owner_va and packet_owner_items),
+    # A renamed LOCAL NOTYPE0 label can share that base. Its retail name must
+    # already be the exact original identity selected by the ordinary storage
+    # proof (including explicit map_name); the packet still names the C owner.
+    same_base_zero_identity = (
+        alias_section in ('.bss', '.sbss') and va == owner_va and
+        name != owner['name'] and len(packet_owner_items) == 1 and
+        owners[0]['bind'] == 0 and
+        [identity for identity in owners[0].get('original_identities', [])
+         if identity.get('name') == name] ==
+        [dict(name=name, binding=0, type=0, size=0)])
+    require(packet_items or (va > owner_va and packet_owner_items) or same_base_zero_identity,
             entry['tu']+'/'+name+': map-only alias and its owner are absent from frozen original packet')
     items=[x for x in data_carve.section_items(ctx,alias_section)
            if x['start']==va and name in (x.get('labels') or [])]
@@ -3343,10 +3502,38 @@ def uncredited_linker_map_alias(root, entry, alias_section, alias, owner,
         require(name not in original_references or consumer_relocations,
                 entry['tu']+'/'+name+': original alias consumer has no current relocation at the exact owner offset')
     linked_names=[s for s in linked_elf.symbols if s.name==name]
+    ignored_foreign_locals = []
+    if (same_base_zero_identity and
+            alias_identity_source == 'original_elf_zero_size_label_and_c_named_scaffold_item'):
+        # A different original TU can retain the same LOCAL spelling. Match
+        # that independent retail identity before excluding it from this
+        # address's dependency lookup; GLOBAL/undefined/changed identities
+        # and every same-VA symbol remain subject to the existing checks.
+        for symbol in linked_names:
+            if not (symbol.bind == 0 and symbol.value != va and
+                    0 < symbol.shndx < len(linked_elf.sections)):
+                continue
+            identities = [original for original in original_elf.symbols
+                          if original.name == name and original.value == symbol.value and
+                          (original.bind, original.type, original.size) ==
+                          (symbol.bind, symbol.type, symbol.size) and
+                          0 < original.shndx < len(original_elf.sections) and
+                          original_elf.sections[original.shndx].name ==
+                          linked_elf.sections[symbol.shndx].name]
+            if len(identities) == 1:
+                ignored_foreign_locals.append(symbol)
+        linked_names = [symbol for symbol in linked_names if symbol not in ignored_foreign_locals]
     if linked_names:
         require(len(linked_names)==1 and linked_names[0].value==va,
                 entry['tu']+'/'+name+': current linked image has conflicting map alias identity')
         final=linked_names[0]
+        if same_base_zero_identity:
+            require((final.bind, final.type, final.size) == (0, 0, 0) and
+                    0 < final.shndx < len(linked_elf.sections) and
+                    linked_elf.sections[final.shndx].name == alias_section and
+                    linked_elf.sections[final.shndx].type == 8 and
+                    linked_elf.sections[final.shndx].flags & 3 == 3,
+                    entry['tu']+'/'+name+': linked renamed zero-size alias identity differs')
         require(final.shndx not in (0,),
                 entry['tu']+'/'+name+': linked map alias is unresolved')
         linked_identity=dict(name=final.name,binding=final.bind,type=final.type,
@@ -3394,6 +3581,9 @@ def uncredited_linker_map_alias(root, entry, alias_section, alias, owner,
                 **({'consumer_relocations': consumer_relocations} if consumer_relocations else {}),
                 original_elf_sha256=sha(ctx['orig']),
                 linked_identity=linked_identity,linked_alias_status=alias_link_status,
+                **({'unrelated_original_local_identities': [
+                    dict(name=s.name, address=f'0x{s.value:08X}', binding=s.bind, type=s.type, size=s.size)
+                    for s in ignored_foreign_locals]} if ignored_foreign_locals else {}),
                 source_sha256=sha(source),assembly_sha256=sha(asm_path),
                 linked_elf_sha256=sha(linked_path),allocation_packet_sha256=sha(allocation_path),
                 owner_object_sha256=owners[0].get('object_sha256'))
@@ -4000,6 +4190,7 @@ def main():
             original_object_identities=[]
             storage_owner_aliases=[]
             original_item_tails=[]
+            scaffold_suffixes=[]
             original_alignment_padding=[]
             native_unsplit_sections=[]
             for section,runs in derived['runs'].items():
@@ -4100,6 +4291,8 @@ def main():
                         continue
                     if piece.get('uncredited_original_item_tail'):
                         original_item_tails.append(piece['uncredited_original_item_tail'])
+                    if piece.get('uncredited_scaffold_suffix'):
+                        scaffold_suffixes.append(piece['uncredited_scaffold_suffix'])
                     if piece.get('uncredited_original_alignment_padding'):
                         original_alignment_padding.append(piece['uncredited_original_alignment_padding'])
                     csec=next(s for s in raw_object_elf.sections
@@ -4591,6 +4784,7 @@ def main():
                                           verified_location_spans=verified_location_spans,
                                           storage_owner_aliases=storage_owner_aliases,
                                           uncredited_original_item_tails=original_item_tails,
+                                          uncredited_scaffold_suffixes=scaffold_suffixes,
                                           uncredited_original_alignment_padding=original_alignment_padding,
                                           native_unsplit_sections=native_unsplit_sections,
                                           original_object_identities=original_object_identities,

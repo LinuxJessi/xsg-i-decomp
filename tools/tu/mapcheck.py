@@ -34,6 +34,7 @@ import argparse
 import hashlib
 import json
 import re
+import struct
 import sys
 from pathlib import Path
 
@@ -153,6 +154,86 @@ def compiler_data_definitions(text):
     return {name: dict(section=sec, size=sizes[name], extent_kind='typed-object')
             for name, sec in labels.items() if name in types and name in sizes
             and sec in ('.data', '.sdata', '.rodata', '.lit4', '.lit8')}
+
+
+def initialized_zero_marker_identity(marker, section, original, compiler, raw_compiler,
+                                     linked, aliases, owner_proof, raw_path):
+    """Transport a zero-size local marker through one registered real owner.
+
+    The marker supplies no C storage or credit. Its coincident positive retail
+    OBJECT must already have the ordinary complete source/cc1/link proof, plus
+    identical unrelocated raw and linked bytes. No name is guessed here.
+    """
+    if (section not in ('.data', '.sdata', '.rodata', '.lit4', '.lit8')
+            or (marker.bind, marker.type, marker.size) != (0, 1, 0)
+            or not owner_proof or linked is None):
+        return None
+    originals = [s for s in original.symbols if 0 < s.shndx < len(original.sections)
+                 and original.sections[s.shndx].name == section and s.value == marker.value]
+    markers = [s for s in originals if (s.name, s.bind, s.type, s.size, s.other) ==
+               (marker.name, marker.bind, marker.type, marker.size, marker.other)]
+    owners = [s for s in originals if s.type == 1 and s.size > 0]
+    if len(markers) != 1 or len(owners) != 1:
+        return None
+    owner = owners[0]
+    records = [a for a in aliases if a.get('original_name') == owner.name
+               and int(a['address'], 16) == marker.value
+               and int((a.get('storage_owner') or {}).get('address', '0'), 16) == marker.value
+               and (a.get('storage_owner') or {}).get('size') == owner.size]
+    if len(records) != 1:
+        return None
+    name = records[0]['storage_owner']['name']
+    identity = (owner.bind, owner.type, owner.size, owner.other)
+    if (owner.bind != marker.bind or owner_proof.get('original_symbol') != owner.name
+            or int(owner_proof.get('original_address', '0'), 16) != owner.value
+            or int(owner_proof.get('c_address', '0'), 16) != owner.value
+            or owner_proof.get('c_symbol') != name
+            or (owner_proof.get('original_binding'), owner_proof.get('original_type'),
+                owner_proof.get('original_size'), owner_proof.get('original_visibility')) != identity
+            or (owner_proof.get('c_binding'), owner_proof.get('c_type'), owner_proof.get('c_size')) != identity[:3]):
+        return None
+    for path_key, hash_key in (('source_path', 'source_sha256'), ('assembly_path', 'assembly_sha256')):
+        path = Path(owner_proof.get(path_key) or '/nonexistent')
+        if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != owner_proof.get(hash_key):
+            return None
+    if hashlib.sha256(compiler.data).hexdigest() != owner_proof.get('c_object_sha256'):
+        return None
+    if not raw_path.is_file() or raw_path.read_bytes() != raw_compiler.data:
+        return None
+    emission = owner_proof.get('compiler_storage') or {}
+    if emission.get('extent_kind') != 'typed-object' or emission.get('size') != owner.size:
+        return None
+    if not (int(owner_proof.get('span_start', '0'), 16) <= owner.value <
+            owner.value+owner.size <= int(owner_proof.get('span_end', '0'), 16)):
+        return None
+    expected = original.section_bytes(original.sections[owner.shndx])[
+        owner.value-original.sections[owner.shndx].addr:owner.value-original.sections[owner.shndx].addr+owner.size]
+    for elf, final in ((compiler, False), (raw_compiler, False), (linked, True)):
+        matches = [s for s in elf.symbols if s.name == name and
+                   (s.bind, s.type, s.size, s.other) == identity
+                   and 0 < s.shndx < len(elf.sections)]
+        if len(matches) != 1 or any(s.name == marker.name for s in elf.symbols) and not final:
+            return None
+        symbol = matches[0]; sec = elf.sections[symbol.shndx]
+        if (sec.type != 1 or sec.name.split('.carve.', 1)[0] != section
+                or elf is compiler and sec.name != owner_proof.get('compiler_section')
+                or not final and emission.get('section') != sec.name.split('.carve.', 1)[0]
+                or final and symbol.value != owner.value):
+            return None
+        offset = symbol.value-sec.addr
+        if not 0 <= offset < offset+owner.size <= sec.size or elf.section_bytes(sec)[offset:offset+owner.size] != expected:
+            return None
+        if not final and any(r.type in (4, 9) and r.info == sec.index and any(
+                symbol.value <= struct.unpack_from('<I', elf.data, p)[0] < symbol.value+owner.size
+                for p in range(r.offset, r.offset+r.size, r.entsize)) for r in elf.sections):
+            return None
+    return dict(kind='zero_size_original_marker', original_symbol=marker.name,
+        original_address=f'0x{marker.value:08X}', original_binding=marker.bind,
+        original_type=marker.type, original_size=0, original_visibility=marker.other,
+        original_positive_owner=owner.name, owner_alias_record=records[0], owner_proof=owner_proof,
+        raw_compiler_object_path=str(raw_path), raw_compiler_object_sha256=hashlib.sha256(raw_compiler.data).hexdigest(),
+        complete_owner_bytes_sha256=hashlib.sha256(expected).hexdigest(),
+        original_raw_compiler_linked_owner_bytes_equal=True, new_storage_bytes=0, grants_data_recovery=False)
 
 
 def main():
@@ -553,6 +634,7 @@ def main():
         storage_symbols = {}  # cc1-proven local/global NOBITS identities -> exact input span
         transport_claims = {}  # verified named C inputs only; excludes support/scaffold runs
         storage_aliases = {}  # packet-backed original labels -> explicit C storage owner
+        storage_alias_rows = []
         c_owned = {".bss": set(), ".sbss": set()}
         for sec, pc in c_pieces(t):
             c_owned.setdefault(sec, set()).update(pc.get("c_owned_symbols", []))
@@ -569,6 +651,7 @@ def main():
                 csec = pc.get("c_section") or (".scommon" if sec == ".sbss" else sec)
                 owned[csec] = (sec, int(pc["start"], 16), int(pc["end"], 16))
             for alias in pc.get("c_storage_aliases", []):
+                storage_alias_rows.append(alias)
                 storage_aliases[alias["original_name"]] = alias
 
         def transported_data_identity(symbol, original_section):
@@ -727,6 +810,19 @@ def main():
                         proven_aliases.add(s.name)
                         tu_audit.setdefault('compiler_data_name_transport_proofs', []).append(transported)
                         continue
+                    if sec not in ('.bss', '.sbss') and (s.bind, s.type, s.size) == (0, 1, 0):
+                        original_owners = [o for o in osyms if o.shndx == s.shndx
+                                           and o.value == s.value and o.type == 1 and o.size > 0]
+                        raw_path = assembly_path.with_suffix('')
+                        owner_proof = (transported_data_identity(original_owners[0], sec)
+                                       if len(original_owners) == 1 else None)
+                        marker_proof = (initialized_zero_marker_identity(s, sec, orig, elf,
+                            Elf(raw_path.read_bytes()), linked, storage_alias_rows, owner_proof, raw_path)
+                            if raw_path.is_file() else None)
+                        if marker_proof:
+                            proven_aliases.add(s.name)
+                            tu_audit.setdefault('initialized_zero_marker_proofs', []).append(marker_proof)
+                            continue
                     alias = storage_aliases.get(s.name)
                     storage_owner = alias.get("storage_owner") if alias else None
                     owner_name = storage_owner.get("name") if storage_owner else None

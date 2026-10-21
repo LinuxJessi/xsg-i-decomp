@@ -2165,6 +2165,326 @@ def data_gate_row(args, tu_c):
     return row
 
 
+def data_owner_control_role(args, source, role, pins):
+    """Authenticate one ordinary DATA/control/ELF role without editing its rows."""
+    from types import SimpleNamespace
+    require = data_attribute_require
+    require(isinstance(pins,dict) and set(pins)=={'data','elf','manifest','control','candidates'},
+            'exact current-owner report role pins required')
+    paths={key:data_attribute_pin(pins[key]) for key in ('data','elf','manifest','control')}
+    if role=='primary':
+        for key,actual in (('data',args.data_gate_report),('elf',args.data_elf_gate_report),
+                           ('manifest',args.candidate_manifest)):
+            require(actual and paths[key]==Path(actual).resolve(),'primary owner role differs from ordinary audit inputs')
+    report=json.loads(paths['data'].read_text())
+    manifest=json.loads(paths['manifest'].read_text())
+    control=json.loads(paths['control'].read_text())
+    gate=json.loads(paths['elf'].read_text())
+    require(report.get('schema')=='linked-c-data-audit/2' and report.get('result')=='pass' and
+        report.get('grants_data_recovery') is True and report.get('grants_function_acceptance') is False and
+        not report.get('problems') and report.get('uncovered_storage_locations')==0 and
+        report.get('manifest_sha256')==pins['manifest']['sha256'] and
+        report.get('gate_sha256')==pins['elf']['sha256'] and
+        Path(report.get('allocation_control_path','/nonexistent')).resolve()==paths['control'] and
+        report.get('allocation_control_sha256')==pins['control']['sha256'],
+        'current-owner role lacks its exact passing normal DATA chain')
+    require(control.get('schema')=='data-recovery-allocation/1' and
+        args.unit in manifest.get('linked_targets',[]) and gate.get('schema')=='elf-gate/1' and
+        gate.get('result')=='pass','current-owner role has no passing unit ELF/control chain')
+    target=gate.get('targets',{}).get(args.unit) or {}
+    original,original_pin=original_elf(args.unit)
+    rebuilt=(Path(args.unit_dir)/'build'/(args.unit+'.bin')).resolve()
+    require(target.get('identical') is True and
+        (target.get('original') or {}).get('sha256')==original_pin['sha256'] and
+        (target.get('built') or {}).get('sha256')==original_pin['sha256'] and
+        Path((target.get('built') or {}).get('path','/nonexistent')).resolve()==rebuilt and
+        sha256_file(rebuilt)==original_pin['sha256'],
+        'current-owner role ELF is not the actual current whole-file-identical unit')
+    gate_manifest=gate.get('manifest') or {}
+    gate_manifest_path=ROOT/gate_manifest.get('path','/nonexistent')
+    require(gate_manifest_path.is_file() and sha256_file(gate_manifest_path)==gate_manifest.get('sha256'),
+            'current-owner ELF gate configuration is stale')
+    candidates=manifest.get('candidates')
+    require(isinstance(candidates,list) and isinstance(pins['candidates'],dict) and
+        len({c.get('tu') for c in candidates})==len(candidates) and
+        set(pins['candidates'])=={c.get('tu') for c in candidates},
+        'current-owner role requires the complete actual candidate collection')
+    expected_role='whole_current_C_ownership_revalidation'
+    if role=='secondary':
+        require(all(item.get('role')==expected_role and item.get('additional_recovery_credit') is False
+                    for item in (manifest,control)), 'secondary report is not zero-new-credit ownership revalidation')
+    records={}
+    for candidate in candidates:
+        path=data_attribute_pin(pins['candidates'][candidate['tu']],candidate['record'])
+        require(sha256_file(path)==candidate.get('sha256'),'owner candidate differs from normal manifest')
+        record=json.loads(path.read_text());records[candidate['tu']]=record
+        require(record.get('tu')==candidate['tu'] and record.get('unit')==args.unit and
+            record.get('allocation_task')==control.get('task_id'),'owner candidate TU/unit/control mismatch')
+        if role=='secondary':
+            require(record.get('role')==expected_role and record.get('additional_recovery_credit') is False,
+                    'secondary candidate has an unsupported role or recovery grant')
+        def identity(item):
+            return (item.get('unit'),item.get('tu',candidate['tu']),item.get('section'),
+                    item.get('address'),tuple(item.get('names',[])))
+        expected=[identity(item) for item in control.get('identities',[]) if item.get('tu')==candidate['tu']]
+        actual=[identity(item) for item in record.get('recovered_location_candidates',[])]
+        require(expected and len(expected)==len(set(expected)) and len(actual)==len(set(actual)) and
+            set(expected)==set(actual) and all(item[0]==args.unit and item[2] in
+                ('.rodata','.lit4','.lit8','.sdata','.data','.sbss','.bss') and item[4] for item in expected),
+            'owner candidate identities differ from its normal unit/section allocation control')
+    require(isinstance(control.get('tus'),list) and len(control['tus'])==len(records) and
+        set(control['tus'])==set(records) and
+        {item.get('tu') for item in control.get('identities',[])}==set(records),
+        'owner allocation control and candidate TU collections differ')
+    require(set(records)=={row.get('tu') for row in report.get('objects',[])} and
+        len(report.get('objects',[]))==len(records),'owner report/candidate TU collections differ')
+    if args.tu_id not in records:
+        require(role=='secondary','primary report omits the actual audited TU')
+        return None,None,dict(role=role,pins=pins,tu_present=False)
+    adjusted=SimpleNamespace(**vars(args))
+    adjusted.data_gate_report=str(paths['data']);adjusted.candidate_manifest=str(paths['manifest'])
+    adjusted.data_elf_gate_report=str(paths['elf'])
+    row=data_gate_row(adjusted,source)
+    require(row.get('allocation_packet_sha256')==pins['control']['sha256'],
+            'owner row is not bound to its normal allocation control')
+    return row,records[args.tu_id],dict(role=role,pins=pins,tu_present=True)
+
+
+def data_owner_native_common_storage(args,primary,secondary,item):
+    """Re-prove one mandatory native COMMON owner outside mapped TU carves."""
+    require=data_attribute_require
+    require(args and args.unit=='main' and item in primary.get('verified_storage',[]) and
+        item in secondary.get('verified_storage',[]) and item.get('section') in ('.bss','.sbss') and
+        item.get('type')=='OBJECT' and item.get('bind')==1 and item.get('linked') is True,
+        'outside-run storage is not an identical mandatory normal native COMMON owner')
+    name=item['name'];address=int(item['address'],16);size=item['size'];alignment=item['alignment']
+    require(type(size) is int and size>0 and type(alignment) is int and alignment>0 and
+        alignment&(alignment-1)==0 and address%alignment==0 and
+        item.get('original_identities')==[dict(name=name,binding=1,type=STT_OBJECT,size=size)],
+        'native COMMON requires one exact positive original GLOBAL OBJECT identity')
+    allocation=primary.get('compiler_allocation_proof') or {}
+    require(all((row.get('_audit_compiler_allocation') or {}).get('independent_native_reproduction') is True
+        for row in (primary,secondary)),'native COMMON roles were not independently reproduced')
+    raw_path=Path(args.obj).resolve();allocated_path=Path(allocation.get('allocated_object_path','/nonexistent')).resolve()
+    selected_path=Path(primary.get('_audit_linked_data_object','/nonexistent')).resolve()
+    require(Path(allocation.get('raw_object_path','/nonexistent')).resolve()==raw_path and
+        sha256_file(raw_path)==allocation.get('raw_object_sha256')==primary.get('object_sha256') and
+        sha256_file(allocated_path)==allocation.get('allocated_object_sha256')==primary.get('derivation_input_sha256') and
+        sha256_file(selected_path)==primary.get('linked_data_object_sha256')==item.get('object_sha256'),
+        'native COMMON actual raw/allocated/selected bytes differ from normal proof')
+    images=[RelObject(path.read_bytes()) for path in (raw_path,allocated_path,selected_path)]
+    symbols=[]
+    for image in images:
+        found=[symbol for symbol in image.symbols if symbol.get('name')==name and symbol.get('shndx')!=0]
+        require(len(found)==1 and found[0]['type']==STT_OBJECT and found[0]['binding']==1 and
+            found[0]['size']==size,'native COMMON compiler identity/extent mismatch')
+        symbols.append(found[0])
+    raw,allocated,selected=symbols
+    require(raw['shndx'] in (SHN_COMMON,SHN_MIPS_SCOMMON) and raw['value']==alignment,
+            'outside-run storage is not actual compiler COMMON with its evidenced alignment')
+    for image,symbol in zip(images[1:],symbols[1:]):
+        section=image.section(symbol['section'])
+        require(section and section['type']==8 and section['flags']&2 and
+            symbol['section']==item['section'] and symbol['value']+size<=section['size'],
+            'native COMMON allocation/selection is not complete NOBITS storage')
+    assembly_path=Path(args.build_s).resolve()
+    outside=re.sub(r'^\s*#APP\s*$.*?^\s*#NO_APP\s*$', '',assembly_path.read_text(),flags=re.M|re.S)
+    emissions=[comm for comm in AsmFile(outside).comms if comm['name']==name]
+    require(len(emissions)==1 and emissions[0]['kind']=='comm' and emissions[0]['size']==size and
+        emissions[0]['align']==alignment and sha256_file(assembly_path)==primary.get('assembly_sha256'),
+        'native COMMON lacks exact compiler .comm emission outside authored assembly')
+    source=Path(args.tu_c).resolve();preprocessed=assembly_path.with_suffix('.i')
+    require(sha256_file(source)==primary.get('source_sha256'),'native COMMON source pin drift')
+    source_tu=tu_edit.parse(source.read_text());pre=Preprocessed(preprocessed.read_text());pre_tu=tu_edit.parse(pre.text)
+    def definitions(parsed):
+        result=[]
+        for declaration in parsed.free_items():
+            tokens=tu_edit.c_tokens(declaration.text(parsed.text))
+            head=tokens[:tokens.index('=')] if '=' in tokens else tokens
+            if declaration.kind=='decl' and name in head and not any(token in tokens for token in
+                ('extern','typedef','asm','__asm','__asm__')) and '(' not in head[:head.index(name)]:
+                result.append(declaration)
+        return result
+    source_defs,pre_defs=definitions(source_tu),definitions(pre_tu)
+    require(len(source_defs)==len(pre_defs)==1,'native COMMON lacks unique actual C/CPP object definitions')
+    where,line=pre.attribute(pre_defs[0].start)
+    require(where and (Path(args.unit_dir)/where).resolve()==source and
+        tu_edit.line_of(source_tu.text,source_defs[0].start)<=line<=tu_edit.line_of(source_tu.text,source_defs[0].end),
+        'native COMMON CPP definition is not attributed to the current C source')
+    original,_original_pin=original_elf(args.unit)
+    from tools.inventory import ELF
+    linked_path=(Path(args.unit_dir)/'build'/(args.unit+'.rom.elf')).resolve()
+    require(sha256_file(linked_path)==primary.get('linked_elf_sha256'),'native COMMON linked ELF drift')
+    linked=ELF(linked_path.read_bytes(),args.unit)
+    for image in (original,linked):
+        found=[symbol for symbol in image.symbols if symbol.get('name')==name and
+            symbol.get('type')==STT_OBJECT and symbol.get('binding')==1 and symbol.get('size')==size and
+            int(symbol.get('va','0'),16)==address and symbol.get('section')==item['section']]
+        require(len(found)==1 and image.sections[found[0]['section_index']]['type']==8,
+                'native COMMON does not match the exact original/linked GLOBAL OBJECT')
+    mapping=item.get('allocated_carve_mapping') or {};common=mapping.get('common_allocation') or {}
+    require(mapping.get('kind')=='native-main-nobits-carve' and mapping.get('raw_section')==allocated['section'] and
+        mapping.get('raw_object_sha256')==allocation['allocated_object_sha256'] and
+        int(mapping.get('allocated_offset','-1'),0)==allocated['value'] and
+        mapping.get('carved_section')==selected['section'] and int(mapping.get('carved_offset','-1'),0)==selected['value'] and
+        int(mapping.get('address','-1'),0)==address and mapping.get('size')==size and
+        Path(common.get('compiler_object','/nonexistent')).resolve()==raw_path and
+        common.get('compiler_object_sha256')==allocation['raw_object_sha256'] and
+        common.get('compiler_assembly_sha256')==primary['assembly_sha256'] and common.get('alignment')==alignment,
+        'native COMMON allocated/carved mapping or compiler provenance differs')
+    carve_path=data_attribute_pin(dict(path=mapping.get('carve_map'),sha256=mapping.get('carve_map_sha256')))
+    carve=json.loads(carve_path.read_text());piece=mapping.get('piece') or {}
+    require(carve.get('tu')==args.tu_id and
+        (Path(args.unit_dir)/carve.get('object','/nonexistent')).resolve()==allocated_path and
+        (Path(args.unit_dir)/carve.get('out','/nonexistent')).resolve()==selected_path and
+        piece in ((carve.get('sections',{}).get(allocated['section']) or {}).get('pieces',[])) and
+        piece.get('section')==selected['section'] and int(piece.get('offset','-1'),0)==allocated['value'] and
+        int(piece.get('length','-1'),0)==size and int(piece.get('va','-1'),0)==address and
+        int(piece.get('run_end','-1'),0)==address+size,
+        'native COMMON lacks its exact actual native carve-map piece')
+    return dict(name=name,address=hex(address),size=size,alignment=alignment,
+        original_identity=dict(name=name,binding=1,type=STT_OBJECT,size=size),
+        actual_raw_COMMON=raw,actual_allocated=allocated,actual_selected=selected,
+        carve_map=dict(path=str(carve_path),sha256=sha256_file(carve_path)),
+        compiler_comm_emission=emissions[0],independent_native_reproduction_both_roles=True,
+        additional_recovery_credit=False,grants_function_acceptance=False)
+
+
+def data_owner_control_union(primary, secondary, registered_runs, args=None):
+    """Combine proven ownership facts; different overlapping owners are refused."""
+    require=data_attribute_require
+    shared=('tu','source_sha256','object_sha256','compiler_raw_object_path','derivation_input_path',
+        'derivation_input_sha256','linked_data_object_sha256','linked_data_object_path','assembly_sha256',
+        'linked_elf_sha256','_audit_linked_data_object','_audit_compiler_allocation')
+    require(all(primary.get(key)==secondary.get(key) for key in shared),
+            'owner reports describe different source/compiler/allocation/selection/link contexts')
+    allocations=[row.get('compiler_allocation_proof') for row in (primary,secondary)]
+    require(bool(allocations[0])==bool(allocations[1]),'owner reports disagree on native COMMON allocation')
+    if allocations[0]:
+        require(all(allocations[0].get(key)==allocations[1].get(key) for key in
+            ('raw_object_path','raw_object_sha256','allocated_object_path','allocated_object_sha256',
+             'verification_sha256','linker_path','linker_sha256')),
+            'normal COMMON role reproductions disagree on actual input/output/tool bytes')
+    result=dict(primary)
+    lists=('verified_locations','verified_location_spans','verified_storage','symbol_aliases','storage_owner_aliases',
+        'anonymous_constants','uncredited_compiler_dependencies','uncredited_linker_dependencies',
+        'uncredited_original_item_tails','uncredited_scaffold_suffixes','uncredited_original_alignment_padding',
+        'natural_function_static_owner_aliases','original_object_identities','supplementary_allocations')
+    for key in lists:
+        values=[]
+        for item in list(primary.get(key,[]))+list(secondary.get(key,[])):
+            require(isinstance(item,dict),'unsupported ownership evidence row')
+            if item not in values:values.append(item)
+        result[key]=values
+    for key in ('compiler_owned_ranges',):
+        values={}
+        for row in (primary,secondary):
+            for section,ranges in row.get(key,{}).items():
+                for interval in ranges:
+                    require(isinstance(interval,list) and len(interval)==2 and
+                        all(type(v) is int for v in interval) and 0<=interval[0]<interval[1],
+                        'malformed compiler-owned interval')
+                    if interval not in values.setdefault(section,[]):values[section].append(interval)
+        result[key]=values
+    intervals=[];native_common=[]
+    for key in ('verified_location_spans','verified_storage'):
+        for item in result[key]:
+            if key=='verified_location_spans':
+                interval=item.get('range');section=item.get('section')
+            else:
+                address=int(item['address'],16);interval=[address,address+item['size']];section=item.get('section')
+            require(isinstance(interval,list) and len(interval)==2 and
+                all(type(v) is int for v in interval) and 0<=interval[0]<interval[1],
+                'malformed verified ownership extent')
+            require(not any(section==other_section and max(interval[0],other[0])<min(interval[1],other[1])
+                for other_section,other in intervals),'different or partially overlapping ownership evidence')
+            contained=any(int(run['range'][0],16)<=interval[0]<interval[1]<=int(run['range'][1],16)
+                          for run in registered_runs.get(section,[]))
+            if not contained:
+                require(key=='verified_storage','owner extent includes unregistered or unknown original scaffold storage')
+                native_common.append(data_owner_native_common_storage(args,primary,secondary,item))
+            intervals.append((section,interval))
+    # A normal report must never turn an unknown scaffold suffix into C storage.
+    tails=[]
+    for key in ('uncredited_original_item_tails','uncredited_scaffold_suffixes','uncredited_original_alignment_padding'):
+        for tail in result[key]:
+            interval=tail.get('range')
+            require(tail.get('credited') is False and isinstance(interval,list) and len(interval)==2,
+                    'unsupported or credited scaffold tail in owner evidence')
+            tails.append((tail.get('section'),interval))
+    for section,extent in intervals:
+        require(not any(section==tail_section and
+            max(extent[0],interval[0])<min(extent[1],interval[1]) for tail_section,interval in tails),
+            'ownership span swallows uncredited original scaffold storage')
+    # Interior storage aliases must still be proved by a real complete candidate.
+    # The secondary candidate is not synthesized or extended with primary names.
+    if result['storage_owner_aliases']:
+        require(not primary.get('storage_owner_aliases'),'unsupported split candidate provenance for storage aliases')
+        result['_audit_candidate_record']=secondary['_audit_candidate_record']
+    result['_audit_unclaimed_scaffold_runs_by_role']={
+        'primary':primary.get('unclaimed_scaffold_runs',[]),
+        'secondary':secondary.get('unclaimed_scaffold_runs',[])}
+    result['_audit_compiler_allocation_proofs_by_role']={
+        'primary':allocations[0],'secondary':allocations[1]}
+    result['_audit_native_common_storage']=native_common
+    result.pop('unclaimed_scaffold_runs',None)
+    return result
+
+
+def whole_ownership_data_row(args, source, primary):
+    """Optional zero-new-credit union, used only by normal ownership/byte checks."""
+    path=getattr(args,'data_owner_control_proof',None)
+    if not path:return primary,None
+    require=data_attribute_require
+    document=json.loads(Path(path).read_text())
+    require(isinstance(document,dict) and set(document)=={'schema','purpose','additional_recovery_credit',
+        'grants_function_acceptance','primary','secondary','contexts'} and
+        document.get('schema')=='data-owner-control-proof/1' and
+        document.get('purpose')=='current-owner-revalidation' and
+        document.get('additional_recovery_credit') is False and document.get('grants_function_acceptance') is False,
+        'unsupported current-owner proof envelope or grant')
+    require(primary is not None,'current-owner revalidation requires the primary normal DATA report')
+    first,first_candidate,first_receipt=data_owner_control_role(args,source,'primary',document['primary'])
+    second,second_candidate,second_receipt=data_owner_control_role(args,source,'secondary',document['secondary'])
+    require(first==primary,'caller primary row differs from the actual normal DATA report')
+    contexts=document['contexts']
+    candidate_tus=set(document['primary']['candidates'])|set(document['secondary']['candidates'])
+    require(isinstance(contexts,dict) and set(contexts)==candidate_tus and args.tu_id in contexts,
+            'owner envelope context collection differs from its complete normal candidates')
+    raw=Path(args.obj).resolve();assembly=Path(args.build_s).resolve()
+    expected=dict(source=Path(source).resolve(),preprocessed=assembly.with_suffix('.i'),assembly=assembly,raw=raw,
+        allocated=Path(first.get('derivation_input_path') or raw).resolve(),
+        selected=Path(first['_audit_linked_data_object']).resolve(),
+        linked=(Path(args.unit_dir)/'build'/(args.unit+'.rom.elf')).resolve(),
+        original=(ROOT/original_elf(args.unit)[1]['path']).resolve(),registry=ROOT/'config/tu/data-carves.json',
+        unit_manifest=Path(args.unit_dir)/'tu-manifest.json',config_tu_build=ROOT/'config/tu-build.json',
+        data_gate_tool=ROOT/'tools/tu/data_gate.py',data_carve_tool=ROOT/'tools/tu/data_carve.py')
+    pins=contexts[args.tu_id]
+    require(isinstance(pins,dict) and set(pins)==set(expected),'exact current-owner compiler/context pins required')
+    for key,actual in expected.items():data_attribute_pin(pins[key],actual)
+    # Actual CPP and configuration provenance is bound by the normal secondary
+    # candidate. Its source/raw/assembly/selected chain must equal the primary.
+    if second is not None:
+        candidate_files=second_candidate.get('files',{})
+        for key in ('source','preprocessed','assembly','raw','allocated','selected','linked','registry','unit_manifest',
+                    'config_tu_build','data_gate_tool','data_carve_tool'):
+            matches=[pin for pin in candidate_files.values() if isinstance(pin,dict) and
+                     Path(pin.get('path','/nonexistent')).resolve()==expected[key]]
+            if key in ('source','raw','allocated','assembly'):
+                matches += [pin for field in ('object','compiler_object','assembly')
+                            if isinstance((pin:=second_candidate.get(field)),dict) and
+                            Path(pin.get('path','/nonexistent')).resolve()==expected[key]]
+            require(matches and all(pin.get('sha256')==pins[key]['sha256'] for pin in matches),
+                    'owner context input lacks its actual normal candidate pin: '+key)
+    registry=json.loads(expected['registry'].read_text())
+    result=data_owner_control_union(first,second,(registry.get('tus') or {}).get(args.tu_id,{}),args) if second is not None else first
+    receipt=dict(schema='whole-current-owner-coverage/1',proof=dict(path=str(Path(path).resolve()),
+        sha256=sha256_file(path)),primary=first_receipt,secondary=second_receipt,context=pins,
+        verified_locations=len(result.get('verified_locations',[])),additional_recovery_credit=False,
+        primary_attribute_context_unchanged=True,grants_function_acceptance=False)
+    return result,receipt
+
+
 def compare_code_identity(raw_path, selected_path):
     """Require allocation/carving to preserve every compiler-emitted code identity."""
     raw = RelObject(Path(raw_path).read_bytes())
@@ -2938,6 +3258,176 @@ def uncredited_dependency_label(dep):
     return dep.get('scaffold_name')
 
 
+def initialized_zero_marker_review_task(connection, repository, task_id, expected_owner=None,
+                                      expected_sha256=None, supplied_pin=None):
+    """One actual sealed nongame mapcheck review under its assigned owner."""
+    import stat
+    require = data_attribute_require
+    require(isinstance(task_id,str) and bool(task_id),'zero-marker review task identity is required')
+    row = connection.execute('SELECT owner,status,artifact FROM tasks WHERE id=?',(task_id,)).fetchone()
+    registered = Path(row[2]) if row and row[2] else Path('/nonexistent')
+    if not registered.is_absolute(): registered = repository/registered
+    registered = registered.resolve()
+    require(row and row[0] and row[1] in ('submitted','done') and row[2] and
+            (expected_owner is None or row[0] == expected_owner) and connection.execute(
+                'SELECT 1 FROM resources WHERE task_id=? AND resource=?',
+                (task_id,'file:'+str(registered))).fetchone() is not None,
+            'zero-marker review queue owner/status/artifact/literal resource differs')
+    if supplied_pin is not None: data_attribute_pin(supplied_pin,registered)
+    require(registered.is_file() and not stat.S_IMODE(registered.stat().st_mode)&0o222 and
+            (expected_sha256 is None or sha256_file(registered) == expected_sha256),
+            'zero-marker independent review is not sealed approved bytes')
+    report = json.loads(registered.read_text())
+    require(report.get('schema') == 'independent-mapcheck-final-tool-review/1' and
+            report.get('task') == task_id and report.get('review_task') == task_id and
+            report.get('reviewer') == row[0] and report.get('verdict') == 'READY_TOOL' and
+            report.get('decision') == 'accept' and report.get('final_tool_acceptance') is True and
+            report.get('recovery_credit') == 0 and
+            report.get('game_source_function_or_DATA_acceptance') is False,
+            'zero-marker review lacks its actual assigned nongame tool verdict')
+    return dict(task_id=task_id,owner=row[0],artifact=str(registered),sha256=sha256_file(registered)),report
+
+
+def reviewed_initialized_zero_marker(args, section, original, spans, data_row, obj):
+    """One zero-byte original marker, never a new C datum or credited span."""
+    if (args is None or not getattr(args, 'data_zero_marker_proof', None) or
+            args.unit != 'main' or args.tu_id != 'main/tu116' or section != '.data' or
+            (original.get('name'), int(original.get('va', '0'), 16), original.get('binding'),
+             original.get('type'), original.get('size')) != ('force_to_data', 0x338600, 0, STT_OBJECT, 0)):
+        return None
+    import ast
+    import importlib.util
+    import sqlite3
+    import stat
+    document_path = Path(args.data_zero_marker_proof).resolve()
+    document = json.loads(document_path.read_text())
+    require = data_attribute_require
+    require(set(document) == {'schema','unit','tu','section','marker','positive_owner','positive','review',
+                              'additional_recovery_credit','grants_function_acceptance'} and
+            document['schema'] == 'data-zero-marker-proof/1' and
+            (document['unit'],document['tu'],document['section']) == ('main','main/tu116','.data') and
+            document['additional_recovery_credit'] is False and document['grants_function_acceptance'] is False,
+            'unsupported zero-marker proof scope or credit')
+    require(document['marker'] == dict(name='force_to_data',address='0x00338600',binding='LOCAL',type='OBJECT',size=0) and
+            document['positive_owner'] == dict(name='str.0',address='0x00338600',binding='LOCAL',type='OBJECT',size=12),
+            'zero-marker proof must bind the actual zero marker and positive owner')
+    review = document['review']
+    anchor_task = 'main-data100-identity-transport-final-review-20261020'
+    approved_review = '88e782a98613ec552764af8e53ac4b073a09620577909a6c52b75d569954930a'
+    require(set(review) == {'task_id','artifact'},'zero-marker review requires an actual task and artifact')
+    repository = data_attribute_canonical_root()
+    with sqlite3.connect('file:'+str(repository/'.work/queue.sqlite3')+'?mode=ro',uri=True) as connection:
+        anchor, anchor_report = initialized_zero_marker_review_task(connection,repository,anchor_task,
+            expected_owner='codex-main-data100-identity-transport-final-review',expected_sha256=approved_review)
+        actual, report = initialized_zero_marker_review_task(connection,repository,review.get('task_id'),
+            expected_owner=anchor['owner'],supplied_pin=review['artifact'])
+    # The fixed independently approved assignment establishes owner/domain
+    # authority only. The fresh actual report must attest its own current
+    # positive and ordinary mapcheck; the anchor never attests a new digest.
+    require(report.get('scope') == anchor_report.get('scope') and
+            report.get('callable') == anchor_report.get('callable') and
+            report.get('tool_snapshot',{}).get('sha256') == anchor_report.get('tool_snapshot',{}).get('sha256') and
+            report.get('parser_snapshot',{}).get('sha256') == anchor_report.get('parser_snapshot',{}).get('sha256'),
+            'fresh zero-marker review differs from the authenticated original marker domain/callable')
+    positive_path = data_attribute_pin(document['positive'])
+    require(not stat.S_IMODE(positive_path.stat().st_mode)&0o222 and
+            report.get('current_positive',{}).get('path') == str(positive_path) and
+            report.get('current_positive',{}).get('sha256') == sha256_file(positive_path),
+            'independent review does not attest this current zero-marker proof')
+    positive = json.loads(positive_path.read_text())
+    require(positive.get('schema') == 'current-initialized-zero-marker-positive/1' and
+            positive.get('API_equals_ordinary_proof') is True and positive.get('new_C_marker') is False and
+            positive.get('new_storage_bytes') == 0 and positive.get('grants_source_or_DATA_recovery') is False,
+            'invalid independent current zero-marker producer')
+    inputs = positive.get('input_pins') or {}
+    require(isinstance(inputs,dict) and 0 < len(inputs) <= 32, 'bounded actual marker input pins required')
+    for path, digest in inputs.items(): data_attribute_pin(dict(path=path,sha256=digest))
+    def current(path, digest=None):
+        path = Path(path).resolve()
+        require(str(path) in inputs and inputs[str(path)] == sha256_file(path) and
+                (digest is None or digest == inputs[str(path)]), 'zero-marker input differs from actual current context')
+        return path
+    source = current(args.tu_c,data_row.get('source_sha256'))
+    assembly_path = current(args.build_s,data_row.get('assembly_sha256'))
+    preprocessed_path = current(assembly_path.with_suffix('.i'))
+    raw_path = current(args.obj,data_row.get('object_sha256'))
+    selected_path = current(data_row.get('linked_data_object_path','/nonexistent'),
+                            data_row.get('linked_data_object_sha256'))
+    linked_path = current(Path(args.unit_dir)/'build/main.rom.elf',data_row.get('linked_elf_sha256'))
+    original_path = current(Path(args.unit_dir)/'orig/SLUS_204.69')
+    registry_path = current(ROOT/'config/tu/data-carves.json')
+    current(args.data_gate_report)
+    current(args.candidate_manifest)
+    current(Path(args.unit_dir)/'tu-manifest.carved.json')
+    require(hashlib.sha256(obj.data).hexdigest() == sha256_file(selected_path),
+            'zero-marker selected audit object differs')
+    tool_pin, parser_pin = positive.get('tool_snapshot'), positive.get('parser_snapshot')
+    tool_path, parser_path = data_attribute_pin(tool_pin), data_attribute_pin(parser_pin)
+    require(tool_pin == report.get('tool_snapshot') and parser_pin == report.get('parser_snapshot') and
+            tool_pin['sha256'] == 'e23c3bf674da31363a5f06f6e482f9d1ab2baf52f1fd166915820a446a46d616' and
+            parser_pin['sha256'] == 'a6385e9748bb85181af274136e9c75596af3a21fa0d20cae1a82ed1ccbb2097f' and
+            all(not stat.S_IMODE(path.stat().st_mode)&0o222 for path in (tool_path,parser_path)),
+            'zero-marker callable/parser is not the exact independently reviewed snapshot')
+    # Load only the exact approved parser and two unchanged pure function nodes;
+    # no mutable import origin can select a different Elf or mapcheck helper.
+    module_name = '_tu_zero_marker_elf_'+parser_pin['sha256']
+    spec = importlib.util.spec_from_file_location(module_name,parser_path)
+    parser = importlib.util.module_from_spec(spec);sys.modules[module_name] = parser;spec.loader.exec_module(parser)
+    tree = ast.parse(tool_path.read_text())
+    nodes = [node for node in tree.body if isinstance(node,ast.FunctionDef) and
+             node.name in ('compiler_data_definitions','initialized_zero_marker_identity')]
+    require(len(nodes) == 2,'zero-marker approved callable nodes missing')
+    namespace = dict(Path=Path,hashlib=hashlib,struct=struct,re=re,Elf=parser.Elf)
+    exec(compile(ast.Module(body=nodes,type_ignores=[]),str(tool_path),'exec'),namespace)
+    original_image, selected_image, raw_image, linked_image = [parser.Elf(path.read_bytes())
+        for path in (original_path,selected_path,raw_path,linked_path)]
+    markers = [s for s in original_image.symbols if s.name == 'force_to_data' and s.value == 0x338600 and
+               (s.bind,s.type,s.size,s.other) == (0,1,0,0) and 0 < s.shndx < len(original_image.sections) and
+               original_image.sections[s.shndx].name == '.data']
+    require(len(markers) == 1,'zero-marker actual original identity is not unique')
+    aliases = [alias for run in json.loads(registry_path.read_text()).get('tus',{}).get(args.tu_id,{}).get(section,[])
+               for alias in run.get('c_storage_aliases',[])]
+    expected = positive['current_proof'];owner_proof = expected['owner_proof']
+    owner_spans = [span for span in spans if int(span.get('address','0'),16) == 0x338600 and
+        span.get('length') == 12 and span.get('object_symbols') == ['str_0'] and
+        span.get('names') == ['str_0'] and span.get('c_object_section') == '.data' and
+        span.get('c_object_offset') == 0 and span.get('c_object_section_size') == 12 and
+        any(i.get('name') == 'str.0' and i.get('binding') == 'LOCAL' and i.get('type') == 'OBJECT' and
+            i.get('size') == 12 for i in span.get('original_identities',[])) and
+        any(i.get('name') == 'force_to_data' and i.get('binding') == 'LOCAL' and i.get('type') == 'OBJECT' and
+            i.get('size') == 0 for i in span.get('original_identities',[]))]
+    require(len(owner_spans) == 1 and expected.get('owner_alias_record') in aliases and
+            owner_proof.get('c_object_path') == str(selected_path), 'zero-marker lacks its actual normal positive span/alias')
+    ordinary_path = data_attribute_pin({k:report['ordinary_main_report'][k] for k in ('path','sha256')})
+    current(ordinary_path)
+    ordinary = json.loads(ordinary_path.read_text())
+    require(ordinary.get('ok') is True and ordinary.get('problems') == [] and
+            [p for p in ordinary.get('c_tu_audit',{}).get('game',{}).get('initialized_zero_marker_proofs',[])
+             if p.get('original_symbol') == 'force_to_data'] == [expected],
+            'zero-marker proof differs from the genuine passing ordinary mapcheck')
+    assembly = assembly_path.read_text();pre = Preprocessed(preprocessed_path.read_text())
+    tu = tu_edit.parse(source.read_text());pre_tu = tu_edit.parse(pre.text)
+    items = [item for item in tu.free_items() if item.kind == 'decl' and not item.conditional and
+             '=' in tu_edit.c_tokens(item.text(tu.text)) and ('ordinary','str_0') in tu_edit.decl_keys(item.text(tu.text))]
+    require(len(items) == 1,'zero-marker positive owner must have one actual source definition')
+    context = dict(pre_tu=pre_tu,pre=pre,unit_dir=Path(args.unit_dir),source=source)
+    data_attribute_declaration(context,tu,items[0],'str_0')
+    payload = original_image.section_bytes(original_image.sections[markers[0].shndx])[
+        markers[0].value-original_image.sections[markers[0].shndx].addr:markers[0].value-original_image.sections[markers[0].shndx].addr+12]
+    data_attribute_character_source(tu,items[0],'str_0',payload)
+    require(namespace['compiler_data_definitions'](assembly).get('str_0') == owner_proof.get('compiler_storage') and
+            not any(re.search(r'\b(?:str_0|force_to_data)\b',line) for text in (tu.text,pre.text)
+                    for line in asm_statement_lines(text)), 'zero-marker owner is not actual typed cc1 DATA')
+    actual = namespace['initialized_zero_marker_identity'](markers[0],section,original_image,selected_image,
+                raw_image,linked_image,aliases,owner_proof,raw_path)
+    require(actual == expected and actual.get('new_storage_bytes') == 0 and actual.get('grants_data_recovery') is False,
+            'zero-marker unchanged API does not reproduce exact independently reviewed proof')
+    return dict(name='force_to_data',address='0x00338600',size=0,positive_owner='str.0',c_owner='str_0',
+                kind='reviewed_initialized_zero_marker_identity',proof=actual,independent_review=review,
+                proof_document=dict(path=str(document_path),sha256=sha256_file(document_path)),
+                credited=False,credited_bytes=0,new_storage_bytes=0,grants_data_recovery=False)
+
+
 def linked_span_data_check(section, rng, elf, obj, data_row, args=None):
     """Check C data against the exact carved-object spans pinned by R22."""
     spans = [dict(span) for span in (data_row or {}).get('verified_location_spans', [])
@@ -3207,9 +3697,18 @@ def linked_span_data_check(section, rng, elf, obj, data_row, args=None):
         # symbol merely to account for that label.
         if not any(int(original['va'], 16) == address for original in originals):
             matched.update(span.get('names', []))
+    zero_markers = {}
+    for original in originals:
+        marker = reviewed_initialized_zero_marker(args,section,original,spans,data_row,obj)
+        if marker:
+            zero_markers[original['name']] = marker
     for original in originals:
         original_name = original['name']
         address = int(original['va'], 16)
+        if original_name in zero_markers:
+            accounted.add(original_name)
+            matched.add(original_name)
+            continue
         if original_name in empty_objects:
             accounted.add(original_name)
             matched.add(original_name)
@@ -3309,6 +3808,9 @@ def linked_span_data_check(section, rng, elf, obj, data_row, args=None):
     for empty in empty_objects.values():
         if empty['positive_owner'] not in accounted:
             reasons.append(f'{empty["name"]}: colocated positive owner did not pass its ordinary linked span checks')
+    for marker in zero_markers.values():
+        if not {marker['positive_owner'],marker['c_owner']} <= accounted:
+            reasons.append(f'{marker["name"]}: positive owner did not pass its unchanged ordinary linked span checks')
     expected_c_names = {name for item in (data_row or {}).get('verified_locations', [])
                         if item.get('section') == section and rng['lo'] <= int(item['address'], 16) < rng['hi']
                         for name in item.get('names', [])}
@@ -3324,6 +3826,7 @@ def linked_span_data_check(section, rng, elf, obj, data_row, args=None):
                              uncredited_dependencies=dependency_proofs,
                              alias_address_witnesses=alias_address_witnesses,
                              verified_empty_objects=list(empty_objects.values()),
+                             initialized_zero_marker_identities=list(zero_markers.values()),
                              detail='each claimed original identity is pinned to its exact selected-object span'), accounted
 
 
@@ -5019,7 +5522,10 @@ def _audit_body(args, result, checks, unit_dir, tu_c, tu_rel, contract, source_c
     try:
         data_row = data_gate_row(args, tu_c)
         validated_alignment_data_row = data_row
-        owned = c_owned_sections(args, contract, tu_record, data_row)
+        whole_ownership_row, owner_receipt = whole_ownership_data_row(args, tu_c, data_row)
+        owned = c_owned_sections(args, contract, tu_record, whole_ownership_row)
+        if owner_receipt:
+            result['current_owner_revalidation'] = owner_receipt
         data_obj = obj
         selected_data_path = (getattr(args, 'data_carve_object', None) or
                               getattr(args, 'data_gate_object', None))
@@ -5043,10 +5549,10 @@ def _audit_body(args, result, checks, unit_dir, tu_c, tu_rel, contract, source_c
             if section in CARVED_ANON and rng.get('source') == 'config/tu/data-carves.json':
                 rng['anon_bytes'] = carved_section_bytes(args, section, elf, data_obj)
             has_gate_spans = any(span.get('section') == section
-                                 for span in (data_row or {}).get('verified_location_spans', []))
+                                 for span in (whole_ownership_row or {}).get('verified_location_spans', []))
             if (selected_data_path and section not in ('.bss', '.sbss') and data_row is not None and
                     (rng.get('source') == 'config/tu/data-carves.json' or has_gate_spans)):
-                ok, detail, accounted = linked_span_data_check(section, rng, elf, data_obj, data_row, args)
+                ok, detail, accounted = linked_span_data_check(section, rng, elf, data_obj, whole_ownership_row, args)
             else:
                 ok, detail, accounted = data_section_check(section, rng, elf, obj, scaffold_names)
             owned_names |= accounted
@@ -5130,7 +5636,10 @@ def _audit_body(args, result, checks, unit_dir, tu_c, tu_rel, contract, source_c
     admission_items, deferred_attributes, verified_placements = matching_data_section_attributes(
         tu, rel(tu_c), obj, elf, required=getattr(args, 'require_data_audit', False),
         data_row=data_row if result['data_audit']['grants_data_recovery'] else None,
-        build_object=Path(args.obj) if args.obj else None)
+        build_object=Path(args.obj) if args.obj else None, audit_args=args,
+        verified_data_row=validated_alignment_data_row,
+        assembly=tu_s.read_text(encoding='utf-8', errors='surrogateescape'),
+        preprocessed=tu_i.read_text(encoding='utf-8', errors='replace'))
     if verified_placements:
         checks.add('verified_original_data_placement', True, evidence=verified_placements)
     hardware_items, hardware_alignment = verified_vu_data_alignment(
@@ -5530,13 +6039,1870 @@ def verified_original_packet_alignment(args, tu, tu_rel, obj, elf, data_row,
     return {item.start: item.text(tu.text).replace(attribute, ' ')}, [evidence]
 
 
-def matching_data_section_attributes(tu, tu_rel, obj, elf, required=False, data_row=None, build_object=None):
+def verified_data_attribute_context(args, tu, tu_rel, obj, elf, row, build_object,
+                                    assembly, preprocessed):
+    """Bind per-object placement admission to the current complete DATA chain.
+
+    This does not admit any function or header. The fresh audit's ordinary
+    object/assembly/source checks still apply, including every unrelated C
+    function. Only initialized positive OBJECT storage is considered here.
+    """
+    if not (args and row and build_object and assembly and preprocessed and
+            getattr(args, 'data_gate_report', None) and getattr(args, 'candidate_manifest', None) and
+            getattr(args, 'data_elf_gate_report', None) and
+            getattr(args, 'build_s', None) and getattr(args, 'obj', None)):
+        return None
+    try:
+        source, raw_path = Path(args.tu_c).resolve(), Path(args.obj).resolve()
+        unit_dir = Path(args.unit_dir).resolve()
+        if (source != (ROOT / tu_rel).resolve() or not source.is_relative_to(ROOT.resolve()) or
+                Path(build_object).resolve() != raw_path or not raw_path.is_relative_to(unit_dir) or
+                source.read_text(encoding='utf-8', errors='surrogateescape') != tu.text):
+            return None
+        report = json.loads(Path(args.data_gate_report).read_text())
+        elf_gate_path = Path(args.data_elf_gate_report).resolve()
+        elf_gate = json.loads(elf_gate_path.read_text())
+        if (report.get('schema') != 'linked-c-data-audit/2' or report.get('result') != 'pass' or
+                report.get('grants_data_recovery') is not True or report.get('problems') or
+                report.get('uncovered_storage_locations') != 0 or
+                report.get('gate_sha256') != sha256_file(elf_gate_path) or
+                elf_gate.get('schema') != 'elf-gate/1' or elf_gate.get('result') != 'pass'):
+            return None
+        # Re-read the actual gate chain; caller-supplied or amended row dictionaries
+        # cannot replace any fact in the passing report.
+        current = data_gate_row(args, source)
+        if not current or any(row.get(k) != v for k, v in current.items()):
+            return None
+        manifest_path = Path(args.candidate_manifest).resolve()
+        manifest = json.loads(manifest_path.read_text())
+        control_path = Path(report.get('allocation_control_path', '/nonexistent')).resolve()
+        if (args.unit not in manifest.get('linked_targets', []) or not control_path.is_file() or
+                sha256_file(control_path) != report.get('allocation_control_sha256') or
+                row.get('allocation_packet_sha256') != report.get('allocation_control_sha256')):
+            return None
+        control = json.loads(control_path.read_text())
+        candidate_pin = current.get('_audit_candidate_record') or {}
+        candidate_path = Path(candidate_pin.get('path', '/nonexistent')).resolve()
+        candidate = json.loads(candidate_path.read_text())
+        if (control.get('schema') != 'data-recovery-allocation/1' or args.tu_id not in control.get('tus', []) or
+                candidate.get('tu') != args.tu_id or candidate.get('unit') != args.unit or
+                candidate.get('allocation_task') != control.get('task_id')):
+            return None
+        assembly_path = Path(args.build_s).resolve()
+        preprocessed_path = assembly_path.with_suffix('.i')
+        selected_path = Path(current.get('_audit_linked_data_object', '/nonexistent')).resolve()
+        linked_path = unit_dir / 'build' / (args.unit + '.rom.elf')
+        hashes = dict(source_sha256=sha256_file(source), object_sha256=sha256_file(raw_path),
+                      assembly_sha256=sha256_file(assembly_path),
+                      linked_data_object_sha256=sha256_file(selected_path),
+                      linked_elf_sha256=sha256_file(linked_path))
+        if (any(row.get(k) != v for k, v in hashes.items()) or
+                Path(row.get('compiler_raw_object_path', '/nonexistent')).resolve() != raw_path or
+                preprocessed_path.read_text(encoding='utf-8', errors='replace') != preprocessed or
+                compare_assembly(assembly, assembly_path.read_text(encoding='utf-8', errors='surrogateescape'))):
+            return None
+        compiler_pin = candidate.get('compiler_object') if current.get('_audit_compiler_allocation') else candidate.get('object')
+        pins = [(candidate.get('files', {}).get(tu_rel), source),
+                (compiler_pin, raw_path), (candidate.get('assembly'), assembly_path)]
+        if any(not pin or Path(pin.get('path', '/nonexistent')).resolve() != path or
+               pin.get('sha256') != sha256_file(path) for pin, path in pins):
+            return None
+        original, original_pin = original_elf(args.unit)
+        target = elf_gate.get('targets', {}).get(args.unit) or {}
+        original_target, built_target = target.get('original') or {}, target.get('built') or {}
+        gate_manifest = elf_gate.get('manifest') or {}
+        if (elf.data != original.data or target.get('identical') is not True or
+                original_target.get('sha256') != original_pin['sha256'] or
+                built_target.get('sha256') != original_pin['sha256'] or
+                sha256_file(built_target.get('path', '/nonexistent')) != original_pin['sha256'] or
+                gate_manifest.get('sha256') != sha256_file(ROOT / gate_manifest.get('path', '/nonexistent'))):
+            return None
+        from tools.inventory import ELF
+        return dict(row=current, candidate=candidate, control=control, source=source,
+                    report=report, raw_path=raw_path, selected_path=selected_path,
+                    linked_path=linked_path, assembly_path=assembly_path,
+                    preprocessed_path=preprocessed_path,
+                    raw=RelObject(raw_path.read_bytes()), selected=RelObject(selected_path.read_bytes()),
+                    linked=ELF(linked_path.read_bytes(), args.unit), pre=Preprocessed(preprocessed),
+                    pre_tu=tu_edit.parse(preprocessed), assembly=assembly,
+                    hashes=dict(hashes, preprocessed_sha256=sha256_file(preprocessed_path),
+                                original_sha256=original_pin['sha256'],
+                                elf_gate_sha256=sha256_file(elf_gate_path),
+                                report_sha256=sha256_file(args.data_gate_report),
+                                manifest_sha256=sha256_file(manifest_path),
+                                candidate_sha256=sha256_file(candidate_path),
+                                allocation_control_sha256=sha256_file(control_path)), unit_dir=unit_dir)
+    except (AuditError, OSError, ValueError, KeyError, TypeError, tu_edit.ParseError):
+        return None
+
+
+def verified_data_attribute_object(context, args, tu, item, name, section, obj, elf):
+    """Prove one complete same-name positive original OBJECT, never a prefix."""
+    if context is None:
+        return None
+    try:
+        row, raw, selected = context['row'], context['raw'], context['selected']
+        text = item.text(tu.text)
+        token_text = tu_edit.c_tokens(text)
+        declarations = [i for i in context['pre_tu'].free_items() if i.kind == 'decl' and
+                        not i.conditional and tu_edit.c_tokens(i.text(context['pre'].text)) == token_text]
+        if len(declarations) != 1 or '=' not in token_text:
+            return None
+        where, line = context['pre'].attribute(declarations[0].start)
+        if (not where or (context['unit_dir'] / where).resolve() != context['source'] or
+                not tu_edit.line_of(tu.text, item.start) <= line <= tu_edit.line_of(tu.text, item.end)):
+            return None
+        # An attribute on a function declarator is never a DATA attribute.
+        stripped = re.sub(r'\b__attribute__?\s*\(\s*\(\s*section\s*\(\s*'
+                          r'"\.[a-z0-9]+"\s*\)\s*\)\s*\)', '', text)
+        before_initializer = tu_edit.c_tokens(stripped.split('=', 1)[0])
+        if any(t in before_initializer for t in ('(', ')', '*', 'typedef', 'extern')):
+            return None
+        originals = [s for s in elf.symbols if s['name'] == name]
+        symbols = [[s for s in image.symbols if s['name'] == name and s['shndx'] != 0]
+                   for image in (obj, raw, selected)]
+        if len(originals) != 1 or any(len(values) != 1 for values in symbols):
+            return None
+        original = originals[0]
+        after, raw_symbol, selected_symbol = [values[0] for values in symbols]
+        size, address = original['size'], int(original['va'], 16)
+        identity = lambda s: (s['type'], s['binding'], s['size'])
+        if (original['type'] != STT_OBJECT or not 0 < size <= 65536 or original.get('section') != section or
+                any(identity(s) != identity(original) for s in (after, raw_symbol, selected_symbol)) or
+                after['section'] != raw_symbol['section'] or after['value'] != raw_symbol['value'] or
+                raw_symbol['section'] != section):
+            return None
+        spans = [s for s in row.get('verified_location_spans', [])
+                 if name in s.get('names', []) or name in s.get('object_symbols', [])]
+        if len(spans) != 1:
+            return None
+        span = spans[0]
+        input_span = span.get('compiler_input_span') or {}
+        expected_identity = dict(name=name, address=f'0x{address:08X}',
+                                 binding={0:'LOCAL', 1:'GLOBAL'}.get(original['binding']),
+                                 type='OBJECT', size=size)
+        if (span.get('names') != [name] or span.get('object_symbols') != [name] or
+                span.get('section') != section or span.get('range') != [address, address + size] or
+                span.get('split_range') != [address, address + size] or
+                span.get('length') != size or int(span.get('address', '0'), 16) != address or
+                span.get('original_identities') != [expected_identity] or
+                span.get('object_sha256') != context['hashes']['linked_data_object_sha256'] or
+                span.get('support_only') or span.get('storage_only') or
+                span.get('credited') is False or span.get('storage_owner') or
+                input_span.get('section') != section or input_span.get('offset') != raw_symbol['value'] or
+                selected_symbol['section'] != span.get('c_object_section') or
+                selected_symbol['value'] != span.get('c_object_offset')):
+            return None
+        for locations in (row.get('verified_locations', []),
+                          context['candidate'].get('recovered_location_candidates', []),
+                          context['control'].get('identities', [])):
+            matches = [loc for loc in locations if loc.get('unit') == args.unit and
+                       loc.get('tu') == args.tu_id and loc.get('section') == section and
+                       int(loc.get('address', '0'), 16) == address and loc.get('names') == [name] and
+                       not loc.get('support_only') and not loc.get('storage_only') and
+                       loc.get('credited') is not False]
+            if len(matches) != 1:
+                return None
+        if not any(pair == [address, address + size]
+                   for pair in row.get('compiler_owned_ranges', {}).get(section, [])):
+            return None
+        raw_section, selected_section = raw.section(section), selected.section(selected_symbol['section'])
+        if (not raw_section or not selected_section or raw_section['type'] != 1 or selected_section['type'] != 1 or
+                raw_section['size'] != input_span.get('section_size') or
+                selected_section['size'] != span.get('c_object_section_size') or
+                selected_section['align'] != span.get('c_object_section_alignment')):
+            return None
+        linked = [s for s in context['linked'].symbols if s['name'] == name and
+                  int(s['va'], 16) == address and s.get('section') == section and identity(s) == identity(original)]
+        if len(linked) != 1:
+            return None
+        for image, symbol in ((raw, raw_symbol), (selected, selected_symbol)):
+            if any(sec == symbol['section'] and symbol['value'] <= off < symbol['value'] + size
+                   for sec, off, _kind, _name in image.relocations()):
+                return None
+        from tools.tu.data_gate import compiler_only_section
+        compiler_only_section(context['assembly'], context['pre'].text, context['unit_dir'], section)
+        outside = re.sub(r'^\s*#APP\s*$.*?^\s*#NO_APP\s*$', '', context['assembly'], flags=re.M | re.S)
+        if (len(re.findall(r'^\s*\.type\s+' + re.escape(name) + r'\s*,\s*@object\s*$', outside, re.M)) != 1 or
+                len(re.findall(r'^\s*\.size\s+' + re.escape(name) + r'\s*,\s*' + str(size) + r'\s*$', outside, re.M)) != 1 or
+                len(re.findall(r'^\s*' + re.escape(name) + r':\s*$', outside, re.M)) != 1 or
+                any(re.search(r'\b' + re.escape(name) + r'\b', line)
+                    for source in (tu.text, context['pre'].text) for line in asm_statement_lines(source))):
+            return None
+        original_bytes = elf.data[original['file_offset']:original['file_offset'] + size]
+        linked_symbol = linked[0]
+        linked_bytes = context['linked'].data[linked_symbol['file_offset']:linked_symbol['file_offset'] + size]
+        payloads = [image.bytes_of(image.section(symbol['section']))[symbol['value']:symbol['value'] + size]
+                    for image, symbol in ((obj, after), (raw, raw_symbol), (selected, selected_symbol))]
+        if len(original_bytes) != size or any(p != original_bytes for p in [linked_bytes, *payloads]):
+            return None
+        return dict(name=name, section=section, size=size, address=original['va'],
+                    binding=original['binding'], type=STT_OBJECT, full_object_span=span['range'],
+                    compiler_input_span=input_span, payload_sha256=hashlib.sha256(original_bytes).hexdigest(),
+                    evidence='complete_linked_per_object_original_positive_OBJECT',
+                    grants_function_acceptance=False, **context['hashes'])
+    except (AuditError, OSError, ValueError, KeyError, TypeError, tu_edit.ParseError):
+        return None
+
+
+def data_attribute_require(condition, message):
+    if not condition:
+        raise AuditError('DATA attribute: ' + message)
+
+
+def data_attribute_canonical_root():
+    """The shared preimage, never an installed tool's mutable subject stage."""
+    parts=ROOT.resolve().parts
+    if '.work' in parts:
+        return Path(*parts[:parts.index('.work')])
+    return TOOL_ROOT.resolve()
+
+
+def data_attribute_digest(value):
+    return hashlib.sha256(json.dumps(value,sort_keys=True,separators=(',',':'),
+                                     ensure_ascii=True).encode()).hexdigest()
+
+
+def data_attribute_pin(pin,expected=None):
+    data_attribute_require(isinstance(pin,dict) and set(pin)=={'path','sha256'},'exact file pin required')
+    path=Path(pin['path']).resolve()
+    data_attribute_require(path.is_file() and pin['sha256']==sha256_file(path) and
+                           (expected is None or path==Path(expected).resolve()),'missing/stale/wrong input pin')
+    return path
+
+
+def data_attribute_gate_bound_pin(context,path):
+    path=Path(path).resolve()
+    data_attribute_require(path.is_relative_to(ROOT.resolve()),'proof dependency outside actual subject')
+    key=path.relative_to(ROOT.resolve()).as_posix()
+    pin=context['candidate'].get('files',{}).get(key)
+    data_attribute_pin(pin,path)
+    context.setdefault('extension_pins',{})[str(path)]=pin['sha256']
+    return path
+
+
+def data_attribute_proof_document(context,args):
+    path=getattr(args,'data_attribute_proof',None)
+    data_attribute_require(path,'explicit DATA attribute proof is required')
+    document=json.loads(Path(path).read_text())
+    data_attribute_require(document.get('schema')=='data-section-attribute-proof/1' and
+                           document.get('grants_function_acceptance') is False and
+                           document.get('grants_data_recovery') is False,'unsupported proof document or grant')
+    pins=document.get('gate_pins') or {}
+    expected=dict(data=args.data_gate_report,elf=args.data_elf_gate_report,manifest=args.candidate_manifest,
+                  control=context['report']['allocation_control_path'],
+                  config_data_carves=ROOT/'config/tu/data-carves.json',
+                  config_tu_build=ROOT/'config/tu-build.json',unit_manifest=context['unit_dir']/'tu-manifest.json')
+    data_attribute_require(set(pins)==set(expected)|{'candidates'},'exact gate/config pin set required')
+    for key,value in expected.items():
+        data_attribute_pin(pins[key],value)
+    candidate=context['row']['_audit_candidate_record']
+    data_attribute_pin(pins['candidates'].get(args.tu_id),candidate['path'])
+    manifest=json.loads(Path(args.candidate_manifest).read_text())
+    candidates=manifest.get('candidates',[])
+    data_attribute_require(isinstance(pins['candidates'],dict) and
+        len({c.get('tu') for c in candidates})==len(candidates) and
+        set(pins['candidates'])=={c.get('tu') for c in candidates},
+        'proof candidate pins must equal the complete actual passing manifest')
+    for candidate in candidates:
+        actual=data_attribute_pin(pins['candidates'][candidate['tu']],candidate['record'])
+        data_attribute_require(sha256_file(actual)==candidate.get('sha256'),'proof candidate differs from passing manifest')
+    records=document.get('records')
+    data_attribute_require(isinstance(records,list) and 0<len(records)<=64,'bounded explicit partial-view records required')
+    seen=set();ranges=[]
+    for record in records:
+        identity=(record.get('unit'),record.get('tu'),record.get('name'))
+        interval=record.get('semantic_range')
+        data_attribute_require(record.get('kind')=='registered_partial_storage_view' and
+            identity[0]==args.unit and identity[1] in pins['candidates'] and
+            isinstance(identity[2],str) and re.fullmatch(r'[A-Za-z_]\w*',identity[2]) and identity not in seen and
+            isinstance(interval,list) and len(interval)==2 and
+            all(isinstance(v,int) for v in interval) and 0<=interval[0]<interval[1] and
+            interval[1]-interval[0]<=65536,'unsupported/duplicate/malformed partial-view registration')
+        data_attribute_require(not any(max(interval[0],lo)<min(interval[1],hi) for lo,hi in ranges),
+                               'overlapping/doubly registered semantic ranges')
+        seen.add(identity);ranges.append(interval)
+    return document
+
+
+def data_attribute_review_task(connection,repository,task_id,expected_owner=None,expected_sha256=None,supplied_pin=None):
+    """One actual sealed queue submission and its literal artifact assignment."""
+    import stat
+    data_attribute_require(isinstance(task_id,str) and bool(task_id),'review task identity is required')
+    row=connection.execute('SELECT owner,status,artifact FROM tasks WHERE id=?',(task_id,)).fetchone()
+    data_attribute_require(row and row[0] and row[1] in ('submitted','done') and row[2] and
+        (expected_owner is None or row[0]==expected_owner),
+        'review task is not an actual submitted/done assignment under the trusted reviewer owner')
+    artifact=Path(row[2])
+    if not artifact.is_absolute():artifact=repository/artifact
+    artifact=artifact.resolve()
+    data_attribute_require(connection.execute('SELECT 1 FROM resources WHERE task_id=? AND resource=?',
+        (task_id,'file:'+str(artifact))).fetchone() is not None,
+        'review artifact lacks its exact literal queue file assignment')
+    if supplied_pin is not None:data_attribute_pin(supplied_pin,artifact)
+    data_attribute_require(artifact.is_file() and not stat.S_IMODE(artifact.stat().st_mode)&0o222 and
+        (expected_sha256 is None or sha256_file(artifact)==expected_sha256),
+        'review artifact is not the sealed approved submission')
+    receipt=json.loads(artifact.read_text())
+    data_attribute_require(receipt.get('task')==task_id and receipt.get('reviewer')==row[0] and
+        receipt.get('decision')=='READY' and receipt.get('scope')=='DATA-placement-only' and
+        receipt.get('grants_function_acceptance') is False,
+        'actual review submission is not a READY DATA-placement-only receipt under its assigned owner')
+    return dict(task_id=task_id,owner=row[0],artifact=str(artifact),sha256=sha256_file(artifact)),receipt
+
+
+def data_attribute_review(record):
+    """Authenticate a sealed distinct review through the actual shared queue.
+
+    Record hashes cover canonical JSON excluding only independent_review.
+    The live gate-pin digest is part of that record, so no gate identity is
+    omitted from the reviewed payload.
+    """
+    import sqlite3
+    import stat
+    review=record.get('independent_review') or {}
+    digest=data_attribute_digest({k:v for k,v in record.items() if k!='independent_review'})
+    data_attribute_require(review.get('verdict')=='READY' and review.get('record_sha256')==digest and
+                           review.get('author') and review.get('reviewer') and
+                           review['author']!=review['reviewer'],'missing distinct semantic review')
+    artifact=data_attribute_pin(dict(path=review.get('artifact'),sha256=review.get('sha256')))
+    data_attribute_require(not stat.S_IMODE(artifact.stat().st_mode)&0o222,'review artifact is not sealed readonly')
+    repository=data_attribute_canonical_root()
+    db=repository/'.work/queue.sqlite3'
+    # The original independently approved assignments are immutable trust
+    # anchors for their TU domains. A fresh sealed task may attest a new core
+    # only under that same actual queue owner, never under an authored name.
+    review_tasks={**{f'main/tu{n}':('main-data100-partial-storage-b-review-20261020',
+                       'c1a79f95f0d2c8fb3bb619398b7e24aa4351a999acf4c07a067f485291a4a64c')
+                    for n in (120,155,163,169,170)},
+                  **{f'main/tu{n}':('main-data100-partial-storage-c-review-20261020',
+                       'a9b6bdd81ade11af7586e82d5877eff48089adf4e1f68363e1ef8aadec4f279e')
+                    for n in (172,174,178,191,197)}}
+    data_attribute_require(record.get('tu') in review_tasks,'review TU outside the original closed DATA domain')
+    with sqlite3.connect('file:'+str(db)+'?mode=ro',uri=True) as connection:
+        anchor_task,anchor_sha=review_tasks[record['tu']]
+        anchor,_anchor_receipt=data_attribute_review_task(connection,repository,anchor_task,
+                                                         expected_sha256=anchor_sha)
+        actual,receipt=data_attribute_review_task(connection,repository,review.get('task_id'),
+            expected_owner=anchor['owner'],supplied_pin=dict(path=str(artifact),sha256=review['sha256']))
+    data_attribute_require(actual['owner']==review['reviewer'] and
+                           digest in receipt.get('reviewed_data_attribute_proof_records',[]),
+                           'fresh sealed review does not attest this complete canonical semantic record under the trusted owner')
+    proposals=record.get('source_proposals')
+    data_attribute_require(isinstance(proposals,list) and proposals,'actual sealed source proposal required')
+    authors=set();current_source_attested=False
+    for proposal in proposals:
+        source_artifact=data_attribute_pin(proposal.get('artifact'))
+        candidate=data_attribute_pin(proposal.get('candidate'))
+        data_attribute_require(not stat.S_IMODE(source_artifact.stat().st_mode)&0o222 and
+                               not stat.S_IMODE(candidate.stat().st_mode)&0o222,'source proposal files not sealed readonly')
+        with sqlite3.connect('file:'+str(db)+'?mode=ro',uri=True) as connection:
+            source_task=connection.execute('SELECT owner,status,artifact FROM tasks WHERE id=?',
+                                            (proposal.get('task_id'),)).fetchone()
+        data_attribute_require(source_task and source_task[0]==proposal.get('owner') and
+                               source_task[1] in ('submitted','done') and source_task[2],
+                               'source author is not bound to an actual sealed source task')
+        registered_source=Path(source_task[2])
+        if not registered_source.is_absolute():
+            registered_source=repository/registered_source
+        data_attribute_require(registered_source.resolve()==source_artifact,'source artifact differs from actual task')
+        source_report=json.loads(source_artifact.read_text())
+        attestations=source_report.get('source_candidate_attestations') or []
+        data_attribute_require(any(a.get('tu')==record['tu'] and a.get('candidate')==proposal['candidate']
+                                   for a in attestations),'source report lacks an explicit exact TU/candidate attestation')
+        authors.add(source_task[0])
+        if proposal['candidate']['sha256']==record.get('inputs',{}).get('source',{}).get('sha256'):
+            current_source_attested=True
+    data_attribute_require(current_source_attested and review['reviewer'] not in authors and
+                           review['author'] in authors,'source author/reviewer independence or current source binding failed')
+    return dict(task_id=review['task_id'],artifact=str(artifact),sha256=sha256_file(artifact),
+                reviewer=review['reviewer'],authors=sorted(authors),record_sha256=digest,trusted_anchor=anchor)
+
+
+def data_attribute_registry(context, args):
+    """Actual current registry; callers must still prove every physical byte."""
+    for relative in ('tools/tu/data_carve.py','tools/tu/data_gate.py'):
+        data_attribute_gate_bound_pin(context,ROOT/relative)
+    path = data_attribute_gate_bound_pin(context,ROOT / 'config/tu/data-carves.json')
+    registry = json.loads(path.read_text())
+    data_attribute_require(args.unit == 'main' and registry.get('schema'), 'unsupported registry/unit')
+    return registry
+
+
+def data_attribute_input_spans(context, args, transport_only=False):
+    registry = data_attribute_registry(context, args)
+    result = []
+    for section, runs in registry.get('tus', {}).get(args.tu_id, {}).items():
+        for run in runs:
+            if not isinstance(run, dict):
+                continue
+            for part in run.get('c_input_spans', []):
+                if not transport_only and (part.get('credit') == 'uncredited_dependency' or part.get('anonymous_emission')):
+                    continue
+                interval, original_range = part.get('object_range'), part.get('range')
+                if not interval or not original_range:
+                    continue
+                lo, hi = [int(v, 0) if isinstance(v, str) else int(v) for v in original_range]
+                data_attribute_require(len(interval) == 2 and 0 <= interval[0] < interval[1] and
+                                       hi - lo == interval[1] - interval[0], 'invalid registered input span')
+                result.append(dict(section=part.get('section', section), offset=interval[0],
+                                   end=interval[1], address=lo, end_address=hi,
+                                   symbols=part.get('symbols', []), run=run, part=part))
+    for index, part in enumerate(result):
+        data_attribute_require(not any(other['section']==part['section'] and
+            max(part['offset'],other['offset']) < min(part['end'],other['end'])
+            for other in result[:index]), 'overlapping/multiply-owned compiler input spans')
+    return result
+
+
+def data_attribute_declaration(context, tu, item, name, pointer_table=False):
+    tokens = tu_edit.c_tokens(item.text(tu.text))
+    declarations = [i for i in context['pre_tu'].free_items() if i.kind == 'decl' and
+                    not i.conditional and tu_edit.c_tokens(i.text(context['pre'].text)) == tokens]
+    data_attribute_require(len(declarations) == 1 and '=' in tokens, 'unique initialized CPP declaration')
+    where, line = context['pre'].attribute(declarations[0].start)
+    data_attribute_require(where and (context['unit_dir']/where).resolve() == context['source'] and
+                           tu_edit.line_of(tu.text,item.start) <= line <= tu_edit.line_of(tu.text,item.end),
+                           'declaration must originate in this actual source, not a header')
+    clean = re.sub(r'\b__attribute__?\s*\(\s*\(\s*section\s*\(\s*"\.[a-z0-9]+"\s*\)\s*\)\s*\)',
+                   ' ', item.text(tu.text))
+    declarator = tu_edit.c_tokens(clean.split('=',1)[0])
+    data_attribute_require(not any(t in declarator for t in ('(',')','typedef','extern','__attribute__','__attribute')),
+                           'unsupported DATA declarator')
+    if pointer_table:
+        # This extension is closed to complete char-pointer arrays. Function
+        # pointers, casts in declarators, arbitrary attributes and other types
+        # remain under ordinary eligibility.
+        spelling = ' '.join(declarator)
+        pattern = (r'(?:static )?(?:const )?char \* (?:const )?' + re.escape(name) +
+                   r' \[ ([0-9]+) \]')
+        match = re.fullmatch(pattern,spelling)
+        data_attribute_require(match and 1 <= int(match[1]) <= 16, 'not a bounded char-pointer table')
+        return int(match[1])*4
+    return None
+
+
+def data_attribute_emission(context, tu, name, size, section):
+    from tools.tu.data_gate import compiler_only_section
+    compiler_only_section(context['assembly'],context['pre'].text,context['unit_dir'],section)
+    outside = re.sub(r'^\s*#APP\s*$.*?^\s*#NO_APP\s*$', '',context['assembly'],flags=re.M|re.S)
+    for expression in (r'^\s*\.type\s+'+re.escape(name)+r'\s*,\s*@object\s*$',
+                       r'^\s*\.size\s+'+re.escape(name)+r'\s*,\s*'+str(size)+r'\s*$',
+                       r'^\s*'+re.escape(name)+r':\s*$'):
+        data_attribute_require(len(re.findall(expression,outside,re.M)) == 1,'unique compiler OBJECT emission')
+    data_attribute_require(not any(re.search(r'\b'+re.escape(name)+r'\b',line)
+        for source in (tu.text,context['pre'].text) for line in asm_statement_lines(source)),
+        'ASM cannot establish DATA ownership')
+
+
+def data_attribute_pointer_initializers(tu,item,count):
+    text=re.sub(r'\b__attribute__?\s*\(\s*\(\s*section\s*\(\s*"\.[a-z0-9]+"\s*\)\s*\)\s*\)',
+                ' ',item.text(tu.text))
+    tokens=tu_edit.c_tokens(text)
+    initializer=tokens[tokens.index('=')+1:]
+    data_attribute_require(initializer[:1]==['{'] and initializer[-2:]==['}',';'],
+                           'pointer initializer must be a complete symbolic array')
+    entries=[];part=[]
+    for token in initializer[1:-2]+[',']:
+        if token==',':
+            if part:
+                entries.append(part);part=[]
+        else:
+            part.append(token)
+    data_attribute_require(len(entries)==count,'pointer initializer must spell every element')
+    names=[]
+    for entry in entries:
+        if entry[:4]==['(','char','*',')']:
+            entry=entry[4:]
+        elif entry[:5]==['(','const','char','*',')']:
+            entry=entry[5:]
+        data_attribute_require(len(entry)==1 and re.fullmatch(r'[A-Za-z_]\w*',entry[0]),
+                               'only actual symbolic pointees, no numeric pointer placeholders')
+        names.append(entry[0])
+    return names
+
+
+def data_attribute_character_pointee(context,name):
+    declarations=[]
+    for item in context['pre_tu'].free_items():
+        if item.kind!='decl' or item.conditional:
+            continue
+        text=item.text(context['pre'].text)
+        if ('ordinary',name) not in tu_edit.decl_keys(text):
+            continue
+        tokens=tu_edit.c_tokens(text)
+        spelling=' '.join(tokens[:tokens.index('=')] if '=' in tokens else tokens[:-1])
+        if re.fullmatch(r'(?:(?:extern|static) )?(?:const )?char '+re.escape(name)+r' \[ (?:[0-9]+ )?\]',spelling):
+            declarations.append(text)
+    data_attribute_require(declarations,'actual source/CPP pointee must be a character array')
+    return declarations
+
+
+def data_attribute_rel_entries(image, section, start, size):
+    """Index-preserving REL records; empty section-symbol names are never guessed."""
+    records = []
+    symtabs = [s for s in image.sections if s['type'] == 2]
+    data_attribute_require(len(symtabs) == 1,'one actual symbol table required')
+    for rel in image.sections:
+        if rel['type'] not in (4,9) or rel['info'] != section['index']:
+            continue
+        data_attribute_require(rel['type'] == 9 and rel['link'] == symtabs[0]['index'] and
+                               rel['entsize'] in (0,8) and rel['size'] % 8 == 0,
+                               'unsupported or malformed relocation section')
+        for index in range(rel['size']//8):
+            offset,info = struct.unpack_from('<II',image.data,rel['offset']+index*8)
+            if offset < start+size and offset+4 > start:
+                kind,symbol_index = info & 255,info >> 8
+                data_attribute_require(kind == 2 and start <= offset and offset+4 <= start+size and
+                                       offset % 4 == 0 and symbol_index < len(image.symbols),
+                                       'only complete aligned R_MIPS_32 operands are supported')
+                symbol = image.symbols[symbol_index]
+                data_attribute_require(symbol['index'] == symbol_index,'relocation symbol index mismatch')
+                addend = struct.unpack_from('<i',image.bytes_of(section),offset)[0]
+                records.append(dict(offset=offset,relative=offset-start,type=kind,symbol=dict(symbol),addend=addend))
+    offsets = [r['relative'] for r in records]
+    data_attribute_require(len(offsets) == len(set(offsets)),'overlapping/duplicate R_MIPS_32 operands')
+    return sorted(records,key=lambda r:r['relative'])
+
+
+def data_attribute_named_target(context,args,name,elf):
+    """Resolve an uncredited external label from the actual native TU map."""
+    from tools.tu import data_carve
+    manifest_path = data_attribute_gate_bound_pin(context,context['unit_dir']/'tu-manifest.json')
+    manifest = json.loads(manifest_path.read_text())
+    linked = [s for s in context['linked'].symbols if s['name'] == name and s['section_index'] != 0]
+    data_attribute_require(len(linked) == 1,'external target must have one linked symbol')
+    address = int(linked[0]['va'],16)
+    owners = []
+    for entry in manifest.get('tus',[]):
+        for section,record in entry.get('sections',{}).items():
+            if (section in DATA_SECTIONS and int(record.get('start','0'),0) <= address <
+                    int(record.get('end','0'),0)):
+                owners.append((entry['id'],section))
+    data_attribute_require(len(owners) == 1,'external target native owner must be unique')
+    owner,section = owners[0]
+    native = data_carve.tu_context(ROOT,args.unit,context['unit_dir'],owner)
+    items = [i for i in data_carve.section_items(native,section)
+             if i['start'] == address and name in i['labels']]
+    data_attribute_require(len(items) == 1 and items[0]['end'] > address,'exact registered target label required')
+    pieces = [p for p in native['pieces'].get(section,[]) if p['start'] <= address < p['end']]
+    data_attribute_require(len(pieces) == 1,'external target piece must be unique')
+    piece_path = data_attribute_gate_bound_pin(context,Path(native['path_of'](pieces[0],section)))
+    return dict(address=address,end=items[0]['end'],section=section,owner=owner,name=name,
+                registration='actual_native_manifest_and_scaffold_label',pointee_credit=0)
+
+
+def data_attribute_resolve_r32(context,args,image,relocation,elf,selected=False):
+    symbol,addend = relocation['symbol'],relocation['addend']
+    if symbol['shndx'] == 0:
+        data_attribute_require(symbol['name'] and symbol['binding'] == 1,'unsupported undefined R32 symbol')
+        target = data_attribute_named_target(context,args,symbol['name'],elf)
+        data_attribute_require(0 <= addend < target['end']-target['address'],'external R32 addend outside registered item')
+        return dict(target,addend=addend,value=target['address']+addend,symbol_index=symbol['index'])
+    data_attribute_require(0 < symbol['shndx'] < len(image.sections),'unsupported absolute/COMMON R32 target')
+    section = image.sections[symbol['shndx']]['name']
+    offset = (symbol['value']+addend) & 0xffffffff
+    mappings = []
+    if selected:
+        for span in context['row'].get('verified_location_spans',[]):
+            if (span.get('c_object_section') == section and span.get('c_object_offset',-1) <= offset <
+                    span.get('c_object_offset',-1)+span.get('length',0)):
+                mappings.append(dict(address=span['range'][0]+offset-span['c_object_offset'],
+                                     end=span['range'][1],section=span['section']))
+        # Existing C-owned storage may intentionally carry no new DATA claim.
+        for part in data_attribute_input_spans(context,args,transport_only=True):
+            names=part['symbols']
+            syms=[s for s in image.symbols if s['name'] in names and s['shndx'] != 0 and
+                  s['section'] == section and s['value'] <= offset < s['value']+s['size']]
+            for sym in syms:
+                if len(names)==1 and sym['size']==part['end']-part['offset']:
+                    mappings.append(dict(address=part['address']+offset-sym['value'],
+                                         end=part['end_address'],section=part['section']))
+    else:
+        for part in data_attribute_input_spans(context,args,transport_only=True):
+            if part['section'] == section and part['offset'] <= offset < part['end']:
+                mappings.append(dict(address=part['address']+offset-part['offset'],
+                                     end=part['end_address'],section=part['section']))
+    # Exact duplicate coordinates from the existing and newly claimed routes
+    # describe the same span; differing or multiply-owned coordinates refuse.
+    coordinates={(m['address'],m['end'],m['section']) for m in mappings}
+    data_attribute_require(len(coordinates)==1,'R32 target needs one actual complete registered input mapping')
+    address,end,original_section=next(iter(coordinates))
+    return dict(value=address,address=address,end=end,section=original_section,
+                symbol_index=symbol['index'],symbol_name=symbol['name'],addend=addend,
+                compiler_target_section=section,compiler_target_offset=offset,
+                registration='actual_registered_compiler_input_span',pointee_credit=0)
+
+
+def data_attribute_shared_suffix_hashes():
+    """Exact root-authorized immutable mechanical implementation/dependencies."""
+    return dict(data_gate='f830adcc692ed038048f4f30341af1082779ed0b1ed3d62eacb74e360a0619a2',
+        data_carve='9db48818a0f664d3226e5131b4abd0f7d2e04686831d34cff196788c816325e6',
+        predecessor_auditor='e680880ac28a97837890cf07568389c5b89268e50689467ea13c53c3e419a1a3',
+        predecessor_review='fcdcdb757c854367fd6e59bbe4ddfe086a6e1ceec4996daade036ed461ff3da5',
+        predecessor_origin='2858eb5876bf57ad90c86cec6b9cedd9b5e290364ddaf7317bdf919b2dca4f93',
+        tu_edit='d774b4328056cfe31c4318fb5abe590ee1b628a36a8ce13392500075f4abe5f4',
+        elfinfo='a6385e9748bb85181af274136e9c75596af3a21fa0d20cae1a82ed1ccbb2097f',
+        mechanical_review='c33d5de3b611a3852e168e01986686b8339460981cda1f4479def385c36ed020')
+
+
+def data_attribute_load_shared_suffix(record):
+    """Load only the pinned mechanical code; never mutable installed P tools."""
+    import stat
+    expected=record.get('auxiliary_suffix_dependencies') or {}
+    hashes=data_attribute_shared_suffix_hashes()
+    data_attribute_require(set(expected)==set(hashes),'complete explicit shared dependency pins required')
+    for key,pin in expected.items():
+        path=data_attribute_pin(pin)
+        data_attribute_require(pin['sha256']==hashes[key] and not stat.S_IMODE(path.stat().st_mode)&0o222,
+                               'shared mechanical dependency is not the sealed approved content')
+    origin=json.loads(Path(expected['predecessor_origin']['path']).read_text())
+    data_attribute_require(sum(Path(entry.get('backup','/nonexistent')).resolve()==
+        Path(expected['predecessor_auditor']['path']).resolve() and entry.get('sha256')==hashes['predecessor_auditor']
+        for entry in origin.get('files',[]))==1,'predecessor auditor is not the actual approved snapshot entry')
+    review=json.loads(Path(expected['mechanical_review']['path']).read_text())
+    data_attribute_require(review.get('verdict')=='MECHANICAL_SOURCE_READY' and
+        review.get('final_tool_acceptance') is False and review.get('source_approval') is False and
+        review.get('DATA_credit')==0 and review.get('game_function_credit')==0 and
+        all(review.get('postimages',{}).get(key,{}).get('sha256')==expected[key]['sha256']
+            for key in ('data_carve','data_gate')),'shared mechanical review scope/postimage mismatch')
+    prior=json.loads(Path(expected['predecessor_review']['path']).read_text())
+    data_attribute_require(prior.get('decision')=='READY_TOOL' and
+        prior.get('candidate',{}).get('sha256')==expected['predecessor_auditor']['sha256'] and
+        prior.get('grants_data_recovery') is False and prior.get('grants_function_acceptance') is False,
+        'shared CPP parser predecessor review mismatch')
+    # These modules perform no builds. Explicit bindings prevent their bare
+    # imports from selecting a mutable installed auditor or a different parser.
+    modules={}
+    for key in ('tu_edit','elfinfo','predecessor_auditor','data_carve','data_gate'):
+        spec=importlib.util.spec_from_file_location('_data_attribute_shared_'+key,expected[key]['path'])
+        module=importlib.util.module_from_spec(spec)
+        sys.modules[spec.name]=module
+        spec.loader.exec_module(module);modules[key]=module
+        if key in ('tu_edit','elfinfo'):sys.modules[key]=module
+        if key=='predecessor_auditor':sys.modules['tu_audit']=module
+    modules['predecessor_auditor'].tu_edit=modules['tu_edit']
+    modules['data_gate'].tu_audit=modules['predecessor_auditor']
+    modules['data_gate'].Elf=modules['elfinfo'].Elf
+    modules['data_carve'].Elf=modules['elfinfo'].Elf
+    data_attribute_require(modules['data_gate'].Elf is modules['elfinfo'].Elf,
+                           'shared ELF decoder dependency differs')
+    return modules['data_gate'],modules['data_carve'],expected
+
+
+def data_attribute_existing_C_owner(args,name,section,physical_slot,baseline_inputs):
+    """Closed existing-owner provenance, never a new DATA claim or capacity."""
+    import stat
+    allowed={
+        'main/tu169':{'D_004C51A8':(0x4c51a8,0x4c51c0), 'D_004C51C0':(0x4c51c0,0x4c51d8),
+            'D_004C51D8':(0x4c51d8,0x4c51e8), 'D_004C5250':(0x4c5250,0x4c5260),
+            'D_004C5260':(0x4c5260,0x4c5270), 'D_004C5270':(0x4c5270,0x4c5280),
+            'D_004C5280':(0x4c5280,0x4c5290), 'D_004C5290':(0x4c5290,0x4c52a0)},
+        'main/tu170':{'msg_0_0036D8A8':(0x36d8a8,0x36d8d8), 'msg01_1':(0x36d8d8,0x36d8e4),
+            'msg01_3':(0x36d8f8,0x36d900), 'msg_6':(0x36d930,0x36d934),
+            'msg_7_0036D938':(0x36d938,0x36d940)}}
+    data_attribute_require(args.unit=='main' and args.tu_id in allowed and name in allowed[args.tu_id] and
+        tuple(physical_slot)==allowed[args.tu_id][name] and
+        section==('.rodata' if args.tu_id=='main/tu169' else '.data'),
+        'unclaimed auxiliary object outside the exact thirteen approved existing C owners')
+    data_attribute_require(isinstance(baseline_inputs,dict) and set(baseline_inputs)=={'manifest','source','registry'},
+                           'explicit immutable baseline source/registry/manifest pins required')
+    manifest_path=data_attribute_pin(baseline_inputs['manifest'])
+    data_attribute_require(baseline_inputs['manifest']['sha256']==
+        'c3366d8b564ec449eafdb88bd86799d21c533a600f261266ef200c45f8eb22c7',
+        'original ownership manifest differs from approved snapshot')
+    manifest=json.loads(manifest_path.read_text())
+    data_attribute_require(not stat.S_IMODE(manifest_path.stat().st_mode)&0o222 and
+        manifest.get('schema')=='canonical-prepublication-inputs/1' and manifest.get('read_only') is True,
+        'original C-ownership snapshot is not the sealed approved pre-campaign manifest')
+    source_rel,source_sha={
+        'main/tu169':('src/main/menu_1.c','d86ff343f4fd8240d04e49950d635d422d04f43445e918cef36352f5ad6ff630'),
+        'main/tu170':('src/main/menu_para_pt_rate_get.c','656a52173a5fbf442f90e3ab60989fb0d900accea47301d2066b2e5aae89ff0e')
+        }[args.tu_id]
+    pins={}
+    for key,relative,digest in (
+        ('registry','config/tu/data-carves.json','36904149b40b331b00e097a2f79380e94a7363ce508b234f4d032e55fc8ad63b'),
+        ('source',source_rel,source_sha)):
+        entries=[e for e in manifest.get('entries',[]) if e.get('path')==relative and e.get('state')=='PRESENT']
+        data_attribute_require(len(entries)==1 and entries[0].get('sha256')==digest,
+                               'missing/wrong original canonical source or registry manifest entry')
+        path=data_attribute_pin(baseline_inputs[key],entries[0]['backup_path'])
+        data_attribute_require(baseline_inputs[key]['sha256']==digest,'historical source/registry input hash differs')
+        data_attribute_require(not stat.S_IMODE(path.stat().st_mode)&0o222,'original C-ownership input is not sealed')
+        pins[key]=dict(path=str(path),sha256=digest)
+    registry=json.loads(Path(pins['registry']['path']).read_text())
+    rows=[r for r in registry.get('tus',{}).get(args.tu_id,{}).get(section,[]) if
+          r.get('c_owned_symbols')==[name] and
+          [int(v,0) if isinstance(v,str) else int(v) for v in r.get('range',[])]==list(physical_slot) and
+          [int(v,0) if isinstance(v,str) else int(v) for v in r.get('generated',[])]==list(physical_slot)]
+    data_attribute_require(len(rows)==1,'missing/wrong historical canonical C storage owner')
+    spans=[p for p in rows[0].get('c_input_spans',[]) if p.get('symbols')==[name] and
+           p.get('credit')!='uncredited_dependency' and
+           [int(v,0) if isinstance(v,str) else int(v) for v in p.get('range',[])]==list(physical_slot)]
+    data_attribute_require(len(spans)==1 and len(spans[0].get('object_range',[]))==2 and
+        spans[0]['object_range'][1]-spans[0]['object_range'][0]==physical_slot[1]-physical_slot[0],
+        'historical canonical compiler ownership span is missing/partial')
+    source=Path(pins['source']['path']).read_text(encoding='utf-8',errors='surrogateescape')
+    declarations=[i.text(source) for i in tu_edit.parse(source).free_items() if i.kind=='decl' and
+        not i.conditional and ('ordinary',name) in tu_edit.decl_keys(i.text(source)) and
+        '=' in tu_edit.c_tokens(i.text(source)) and
+        not any(t in tu_edit.c_tokens(i.text(source)) for t in ('extern','typedef','__asm__','asm'))]
+    data_attribute_require(len(declarations)==1,'no actual original canonical C definition for existing owner')
+    pins['manifest']=dict(path=str(manifest_path),sha256=sha256_file(manifest_path))
+    return dict(evidence='auxiliary_existing_C_owner_without_new_claim',baseline_inputs=pins,
+                baseline_C_storage_range=list(physical_slot),canonical_definition_tokens=tu_edit.c_tokens(declarations[0]),
+                original_capacity_proved=False,grants_new_data_recovery=False,grants_function_acceptance=False)
+
+
+def data_attribute_original_reference_exclusion(record,original,Elf,interval):
+    """No indexed witness, explicitly not a global absence/use/capacity proof."""
+    import ast
+    import bisect
+    import functools
+    import stat
+    pins=record.get('original_reference_index') or {}
+    data_attribute_require(set(pins)=={'implementation','review'},'exact reviewed reference-index pins required')
+    tool=data_attribute_pin(pins['implementation']);review=data_attribute_pin(pins['review'])
+    data_attribute_require(pins['implementation']['sha256']==
+        'd251f8c9cbcd644e1b88bb128c3fbaffcbc560eaae5044483ef0a7a4e4b05444' and
+        pins['review']['sha256']=='f87d80d5929f404e7fee3b7a60670d5f762fe4e1c98d7a724e471820384861b2' and
+        all(not stat.S_IMODE(p.stat().st_mode)&0o222 for p in (tool,review)),
+        'original reference index differs from approved immutable implementation/review')
+    tree=ast.parse(tool.read_text());names={'parsed_elf','original_reference_addresses','original_references'}
+    nodes=[node for node in tree.body if isinstance(node,ast.FunctionDef) and node.name in names]
+    data_attribute_require(len(nodes)==3 and {n.name for n in nodes}==names,'approved reference-index functions missing/duplicated')
+    namespace=dict(Elf=Elf,lru_cache=functools.lru_cache,struct=struct,bisect_left=bisect.bisect_left)
+    # Execute the exact reviewed function nodes, without importing unrelated
+    # native-reference code or its mutable installed-tool imports.
+    exec(compile(ast.Module(body=nodes,type_ignores=[]),str(tool),'exec'),namespace)
+    native=Elf(original.data)
+    addresses=namespace['original_reference_addresses'](original.data)
+    hits=[v for v in addresses if interval[0]<=v<interval[1]]
+    data_attribute_require(not hits and not namespace['original_references'](native,*interval),
+                           'indexed original interior reference targets unknown scaffold suffix')
+    return dict(range=interval,indexed_interior_hits=hits,index_size=len(addresses),pins=pins,
+        scope='original relocations/relocation-referenced symbol VAs, aligned stored words, GP uses, LUI+low candidates within128 bytes',
+        global_reference_absence_proved=False,unused_bytes_proved=False,
+        original_capacity_proved=False,original_input_section_alignment=None)
+
+
+def data_attribute_character_composition_scope(args,record):
+    """The exact eighteen reviewed character prefixes; never scalar views."""
+    allowed={
+        ('main/tu155','D_004C23C0'):(0x4c23c0,0x4c23d7,0x4c23d8),
+        ('main/tu169','D_004C51A8'):(0x4c51a8,0x4c51bb,0x4c51c0),
+        ('main/tu169','D_004C51C0'):(0x4c51c0,0x4c51d5,0x4c51d8),
+        ('main/tu169','D_004C51D8'):(0x4c51d8,0x4c51e2,0x4c51e8),
+        ('main/tu169','D_004C5250'):(0x4c5250,0x4c525a,0x4c5260),
+        ('main/tu169','D_004C5260'):(0x4c5260,0x4c526e,0x4c5270),
+        ('main/tu169','D_004C5270'):(0x4c5270,0x4c527d,0x4c5280),
+        ('main/tu169','D_004C5280'):(0x4c5280,0x4c5289,0x4c5290),
+        ('main/tu169','D_004C5290'):(0x4c5290,0x4c5299,0x4c52a0),
+        ('main/tu169','D_004C52A0'):(0x4c52a0,0x4c52a9,0x4c52b0),
+        ('main/tu169','D_004C52B0'):(0x4c52b0,0x4c52b9,0x4c52c0),
+        ('main/tu169','D_004C52C0'):(0x4c52c0,0x4c52c9,0x4c52d0),
+        ('main/tu169','D_004C52D0'):(0x4c52d0,0x4c52db,0x4c52e0),
+        ('main/tu169','D_004C52E0'):(0x4c52e0,0x4c52eb,0x4c52f0),
+        ('main/tu169','D_004C52F0'):(0x4c52f0,0x4c52fb,0x4c5300),
+        ('main/tu169','D_004C54D8'):(0x4c54d8,0x4c54e1,0x4c54f0),
+        ('main/tu174','D_004C82D8'):(0x4c82d8,0x4c82ec,0x4c82f0),
+        ('main/tu178','D_004C9940'):(0x4c9940,0x4c9953,0x4c9960)}
+    key=(record.get('tu'),record.get('name'))
+    data_attribute_require(args.unit=='main' and record.get('unit')=='main' and key in allowed and
+        args.tu_id==key[0] and record.get('semantic_range')==list(allowed[key][:2]) and
+        record.get('original_physical_slot')==[allowed[key][0],allowed[key][2]],
+        'computed scaffold composition outside the exact eighteen reviewed character prefixes')
+
+
+def data_attribute_composition_inputs(document,args,record):
+    """Unsigned transport supplies mechanical pins, never semantic fields."""
+    data_attribute_character_composition_scope(args,record)
+    entries=document.get('scaffold_suffix_compositions')
+    data_attribute_require(isinstance(entries,list) and len(entries)==18,
+                           'complete closed eighteen-entry mechanical composition input required')
+    seen=set();selected=[]
+    keys={'unit','tu','name','core_record_sha256','scaffold_suffix_fragment','auxiliary_suffix_dependencies'}
+    cores={(r['unit'],r['tu'],r['name']):r for r in document['records']}
+    for entry in entries:
+        data_attribute_require(isinstance(entry,dict) and set(entry)==keys,
+                               'mechanical transport may not override semantic/type/source fields')
+        identity=(entry['unit'],entry['tu'],entry['name'])
+        data_attribute_require(identity not in seen and identity in cores,
+                               'duplicate/unknown mechanical composition owner')
+        core=cores[identity]
+        local=type('CompositionScope',(),dict(unit=entry['unit'],tu_id=entry['tu']))()
+        data_attribute_character_composition_scope(local,core)
+        data_attribute_require(entry['core_record_sha256']==data_attribute_digest(
+            {k:v for k,v in core.items() if k!='independent_review'}),
+            'mechanical composition does not bind the authenticated semantic core')
+        seen.add(identity)
+        if identity==(record['unit'],record['tu'],record['name']):selected.append(entry)
+    data_attribute_require(len(selected)==1,'one exact mechanical composition required for this semantic core')
+    result=dict(record)
+    for key in ('scaffold_suffix_fragment','auxiliary_suffix_dependencies'):
+        data_attribute_require(key not in record or record[key]==selected[0][key],
+                               'transport contradicts an already authenticated mechanical dependency')
+        result[key]=selected[0][key]
+    return result
+
+
+def data_attribute_auxiliary_scaffold_fragment(context,args,record,section,semantic,slot,original):
+    """Actual separate native fragment, outside the selected compiler prefix."""
+    pins=record.get('scaffold_suffix_fragment') or {}
+    data_attribute_character_composition_scope(args,record)
+    data_attribute_require(set(pins)=={'source','object','carved_manifest','build_ninja'},
+                           'actual scaffold source/object/manifest/build-edge pins required')
+    manifest_path=data_attribute_pin(pins['carved_manifest'],context['unit_dir']/'tu-manifest.carved.json')
+    data_attribute_gate_bound_pin(context,manifest_path)
+    manifest=json.loads(manifest_path.read_text())
+    entries=[t for t in manifest.get('tus',[]) if t.get('id')==args.tu_id and t.get('unit')==args.unit]
+    data_attribute_require(len(entries)==1,'scaffold fragment TU missing/duplicated in actual carved manifest')
+    pieces=[p for p in entries[0].get('sections',{}).get(section,{}).get('pieces',[]) if
+        int(p.get('start','0'),0)==semantic[1] and int(p.get('end','0'),0)==slot[1] and p.get('c_split') is False]
+    data_attribute_require(len(pieces)==1,'unknown suffix is not one actual non-C native fragment')
+    piece=pieces[0];source=data_attribute_pin(pins['source'],context['unit_dir']/piece['file'])
+    obj_path=data_attribute_pin(pins['object'],context['unit_dir']/'build/data'/(piece['name']+section+'.o'))
+    for path in (source,obj_path):
+        relative=path.relative_to(ROOT).as_posix()
+        if relative in context['candidate'].get('files',{}):data_attribute_gate_bound_pin(context,path)
+    data_attribute_pin(pins['build_ninja'],context['unit_dir']/'build.ninja')
+    document=_ninja_document(context['unit_dir'])
+    target=os.path.relpath(obj_path,context['unit_dir']);input_path=os.path.relpath(source,context['unit_dir'])
+    edge=(document or {}).get('edges',{}).get(target) or {}
+    data_attribute_require(edge.get('rule')=='as' and edge.get('inputs')==[input_path] and
+        (document.get('rules',{}).get('as') or {}).get('command')=='$as $asflags -I . -I include -o $out $in',
+        'scaffold fragment lacks its exact ordinary native assembler edge')
+    ninja=(context['unit_dir']/'build.ninja').read_text()
+    assemblers=re.findall(r'^as\s*=\s*timeout -k 5 30 (\S+)\s*$',ninja,re.M)
+    flags=re.findall(r'^asflags\s*=\s*(.+)$',ninja,re.M)
+    expected_flags=['-EL','-march=r5900','-mabi=eabi','-mgp64','-G0','-no-pad-sections','-mno-fix-r5900']
+    data_attribute_require(len(assemblers)==len(flags)==1 and flags[0].split()==expected_flags,
+                           'scaffold assembler command/flags differ from the ordinary current recipe')
+    assembler=Path(assemblers[0]);identity_path=ROOT/'config/toolchain-identity.json'
+    identity=json.loads(identity_path.read_text()).get('tools',{}).get('ps2dev-binutils',{})
+    native_assembler_sha='6c4ee9ee347c647b2e034ba77009901bd04b6ba20c26cfd0d833a1c86e08d037'
+    data_attribute_require(assembler.is_absolute() and assembler.is_file() and
+        assembler.resolve()==(ROOT/'.work/toolchains'/identity.get('dir','')/'mips64r5900el-ps2-elf-as').resolve() and
+        identity.get('files',{}).get('mips64r5900el-ps2-elf-as')==native_assembler_sha and
+        sha256_file(assembler)==native_assembler_sha,
+        'scaffold assembler differs from the actual approved native-data assembler identity')
+    with tempfile.TemporaryDirectory(prefix='attribute-scaffold-') as temporary:
+        fresh=Path(temporary)/'fragment.o'
+        status,log=run([assembler,*expected_flags,'-I','.','-I','include','-o',fresh,input_path],context['unit_dir'])
+        data_attribute_require(status==0 and fresh.is_file() and sha256_file(fresh)==sha256_file(obj_path),
+                               'independent ordinary scaffold assembly differs from actual fragment object: '+log[:200])
+    tails=[t for t in piece.get('uncredited_scaffold_suffixes',[]) if t.get('owner')==record['name'] and
+        t.get('range')==[semantic[1],slot[1]] and t.get('compiler_range')==semantic and
+        t.get('original_item_range')==slot and t.get('credited') is False and
+        t.get('original_capacity_proved') is False and t.get('alignment_proved') is False]
+    data_attribute_require(len(tails)==1,'actual scaffold fragment has no truthful zero-credit suffix disposition')
+    payload,_metadata=data_attribute_image_bytes(original,semantic[1],slot[1]-semantic[1])
+    data_attribute_require(payload==bytes(len(payload)),'unknown auxiliary suffix is not actual original zero storage')
+    obj=RelObject(obj_path.read_bytes())
+    metadata=[s for s in obj.sections if s['flags']&2 and s['size'] and s['name']=='.MIPS.abiflags']
+    data_attribute_require(len(metadata)==1 and metadata[0]['type']==0x7000002a and
+        metadata[0]['flags']==2 and metadata[0]['size']==24 and metadata[0]['align']==8 and
+        metadata[0]['entsize']==24 and obj.bytes_of(metadata[0])==
+            struct.pack('<HBBBBBBIIII',0,3,0,2,2,0,1,6,0,1,0) and
+        all(s['type']==STT_SECTION and s['binding']==0 and s['value']==s['size']==0 and
+            s['name']=='.MIPS.abiflags' for s in obj.symbols if s['shndx']==metadata[0]['index']) and
+        not any(s['type'] in (4,9) and s['info']==metadata[0]['index'] for s in obj.sections) and
+        not any(s['name']=='.MIPS.abiflags' and s['size']
+            for s in context['linked'].sections),
+        'scaffold assembler ABI metadata differs from the ordinary unlinked metadata section')
+    sections=[s for s in obj.sections if s['flags']&2 and s['size'] and s is not metadata[0]]
+    data_attribute_require(len(sections)==1 and sections[0]['name']==section and sections[0]['type']==1 and
+        sections[0]['size']==len(payload) and obj.bytes_of(sections[0])==payload and
+        not any(s['type'] in (4,9) and s['size'] for s in obj.sections),
+        'actual assembled scaffold extent/bytes/relocations differ from original suffix')
+    serialization=tails[0].get('serialization') or {}
+    data_attribute_require(serialization.get('kind')=='original_zero_scaffold_serialization' and
+        serialization.get('range')==[semantic[1],slot[1]] and serialization.get('credited') is False and
+        serialization.get('source_capacity_proved') is False and
+        serialization.get('original_elf_sha256')==context['hashes']['original_sha256'] and
+        serialization.get('original_bytes_sha256')==hashlib.sha256(payload).hexdigest(),
+        'current generator suffix receipt differs from actual original zero storage')
+    shared_gate,shared_carve,_dependencies=data_attribute_load_shared_suffix(record)
+    native=shared_carve.tu_context(ROOT,args.unit,context['unit_dir'],args.tu_id)
+    original_pieces=[p for p in native['pieces'].get(section,[]) if p['start']<=slot[0] and slot[1]<=p['end']]
+    data_attribute_require(len(original_pieces)==1,'one actual original source piece required for suffix serialization')
+    original_source=Path(native['path_of'](original_pieces[0],section))
+    data_attribute_gate_bound_pin(context,original_source)
+    header,native_items=shared_carve.piece_items(original_source,original_pieces[0]['start'],original_pieces[0]['end'])
+    native_items=[i for i in native_items if i['start']==slot[0] and i['end']==slot[1] and i['name']==record['name']]
+    data_attribute_require(len(native_items)==1,'native registered item differs from the exact character layout slot')
+    projection_context=dict(unit_dir=str(context['unit_dir']),section=section,inputs={
+        'source':record['inputs']['source'],'preprocessed':record['inputs']['preprocessed'],
+        'assembly':record['inputs']['assembly'],'raw':record['inputs']['raw'],
+        'original':dict(path=str(native['orig']),sha256=context['hashes']['original_sha256'])})
+    split=shared_carve.split_initialized_items(native_items,[semantic[1]],{semantic[1]},native['name'],
+                                             character_context=projection_context)
+    suffix=[i for i in split if i['start']==semantic[1] and i['end']==slot[1]]
+    data_attribute_require(len(suffix)==1,'reviewed splitter did not reproduce the exact native suffix')
+    regenerated=shared_carve.serialize_unknown_zero_suffix(suffix[0],projection_context)
+    data_attribute_require(regenerated.get('uncredited_scaffold_suffix',{}).get('serialization')==serialization,
+                           'actual original directive/byte serialization proof differs from pinned generator metadata')
+    generated_lines=header+regenerated['block']['lines']
+    while generated_lines and not generated_lines[-1].strip():generated_lines.pop()
+    data_attribute_require(source.read_text()=='\n'.join(generated_lines)+'\n',
+                           'actual suffix source is not the closed unchanged original zero-fragment generator output')
+    return dict(pins=pins,range=[semantic[1],slot[1]],separate_scaffold_fragment=True,
+        selected_C_prefix_contains_suffix=False,object_section=section,
+        object_alignment=sections[0]['align'],size=len(payload),payload_sha256=hashlib.sha256(payload).hexdigest(),
+        assembler_metadata=dict(section=metadata[0],payload_sha256=hashlib.sha256(obj.bytes_of(metadata[0])).hexdigest(),
+                                present_in_linked_image=False,credited_bytes=0),
+        ordinary_assembler_edge=edge,original_input_section_alignment=None,original_capacity_proved=False,
+        assembler=dict(path=str(assembler),sha256=sha256_file(assembler),flags=expected_flags,
+                       identity_registry=dict(path=str(identity_path),sha256=sha256_file(identity_path)),
+                       independently_reassembled_object_sha256=sha256_file(obj_path)),
+        regenerated_original_serialization=serialization,
+        credited=False,credited_bytes=0)
+
+
+def verified_relocated_data_attribute_object(context,args,tu,item,name,section,obj,elf):
+    """Complete positive original char-pointer OBJECT with exact R32 transport.
+
+    Raw, selected and linked symbols are facts of those objects. A registered
+    dotted original identity remains distinct from its C coordinate name.
+    Existing compiler-owned spans get no new recovery credit from this receipt.
+    """
+    if context is None:
+        return None
+    try:
+        size=data_attribute_declaration(context,tu,item,name,pointer_table=True)
+        initializer_names=data_attribute_pointer_initializers(tu,item,size//4)
+        data_attribute_require(section=='.data','pointer-table route only proves original .data')
+        symbols=[]
+        for image in (obj,context['raw'],context['selected']):
+            found=[s for s in image.symbols if s['name']==name and s['shndx']!=0]
+            data_attribute_require(len(found)==1,'one compiler/selected named OBJECT required')
+            symbol=found[0]
+            data_attribute_require(symbol['type']==STT_OBJECT and symbol['binding']==0 and symbol['size']==size,
+                                   'complete LOCAL compiler pointer-table identity')
+            symbols.append(symbol)
+        after,raw_symbol,selected_symbol=symbols
+        data_attribute_require(after==raw_symbol and raw_symbol['section']==section,'fresh/raw compiler identity drift')
+        parts=[p for p in data_attribute_input_spans(context,args) if p['symbols']==[name] and
+               p['section']==section and p['offset']==raw_symbol['value'] and p['end']-p['offset']==size]
+        data_attribute_require(len(parts)==1,'one exact complete registered owner span required')
+        part=parts[0];address=part['address']
+        data_attribute_require(part['run'].get('c_owned_symbols')==[name] and
+            [int(v,0) if isinstance(v,str) else int(v) for v in part['run'].get('range',[])]==
+            [address,address+size] and
+            [int(v,0) if isinstance(v,str) else int(v) for v in part['run'].get('generated',[])]==[address,address+size],
+            'full registered run/generated range must equal original OBJECT')
+        originals=[s for s in elf.symbols if s['type']==STT_OBJECT and s['binding']==0 and
+                   int(s['va'],16)==address and s['size']==size and s.get('section')==section]
+        data_attribute_require(len(originals)==1,'one complete original LOCAL OBJECT identity required')
+        original=originals[0]
+        # The registry's textual hexadecimal case is not an identity distinction.
+        aliases=[a for a in part['run'].get('c_storage_aliases',[]) if a.get('original_name')==original['name'] and
+                 int(a.get('address','0'),0)==address and a.get('storage_owner',{}).get('name')==name and
+                 int(a.get('storage_owner',{}).get('address','0'),0)==address and
+                 a.get('storage_owner',{}).get('size')==size]
+        data_attribute_require(name==original['name'] or len(aliases)==1,'exact original-to-C alias registration required')
+        spans=[s for s in context['row'].get('verified_location_spans',[]) if name in s.get('names',[]) or
+               name in s.get('object_symbols',[])]
+        data_attribute_require(len(spans)<=1,'duplicate credited owner spans')
+        baseline_owner=None
+        if spans:
+            span=spans[0];expected=dict(name=original['name'],address=f'0x{address:08X}',binding='LOCAL',type='OBJECT',size=size)
+            data_attribute_require(span.get('names')==[name] and span.get('object_symbols')==[name] and
+                span.get('range')==[address,address+size] and span.get('split_range')==[address,address+size] and
+                span.get('length')==size and span.get('section')==section and
+                span.get('original_identities')==[expected] and
+                span.get('object_sha256')==context['hashes']['linked_data_object_sha256'] and
+                span.get('c_object_section')==selected_symbol['section'] and
+                span.get('c_object_offset')==selected_symbol['value'] and not any(span.get(k) for k in
+                ('support_only','storage_only','storage_owner')) and span.get('credited') is not False,
+                'new claimed complete span identity')
+            data_attribute_require(span.get('compiler_input_span')==dict(section=section,offset=raw_symbol['value'],
+                section_size=context['raw'].section(section)['size']) and
+                span.get('c_object_section_size')==context['selected'].section(selected_symbol['section'])['size'] and
+                span.get('c_object_section_alignment')==context['selected'].section(selected_symbol['section'])['align'],
+                'actual raw/selected section sizes/offsets/alignment differ from gate receipt')
+            for locations in (context['row'].get('verified_locations',[]),
+                              context['candidate'].get('recovered_location_candidates',[]),
+                              context['control'].get('identities',[])):
+                matches=[r for r in locations if r.get('unit')==args.unit and r.get('tu')==args.tu_id and
+                         r.get('section')==section and int(r.get('address','0'),0)==address and r.get('names')==[name]]
+                data_attribute_require(len(matches)==1,'new claimed object absent/duplicated in actual ownership receipts')
+        else:
+            # This is computed from the actual existing registry and objects,
+            # never inserted into the passing gate's new-claim span list.
+            data_attribute_require(len(aliases)==1,'unclaimed object needs explicit existing C-owner alias')
+            baseline_owner=data_attribute_existing_C_owner(args,name,section,[address,address+size],
+                data_attribute_proof_document(context,args).get('existing_c_owner_baselines',{}).get(args.tu_id))
+            data_attribute_require(not any(name in row.get('names',[]) for rows in
+                (context['row'].get('verified_locations',[]),context['candidate'].get('recovered_location_candidates',[]),
+                 context['control'].get('identities',[])) for row in rows if row.get('unit')==args.unit and
+                 row.get('tu')==args.tu_id),'auxiliary existing pointer table cannot be a fabricated new claim')
+        linked=[s for s in context['linked'].symbols if s['name']==name and int(s['va'],16)==address and
+                s.get('section')==section and s['type']==STT_OBJECT and s['binding']==0 and s['size']==size]
+        data_attribute_require(len(linked)==1,'linked compiler object identity/extent mismatch')
+        data_attribute_emission(context,tu,name,size,section)
+        payloads=[];relocation_sets=[]
+        for image,symbol in ((context['raw'],raw_symbol),(context['selected'],selected_symbol)):
+            csec=image.section(symbol['section'])
+            data_attribute_require(csec and csec['type']==1 and symbol['value']+size<=csec['size'],
+                                   'complete initialized compiler section extent')
+            payloads.append(image.bytes_of(csec)[symbol['value']:symbol['value']+size])
+            relocation_sets.append(data_attribute_rel_entries(image,csec,symbol['value'],size))
+        data_attribute_require(payloads[0]==payloads[1] and
+                               [r['relative'] for r in relocation_sets[0]]==list(range(0,size,4)) and
+                               [r['relative'] for r in relocation_sets[0]]==[r['relative'] for r in relocation_sets[1]],
+                               'every actual symbolic pointer slot needs one exact raw/selected R32')
+        expected=bytearray(payloads[0]);evidence=[]
+        for first,second in zip(*relocation_sets):
+            initializer_name=initializer_names[first['relative']//4]
+            pointee_declarations=data_attribute_character_pointee(context,initializer_name)
+            initializer_symbols=[s for s in context['raw'].symbols if s['name']==initializer_name]
+            data_attribute_require(len(initializer_symbols)==1,'source pointee must have one actual raw symbol')
+            declared=initializer_symbols[0];actual=first['symbol']
+            if declared['shndx']==0:
+                data_attribute_require(declared['index']==actual['index'] and first['addend']==0,
+                                       'external source pointee differs from actual R32 symbol/addend')
+            else:
+                data_attribute_require(declared['shndx']==actual['shndx'] and declared['value']==
+                    ((actual['value']+first['addend'])&0xffffffff),
+                    'source pointee coordinate differs from actual R32 symbol/addend')
+            left=data_attribute_resolve_r32(context,args,context['raw'],first,elf)
+            right=data_attribute_resolve_r32(context,args,context['selected'],second,elf,selected=True)
+            data_attribute_require(first['addend']==second['addend'] and left['value']==right['value'],
+                                   'raw/selected R32 actual symbol/addend resolution differs')
+            struct.pack_into('<I',expected,first['relative'],left['value']&0xffffffff)
+            evidence.append(dict(offset=first['relative'],source_pointee=initializer_name,
+                                 source_character_array_declarations=pointee_declarations,raw=first,selected=second,target=left,
+                                 selected_target=right,expected_retail_word=f'0x{left["value"]:08x}',pointee_credit=0))
+        original_bytes=elf.data[original['file_offset']:original['file_offset']+size]
+        linked_bytes=context['linked'].data[linked[0]['file_offset']:linked[0]['file_offset']+size]
+        data_attribute_require(len(original_bytes)==size and bytes(expected)==original_bytes==linked_bytes,
+                               'relocated words or literal nonrelocation bytes differ from retail')
+        return dict(name=name,original_name=original['name'],section=section,address=original['va'],size=size,
+                    original_identity=dict(type=STT_OBJECT,binding=0,size=size,name=original['name']),
+                    compiler_identity=raw_symbol,selected_identity=selected_symbol,relocations=evidence,
+                    payload_sha256=hashlib.sha256(original_bytes).hexdigest(),
+                    evidence='complete_original_positive_OBJECT_R_MIPS_32',existing_C_owner_without_new_claim=not bool(spans),
+                    existing_C_owner_provenance=baseline_owner,
+                    grants_new_data_recovery=False,grants_function_acceptance=False,
+                    compiler_section={k:context['raw'].section(section)[k] for k in ('name','flags','size','align')},
+                    selected_section={k:context['selected'].section(selected_symbol['section'])[k]
+                                      for k in ('name','flags','size','align')},
+                    extension_input_pins=context.get('extension_pins',{}),**context['hashes'])
+    except (AuditError,OSError,ValueError,KeyError,TypeError,tu_edit.ParseError,struct.error):
+        return None
+
+
+def data_attribute_image_bytes(image,address,size):
+    sections=[s for s in image.sections if s['flags']&2 and s['type']==1 and
+              int(s['va'],16)<=address and address+size<=int(s['va'],16)+s['size']]
+    data_attribute_require(len(sections)==1,'one initialized retail/linked physical section required')
+    section=sections[0];offset=section['file_offset']+address-int(section['va'],16)
+    payload=image.data[offset:offset+size]
+    data_attribute_require(len(payload)==size,'truncated original/linked payload')
+    loads=[p for p in image.program_headers if p['type']==1 and int(p['va'],16)<=address and
+           address+size<=int(p['va'],16)+p['file_size']]
+    data_attribute_require(len(loads)==1,'one actual file-backed PT_LOAD required')
+    return payload,dict(name=section['name'],flags=section['flags'],alignment=section['alignment'],
+                        load_flags=loads[0]['flags'])
+
+
+def data_attribute_constant_reads(elf,original):
+    """Conservative straight-line R5900 address/load witness, not decompilation.
+
+    Calls and control-flow joins discard inferred addresses. Unsupported
+    writes also discard the destination, so a guessed register state cannot
+    establish a copy bound. Only ordinary concrete loads count as reads.
+    """
+    payload=elf.data[original['file_offset']:original['file_offset']+original['size']]
+    registers={0:0};reads=[]
+    address=int(original['va'],16)
+    leaders={0};delay_slots=set()
+    words=[struct.unpack_from('<I',payload,i)[0] for i in range(0,len(payload)-3,4)]
+    for index,word in enumerate(words):
+        offset=index*4;op=word>>26;rs=(word>>21)&31;fun=word&63
+        conditional=(op in (1,4,5,6,7,0x14,0x15,0x16,0x17) or (op in (0x10,0x11,0x12) and rs==8))
+        control=conditional or op in (2,3) or (op==0 and fun in (8,9))
+        if op==0 and fun==8 and rs!=31:
+            # An unenumerated indirect local target could enter any inferred
+            # block. This closed copy witness does not prove such a CFG.
+            return []
+        if control:
+            delay_slots.add(offset+4);leaders.add(offset+8)
+            if conditional:
+                immediate=word&65535
+                immediate=immediate-65536 if immediate&32768 else immediate
+                target=offset+4+(immediate<<2)
+                if 0<=target<len(payload):
+                    leaders.add(target)
+            elif op in (2,3):
+                target=(((address+offset+4)&0xf0000000)|((word&0x3ffffff)<<2))-address
+                if 0<=target<len(payload):
+                    leaders.add(target)
+    for offset in range(0,len(payload)-3,4):
+        if offset in leaders:
+            registers={0:0}
+        if offset in delay_slots:
+            # Branch-likely may annul this instruction. Discard its effects
+            # and reads for this bounded proof, even for ordinary branches.
+            registers={0:0}
+            continue
+        word=struct.unpack_from('<I',payload,offset)[0]
+        op,rs,rt,rd,fun=word>>26,(word>>21)&31,(word>>16)&31,(word>>11)&31,word&63
+        imm=word&65535;signed=imm-65536 if imm&32768 else imm
+        old=dict(registers);is_control=False
+        if op in (0x20,0x24,0x21,0x25,0x23,0x27,0x31,0x37,0x35,0x1e):
+            width={0x20:1,0x24:1,0x21:2,0x25:2,0x23:4,0x27:4,0x31:4,0x37:8,0x35:8,0x1e:16}[op]
+            if rs in old:
+                lo=(old[rs]+signed)&0xffffffff
+                reads.append(dict(instruction_address=hex(address+offset),word=f'0x{word:08x}',
+                                  range=[lo,lo+width],width=width,base_register=rs,offset=signed))
+            if op not in (0x31,0x35):
+                registers.pop(rt,None)
+        elif op==15:
+            registers[rt]=(imm<<16)&0xffffffff
+        elif op in (9,25,13):
+            if rs in old:
+                registers[rt]=((old[rs]|imm) if op==13 else old[rs]+signed)&0xffffffff
+            else:
+                registers.pop(rt,None)
+        elif op==0 and fun in (0x21,0x2d,0x25) and rs in old and rt in old:
+            registers[rd]=((old[rs]|old[rt]) if fun==0x25 else old[rs]+old[rt])&0xffffffff
+        elif op==0 and word==0:
+            pass
+        elif op in (2,3,1,4,5,6,7,0x14,0x15,0x16,0x17) or (op==0 and fun in (8,9)):
+            is_control=True
+        elif op in (0x28,0x29,0x2a,0x2b,0x2c,0x2d,0x2e,0x3f,0x39,0x3d,0x1f):
+            pass
+        elif op==0:
+            registers.pop(rd,None)
+        elif op in (0x10,0x11,0x12):
+            # COP1 can write a GPR only through mfc1/cfc1.
+            if rs in (0,1,2,3):
+                registers.pop(rt,None)
+            elif rs==8:
+                is_control=True
+        elif op in (8,10,11,12,14,0x1a,0x1b,0x22,0x26):
+            registers.pop(rt,None)
+        else:
+            # Unknown ISA families may write a destination in a different
+            # field (e.g. EE MMI). Never retain an inferred address through it.
+            registers={0:0}
+        registers[0]=0
+        if is_control:
+            registers={0:0}
+    return reads
+
+
+def data_attribute_r26_call(raw,caller,offset,callee):
+    """One actual named or same-section R26 call operand, before linking."""
+    data_attribute_require(isinstance(offset,int) and
+        caller['value']<=offset and offset+4<=caller['value']+caller['size'] and offset%4==0 and
+        0<caller['shndx']<len(raw.sections) and raw.sections[caller['shndx']]['type']==1 and
+        raw.sections[caller['shndx']]['flags']&4 and offset+4<=raw.sections[caller['shndx']]['size'],
+        'call site outside actual emitted consumer')
+    symtabs=[s for s in raw.sections if s['type']==2]
+    data_attribute_require(len(symtabs)==1 and symtabs[0]['entsize'] in (0,16) and
+        symtabs[0]['size']==len(raw.symbols)*16 and
+        0<symtabs[0]['link']<len(raw.sections) and raw.sections[symtabs[0]['link']]['type']==3,
+        'call relocation needs one valid actual symbol/string table')
+    entries=[]
+    for section in raw.sections:
+        if section['type']==9 and section['info']==caller['shndx']:
+            data_attribute_require(section['entsize'] in (0,8) and section['size']%8==0,
+                                   'malformed call relocation section')
+            data_attribute_require(section['link']==symtabs[0]['index'],
+                                   'call relocation links a different symbol table')
+            for index in range(section['size']//8):
+                at,info=struct.unpack_from('<II',raw.data,section['offset']+index*8)
+                if at==offset:
+                    data_attribute_require(info>>8<len(raw.symbols),'call symbol index outside table')
+                    entries.append((info&255,raw.symbols[info>>8]))
+    data_attribute_require(len(entries)==1 and entries[0][0]==4,'call needs one actual R_MIPS_26')
+    symbol=entries[0][1]
+    word=struct.unpack_from('<I',raw.data,raw.sections[caller['shndx']]['offset']+offset)[0]
+    addend=(word&0x3ffffff)<<2
+    data_attribute_require(word>>26 in (2,3),'R26 operand is not an actual jump/call instruction')
+    if symbol['type']==STT_SECTION:
+        data_attribute_require(symbol['shndx']==caller['shndx'] and symbol['value']==0 and symbol['binding']==0,
+                               'same-TU section call uses a different or nonlocal text section')
+        targets=[s for s in raw.functions() if s['name']==callee and
+                 s['shndx']==symbol['shndx'] and s['value']==symbol['value']+addend and s['size']>0]
+        data_attribute_require(len(targets)==1,'section-symbol R26 does not resolve to this exact emitted callee')
+        operand=dict(kind='actual_section_symbol_and_instruction_addend',addend=addend,
+                     callee_section=targets[0]['section'],callee_offset=targets[0]['value'])
+    else:
+        data_attribute_require(symbol['name']==callee and addend==0 and
+            ((symbol['shndx']==0 and symbol['type'] in (STT_NOTYPE,STT_FUNC) and
+              symbol['value']==0 and symbol['size']==0 and symbol['binding']==1) or
+             (symbol['shndx']!=0 and symbol['type']==STT_FUNC and symbol['size']>0)),
+            'named R26 operand does not target the exact callee without an offset')
+        operand=dict(kind='actual_named_callee',addend=addend,
+                     callee_section=symbol['section'],callee_offset=symbol['value'])
+    return dict(relocation=dict(type=4,symbol_index=symbol['index'],name=symbol['name']),raw_operand=operand)
+
+
+def data_attribute_consumer_binding(context,args,record,consumer,elf):
+    """Re-read a reviewed consumer's current compiler and original-byte facts."""
+    from tools.tu.elfinfo import Elf
+    from tools.tu.data_gate import storage_relocations
+    function=consumer.get('function');tu_id=consumer.get('tu')
+    facts=json.loads((ROOT/'config/tu-build.json').read_text())
+    units=[t for t in facts.get('tus',[]) if t['id']==tu_id and t.get('unit')==args.unit and t.get('in_scope')]
+    data_attribute_require(len(units)==1,'consumer TU is not one actual in-scope source owner')
+    source_path=ROOT/units[0]['path'];raw_path=context['unit_dir']/'build/c'/(source_path.stem+'.o')
+    expected=dict(source=source_path,preprocessed=Path(str(raw_path)+'.i'),
+                  assembly=Path(str(raw_path)+'.s'),raw=raw_path)
+    pins=consumer.get('inputs') or {}
+    data_attribute_require(set(pins) in (set(expected)|{'audit','audit_tool'},
+                                        set(expected)|{'audit','audit_tool','audit_tool_review','audit_tool_origin'}),
+                           'complete actual consumer compiler/audit pins required')
+    for key,path in expected.items():
+        data_attribute_pin(pins[key],path)
+    audit_path=data_attribute_pin(pins['audit'])
+    receipt=json.loads(audit_path.read_text())
+    data_attribute_require(receipt.get('schema')==SCHEMA and receipt.get('tu_id')==tu_id and
+        receipt.get('unit')==args.unit and receipt.get('inputs',{}).get('tu_c',{}).get('sha256')==sha256_file(source_path) and
+        receipt.get('inputs',{}).get('original',{}).get('sha256')==context['hashes']['original_sha256'] and
+        receipt.get('contract_relaxed')==[],'stale/relaxed/foreign consumer compiler provenance receipt')
+    audit_tool=data_attribute_pin(pins['audit_tool'])
+    allowed_auditors={'e680880ac28a97837890cf07568389c5b89268e50689467ea13c53c3e419a1a3',
+                      sha256_file(_AUDIT_PATH)}
+    data_attribute_require(receipt.get('tool',{}).get('sha256')==sha256_file(audit_tool) and
+                           sha256_file(audit_tool) in allowed_auditors,
+                           'consumer receipt did not use an actual independently reviewed compiler-provenance auditor')
+    if sha256_file(audit_tool)=='e680880ac28a97837890cf07568389c5b89268e50689467ea13c53c3e419a1a3':
+        import stat
+        data_attribute_require(not stat.S_IMODE(audit_tool.stat().st_mode)&0o222,
+            'predecessor provenance auditor is not the exact approved readonly snapshot')
+        origin_path=data_attribute_pin(pins.get('audit_tool_origin'))
+        data_attribute_require(sha256_file(origin_path)=='2858eb5876bf57ad90c86cec6b9cedd9b5e290364ddaf7317bdf919b2dca4f93' and
+            not stat.S_IMODE(origin_path.stat().st_mode)&0o222,'predecessor snapshot origin is not the sealed approved manifest')
+        origin=json.loads(origin_path.read_text())
+        data_attribute_require(sum(Path(entry.get('backup','/nonexistent')).resolve()==audit_tool and
+            entry.get('sha256')==sha256_file(audit_tool) for entry in origin.get('files',[]))==1,
+            'predecessor auditor path differs from actual snapshot origin')
+        predecessor=data_attribute_pin(pins.get('audit_tool_review'))
+        data_attribute_require(sha256_file(predecessor)==
+            'fcdcdb757c854367fd6e59bbe4ddfe086a6e1ceec4996daade036ed461ff3da5' and
+            not stat.S_IMODE(predecessor.stat().st_mode)&0o222,
+            'predecessor compiler-provenance review is not the exact sealed approved receipt')
+        predecessor_review=json.loads(predecessor.read_text())
+        data_attribute_require(predecessor_review.get('decision')=='READY_TOOL' and
+            predecessor_review.get('candidate',{}).get('sha256')==sha256_file(audit_tool) and
+            predecessor_review.get('grants_data_recovery') is False and
+            predecessor_review.get('grants_function_acceptance') is False,
+            'predecessor tool review does not attest this bounded provenance implementation')
+    for check_name in ('build_object_matches_audit','build_assembly_matches_audit',
+                       'source_is_what_cpp_compiled','assembly_matches_source','toolchain_messages'):
+        checks=[c for c in receipt.get('unit_checks',[]) if c.get('check')==check_name]
+        data_attribute_require(len(checks)==1 and checks[0].get('ok') is True and
+                               not checks[0].get('deferred') and not checks[0].get('informational'),
+                               'actual consumer compiler/cc1/object provenance is not proved')
+        if check_name=='build_object_matches_audit':
+            data_attribute_require(checks[0].get('sha256')==sha256_file(raw_path),
+                                   'consumer raw object differs from audited compilation')
+    emitted=[f for f in receipt.get('functions',[]) if f.get('name')==function and f.get('state')=='c']
+    data_attribute_require(len(emitted)==1,'one actual C consumer emission required')
+    for check_name in ('provenance','symbol','record_fidelity'):
+        data_attribute_require(emitted[0].get('checks',{}).get(check_name,{}).get('ok') is True,
+                               'consumer emission/original identity is not proved')
+    source=source_path.read_text(encoding='utf-8',errors='surrogateescape');parsed=tu_edit.parse(source)
+    blocks=[b for b in parsed.functions() if b.name==function and b.state=='c' and not b.conditional]
+    data_attribute_require(len(blocks)==1,'consumer must have one current C definition')
+    block=blocks[0];body=source[block.core_start:block.core_end]
+    data_attribute_require(consumer.get('definition_sha256')==hashlib.sha256(body.encode('utf-8',errors='surrogateescape')).hexdigest(),
+                           'reviewed consumer definition changed')
+    originals=[s for s in elf.symbols if s['name']==function and s['type']==STT_FUNC and s['size']>0]
+    data_attribute_require(len(originals)==1,'consumer needs one actual original FUNCTION')
+    original=originals[0];identity=consumer.get('original_identity') or {}
+    data_attribute_require(identity.get('name')==function and identity.get('type')==STT_FUNC and
+        identity.get('binding')==original['binding'] and identity.get('size')==original['size'] and
+        int(identity.get('address','0'),0)==int(original['va'],16),'consumer original FUNCTION identity drift')
+    raw=RelObject(raw_path.read_bytes());raw_functions=[s for s in raw.functions() if s['name']==function]
+    linked=[s for s in context['linked'].symbols if s['name']==function and s['type']==STT_FUNC and
+            s['binding']==original['binding'] and s['size']==original['size'] and s['va']==original['va']]
+    data_attribute_require(len(raw_functions)==len(linked)==1 and raw_functions[0]['size']==original['size'] and
+                           raw_functions[0]['binding']==original['binding'],'consumer raw/linked FUNCTION extent/binding drift')
+    original_code=elf.data[original['file_offset']:original['file_offset']+original['size']]
+    linked_code=context['linked'].data[linked[0]['file_offset']:linked[0]['file_offset']+linked[0]['size']]
+    data_attribute_require(original_code==linked_code,'consumer linked code differs from retail')
+    pp_text=expected['preprocessed'].read_text(encoding='utf-8',errors='replace')
+    pp=tu_edit.parse(pp_text);pp_blocks=[b for b in pp.functions() if b.name==function and b.state=='c']
+    data_attribute_require(len(pp_blocks)==1,'consumer CPP definition missing/duplicated')
+    pp_body=pp_text[pp_blocks[0].core_start:pp_blocks[0].core_end]
+    roles=[];statements=consumer.get('statements')
+    data_attribute_require(isinstance(statements,list) and statements,'concrete reviewed consumer statements required')
+    source_tokens,pp_tokens=tu_edit.c_tokens(body),tu_edit.c_tokens(pp_body)
+    def contains(tokens,needle):
+        return (isinstance(needle,list) and len(needle)>=3 and
+                sum(tokens[i:i+len(needle)]==needle for i in range(len(tokens)-len(needle)+1))==1)
+    for statement in statements:
+        data_attribute_require(statement.get('role') in ('view_address','pointer_table','terminated_reader',
+            'fixed_width_copy','mutable_color_write','message_decoder','decoder_table','pointer_field_flow') and
+            contains(source_tokens,statement.get('source_tokens')) and
+            contains(pp_tokens,statement.get('preprocessed_tokens')),'consumer statement/operand/role changed')
+        roles.append(statement['role'])
+    helpers=[]
+    for helper in consumer.get('source_helpers',[]):
+        data_attribute_require(helper.get('name')=='eMessageIsFontCommand',
+                               'unsupported source-inline helper witness')
+        owned=[i for i in parsed.items if i.kind=='func' and i.name==helper['name'] and not i.conditional]
+        expanded=[i for i in pp.items if i.kind=='func' and i.name==helper['name'] and not i.conditional]
+        data_attribute_require(len(owned)==len(expanded)==1,'actual inline source helper missing/duplicated')
+        text=owned[0].text(source)
+        expanded_text=expanded[0].text(pp_text)
+        data_attribute_require(helper.get('definition_sha256')==hashlib.sha256(text.encode()).hexdigest() and
+            helper.get('source_tokens')==tu_edit.c_tokens(text) and
+            helper.get('preprocessed_tokens')==tu_edit.c_tokens(expanded_text) and
+            'static' in tu_edit.c_tokens(text)[:8] and
+            any(t in tu_edit.c_tokens(text)[:8] for t in ('inline','__inline','__inline__')) and
+            not any(s['name']==helper['name'] for s in raw.functions()),
+            'source helper must be the reviewed actual inlined definition, never an invented original FUNCTION')
+        helpers.append(dict(name=helper['name'],definition_sha256=helper['definition_sha256'],
+                            original_FUNCTION_identity=None,no_function_credit=True))
+    calls=[]
+    raw_function=raw_functions[0]
+    for call in consumer.get('calls',[]):
+        callee=call.get('callee');offset=call.get('raw_offset')
+        operand=data_attribute_r26_call(raw,raw_function,offset,callee)
+        data_attribute_require(call.get('relocation')==operand['relocation'] and
+            call.get('raw_operand')==operand['raw_operand'],'actual callee relocation/operand changed')
+        original_callees=[s for s in elf.symbols if s['name']==callee and s['type']==STT_FUNC and s['size']>0]
+        data_attribute_require(len(original_callees)==1,'call needs one actual original FUNCTION target')
+        relative=offset-raw_function['value'];word=struct.unpack_from('<I',original_code,relative)[0]
+        call_address=int(original['va'],16)+relative
+        target=((call_address+4)&0xf0000000)|((word&0x3ffffff)<<2)
+        data_attribute_require(word>>26 in (2,3) and target==int(original_callees[0]['va'],16) and
+            any(source_tokens[i:i+2]==[callee,'('] for i in range(len(source_tokens)-1)),
+            'retail call target/source operand path differs')
+        calls.append(dict(call,retail_call_address=hex(call_address),retail_target=hex(target),word=f'0x{word:08x}'))
+    native=Elf(raw_path.read_bytes());address_links=[]
+    for link in consumer.get('address_links',[]):
+        data_attribute_require(link.get('kind') in ('direct_object','pointer_table'),'unsupported address-use path')
+        target_name=link.get('target_name')
+        target=[s for s in native.symbols if s.name==target_name]
+        data_attribute_require(len(target)==1,'address-use target must be an actual unique raw symbol')
+        target=target[0];matches=[]
+        for symbol in native.symbols:
+            if ((target.shndx!=0 and symbol.shndx==target.shndx and symbol.type in (STT_OBJECT,STT_SECTION)) or
+                    (target.shndx==0 and symbol.index==target.index)):
+                for ref in storage_relocations(native,symbol.index,{function}):
+                    coordinate=symbol.value+ref['addend']
+                    if ref['source_function']==function and ((target.shndx!=0 and target.value<=coordinate<target.value+target.size) or
+                                                              (target.shndx==0 and coordinate==0)):
+                        matches.append(dict(ref,symbol_index=symbol.index,target_offset=coordinate))
+        data_attribute_require(link.get('reference') in matches,'actual relocation/GP-resolved consumer address use changed')
+        if link['kind']=='direct_object':
+            data_attribute_require(target_name==record['name'],'direct consumer does not address this exact view')
+        else:
+            data_attribute_require(tu_id==args.tu_id and isinstance(link.get('pointer_index'),int),
+                                   'pointer table path must be registered in this exact source owner')
+            table=[s for s in raw.symbols if s['name']==target_name and s['type']==STT_OBJECT and s['shndx']!=0]
+            data_attribute_require(len(table)==1,'pointer-table producer storage missing')
+            table=table[0];index=link['pointer_index'];off=table['value']+index*4
+            data_attribute_require(0<=index<table['size']//4,'pointer-table index outside actual bounds')
+            rels=data_attribute_rel_entries(raw,raw.section(table['section']),off,4)
+            data_attribute_require(len(rels)==1,'pointer-table element needs one actual R32')
+            resolved=data_attribute_resolve_r32(context,args,raw,rels[0],elf)
+            data_attribute_require(resolved['value']==record['semantic_range'][0],
+                                   'actual pointer-table element does not target this view')
+        address_links.append(dict(link,actual_reference=link['reference'],view_range=record['semantic_range']))
+    return dict(tu=tu_id,function=function,definition_sha256=consumer['definition_sha256'],
+                original_identity=identity,original_code_sha256=hashlib.sha256(original_code).hexdigest(),
+                roles=roles,address_links=address_links,original_constant_reads=data_attribute_constant_reads(elf,original),
+                source_helpers=helpers,calls=calls,input_pins=pins,
+                compiler_preservation_only=True,grants_function_acceptance=False)
+
+
+def data_attribute_decode_literal(token):
+    """Only the byte-string grammar used by actual C/assembler literals."""
+    data_attribute_require(isinstance(token,str) and re.fullmatch(
+        r'"(?:[^"\\\n]|\\(?:["\\?abfnrtv]|[0-7]{1,3}|x[0-9a-fA-F]+))*"',token),
+        'not one complete byte string literal')
+    result=bytearray();index=1
+    escapes={'a':7,'b':8,'f':12,'n':10,'r':13,'t':9,'v':11,'"':34,'\\':92,'?':63}
+    while index<len(token)-1:
+        character=token[index];index+=1
+        if character!='\\':
+            value=ord(character)
+        else:
+            character=token[index];index+=1
+            if character in escapes:
+                value=escapes[character]
+            elif character=='x':
+                digits=re.match('[0-9a-fA-F]+',token[index:])[0];index+=len(digits);value=int(digits,16)
+            else:
+                digits=character
+                while len(digits)<3 and index<len(token)-1 and token[index] in '01234567':
+                    digits+=token[index];index+=1
+                value=int(digits,8)
+        data_attribute_require(0<=value<=255,'literal escape cannot invent byte truncation')
+        result.append(value)
+    return bytes(result)
+
+
+def data_attribute_character_source(tu,item,name,payload):
+    """Actual character declaration and complete byte-string initializer."""
+    clean=re.sub(r'\b__attribute__?\s*\(\s*\(\s*section\s*\(\s*"\.[a-z0-9]+"\s*\)\s*\)\s*\)',
+                 ' ',item.text(tu.text))
+    tokens=tu_edit.c_tokens(clean);equal=tokens.index('=')
+    declarator=' '.join(tokens[:equal]);literals=tokens[equal+1:-1]
+    data_attribute_require(tokens[-1]==';' and re.fullmatch(
+        r'(?:static )?(?:const )?char '+re.escape(name)+r' \[ (?:'+str(len(payload))+r' )?\]',declarator),
+        'partial character object must be exactly its literal prefix, not an envelope/blob')
+    data_attribute_require(literals and b''.join(data_attribute_decode_literal(t) for t in literals)+b'\0'==payload,
+                           'complete source literal and required final NUL must equal the minimal compiler object')
+    return tokens,equal,literals
+
+
+def data_attribute_original_character_literal(context,args,tu,item,record,payload,elf,native_item):
+    """A minimal partial character representation; no original C identity."""
+    from tools.tu import data_carve
+    proof=record['consumer_proof'];name=record['name']
+    for key in ('original_purpose','original_type','original_capacity','original_binding'):
+        data_attribute_require(key in record and record[key] is None,'unknown original character facts must be explicit null')
+    tokens,equal,literals=data_attribute_character_source(tu,item,name,payload)
+    data_attribute_require(len(payload)>1 and payload[-1]==0 and 0 not in payload[:-1],
+                           'no-reader printable text needs nonempty text and its sole final NUL')
+    directives=data_carve._data_directives(native_item)
+    data_attribute_require(directives and directives[0][0]==record['semantic_range'][0],
+                           'actual original mapped item must start at the character literal')
+    line=native_item['block']['lines'][directives[0][2]].strip()
+    match=re.fullmatch(r'(?:/\*[^\n]*?\*/\s*)?\.(asciz|string)\s+("(?:[^"\\\n]|\\.)*")\s*',line)
+    data_attribute_require(match and data_attribute_decode_literal(match[2])+b'\0'==payload,
+                           'registered native .asciz/.string must independently decode to this exact retail prefix')
+    index=0;non_ascii=False
+    while index<len(payload)-1:
+        byte=payload[index]
+        if 32<=byte<=126:
+            index+=1
+        else:
+            data_attribute_require(index+1<len(payload)-1 and 0xa1<=byte<=0xfe and
+                                   0xa1<=payload[index+1]<=0xfe,'numeric/control/unknown byte blob is not a character literal')
+            index+=2;non_ascii=True
+    if non_ascii:
+        data_attribute_require(proof.get('text_encoding')=='evidenced_game_two_byte_text',
+                               'non-ASCII character interpretation needs explicit encoded-text evidence')
+        witness=proof.get('encoded_reader_witness') or {}
+        original=[s for s in elf.symbols if s['name']==witness.get('function') and s['name']=='eMessageCat' and
+                  s['type']==STT_FUNC and s['size']>0]
+        data_attribute_require(len(original)==1,'encoded-text view needs the actual borrowed byte-pair reader identity')
+        original=original[0];code=elf.data[original['file_offset']:original['file_offset']+original['size']]
+        data_attribute_require(witness.get('address')==original['va'] and witness.get('size')==original['size'] and
+                               witness.get('sha256')==hashlib.sha256(code).hexdigest(),
+                               'borrowed encoded reader evidence is stale or unrelated')
+    else:
+        data_attribute_require(proof.get('text_encoding')=='ASCII','printable literal must disclose its byte encoding')
+    constraints=proof.get('known_consumer_constraints')
+    data_attribute_require(isinstance(constraints,list),'known consumer constraints must be explicitly disclosed')
+    for constraint in constraints:
+        data_attribute_require(constraint.get('kind') in ('terminated_read','bounded_read','bounded_write') and
+            isinstance(constraint.get('required_extent'),int) and 0<constraint['required_extent']<=len(payload),
+            'known consumer requires storage outside the proved character prefix')
+        data_attribute_require(not (constraint['kind']=='bounded_write' and 'const' in tokens[:equal]),
+                               'known write contradicts a const character view')
+        source=data_attribute_pin(constraint.get('source'))
+        data_attribute_require(source.is_relative_to(ROOT.resolve()),'known source witness outside actual subject')
+        source_text=source.read_text(encoding='utf-8',errors='surrogateescape')
+        functions=[b for b in tu_edit.parse(source_text).functions() if b.name==constraint.get('function') and b.state=='c']
+        data_attribute_require(len(functions)==1 and constraint.get('definition_sha256')==hashlib.sha256(
+            source_text[functions[0].core_start:functions[0].core_end].encode('utf-8',errors='surrogateescape')).hexdigest(),
+            'known current consumer witness changed')
+    data_attribute_require(not any(t in tu_edit.c_tokens(tu.text) for t in ('__builtin_object_size',)),
+                           'unsupported object-capacity expression needs an explicit bounded source proof')
+    return dict(kind='original_character_literal_view',length=len(payload),terminator_offset=len(payload)-1,
+                original_directive=match[1],source_literal_tokens=literals,text_encoding=proof['text_encoding'],
+                original_identity=None,original_purpose=None,original_type=None,original_capacity=None,
+                original_binding=None,known_consumer_constraints=constraints,
+                surviving_C_reader_required=False,borrowed_reader_credit=0)
+
+
+def data_attribute_partial_consumer(context,args,tu,item,record,payload,elf,native_item):
+    """Closed consumer proofs are checked separately from physical envelopes."""
+    proof=record.get('consumer_proof') or {}
+    kind=proof.get('kind')
+    if kind=='original_character_literal_view':
+        return data_attribute_original_character_literal(context,args,tu,item,record,payload,elf,native_item)
+    data_attribute_require(kind in ('terminated_character_sequence','fixed_width_copy','encoded_message_sequence'),
+                           'unsupported semantic consumer proof kind')
+    chain=proof.get('consumer_chain')
+    data_attribute_require(isinstance(chain,list) and 1<=len(chain)<=12,'bounded actual consumer chain required')
+    checked=[];address_links=[]
+    for consumer in chain:
+        checked_consumer=data_attribute_consumer_binding(context,args,record,consumer,elf)
+        checked.append(checked_consumer)
+        address_links.extend(checked_consumer['address_links'])
+    data_attribute_require(address_links,'no actual compiler address-use path to this semantic view')
+    type_evidence=proof.get('type_evidence') or {}
+    data_attribute_require(type_evidence.get('declaration_tokens')==tu_edit.c_tokens(item.text(tu.text)),
+                           'semantic type proof does not bind this exact current declaration')
+    names={c['function'] for c in checked}
+    source_helpers={h['name'] for c in checked for h in c['source_helpers']}
+    if kind=='terminated_character_sequence':
+        data_attribute_character_source(tu,item,record['name'],payload)
+        data_attribute_require(type_evidence.get('kind')=='character_sequence' and payload and
+                               payload[-1]==0 and 0 not in payload[:-1] and
+                               proof.get('element_size')==1 and proof.get('terminator')==0,
+                               'not one complete character sequence including its actual terminator')
+        data_attribute_require(any('terminated_reader' in c['roles'] for c in checked),
+                               'actual reviewed terminated byte reader missing')
+        data_attribute_require({'MenuCharNameGet','CharInfoMain','eMessageCpy','eMessageCat'}<=names and
+            {'MenuCharNameGet','eMessageCpy','eMessageCat'}<=
+            {call['callee'] for member in checked for call in member['calls']},
+            'closed returned-character-pointer consumer/call chain is incomplete')
+        semantic=dict(kind=kind,length=len(payload),terminator_offset=len(payload)-1)
+    elif kind=='encoded_message_sequence':
+        data_attribute_character_source(tu,item,record['name'],payload)
+        character_declaration=re.sub(r'\b__attribute__?\s*\(\s*\(\s*section\s*\(\s*"\.[a-z0-9]+"\s*\)\s*\)\s*\)',
+                                     ' ',item.text(tu.text)).split('=',1)[0]
+        data_attribute_require(re.fullmatch(r'(?:static )?char '+re.escape(record['name'])+r' \[ '+
+            str(len(payload))+r' \]', ' '.join(tu_edit.c_tokens(character_declaration))),
+            'mutable message must be an actual character prefix, not a const/type/capacity substitution')
+        _bytes,metadata=data_attribute_image_bytes(elf,record['semantic_range'][0],len(payload))
+        data_attribute_require(metadata['load_flags']&2,'actual written message must reside in a writable retail load segment')
+        data_attribute_require(type_evidence.get('kind')=='mutable_encoded_message' and
+                               proof.get('element_size')==1 and
+                               'xglFontGetSPcodeSize' in names and 'eMessageIsFontCommand' in source_helpers and
+                               bool(names & {'eMessageNextGyou','eMessageNextWaitKeySearch','eMessageDrawType01'}),
+                               'actual bounded message decoder chain/type is incomplete')
+        data_attribute_require(any(c['callee']=='xglFontGetSPcodeSize' for member in checked for c in member['calls']) and
+                               any(c['callee']=='eMessageSet' for member in checked for c in member['calls']),
+                               'actual producer/decoder call operand path is incomplete')
+        table=proof.get('decoder_table') or {}
+        symbols=[s for s in elf.symbols if s['name']=='spcode.0' and s['type']==STT_OBJECT and
+                 s['binding']==0 and s['size']==32 and s.get('section')=='.data' and s['va']=='0x00490990']
+        data_attribute_require(len(symbols)==1,'actual original 32-byte decoder table required')
+        symbol=symbols[0]
+        table_bytes=elf.data[symbol['file_offset']:symbol['file_offset']+32]
+        data_attribute_require(table==dict(name='spcode.0',address=symbol['va'],size=32,
+            element_size=1,index='code',sha256=hashlib.sha256(table_bytes).hexdigest()) and table_bytes[12]==3,
+            'actual decoder table/index/width changed')
+        # This capability is closed to the reviewed two message grammar forms.
+        # Internal NUL parameters are consumed by their command; a generic
+        # strlen rule or additional unreviewed controls cannot enter here.
+        data_attribute_require(len(payload)>=7 and payload[0]==12 and payload[4:6]==b'\x1e\x00',
+                               'unsupported encoded-message command prefix')
+        cursor=6;steps=[dict(offset=0,kind='font_command_12',length=1+table_bytes[12]),
+                        dict(offset=4,kind='message_command_30',length=2)]
+        if payload[cursor:cursor+2]==b'\xa1\xa7':
+            steps.append(dict(offset=cursor,kind='evidenced_EUC_pair',length=2));cursor+=2
+        while cursor<len(payload) and 32<=payload[cursor]<=126:
+            cursor+=1
+        data_attribute_require(cursor==len(payload)-1 and payload[cursor]==0,
+                               'message prefix must end at its decoded NUL without an emitted unknown suffix')
+        data_attribute_require(any('mutable_color_write' in c['roles'] for c in checked),
+                               'actual mutable color-byte consumer evidence missing')
+        semantic=dict(kind=kind,length=len(payload),decoded_terminator_offset=cursor,steps=steps,
+                      decoder_table=table,pointee_table_credit=0)
+    else:
+        data_attribute_require(type_evidence.get('kind')=='float_vector_view' and
+                               proof.get('element_size')==4 and len(payload) in (16,32) and
+                               type_evidence.get('scalar_count')==len(payload)//4,
+                               'fixed-copy scope is a typed 4/8-float vector view')
+        view_types={'D_004C6580':('MenuCameraSetPair',32),
+            'D_004C65A0':('MenuCameraSetRotationPair',32),'D_004C65C0':('MenuCameraSetPair',32),
+            'D_004C65E0':('MenuCameraSetVector',16),'D_004C6670':('MenuCharacterVector',16)}
+        data_attribute_require(args.tu_id=='main/tu170' and record['name'] in view_types,
+                               'float-view admission is closed to the five evidenced vector objects')
+        type_name,type_size=view_types[record['name']]
+        clean=re.sub(r'\b__attribute__?\s*\(\s*\(\s*section\s*\(\s*"\.[a-z0-9]+"\s*\)\s*\)\s*\)',
+                     ' ',item.text(tu.text))
+        data_attribute_require(tu_edit.c_tokens(clean.split('=',1)[0])==[type_name,record['name']] and
+                               len(payload)==type_size,'actual float-view declarator/type/size differs')
+        definitions=[
+            'typedef struct Vector4 { float x; float y; float z; float w; } Vector4;',
+            'typedef union MenuCharacterVector { Vector4 vector; unsigned long long words[2]; } MenuCharacterVector;',
+            'typedef union MenuCameraPair { Vector4 vector[2]; float component[2][4]; unsigned long long words[4]; } MenuCameraPair;',
+            'typedef union MenuCameraRotationPair { Vector4 vector[2]; unsigned long long words[4]; } MenuCameraRotationPair;',
+            'typedef MenuCharacterVector MenuCameraVector;',
+            'typedef struct MenuCameraSetPositionVectors { Vector4 vector[2]; } MenuCameraSetPositionVectors;',
+            'typedef struct MenuCameraSetRotationVectors { Vector4 vector[2]; } MenuCameraSetRotationVectors;',
+            'typedef struct MenuCameraSetPair { union { MenuCameraPair representation; MenuCameraSetPositionVectors values; } storage; } MenuCameraSetPair;',
+            'typedef struct MenuCameraSetRotationPair { union { MenuCameraRotationPair representation; MenuCameraSetRotationVectors values; } storage; } MenuCameraSetRotationPair;',
+            'typedef struct MenuCameraSetVector { MenuCameraVector storage; } MenuCameraSetVector;']
+        expected_types=[tu_edit.c_tokens(text) for text in definitions]
+        actual_types=[tu_edit.c_tokens(i.text(context['pre'].text)) for i in context['pre_tu'].free_items()
+                      if i.kind=='decl' and not i.conditional]
+        data_attribute_require(type_evidence.get('type_definition_tokens')==expected_types and
+            all(actual_types.count(tokens)==1 for tokens in expected_types),
+            'actual CPP float fields/array widths/ABI storage views differ from evidenced types')
+        coverage=set();read_evidence=[]
+        for consumer in checked:
+            for access in consumer['original_constant_reads']:
+                lo,hi=access['range']
+                if record['semantic_range'][0]<=lo<record['semantic_range'][1]:
+                    data_attribute_require(hi<=record['semantic_range'][1],
+                                           'original fixed copy reads beyond compiler semantic prefix')
+                    coverage.update(range(lo,hi));read_evidence.append(access)
+        data_attribute_require(coverage==set(range(*record['semantic_range'])) and
+                               any('fixed_width_copy' in c['roles'] for c in checked),
+                               'actual original loads do not prove the entire exact fixed copy bound')
+        semantic=dict(kind=kind,length=len(payload),element_size=4,original_reads=read_evidence)
+    return dict(semantic=semantic,consumer_chain=checked,reviewed_range=record['semantic_range'],
+                independent_semantic_review_required=True,no_function_or_pointee_credit=True)
+
+
+def verified_partial_data_attribute_view(context,args,tu,item,name,section,obj,elf):
+    """Compiler-defined semantic prefix, explicitly unknown original identity.
+
+    This receipt grants only DATA section placement. It cannot turn a native
+    scaffold slot or its unexplained suffix into an original C array extent.
+    """
+    if context is None:
+        return None
+    try:
+        document=data_attribute_proof_document(context,args)
+        records=[r for r in document.get('records',[]) if r.get('kind')=='registered_partial_storage_view' and
+                 r.get('unit')==args.unit and r.get('tu')==args.tu_id and r.get('name')==name]
+        data_attribute_require(len(records)==1,'one registered partial storage view required')
+        record=records[0]
+        data_attribute_require(record.get('original_identity','absent') is None and
+                               record.get('gate_pins_sha256')==data_attribute_digest(document['gate_pins']),
+                               'original identity must be explicitly unknown; gate pins must be reviewed')
+        data_attribute_require(all(key in record and record[key] is None for key in
+            ('original_purpose','original_type','original_capacity','original_binding')),
+            'anonymous view must disclose unknown original purpose/type/capacity/binding')
+        review=data_attribute_review(record)
+        data_attribute_declaration(context,tu,item,name)
+        inputs=record.get('inputs') or {}
+        original_path=Path(original_elf(args.unit)[1]['path'])
+        if not original_path.is_absolute():
+            original_path=ROOT/original_path
+        expected=dict(source=context['source'],preprocessed=context['preprocessed_path'],
+                      assembly=context['assembly_path'],raw=context['raw_path'],selected=context['selected_path'],
+                      linked=context['linked_path'],original=original_path)
+        data_attribute_require(set(inputs)==set(expected),'complete actual partial-view input pins required')
+        for key,value in expected.items():
+            data_attribute_pin(inputs[key],value)
+        slot,semantic=record.get('original_physical_slot'),record.get('semantic_range')
+        data_attribute_require(isinstance(slot,list) and isinstance(semantic,list) and
+            len(slot)==len(semantic)==2 and all(isinstance(v,int) for v in slot+semantic) and
+            slot[0]==semantic[0] and slot[0]<semantic[1]<=slot[1] and slot[1]-slot[0]<=65536,
+            'semantic range must be one bounded prefix of an explicit layout slot')
+        address,end=semantic;size=end-address
+        expected_unknown=[] if end==slot[1] else [[end,slot[1]]]
+        data_attribute_require(record.get('unknown_ranges')==expected_unknown and
+                               record.get('unknown_ranges_credited') is False,
+                               'unknown suffix must exactly partition the slot and have zero credit')
+        data_attribute_require(not any(s['type']==STT_OBJECT and s['size']>0 and
+            int(s['va'],16)<slot[1] and slot[0]<int(s['va'],16)+s['size'] for s in elf.symbols
+            if 0<s['section_index']<0xff00),'partial view cannot overlap any actual original OBJECT')
+        data_attribute_require(not any(s['name'] and int(s['va'],16)==address for s in elf.symbols
+            if s['type'] not in (3,4) and 0<s['section_index']<0xff00),
+            'an actual original name/type/binding cannot be hidden as unknown')
+        symbols=[]
+        for image in (obj,context['raw'],context['selected']):
+            found=[s for s in image.symbols if s['name']==name and s['shndx']!=0]
+            data_attribute_require(len(found)==1,'unique actual compiler view symbol required')
+            symbol=found[0]
+            data_attribute_require(symbol['type']==STT_OBJECT and symbol['size']==size and
+                                   symbol['binding'] in (0,1),'compiler OBJECT must equal semantic prefix extent')
+            symbols.append(symbol)
+        after,raw_symbol,selected_symbol=symbols
+        data_attribute_require(after==raw_symbol and raw_symbol['section']==section and
+            record.get('compiler_identity')=={key:raw_symbol[key] for key in
+                ('name','type','binding','size','section','value')},'actual compiler identity differs from registration')
+        parts=[p for p in data_attribute_input_spans(context,args) if p['symbols']==[name] and
+               p['section']==section and p['offset']==raw_symbol['value'] and p['end']-p['offset']==size and
+               p['address']==address and p['end_address']==end]
+        data_attribute_require(len(parts)==1,'registered compiler span must equal semantic prefix, not slot')
+        owner=parts[0]
+        data_attribute_require(owner['run'].get('c_owned_symbols')==[name] and
+            [int(v,0) if isinstance(v,str) else int(v) for v in owner['run'].get('range',[])]==semantic and
+            [int(v,0) if isinstance(v,str) else int(v) for v in owner['run'].get('generated',[])]==semantic and
+            owner['part'].get('credit')=='verified' and not owner['run'].get('c_storage_aliases'),
+            'current partial-view owner/generated span must equal only the semantic prefix')
+        linked_symbols=[s for s in context['linked'].symbols if s['name']==name and
+            s['type']==STT_OBJECT and s['binding']==raw_symbol['binding'] and s['size']==size and
+            s.get('section')==section and int(s['va'],16)==address]
+        data_attribute_require(len(linked_symbols)==1,'linked compiler view symbol identity/address/extent mismatch')
+        spans=[s for s in context['row'].get('verified_location_spans',[]) if name in s.get('names',[]) or
+               name in s.get('object_symbols',[])]
+        data_attribute_require(len(spans)<=1,'duplicate strict DATA prefix receipts')
+        span=spans[0] if spans else None
+        baseline_owner=None
+        if span:
+            raw_section=context['raw'].section(raw_symbol['section'])
+            selected_section=context['selected'].section(selected_symbol['section'])
+            data_attribute_require(span.get('names')==[name] and span.get('object_symbols')==[name] and
+                span.get('original_identities')==[] and span.get('range')==semantic and span.get('length')==size and
+                span.get('split_range')==semantic and span.get('section')==section and
+                span.get('c_object_section')==selected_symbol['section'] and
+                span.get('c_object_offset')==selected_symbol['value'] and
+                span.get('c_object_section_size')==selected_section['size'] and
+                span.get('c_object_section_alignment')==selected_section['align'] and
+                span.get('compiler_input_span')==dict(section=raw_symbol['section'],offset=raw_symbol['value'],
+                                                     section_size=raw_section['size']) and
+                span.get('object_sha256')==context['hashes']['linked_data_object_sha256'] and
+                span.get('credited') is not False and
+                not any(span.get(k) for k in ('support_only','storage_only','storage_owner')),
+                'actual strict DATA prefix receipt differs from partial view')
+        else:
+            data_attribute_require(args.tu_id=='main/tu169' and
+                record.get('consumer_proof',{}).get('kind')=='original_character_literal_view',
+                'no claimed prefix receipt and not an approved existing anonymous character owner')
+            baseline_owner=data_attribute_existing_C_owner(args,name,section,slot,
+                record.get('existing_c_owner_baseline'))
+            data_attribute_require(record.get('existing_c_owner_baseline')==baseline_owner['baseline_inputs'],
+                                   'reviewed auxiliary view lacks exact historical C-definition/ownership pins')
+        other=[s for s in context['row'].get('verified_location_spans',[]) if s is not span and
+               max(s.get('range',[0,0])[0],slot[0])<min(s.get('range',[0,0])[1],slot[1])]
+        data_attribute_require(not other,'another credited span intersects partial view slot')
+        for locations in (context['row'].get('verified_locations',[]),
+                          context['candidate'].get('recovered_location_candidates',[]),
+                          context['control'].get('identities',[])):
+            matches=[r for r in locations if r.get('unit')==args.unit and r.get('tu')==args.tu_id and
+                     r.get('section')==section and int(r.get('address','0'),0)==address and r.get('names')==[name]]
+            data_attribute_require(len(matches)==(1 if span else 0),
+                                   'partial prefix claim missing/duplicated or auxiliary owner falsely claimed as new')
+        from tools.tu import data_carve
+        native=data_carve.tu_context(ROOT,args.unit,context['unit_dir'],args.tu_id)
+        data_attribute_gate_bound_pin(context,context['unit_dir']/'tu-manifest.json')
+        items=[i for i in data_carve.section_items(native,section) if i['start']==slot[0] and i['end']==slot[1]]
+        data_attribute_require(len(items)==1,'physical layout slot must be an actual native mapped item')
+        data_attribute_require(items[0].get('name')==name and name in items[0].get('labels',[]),
+                               'anonymous view must retain its actual registered scaffold label')
+        pieces=[p for p in native['pieces'].get(section,[]) if p['start']<=slot[0] and slot[1]<=p['end']]
+        data_attribute_require(len(pieces)==1,'one actual native physical-slot piece required')
+        data_attribute_gate_bound_pin(context,Path(native['path_of'](pieces[0],section)))
+        validated_tails=[]
+        for unknown in expected_unknown:
+            auxiliary_detail=None
+            tails=[t for t in (context['row'].get('uncredited_original_item_tails',[])+
+                              context['row'].get('uncredited_scaffold_suffixes',[])) if
+                   t.get('credited') is False and t.get('section')==section and t.get('range')==unknown and
+                   t.get('compiler_range')==semantic and t.get('original_item_range')==slot and
+                   t.get('kind') in ('original_string_item_tail','uncredited_scaffold_suffix')]
+            if baseline_owner is not None:
+                data_attribute_require(not tails,'auxiliary existing owner must not fabricate a new-claim gate tail receipt')
+            if not tails:
+                import inspect
+                from tools.tu import data_gate
+                from tools.tu.elfinfo import Elf
+                method=record.get('auxiliary_tail_proof_kind') if baseline_owner is not None else 'shared_unknown_scaffold_suffix'
+                data_attribute_require(method in ('computed_original_string_item_tail','shared_unknown_scaffold_suffix'),
+                                       'reviewed existing view must explicitly name its auxiliary suffix computation')
+                auxiliary_detail=None
+                if method=='computed_original_string_item_tail':
+                    predicate=data_gate.original_string_item_tail
+                    data_attribute_require(hashlib.sha256(inspect.getsource(predicate).encode()).hexdigest()==
+                        '7581dea8729032139f8f2be23e23b06b7030991aba72b4abdb51039c29be8989',
+                        'approved closed original-string-tail predicate changed')
+                    raw_native=Elf(context['raw_path'].read_bytes())
+                    original_native=Elf(Path(native['orig']).read_bytes())
+                    data_attribute_require(sha256_file(native['orig'])==context['hashes']['original_sha256'],
+                                           'auxiliary tail native original differs from configured retail authority')
+                    raw_sections=[s for s in raw_native.sections if s.name==raw_symbol['section']]
+                    data_attribute_require(len(raw_sections)==1,'one actual current raw suffix section required')
+                    computed=predicate(native,data_carve,section,slot[0],semantic[1],slot[1],raw_native,
+                                       raw_sections[0],raw_symbol['value'],original_native)
+                    data_attribute_require(computed is not None,'closed existing tail predicate refused this auxiliary suffix')
+                else:
+                    mechanical_record=data_attribute_composition_inputs(document,args,record)
+                    shared_gate,shared_carve,dependencies=data_attribute_load_shared_suffix(mechanical_record)
+                    data_attribute_require(not any(s['type'] in (4,9) for s in elf.sections),
+                                           'auxiliary retail-reference exclusion does not support original REL/RELA sections')
+                    data_attribute_require(not any(s['type'] not in (3,4) and 0<s['section_index']<0xff00 and
+                        semantic[1]<=int(s['va'],16)<slot[1] for s in elf.symbols),
+                        'unknown suffix contains an actual original interior symbol, including unnamed symbols')
+                    exclusion=(data_attribute_original_reference_exclusion(record,elf,shared_gate.Elf,unknown)
+                               if baseline_owner is not None else None)
+                    fragment=data_attribute_auxiliary_scaffold_fragment(context,args,mechanical_record,section,semantic,slot,elf)
+                    computed=shared_gate.uncredited_character_scaffold_suffix(native,shared_carve,section,
+                        slot[0],semantic[1],slot[1],context['raw_path'],context['selected_path'],context['linked_path'],
+                        context['source'],context['assembly_path'],context['preprocessed_path'],
+                        ROOT/'config/tu/data-carves.json',tu_id=args.tu_id)
+                    data_attribute_require(computed is not None,'shared typed-prefix mechanics refused auxiliary unknown suffix')
+                    auxiliary_detail=dict(kind=('auxiliary_existing_C_owner_unknown_scaffold_suffix' if baseline_owner is not None
+                                               else 'computed_uncredited_character_scaffold_suffix'),
+                        reference_exclusion=exclusion,scaffold_composition=fragment,dependencies=dependencies,
+                        original_input_section_alignment=None,original_capacity_proved=False,
+                        credited=False,credited_bytes=0)
+                tails=[computed]
+            data_attribute_require(len(tails)==1,'unknown suffix needs actual separate uncredited tail receipt')
+            tail=tails[0]
+            data_attribute_require(tail.get('credited') is False and tail.get('section')==section and
+                tail.get('range')==unknown and tail.get('compiler_range')==semantic and
+                tail.get('original_item_range')==slot,'actual suffix disposition differs from semantic/physical partition')
+            if tail['kind']=='uncredited_scaffold_suffix':
+                data_attribute_require(tail.get('disposition')=='uncredited_scaffold_suffix' and
+                    tail.get('credited_bytes')==0 and tail.get('owner')==name and
+                    tail.get('original_capacity_proved') is False and tail.get('alignment_proved') is False and
+                    tail.get('grants_source_eligibility') is False and
+                    tail.get('input_section')==raw_symbol['section'] and
+                    tail.get('input_offset')==raw_symbol['value'],
+                    'unknown suffix is not a zero-credit mechanical scaffold disposition')
+                data_attribute_require(set(tail.get('inputs',{}))==set(inputs)|{'registry','unit_manifest'},
+                                       'scaffold suffix must pin every actual compiler/image/registry input')
+                for key,path in expected.items():
+                    # The native splitter reads its actual unit original copy;
+                    # the auditor independently reads the configured retail
+                    # authority. Both paths must be exact and hash-identical.
+                    actual_path=Path(native['orig']) if key=='original' else path
+                    data_attribute_pin(tail['inputs'][key],actual_path)
+                    if key=='original':
+                        data_attribute_require(tail['inputs'][key]['sha256']==context['hashes']['original_sha256'],
+                                               'native suffix original copy differs from configured retail authority')
+                data_attribute_pin(tail['inputs']['registry'],ROOT/'config/tu/data-carves.json')
+                data_attribute_pin(tail['inputs']['unit_manifest'],context['unit_dir']/'tu-manifest.json')
+            validated_tails.append(dict(mechanical_receipt=tail,auxiliary_computation=not any(tail is t for t in
+                context['row'].get('uncredited_original_item_tails',[])+context['row'].get('uncredited_scaffold_suffixes',[])),
+                current_compiler_raw_input_alignment=context['raw'].section(raw_symbol['section'])['align'],
+                original_input_section_alignment=None,original_capacity_proved=False,credited=False,credited_bytes=0))
+            if auxiliary_detail is not None:
+                validated_tails[-1]['computed_unknown_suffix']=auxiliary_detail
+        original_bytes,original_metadata=data_attribute_image_bytes(elf,slot[0],slot[1]-slot[0])
+        linked_bytes,linked_metadata=data_attribute_image_bytes(context['linked'],slot[0],slot[1]-slot[0])
+        data_attribute_require(original_bytes==linked_bytes,'full physical slot differs from retail')
+        payload=original_bytes[:size]
+        for unknown in expected_unknown:
+            tail=next(t['mechanical_receipt'] for t in validated_tails if
+                      t['mechanical_receipt'].get('range')==unknown)
+            if tail.get('kind')=='uncredited_scaffold_suffix':
+                data_attribute_require(tail.get('prefix_sha256')==hashlib.sha256(payload).hexdigest() and
+                    tail.get('suffix_sha256')==hashlib.sha256(original_bytes[size:]).hexdigest(),
+                    'mechanical suffix payload hashes do not match actual retail bytes')
+        compiler_metadata=[]
+        for image,symbol in ((context['raw'],raw_symbol),(context['selected'],selected_symbol)):
+            csec=image.section(symbol['section'])
+            data_attribute_require(csec and csec['type']==1 and symbol['value']+size<=csec['size'] and
+                image.bytes_of(csec)[symbol['value']:symbol['value']+size]==payload and
+                not data_attribute_rel_entries(image,csec,symbol['value'],size),
+                'literal compiler prefix must be complete, relocation-free and retail-equal')
+            compiler_metadata.append(dict(name=csec['name'],flags=csec['flags'],alignment=csec['align'],
+                                          object_offset=symbol['value'],object_size=symbol['size']))
+        data_attribute_emission(context,tu,name,size,section)
+        consumer=data_attribute_partial_consumer(context,args,tu,item,record,payload,elf,items[0])
+        return dict(name=name,section=section,address=hex(address),size=size,
+                    evidence='registered_partial_storage_view',original_identity=None,
+                    existing_C_owner_provenance=baseline_owner,
+                    original_physical_slot=slot,semantic_range=semantic,unknown_ranges=expected_unknown,
+                    unknown_ranges_credited=False,compiler_identity=record['compiler_identity'],
+                    uncredited_suffix_evidence=validated_tails,original_input_section_alignment=None,
+                    original_capacity_proved=False,
+                    compiler_section=compiler_metadata[0],selected_section=compiler_metadata[1],
+                    original_section=original_metadata,linked_section=linked_metadata,
+                    semantic_payload_sha256=hashlib.sha256(payload).hexdigest(),
+                    physical_slot_sha256=hashlib.sha256(original_bytes).hexdigest(),consumer_proof=consumer,
+                    extension_input_pins=context.get('extension_pins',{}),
+                    independent_review=review,grants_new_data_recovery=False,grants_function_acceptance=False,
+                    **context['hashes'])
+    except (AuditError,OSError,ValueError,KeyError,TypeError,tu_edit.ParseError,struct.error):
+        return None
+
+
+def matching_data_section_attributes(tu, tu_rel, obj, elf, required=False, data_row=None, build_object=None,
+                                     audit_args=None, assembly=None, preprocessed=None, verified_data_row=None):
     """Separate unchanged published data placement from function admission.
 
     This affects admission text only, never the compiled source or object.
     A complete DATA-only gate can admit one literal section attribute on an
     exact positive original OBJECT; its original size, binding, section and
-    full linked compiler span remain mandatory. Matching may otherwise defer
+    full linked compiler span remain mandatory. An explicitly supplied full
+    ELF/DATA gate chain can establish the same per-object placement in a TU
+    that also contains C functions; their normal admission is unchanged.
+    Matching may otherwise defer
     one literal data-section attribute on a published, unchanged top-level
     object declaration emitted in the requested data section. Original data
     identity remains a deferred data check, not a function-admission condition.
@@ -5545,12 +7911,20 @@ def matching_data_section_attributes(tu, tu_rel, obj, elf, required=False, data_
     """
     verified_only = required
     complete_data_only = bool(data_row and not tu.functions() and build_object and build_object.is_file() and
+                              tu.text == (ROOT / tu_rel).read_text(encoding='utf-8', errors='surrogateescape') and
                               data_row.get('source_sha256') == sha256_file(ROOT / tu_rel) and
                               data_row.get('object_sha256') == sha256_file(build_object))
-    if required and not complete_data_only:
+    # A separately validated linked receipt can prove one complete object even
+    # when unrelated inherited DATA ownership is still pending. It never feeds
+    # the legacy full-DATA-only branch or changes the whole-TU recovery grant.
+    placement_row = verified_data_row if verified_data_row is not None else data_row
+    context = verified_data_attribute_context(audit_args, tu, tu_rel, obj, elf, placement_row,
+                                             build_object, assembly, preprocessed)
+    if required and not complete_data_only and context is None:
         return {}, [], []
-    published = TOOL_ROOT / tu_rel
-    if not published.resolve().is_relative_to(TOOL_ROOT.resolve()) or not published.is_file():
+    canonical_root=data_attribute_canonical_root()
+    published = canonical_root / tu_rel
+    if not published.resolve().is_relative_to(canonical_root) or not published.is_file():
         return {}, [], []
     published_text = published.read_text(errors='surrogateescape')
     published_declarations = {
@@ -5571,7 +7945,7 @@ def matching_data_section_attributes(tu, tu_rel, obj, elf, required=False, data_
         if len(found) != 1:
             continue
         tokens = tu_edit.c_tokens(text)
-        if ((tuple(tokens) not in published_declarations and not complete_data_only) or
+        if ((tuple(tokens) not in published_declarations and not complete_data_only and context is None) or
                 'typedef' in tokens or 'extern' in tokens):
             continue
         attrs = [i for i, token in enumerate(tokens) if token in ('__attribute', '__attribute__')]
@@ -5586,6 +7960,9 @@ def matching_data_section_attributes(tu, tu_rel, obj, elf, required=False, data_
         if len(names) != 1:
             continue
         name = next(iter(names))
+        if any(token == name and index + 1 < len(tokens) and tokens[index + 1] == '('
+               for index, token in enumerate(tokens)):
+            continue
         original = [s for s in elf.symbols if s['name'] == name and s['type'] == STT_OBJECT]
         emitted = [s for s in obj.symbols if s['name'] == name and s['shndx'] != 0]
         if len(emitted) != 1:
@@ -5602,6 +7979,15 @@ def matching_data_section_attributes(tu, tu_rel, obj, elf, required=False, data_
             before.get('section') in DATA_SECTIONS and
             _SECTION_ALIASES.get(before['section']) == _SECTION_ALIASES.get(section))
         match = found[0]
+        proof = verified_data_attribute_object(context, audit_args, tu, item, name, section, obj, elf)
+        if proof is None:
+            proof = verified_relocated_data_attribute_object(context,audit_args,tu,item,name,section,obj,elf)
+        if proof is None:
+            proof = verified_partial_data_attribute_view(context,audit_args,tu,item,name,section,obj,elf)
+        if proof is not None:
+            replacements[item.start] = text[:match.start()] + ' ' + text[match.end():]
+            verified.append(proof)
+            continue
         spans = [span for span in (data_row or {}).get('verified_location_spans', [])
                  if name in span.get('names', []) and name in span.get('object_symbols', [])]
         if complete_data_only and original_identity_equal and before['size'] > 0 and len(spans) == 1:
@@ -5619,7 +8005,7 @@ def matching_data_section_attributes(tu, tu_rel, obj, elf, required=False, data_
                                      linked_elf_sha256=data_row['linked_elf_sha256'],
                                      evidence='complete_linked_data_only_original_positive_OBJECT'))
                 continue
-        if verified_only:
+        if verified_only or tuple(tokens) not in published_declarations:
             continue
         replacements[item.start] = text[:match.start()] + ' ' + text[match.end():]
         deferred.append(dict(name=name, section=section, size=after['size'],
@@ -5827,6 +8213,14 @@ def main(argv=None):
     ap.add_argument('--include-dir', action='append')
     ap.add_argument('--c-owned', action='append', help='SECTION[=START:END] owned by the C TU')
     ap.add_argument('--data-gate-report', help='passing linked C-data report, hash-bound to this TU build')
+    ap.add_argument('--data-elf-gate-report', help='explicit passing ELF gate pinned by the DATA report; '
+                    'required for strict per-object DATA section attributes in functional TUs')
+    ap.add_argument('--data-attribute-proof',help='explicit hash-bound independently reviewed partial DATA '
+                    'view registration; grants only eligible DATA section placement')
+    ap.add_argument('--data-owner-control-proof',help='explicit primary/secondary normal DATA context envelope; '
+                    'zero-new-credit revalidation of complete current C-owned storage')
+    ap.add_argument('--data-zero-marker-proof',help='explicit independently reviewed zero-byte original marker '
+                    'transport through its already proven positive C owner; zero new storage or credit')
     ap.add_argument('--require-data-audit', action='store_true',
                     help='require complete data recovery checks in addition to function emission; '
                          'default: data_required=false; original scaffolding is permitted for '

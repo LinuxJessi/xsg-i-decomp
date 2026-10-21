@@ -27,27 +27,26 @@ extern const unsigned short D_004C5218[16];
 
 extern const unsigned short D_004C5238[12];
 
-extern void (*f_11[])(int *first, int *second);
+static void (*f_11[])();
 
-extern const unsigned char D_004C5438[9][2];
 
-extern const char *f_base_14[];
+static const char *f_base_14[];
 
-extern const char *f_exten_15[];
+static const char *f_exten_15[];
 
-extern const char *f_ukn_name_16[];
+static const char *f_ukn_name_16[];
 
-extern const char *f_char_mot_17[];
+static const char *f_char_mot_17[];
 
-extern char *f_mons_mot_18[];
+static char *f_mons_mot_18[];
 
-static char f_name_0_0036D6C8[21] = "data\\endou\\mapex.bin";
 
-static char f_name_1[23] = "data\\endou\\savemap.bin";
 
-int map_ex_text = 0;
 
-int save_map_text = 0;
+
+
+
+
 
 /* MenuNumberTextGet's same-TU assembly writes and returns this buffer. */
 
@@ -61,74 +60,61 @@ static int sort[2][0x100];
 
 static MenuListEntry mw_list[2][256];
 
-char D_004C51D8[16] = "Combatant";
 
-char D_004DABB0[8] = "Reserve";
 
-char D_004C51C0[24] = "Registered Combatant";
 
-char D_004C51A8[24] = "Registered Reserve";
 
-char D_004DABA8[8] = "User";
 
-char D_004DABA0[8] = "From";
 
-char D_004DAB98[8] = "Target";
 
-char D_004DAB90[8] = "To";
 
-char D_004DABC8[8] = "HP";
 
-char D_004DABC0[8] = "EP";
 
-char D_004C5290[16] = "Strength";
 
-char D_004C5280[16] = "Vitality";
 
-char D_004C5270[16] = "Ether Attack";
 
-char D_004C5260[16] = "Ether Defense";
 
-char D_004C5250[16] = "Dexterity";
 
-char D_004DABB8[8] = "Evasion";
 
-char D_004DABF8[8] = "STR";
 
-char D_004DABF0[8] = "VIT";
 
-char D_004DABE8[8] = "EATK";
 
-char D_004DABE0[8] = "EDEF";
 
-char D_004DABD8[8] = "DEX";
 
-char D_004DABD0[8] = "EVA";
 
-static char *tag_name_3[9] = {
-    0, D_004C51D8, D_004DABB0, D_004C51C0, D_004C51A8,
-    D_004DABA8, D_004DABA0, D_004DAB98, D_004DAB90
-};
 
-static char *para_name_4[8] = {
-    D_004DABC8, D_004DABC0, D_004C5290, D_004C5280,
-    D_004C5270, D_004C5260, D_004C5250, D_004DABB8
-};
 
-static char *para_name2_5[8] = {
-    D_004DABC8, D_004DABC0, D_004DABF8, D_004DABF0,
-    D_004DABE8, D_004DABE0, D_004DABD8, D_004DABD0
-};
 
-static unsigned short opt_mnt_tbl[8] = {
-    0x20, 0x21, 0x22, 0x23, 0x18, 0x19, 0x1A, 0x1B
-};
 
-static char msg_12[9] = "No data.";
 
-unsigned char ParaDataChangeTbl[8] __attribute__((section(".data"))) = {
-    6, 7, 0, 1, 2, 3, 4, 5
-};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /* OptMntToPosEquip2 maps the mount code through this asm sibling first. */
 
@@ -276,12 +262,10 @@ struct MenuScenarioTable {
     unsigned char unmodeled_3c[4];
 };
 
-const struct MenuScenarioTable D_004C5140[1] = {
-    {{{{500, 500, 500}, {400, 400, 399}, {399, 399, 300},
-       {197, 197, 100}, {56, 56, 1}}}, 0}
-};
 
-extern const char D_004DACC0[16];
+
+extern char D_004DACC0[5];
+extern const unsigned char D_004DACC8[1];
 
 extern short func_A197E8(int characterId, int specialId);
 
@@ -346,19 +330,11 @@ extern PartEquipData *func_A1A548(int accessoryId);
 
 /* MenuFileNameGet builds names into this same-TU filename buffer. */
 
-static MenuTextEntry dumm_msg_8 = {
-    D_004DACC0,
-    (const unsigned char *)(D_004DACC0 + 8),
-    (const unsigned char *)(D_004DACC0 + 8)
-};
 
-static MenuTextEntry dumm_9 = {
-    0,
-    (const unsigned char *)(D_004DACC0 + 8),
-    (const unsigned char *)(D_004DACC0 + 8)
-};
 
-static MenuTextEntry dumm2_10 = {0, 0, 0};
+
+
+
 
 extern const int D_004C5418[8];
 
@@ -386,6 +362,301 @@ extern const int D_004C5388[3];
 extern void *memset(void *destination, int value, unsigned int bytes);
 
 extern int PartyAllPartyGet(int *party, int selection);
+
+extern const char D_004DAB38[8];
+extern const char D_004DAB40[8];
+extern const char D_004DAB48[8];
+extern const char D_004DAB50[8];
+extern const char D_004DAB58[8];
+extern const char D_004DAB60[8];
+extern const char D_004DAB68[8];
+extern const char D_004DAB70[8];
+extern const char D_004DAB78[8];
+extern const char D_004DAB80[8];
+static void MenuSortSubType00(unsigned int *first, unsigned int *second);
+static void MenuSortSubType01(unsigned int *first, unsigned int *second);
+static void MenuSortSubType02(int *first, int *second);
+static void MenuSortSubType03(int *first, int *second);
+static void MenuSortSubType04(int *first, int *second);
+static void MenuSortSubType05(int *first, int *second);
+extern char D_004C51A8[19];
+extern char D_004C51C0[21];
+extern char D_004C51D8[10];
+extern const unsigned short D_004C51E8[12];
+extern const unsigned short D_004C5200[12];
+extern const unsigned short D_004C5218[16];
+extern const unsigned short D_004C5238[12];
+extern char D_004C5250[10];
+extern char D_004C5260[14];
+extern char D_004C5270[13];
+extern char D_004C5280[9];
+extern char D_004C5290[9];
+extern char D_004C52A0[9];
+extern char D_004C52B0[9];
+extern char D_004C52C0[9];
+extern char D_004C52D0[11];
+extern char D_004C52E0[11];
+extern char D_004C52F0[11];
+extern const char D_004DAB88[1];
+extern char D_004DAB90[8];
+extern char D_004DAB98[8];
+extern char D_004DABA0[8];
+extern char D_004DABA8[8];
+extern char D_004DABB0[8];
+extern char D_004DABB8[8];
+extern char D_004DABC0[8];
+extern char D_004DABC8[8];
+extern char D_004DABD0[8];
+extern char D_004DABD8[8];
+extern char D_004DABE0[8];
+extern char D_004DABE8[8];
+extern char D_004DABF0[8];
+extern char D_004DABF8[8];
+extern char D_004DAC00[7];
+extern char D_004DAC08[6];
+extern char D_004DAC10[6];
+extern char D_004DAC18[6];
+extern char D_004DAC20[6];
+extern char D_004DAC28[6];
+extern char D_004DAC30[6];
+extern char D_004DAC38[8];
+extern char D_004DAC40[6];
+extern char D_004DAC48[8];
+extern char D_004DAC50[8];
+extern char D_004DAC58[7];
+extern char D_004DAC60[7];
+extern char D_004DAC68[7];
+extern char D_004DAC70[7];
+extern char D_004DAC78[8];
+extern char D_004DAC80[5];
+extern char D_004DAC88[7];
+extern char D_004DAC90[4];
+extern char D_004DAC98[5];
+extern char D_004DACA0[6];
+extern char D_004DACA8[6];
+extern char D_004DACB0[8];
+extern char D_004DACB8[6];
+extern const char D_004DACD0[5];
+extern const char D_004DACD8[5];
+extern const char D_004DACE0[5];
+extern const char D_004DACE8[5];
+extern const char D_004DACF0[5];
+extern const char D_004DACF8[6];
+extern const char D_004DAD00[6];
+extern const char D_004DAD08[6];
+extern int map_ex_text;
+extern int save_map_text;
+extern const char D_004C5480[15];
+extern const char D_004C5490[19];
+extern const char D_004C54A8[13];
+extern const char D_004C54B8[9];
+extern const char D_004C54C8[9];
+extern char D_004C54D8[9];
+
+static char f_name_0_0036D6C8[21]  = "data\\endou\\mapex.bin";
+
+static char f_name_1[23]  = "data\\endou\\savemap.bin";
+
+static char *tag_name_3[9]  = {
+    0, D_004C51D8, D_004DABB0, D_004C51C0, D_004C51A8,
+    D_004DABA8, D_004DABA0, D_004DAB98, D_004DAB90
+};
+
+static char *para_name_4[8]  = {
+    D_004DABC8, D_004DABC0, D_004C5290, D_004C5280,
+    D_004C5270, D_004C5260, D_004C5250, D_004DABB8
+};
+
+static char *para_name2_5[8]  = {
+    D_004DABC8, D_004DABC0, D_004DABF8, D_004DABF0,
+    D_004DABE8, D_004DABE0, D_004DABD8, D_004DABD0
+};
+
+static char * char_name_6[30]  = { D_004DACC0, D_004DACB8, D_004DACB0, D_004DACA8, D_004C52E0, D_004DACA0, D_004DAC98, D_004DAC90, D_004C52D0, D_004C52C0, D_004DAC88, D_004DAC80, D_004DAC78, D_004DAC70, D_004DAC68, D_004DAC60, D_004DAC58, D_004C52B0, D_004DAC50, D_004DAC48, D_004C52A0, D_004DAC40, D_004DAC38, D_004DAC30, D_004DAC28, D_004DAC20, D_004DAC18, D_004DAC10, D_004DAC08, D_004DAC00 };
+
+static char * char_name2_7[1] __attribute__((section(".data"))) = { D_004C52F0 };
+
+static MenuTextEntry dumm_msg_8  = {
+    D_004DACC0,
+    D_004DACC8,
+    D_004DACC8
+};
+
+static MenuTextEntry dumm_9  = {
+    0,
+    D_004DACC8,
+    D_004DACC8
+};
+
+static MenuTextEntry dumm2_10  = {0, 0, 0};
+
+static unsigned short opt_mnt_tbl[8]  = {
+    0x20, 0x21, 0x22, 0x23, 0x18, 0x19, 0x1A, 0x1B
+};
+
+/* Partial callback type: parameter signedness belongs to each accepted comparator. */
+static void (*f_11[6])()  = { MenuSortSubType00, MenuSortSubType01, MenuSortSubType02, MenuSortSubType03, MenuSortSubType04, MenuSortSubType05 };
+
+static char msg_12[9]  = "No data.";
+
+static const char * f_base_14[3]  = { D_004C54A8, D_004C5490, D_004C5480 };
+
+static const char * f_exten_15[5]  = { D_004DACF0, D_004DACE8, D_004DACE0, D_004DACD8, D_004DACD0 };
+
+static const char * f_ukn_name_16[2] __attribute__((section(".data"))) = { D_004DAD00, D_004DACF8 };
+
+static const char * f_char_mot_17[3]  = { D_004C54C8, D_004DAD08, D_004C54B8 };
+
+static char * f_mons_mot_18[1] __attribute__((section(".data"))) = { D_004C54D8 };
+
+unsigned char ParaDataChangeTbl[8] __attribute__((section(".data"))) = {
+    6, 7, 0, 1, 2, 3, 4, 5
+};
+
+const struct MenuScenarioTable D_004C5140[1] = {
+    {{{{500, 500, 500}, {400, 400, 399}, {399, 399, 300},
+       {197, 197, 100}, {56, 56, 1}}}, 0}
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 unsigned char *MenuSaveDataGet(void)
 {
@@ -666,6 +937,108 @@ char *MenuNumberTextGet(long long number, int digitsBeforeUnits, int leadingZero
     return msg_2_00532A78;
 }
 
+const char D_004DAB88[1] = "";
+
+char D_004DAB90[8] = "To";
+
+char D_004DAB98[8] = "Target";
+
+char D_004DABA0[8] = "From";
+
+char D_004DABA8[8] = "User";
+
+char D_004DABB0[8] = "Reserve";
+
+char D_004DABB8[8] = "Evasion";
+
+char D_004DABC0[8] = "EP";
+
+char D_004DABC8[8] = "HP";
+
+char D_004DABD0[8] = "EVA";
+
+char D_004DABD8[8] = "DEX";
+
+char D_004DABE0[8] = "EDEF";
+
+char D_004DABE8[8] = "EATK";
+
+char D_004DABF0[8] = "VIT";
+
+char D_004DABF8[8] = "STR";
+
+char D_004DAC00[7] = "Bunnie";
+
+char D_004DAC08[6] = "AG-06";
+
+char D_004DAC10[6] = "AG-05";
+
+char D_004DAC18[6] = "AG-04";
+
+char D_004DAC20[6] = "AG-03";
+
+char D_004DAC28[6] = "AG-02";
+
+char D_004DAC30[6] = "AG-01";
+
+char D_004DAC38[8] = "VX-4000";
+
+char D_004DAC40[6] = "VX-05";
+
+char D_004DAC48[8] = "VX-9000";
+
+char D_004DAC50[8] = "VX-7000";
+
+char D_004DAC58[7] = "BIC-16";
+
+char D_004DAC60[7] = "BIC-15";
+
+char D_004DAC68[7] = "BIC-14";
+
+char D_004DAC70[7] = "BIC-13";
+
+char D_004DAC78[8] = "Soldier";
+
+char D_004DAC80[5] = "Mary";
+
+char D_004DAC88[7] = "Virgil";
+
+char D_004DAC90[4] = "Jr.";
+
+char D_004DAC98[5] = "MOMO";
+
+char D_004DACA0[6] = "Ziggy";
+
+char D_004DACA8[6] = "Shion";
+
+char D_004DACB0[8] = "KOS-MOS";
+
+char D_004DACB8[6] = "chaos";
+
+char D_004DACC0[5] = "None";
+
+const unsigned char D_004DACC8[1] = "";
+
+const char D_004DACD0[5] = ".bin";
+
+const char D_004DACD8[5] = ".fpk";
+
+const char D_004DACE0[5] = ".jnt";
+
+const char D_004DACE8[5] = ".xtx";
+
+const char D_004DACF0[5] = ".lex";
+
+const char D_004DACF8[6] = "ukunB";
+
+const char D_004DAD00[6] = "ukunS";
+
+const char D_004DAD08[6] = "ukn_g";
+
+int map_ex_text = 0;
+
+int save_map_text = 0;
+
 char *MenuTagTextGet(int index)
 {
     return tag_name_3[index];
@@ -705,6 +1078,44 @@ unsigned short MenuFaceEpidGet(int charId, int smallPortrait)
     return 0;
 }
 
+const MenuNumberDigits D_004C5180 = {{ D_004DAB38, D_004DAB40, D_004DAB48, D_004DAB50, D_004DAB58, D_004DAB60, D_004DAB68, D_004DAB70, D_004DAB78, D_004DAB80 }};
+
+char D_004C51A8[19] __attribute__((section(".rodata"))) = "Registered Reserve";
+
+char D_004C51C0[21] __attribute__((section(".rodata"))) = "Registered Combatant";
+
+char D_004C51D8[10] __attribute__((section(".rodata"))) = "Combatant";
+
+const unsigned short D_004C51E8[12] = { 3328, 3073, 3072, 3840, 3585, 3329, 3584, 3328, 3328, 3841, 4096, 3840 };
+
+const unsigned short D_004C5200[12] = { 2306, 2305, 2310, 2311, 2306, 2304, 2307, 2307, 2307, 2308, 2309, 2307 };
+
+const unsigned short D_004C5218[16] = { 1026, 1025, 1024, 1030, 1029, 1027, 1028, 1026, 1026, 1031, 1032, 1030, 1033, 1033, 1033, 1033 };
+
+const unsigned short D_004C5238[12] = { 2314, 2313, 2310, 2311, 2314, 2312, 2315, 2315, 2315, 2316, 2317, 2315 };
+
+char D_004C5250[10] __attribute__((section(".rodata"))) = "Dexterity";
+
+char D_004C5260[14] __attribute__((section(".rodata"))) = "Ether Defense";
+
+char D_004C5270[13] __attribute__((section(".rodata"))) = "Ether Attack";
+
+char D_004C5280[9] __attribute__((section(".rodata"))) = "Vitality";
+
+char D_004C5290[9] __attribute__((section(".rodata"))) = "Strength";
+
+char D_004C52A0[9] __attribute__((section(".rodata"))) = "VX-20000";
+
+char D_004C52B0[9] __attribute__((section(".rodata"))) = "VX-10000";
+
+char D_004C52C0[9] __attribute__((section(".rodata"))) = "\245\253\245\277\245\352\245\312";
+
+char D_004C52D0[11] __attribute__((section(".rodata"))) = "\245\255\245\343\245\267\245\352\245\242";
+
+char D_004C52E0[11] __attribute__((section(".rodata"))) = "\241\274\241\274\241\274\241\274\241\274";
+
+char D_004C52F0[11] __attribute__((section(".rodata"))) = "Ziggurat 8";
+
 char *MenuParaNameGet(int index)
 {
     return para_name_4[index];
@@ -715,8 +1126,8 @@ char *MenuParaNameGet2(int index)
     return para_name2_5[index];
 }
 
-extern char *char_name_6[30];
-extern char *char_name2_7[];
+static char *char_name_6[30];
+static char *char_name2_7[];
 
 char *MenuCharNameGet(unsigned int charId)
 {
@@ -901,6 +1312,8 @@ int MenuBoxDec(unsigned int index)
     return result;
 }
 
+
+
 int MenuBoxMoneyGet(int index, int priceMode)
 {
     float rate[5];
@@ -989,6 +1402,8 @@ int MenuBoxMoneyGet(int index, int priceMode)
     }
     return price;
 }
+
+const int D_004C5388[3] = { 400, 100, 100 };
 
 int MenuSkillEquipCheck(short charId, short skillId)
 {
@@ -1651,6 +2066,8 @@ int MenuSortCheck(int listIndex)
     return count;
 }
 
+
+
 void MenuSortSet(int bufferIndex, int categoryMask, int filter)
 {
     struct MenuWeaponRangePair {
@@ -1715,7 +2132,10 @@ inventory_bound:
         }
     }
     if ((categoryMask & 4) && MenuEquipStealMaskCheck() == 0) {
-        __builtin_memcpy(weaponRanges, D_004C5438, sizeof(weaponRanges));
+        __builtin_memcpy(weaponRanges, (const struct MenuWeaponRangePair[9]) {
+            { 1, 11 }, { 12, 23 }, { 69, 69 }, { 0, 0 }, { 41, 45 },
+            { 24, 40 }, { 46, 56 }, { 70, 114 }, { 1, 69 }
+        }, sizeof(weaponRanges));
         weaponPosition = 0;
         switch (filter) {
         case -2:
@@ -1903,6 +2323,7 @@ void *MenuSortAddrGet(int listIndex)
     return sort[listIndex];
 }
 
+
 int MenuSortGet(int listIndex, int entryIndex)
 {
     return sort[listIndex][entryIndex];
@@ -1959,6 +2380,18 @@ MenuListEntry *MenuListGet(int listIndex)
 {
     return mw_list[listIndex];
 }
+
+const char D_004C5480[15] = "data\\robo\\etc\\";
+
+const char D_004C5490[19] = "data\\yamamoto\\mot\\";
+
+const char D_004C54A8[13] = "data\\motion\\";
+
+const char D_004C54B8[9] = "menuagws";
+
+const char D_004C54C8[9] = "mtn_meqp";
+
+char D_004C54D8[9] __attribute__((section(".rodata"))) = "guno_000";
 
 char *MenuFileNameGet(int id, unsigned int resourceKind)
 {

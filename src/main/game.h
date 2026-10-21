@@ -41,8 +41,8 @@ void xglMatrixMul(Matrix *destination, Matrix *left, Matrix *right);
 float xglRotTransPers(Vector4 *out, const Matrix4 matrix,
                      Vector4 *point, int camera_id);
 void xglFontDebugPrintf(int x, int y, const char *format, ...);
-extern char str_0[12];
-extern char str_1[12];
+static char str_0[12];
+static char str_1[12];
 /* The eight-byte format prefix is evidenced. Its complete source-object
  * extent is unknown; the following EOB string is not an invented tail. */
 extern const char D_004D8A60[];
@@ -100,7 +100,6 @@ int SsdGetSeqPlayStatus(int sequence);
 int SsdGetResultValue(int *value);
 void xglSoundSequenceStop2(int channel);
 void EnemySound_StopAll(int mode);
-extern unsigned char GameCFSoundMenuPurgeFlag;
 void *GameResourceGetFreeAddr(void);
 const char *RES_GetEnemySeName(int index);
 void RES_GetMapEnvSeName(char *name);

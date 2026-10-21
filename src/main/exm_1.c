@@ -545,7 +545,7 @@ void EXM_PresetHair(ExMotionJointWork *work)
             }
             break;
         case 'E': {
-            unsigned char *defaultPalette = kebincol;
+            ExCollisionPrimitive *defaultPalette = kebincol;
             if (lastLetter == 'H') {
                 collibuf[0] = kebinhcol;
                 htypebuf[0].flags = htypebuf[1].flags = htypebuf[2].flags = 0;
@@ -2094,3 +2094,242 @@ void EXM_SetDelayMovedHair(Actor *actor, float delay)
         actor->moved_hair_delay = delay;
     }
 }
+
+
+static ExCollisionPrimitive shioncol[5] = {
+    { .joint = 48, .kind = 1, .start = { 0.029999999329447746f, -0.10000000149011612f, 0.0f, 0.10999999940395355f } },
+    { .joint = 51, .kind = 2, .start = { -0.05000000074505806f, 0.0099999997764825821f, 0.0099999997764825821f, 0.075000002980232239f }, .end = { 0.14000000059604645f, -0.0099999997764825821f, -0.0099999997764825821f, 0.059999998658895493f } },
+    { .joint = 45, .kind = 4, .start = { 0.0f, 0.47999998927116394f, 0.0f, 0.60000002384185791f } },
+    { .joint = 42, .kind = 6, .start = { 0.0f, 0.25999999046325684f, 0.0f, 0.40000000596046448f } },
+    { 0 }
+};
+
+static ExCollisionPrimitive chaoscol[2] = {
+    { .joint = 48, .kind = 1, .start = { 0.0099999997764825821f, -0.090000003576278687f, 0.0f, 0.11500000208616257f } },
+    { 0 }
+};
+
+static ExCollisionPrimitive momocol[4] = {
+    { .joint = 48, .kind = 1, .start = { 0.039999999105930328f, -0.10000000149011612f, 0.0f, 0.090000003576278687f } },
+    { .joint = 51, .kind = 2, .start = { 0.0f, 0.0f, 0.0f, 0.090000003576278687f }, .end = { 0.10000000149011612f, 0.0f, 0.0f, 0.070000000298023224f } },
+    { .joint = 63, .kind = 2, .start = { 0.0f, 0.0f, 0.0f, 0.090000003576278687f }, .end = { 0.10000000149011612f, 0.0f, 0.0f, 0.070000000298023224f } },
+    { 0 }
+};
+
+static ExCollisionPrimitive momo1col[8] = {
+    { .joint = 48, .kind = 1, .start = { 0.039999999105930328f, -0.10000000149011612f, 0.0f, 0.090000003576278687f } },
+    { .joint = 51, .kind = 2, .start = { 0.0f, 0.0f, 0.0f, 0.090000003576278687f }, .end = { 0.10000000149011612f, 0.0f, 0.0f, 0.070000000298023224f } },
+    { .joint = 63, .kind = 2, .start = { 0.0f, 0.0f, 0.0f, 0.090000003576278687f }, .end = { 0.10000000149011612f, 0.0f, 0.0f, 0.070000000298023224f } },
+    { .joint = 16, .kind = 2, .start = { 0.0f, 0.0f, -0.0f, 0.12999999523162842f }, .end = { 0.40000000596046448f, 0.0f, 0.0f, 0.12999999523162842f } },
+    { .joint = 26, .kind = 2, .start = { 0.0f, 0.0f, 0.0f, 0.12999999523162842f }, .end = { 0.40000000596046448f, 0.0f, 0.0f, 0.12999999523162842f } },
+    { .joint = 17, .kind = 2, .start = { 0.0f, 0.0f, -0.0f, 0.10000000149011612f }, .end = { 0.40000000596046448f, 0.0f, 0.0f, 0.12999999523162842f } },
+    { .joint = 27, .kind = 2, .start = { 0.0f, 0.0f, 0.0f, 0.10000000149011612f }, .end = { 0.40000000596046448f, 0.0f, 0.0f, 0.12999999523162842f } },
+    { 0 }
+};
+
+static ExCollisionPrimitive momo4col[5] = {
+    { .joint = 48, .kind = 1, .start = { 0.039999999105930328f, -0.10000000149011612f, 0.0f, 0.090000003576278687f } },
+    { .joint = 51, .kind = 2, .start = { 0.0f, 0.0f, 0.0f, 0.090000003576278687f }, .end = { 0.10000000149011612f, 0.0f, 0.0f, 0.070000000298023224f } },
+    { .joint = 63, .kind = 2, .start = { 0.0f, 0.0f, 0.0f, 0.090000003576278687f }, .end = { 0.10000000149011612f, 0.0f, 0.0f, 0.070000000298023224f } },
+    { .joint = 39, .kind = 4, .start = { 0.11999999731779099f, 0.40000000596046448f, 0.0f, 0.55000001192092896f } },
+    { 0 }
+};
+
+static ExCollisionPrimitive hyakucol[4] = {
+    { .joint = 48, .kind = 1, .start = { 0.039999999105930328f, -0.10000000149011612f, 0.0f, 0.090000003576278687f } },
+    { .joint = 51, .kind = 2, .start = { 0.0f, 0.0f, 0.0f, 0.079999998211860657f }, .end = { 0.05000000074505806f, 0.0f, 0.0f, 0.059999998658895493f } },
+    { .joint = 63, .kind = 2, .start = { 0.0f, 0.0f, 0.0f, 0.079999998211860657f }, .end = { 0.05000000074505806f, 0.0f, 0.0f, 0.059999998658895493f } },
+    { 0 }
+};
+
+static ExCollisionPrimitive shitancol[4] = {
+    { .joint = 48, .kind = 1, .start = { 0.039999999105930328f, -0.05000000074505806f, 0.0f, 0.070000000298023224f } },
+    { .joint = 42, .kind = 4, .start = { -0.10000000149011612f, 0.62999999523162842f, 0.0f, 0.80000001192092896f } },
+    { .joint = 42, .kind = 1, .start = { 0.05000000074505806f, -0.15000000596046448f, 0.0f, 0.30000001192092896f } },
+    { 0 }
+};
+
+static ExCollisionPrimitive ellycol[5] = {
+    { .joint = 48, .kind = 1, .start = { 0.0099999997764825821f, -0.079999998211860657f, 0.0f, 0.10000000149011612f } },
+    { .joint = 51, .kind = 2, .start = { 0.0f, 0.0f, 0.0f, 0.079999998211860657f }, .end = { 0.079999998211860657f, 0.0f, 0.0f, 0.059999998658895493f } },
+    { .joint = 63, .kind = 2, .start = { 0.0f, 0.0f, 0.0f, 0.079999998211860657f }, .end = { 0.079999998211860657f, 0.0f, 0.0f, 0.059999998658895493f } },
+    { .joint = 42, .kind = 4, .start = { -0.079999998211860657f, 0.30000001192092896f, 0.0f, 0.40000000596046448f } },
+    { 0 }
+};
+
+static ExCollisionPrimitive tonnycol[4] = {
+    { .joint = 48, .kind = 1, .start = { 0.039999999105930328f, -0.10000000149011612f, 0.0f, 0.090000003576278687f } },
+    { .joint = 16, .kind = 2, .start = { -0.10000000149011612f, 0.0f, -0.019999999552965164f, 0.15000000596046448f }, .end = { 0.40000000596046448f, 0.0f, 0.0f, 0.14000000059604645f } },
+    { .joint = 26, .kind = 2, .start = { -0.10000000149011612f, 0.0f, 0.019999999552965164f, 0.15000000596046448f }, .end = { 0.40000000596046448f, 0.0f, 0.0f, 0.14000000059604645f } },
+    { 0 }
+};
+
+static ExCollisionPrimitive albeltcol[3] = {
+    { .joint = 48, .kind = 1, .start = { 0.05000000074505806f, -0.079999998211860657f, 0.0f, 0.079999998211860657f } },
+    { .joint = 36, .kind = 4, .start = { -0.05000000074505806f, 0.20000000298023224f, 0.0f, 0.40000000596046448f } },
+    { 0 }
+};
+
+static ExCollisionPrimitive kebincol[3] = {
+    { .joint = 48, .kind = 1, .start = { 0.039999999105930328f, -0.059999998658895493f, 0.0f, 0.10000000149011612f } },
+    { .joint = 48, .kind = 3, .start = { 0.041999999433755875f, -0.059999998658895493f, 0.0f, 0.10999999940395355f } },
+    { 0 }
+};
+
+static ExCollisionPrimitive kebinhcol[2] = {
+    { .joint = 48, .kind = 1, .start = { 0.014999999664723873f, -0.070000000298023224f, 0.0f, 0.10000000149011612f } },
+    { 0 }
+};
+
+static ExCollisionPrimitive shionchcol[3] = {
+    { .joint = 48, .kind = 1, .start = { 0.0099999997764825821f, -0.079999998211860657f, 0.0f, 0.10000000149011612f } },
+    { .joint = 42, .kind = 4, .start = { -0.079999998211860657f, 0.30000001192092896f, 0.0f, 0.40000000596046448f } },
+    { 0 }
+};
+
+static ExCollisionPrimitive helmercol[3] = {
+    { .joint = 55, .kind = 6, .start = { 0.34999999403953552f, 0.0f, -0.2199999988079071f, 0.30000001192092896f } },
+    { .joint = 67, .kind = 7, .start = { 0.34999999403953552f, 0.0f, 0.2199999988079071f, 0.30000001192092896f } },
+    { 0 }
+};
+
+static ExCollisionPrimitive allencol[2] = {
+    { .joint = 48, .kind = 1, .start = { 0.029999999329447746f, -0.090000003576278687f, 0.0f, 0.090000003576278687f } },
+    { 0 }
+};
+
+static ExCollisionPrimitive abelcol[3] = {
+    { .joint = 48, .kind = 1, .start = { 0.0099999997764825821f, -0.070000000298023224f, 0.0f, 0.10000000149011612f } },
+    { .joint = 42, .kind = 4, .start = { 0.0f, 0.20000000298023224f, 0.0f, 0.30000001192092896f } },
+    { 0 }
+};
+
+static ExCollisionPrimitive mamcol[4] = {
+    { .joint = 48, .kind = 1, .start = { 0.0099999997764825821f, -0.070000000298023224f, 0.0f, 0.10000000149011612f } },
+    { .joint = 42, .kind = 4, .start = { 0.05000000074505806f, 0.15000000596046448f, 0.0f, 0.2800000011920929f } },
+    { .joint = 42, .kind = 6, .start = { 0.05000000074505806f, -0.15000000596046448f, 0.0f, 0.2800000011920929f } },
+    { 0 }
+};
+
+static ExCollisionPrimitive gaignuncol[2] = {
+    { .joint = 48, .kind = 6, .start = { 0.0099999997764825821f, -0.070000000298023224f, 0.0f, 0.10000000149011612f } },
+    { 0 }
+};
+
+static ExCollisionPrimitive offcol[2] = {
+    { .joint = 42, .kind = 4, .start = { 0.05000000074505806f, 0.18000000715255737f, 0.0f, 0.30000001192092896f } },
+    { 0 }
+};
+
+static ExCollisionPrimitive miyukicol[3] = {
+    { .joint = 48, .kind = 1, .start = { 0.039999999105930328f, -0.10000000149011612f, 0.0f, 0.090000003576278687f } },
+    { .joint = 39, .kind = 4, .start = { 0.11999999731779099f, 0.30000001192092896f, 0.0f, 0.40000000596046448f } },
+    { 0 }
+};
+
+static ExCollisionPrimitive robotcol[2] = {
+    { .joint = 39, .kind = 4, .start = { 0.079999998211860657f, -0.20000000298023224f, 0.0f, 0.40000000596046448f } },
+    { 0 }
+};
+
+
+
+static ExHairParameters hairpara[22] __attribute__((section(".data"))) = { { .gravity = 0.019999999552965164f, .length_response = 1.0f, .unmodeled_008 = { 0, 0, 0, 0, 0, 0, 0, 0 }, .response = { 0.89999997615814209f, 0.89999997615814209f, 0.89999997615814209f }, .unmodeled_01c = { 0, 0, 0, 0 }, .chain_response = 0.5f, .unmodeled_024 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }, { .gravity = 0.0f, .length_response = 1.0f, .unmodeled_008 = { 0, 0, 0, 0, 0, 0, 0, 0 }, .response = { 1.0f, 1.0f, 1.0f }, .unmodeled_01c = { 0, 0, 0, 0 }, .chain_response = 100.0f, .unmodeled_024 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }, { .gravity = 0.019999999552965164f, .length_response = 1.0f, .unmodeled_008 = { 0, 0, 0, 0, 0, 0, 0, 0 }, .response = { 0.89999997615814209f, 0.89999997615814209f, 0.89999997615814209f }, .unmodeled_01c = { 0, 0, 0, 0 }, .chain_response = 0.5f, .unmodeled_024 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }, { .gravity = 0.029999999329447746f, .length_response = 1.0f, .unmodeled_008 = { 0, 0, 0, 0, 0, 0, 0, 0 }, .response = { 0.69999998807907104f, 0.69999998807907104f, 0.69999998807907104f }, .unmodeled_01c = { 0, 0, 0, 0 }, .chain_response = 0.60000002384185791f, .unmodeled_024 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }, { .gravity = 0.019999999552965164f, .length_response = 1.0f, .unmodeled_008 = { 0, 0, 0, 0, 0, 0, 0, 0 }, .response = { 0.89999997615814209f, 0.89999997615814209f, 0.89999997615814209f }, .unmodeled_01c = { 0, 0, 0, 0 }, .chain_response = 0.30000001192092896f, .unmodeled_024 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }, { .gravity = 0.0099999997764825821f, .length_response = 0.89999997615814209f, .unmodeled_008 = { 0, 0, 0, 0, 0, 0, 0, 0 }, .response = { 0.89999997615814209f, 1.0f, 0.89999997615814209f }, .unmodeled_01c = { 0, 0, 0, 0 }, .chain_response = 0.69999998807907104f, .unmodeled_024 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }, { .gravity = 0.0099999997764825821f, .length_response = 0.89999997615814209f, .unmodeled_008 = { 0, 0, 0, 0, 0, 0, 0, 0 }, .response = { 0.89999997615814209f, 1.0f, 0.89999997615814209f }, .unmodeled_01c = { 0, 0, 0, 0 }, .chain_response = 1.2000000476837158f, .unmodeled_024 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }, { .gravity = 0.0099999997764825821f, .length_response = 0.89999997615814209f, .unmodeled_008 = { 0, 0, 0, 0, 0, 0, 0, 0 }, .response = { 0.5f, 0.5f, 0.5f }, .unmodeled_01c = { 0, 0, 0, 0 }, .chain_response = 2.0f, .unmodeled_024 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }, { .gravity = 0.0f, .length_response = 0.80000001192092896f, .unmodeled_008 = { 0, 0, 0, 0, 0, 0, 0, 0 }, .response = { 0.5f, 0.5f, 0.5f }, .unmodeled_01c = { 0, 0, 0, 0 }, .chain_response = 1.0f, .unmodeled_024 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }, { .gravity = 0.0f, .length_response = 1.0f, .unmodeled_008 = { 0, 0, 0, 0, 0, 0, 0, 0 }, .response = { 0.80000001192092896f, 0.80000001192092896f, 0.80000001192092896f }, .unmodeled_01c = { 0, 0, 0, 0 }, .chain_response = 1.7000000476837158f, .unmodeled_024 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }, { .gravity = 0.029999999329447746f, .length_response = 1.0f, .unmodeled_008 = { 0, 0, 0, 0, 0, 0, 0, 0 }, .response = { 0.89999997615814209f, 0.89999997615814209f, 0.89999997615814209f }, .unmodeled_01c = { 0, 0, 0, 0 }, .chain_response = 2.0f, .unmodeled_024 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }, { .gravity = 0.05000000074505806f, .length_response = 1.0f, .unmodeled_008 = { 0, 0, 0, 0, 0, 0, 0, 0 }, .response = { 0.0f, 0.0f, 0.0f }, .unmodeled_01c = { 0, 0, 0, 0 }, .chain_response = 0.5f, .unmodeled_024 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }, { .gravity = 0.05000000074505806f, .length_response = 1.0f, .unmodeled_008 = { 0, 0, 0, 0, 0, 0, 0, 0 }, .response = { 0.20000000298023224f, 0.20000000298023224f, 0.20000000298023224f }, .unmodeled_01c = { 0, 0, 0, 0 }, .chain_response = 0.5f, .unmodeled_024 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }, { .gravity = 0.039999999105930328f, .length_response = 0.89999997615814209f, .unmodeled_008 = { 0, 0, 0, 0, 0, 0, 0, 0 }, .response = { 0.69999998807907104f, 0.69999998807907104f, 0.69999998807907104f }, .unmodeled_01c = { 0, 0, 0, 0 }, .chain_response = 0.20000000298023224f, .unmodeled_024 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }, { .gravity = 0.05000000074505806f, .length_response = 1.0f, .unmodeled_008 = { 0, 0, 0, 0, 0, 0, 0, 0 }, .response = { 0.5f, 0.5f, 0.5f }, .unmodeled_01c = { 0, 0, 0, 0 }, .chain_response = 0.10000000149011612f, .unmodeled_024 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }, { .gravity = 0.5f, .length_response = 1.0f, .unmodeled_008 = { 0, 0, 0, 0, 0, 0, 0, 0 }, .response = { 0.89999997615814209f, 0.89999997615814209f, 0.89999997615814209f }, .unmodeled_01c = { 0, 0, 0, 0 }, .chain_response = 1.0f, .unmodeled_024 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }, { .gravity = 0.0099999997764825821f, .length_response = 0.80000001192092896f, .unmodeled_008 = { 0, 0, 0, 0, 0, 0, 0, 0 }, .response = { 0.20000000298023224f, 0.20000000298023224f, 0.20000000298023224f }, .unmodeled_01c = { 0, 0, 0, 0 }, .chain_response = 1.0f, .unmodeled_024 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }, { .gravity = 0.0f, .length_response = 0.89999997615814209f, .unmodeled_008 = { 0, 0, 0, 0, 0, 0, 0, 0 }, .response = { 0.89999997615814209f, 0.89999997615814209f, 0.89999997615814209f }, .unmodeled_01c = { 0, 0, 0, 0 }, .chain_response = 0.30000001192092896f, .unmodeled_024 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }, { .gravity = 0.05000000074505806f, .length_response = 0.80000001192092896f, .unmodeled_008 = { 0, 0, 0, 0, 0, 0, 0, 0 }, .response = { 0.75f, 0.75f, 0.75f }, .unmodeled_01c = { 0, 0, 0, 0 }, .chain_response = 0.5f, .unmodeled_024 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }, { .gravity = 0.0f, .length_response = 0.80000001192092896f, .unmodeled_008 = { 0, 0, 0, 0, 0, 0, 0, 0 }, .response = { 0.94999998807907104f, 0.94999998807907104f, 0.94999998807907104f }, .unmodeled_01c = { 0, 0, 0, 0 }, .chain_response = 2.0f, .unmodeled_024 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }, { .gravity = 0.05000000074505806f, .length_response = 0.10000000149011612f, .unmodeled_008 = { 0, 0, 0, 0, 0, 0, 0, 0 }, .response = { 0.0f, 0.0f, 0.0f }, .unmodeled_01c = { 0, 0, 0, 0 }, .chain_response = 0.5f, .unmodeled_024 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }, { .gravity = 0.0f, .length_response = 0.0099999997764825821f, .unmodeled_008 = { 0, 0, 0, 0, 0, 0, 0, 0 }, .response = { 0.0f, 0.0f, 0.0f }, .unmodeled_01c = { 0, 0, 0, 0 }, .chain_response = 0.5f, .unmodeled_024 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } } };
+
+static float JR_coatAdjust[3] __attribute__((section(".data"))) = { 0.098499998450279236f, 0.12849999964237213f, 0.19850000739097595f };
+
+const float D_004D8614 = 1.1000000238418579f;
+
+const float D_004D8618 = 0.05000000074505806f;
+
+const float D_004D861C = 0.05000000074505806f;
+
+const float D_004D8620 = 0.80000001192092896f;
+
+const float D_004D8624 = 0.05000000074505806f;
+
+const float D_004D8628 = 1.2999999523162842f;
+
+const float D_004D862C = 0.05000000074505806f;
+
+const float D_004D8630 = 1.3999999761581421f;
+
+const float D_004D8634 = 0.05000000074505806f;
+
+const float D_004D8638 = 1.1000000238418579f;
+
+const float D_004D863C = 0.070000000298023224f;
+
+const float D_004D8640 = 1.1000000238418579f;
+
+const float D_004D8644 = 0.070000000298023224f;
+
+const float D_004D8648 = 1.3999999761581421f;
+
+const float D_004D864C = 1.1000000238418579f;
+
+const float D_004D8650 = 0.05000000074505806f;
+
+const float D_004D8654 = 1.3999999761581421f;
+
+const float D_004D8658 = 0.05000000074505806f;
+
+const float D_004D865C = 1.7000000476837158f;
+
+const float D_004D8660 = 1.1000000238418579f;
+
+const float D_004D8664 = 0.10000000149011612f;
+
+const float D_004D8668 = 1.3999999761581421f;
+
+const float D_004D866C = 0.80000001192092896f;
+
+const float D_004D8670 = 0.05000000074505806f;
+
+const float D_004D8674 = 1.3999999761581421f;
+
+const float D_004D8678 = 0.05000000074505806f;
+
+const float D_004D867C = 0.40000000596046448f;
+
+const float D_004D8680 = 0.60000002384185791f;
+
+const float D_004D8684 = 0.05000000074505806f;
+
+const float D_004D8688 = 1.1000000238418579f;
+
+const float D_004D868C = 0.059999998658895493f;
+
+const float D_004D869C = 1.2999999523162842f;
+
+const float D_004D86A0 = 0.05000000074505806f;
+
+const float D_004D86AC = 1.2999999523162842f;
+
+const float D_004D86B0 = 0.05000000074505806f;
+
+const float D_004D86B4 = 1.3999999761581421f;
+
+const float D_004D86B8 = 0.05000000074505806f;
+
+const float D_004D86BC = 0.40000000596046448f;
+
+const float D_004D86C0 = 0.60000002384185791f;
+
+const float D_004D86C4 = 0.05000000074505806f;
+
+const float D_004D86C8 = 0.80000001192092896f;
+
+const float D_004D86CC = 0.05000000074505806f;
+
+const float D_004D86D0 = 0.05000000074505806f;
+
+static void * collibuf[1] = { 0 };
+
+static int ibuf = 0;
+
+static int startjnt = 74;
+
+static float vel_0[4];
+
+static ExHairTypeSelection htypebuf[24];

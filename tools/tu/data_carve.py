@@ -114,6 +114,8 @@ import json
 import os
 import re
 import struct
+import subprocess
+import signal
 import sys
 import time
 from pathlib import Path
@@ -252,6 +254,8 @@ def normalize_runs(runs):
                                        size=int(x['storage_owner']['size'])),
                     **({'storage_member': x['storage_member']} if x.get('storage_member') else {}))
                     for x in r['c_storage_aliases']), key=lambda x: (x['address'], x['original_name']))
+            if r.get('typed_character_prefix_proof') is not None:
+                row['typed_character_prefix_proof'] = copy.deepcopy(r['typed_character_prefix_proof'])
             out[sec].append(row)
     return out
 
@@ -312,7 +316,8 @@ def registry_entry(runs, basis=None, old=None):
                 entry = {k: r[k] for k in ('range', 'generated', 'generated_by', 'c_owned_symbols',
                                             'also_referenced_by_c', 'reached_through',
                                             'c_input_spans', 'c_storage_aliases',
-                                            'uncredited_c_symbols', 'uncredited_scaffold_ranges') if k in r}
+                                            'uncredited_c_symbols', 'uncredited_scaffold_ranges',
+                                            'typed_character_prefix_proof') if k in r}
                 if basis is not None:
                     entry['basis'] = basis
                     correction = (r.get('basis') or {}).get('owner_correction') or old_corrections.get(
@@ -427,6 +432,19 @@ def _split_item_at(item, cut, line_index, symbol_size=None):
     left = dict(item, name=label or item['name'], end=cut, block=dict(item['block'], lines=prefix))
     right = dict(item, name=f'D_{cut:08X}', labels=[], start=cut,
                  block=dict(item['block'], lines=suffix))
+    if item.get('uncredited_scaffold_suffix'):
+        previous = item['uncredited_scaffold_suffix']
+        for part in (left,right):
+            lo,hi = max(part['start'],previous['range'][0]),min(part['end'],previous['range'][1])
+            if lo < hi:
+                part['uncredited_scaffold_suffix'] = dict(previous,range=[lo,hi])
+            else:
+                part.pop('uncredited_scaffold_suffix',None)
+    if symbol_size is not None:
+        right['uncredited_scaffold_suffix'] = dict(kind='uncredited_scaffold_suffix', credited=False,
+            range=[cut,item['end']], compiler_range=[item['start'],cut],
+            original_item_range=[item['start'],item['end']], owner=item['name'],
+            original_capacity_proved=False, alignment_proved=False)
     return left, right
 
 
@@ -484,7 +502,414 @@ def split_space_items(items, cuts, tu_name):
     return out
 
 
-def split_initialized_items(items, cuts, run_ends, tu_name):
+def _character_definition(text, name, allow_initializer_references=False):
+    """One actual unconditional global narrow literal definition, never text in quotes."""
+    sys.path.insert(0, str(CANONICAL_ROOT / 'tools'))
+    import tu_edit
+    tu = tu_edit.TU(text)
+    definitions = []
+    for item in tu.free_items():
+        if item.kind != 'decl':
+            continue
+        tokens = tu_edit.c_tokens(item.text(text))
+        if name not in tokens or '=' not in tokens:
+            continue
+        if allow_initializer_references and name not in tokens[:tokens.index('=')]:
+            continue
+        if item.conditional:
+            raise CarveError(name + ': conditional character definition')
+        declaration = item.text(text)
+        declaration = re.sub(r'\b__attribute__?\s*\(\s*\(\s*section\s*\(\s*"\.(?:rodata|sdata|data)"\s*\)\s*\)\s*\)', ' ', declaration)
+        clean = tu_edit.c_tokens(declaration)
+        equal = clean.index('=')
+        spelling = ' '.join(clean[:equal])
+        match = re.fullmatch(r'(?:static )?(?:const )?char ' + re.escape(name) + r' \[ ([0-9]+) \]', spelling)
+        literals = clean[equal+1:-1]
+        if not match or clean[-1:] != [';'] or not literals or not all(token.startswith('"') and token.endswith('"') for token in literals):
+            raise CarveError(name + ': unsupported character declarator/initializer')
+        try:
+            payload = b''.join(ast.literal_eval(token).encode('latin1') for token in literals) + b'\0'
+        except (ValueError, SyntaxError, UnicodeError, AttributeError) as error:
+            raise CarveError(name + ': invalid narrow initializer') from error
+        if int(match[1]) != len(payload) or not 0 < len(payload) <= 65536:
+            raise CarveError(name + ': character bound is not its complete literal extent')
+        definitions.append((item, tokens, payload))
+    if len(definitions) != 1:
+        raise CarveError(name + ': missing or ambiguous actual character definition')
+    return tu, definitions[0]
+
+
+def _character_direct_consumers(tu, name, emitted):
+    """Closed direct format-reader witness; unrelated or shadowed uses refuse."""
+    import tu_edit
+    consumers = []
+    occurrences = 0
+    readers = {'xglFontDebugPrintf': 2, 'sprintf': 1}
+    for block in tu.blocks:
+        if block.state != 'c':
+            continue
+        tokens = tu_edit.c_tokens(tu.text[block.core_start:block.core_end])
+        if name in tokens and block.name not in emitted:
+            raise CarveError(name + ': reader function is not compiler emitted')
+        occurrences += tokens.count(name)
+        for index, token in enumerate(tokens[:-1]):
+            if token not in readers or tokens[index+1] != '(':
+                continue
+            depth, args, part = 0, [], []
+            for value in tokens[index+2:]:
+                if value == ')' and depth == 0:
+                    args.append(part)
+                    break
+                if value == ',' and depth == 0:
+                    args.append(part)
+                    part = []
+                    continue
+                part.append(value)
+                if value in ('(', '[', '{'):
+                    depth += 1
+                elif value in (')', ']', '}'):
+                    depth -= 1
+            position = readers[token]
+            if len(args) > position and args[position] == [name]:
+                consumers.append(dict(function=block.name, reader=token, argument=position,
+                                      arguments=args))
+    if not consumers or occurrences != len(consumers):
+        raise CarveError(name + ': no exclusive actual direct character reader')
+    return consumers
+
+
+def _character_compiler_bytes(assembly, name, size, section):
+    """Decode only ordinary cc1's exact OBJECT followed by narrow .ascii rows."""
+    app = False
+    lines = []
+    for line in assembly.splitlines():
+        if line.strip() == '#APP':
+            app = True
+        elif line.strip() == '#NO_APP':
+            app = False
+        elif not app:
+            lines.append(line)
+    text = '\n'.join(lines)
+    if (len(re.findall(r'^\s*\.type\s+'+re.escape(name)+r',\s*@object\s*$', text, re.M)) != 1 or
+            len(re.findall(r'^\s*\.size\s+'+re.escape(name)+r',\s*'+str(size)+r'\s*$', text, re.M)) != 1):
+        raise CarveError(name + ': cc1 lacks exact unique OBJECT type/size')
+    labels = [i for i, line in enumerate(lines) if line.strip() == name+':']
+    if len(labels) != 1:
+        raise CarveError(name + ': cc1 lacks unique compiler label')
+    active = '.text'
+    for line in lines[:labels[0]]:
+        match = re.match(r'\s*(?:\.section\s+([^,\s]+)|(\.(?:rdata|rodata|sdata|data|text)))\s*', line)
+        if match:
+            active = match[1] or match[2]
+    if active not in ({section, '.rdata'} if section == '.rodata' else {section}):
+        raise CarveError(name + ': cc1 section differs')
+    payload = b''
+    for line in lines[labels[0]+1:]:
+        if len(payload) == size:
+            break
+        match = re.fullmatch(r'\s*\.ascii\s+(".*")\s*', line)
+        if not match:
+            raise CarveError(name + ': unsupported cc1 character emission')
+        try:
+            payload += ast.literal_eval(match[1]).encode('latin1')
+        except (ValueError, SyntaxError, UnicodeError) as error:
+            raise CarveError(name + ': invalid cc1 narrow literal') from error
+    if len(payload) != size:
+        raise CarveError(name + ': cc1 character byte extent differs')
+    return payload
+
+
+def _character_process(argv, unit_dir, data=None):
+    """One unchanged-contract compiler step, no generated workspace sidecars."""
+    process = subprocess.Popen(argv, cwd=unit_dir, env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C'},
+                               stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                               start_new_session=True)
+    try:
+        output, error = process.communicate(data, timeout=30)
+    except subprocess.TimeoutExpired:
+        os.killpg(process.pid, signal.SIGKILL)
+        process.communicate()
+        raise CarveError('typed character compiler provenance step timed out')
+    if process.returncode or error or len(output) > 8*1024*1024:
+        raise CarveError('typed character compiler provenance step failed: '+error[:1024].decode(errors='replace'))
+    return output
+
+
+def _materialize_character_context(item, cut, context):
+    """Fresh source-only configure proof; ordinary raw/link gates remain mandatory."""
+    if 'inputs' in context:
+        if (set(context['inputs']) != {'source', 'preprocessed', 'assembly', 'raw', 'original'} or
+                'preprocessed_text' in context or 'assembly_text' in context):
+            raise CarveError('diagnostic typed character proof requires five actual pinned files')
+        return context
+    root, unit_dir = Path(context['root']), Path(context['unit_dir'])
+    runs = [r for r in context['runs'] if [hx(v) for v in r.get('range', [])] == [item['start'], cut]]
+    if len(runs) != 1:
+        raise CarveError(item['name'] + ': missing unique typed character registry run')
+    registration = runs[0].get('typed_character_prefix_proof') or {}
+    if registration.get('schema') != 'typed-character-prefix-proof/1':
+        raise CarveError(item['name'] + ': missing registered typed character proof')
+    config = json.loads((root/'config/tu-build.json').read_bytes())
+    tus = [t for t in config['tus'] if t['id'] == context['tu_id']]
+    if len(tus) != 1:
+        raise CarveError('typed character TU contract is missing/ambiguous')
+    tu = tus[0]
+    contract = tu['contract']
+    digest = hashlib.sha256(json.dumps(contract, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+    source = Path(context.get('source_override') or root/tu['path'])
+    original = Path(context['original'])
+    if (registration.get('name') != item['name'] or registration.get('range') != [item['start'], cut] or
+            registration.get('original_item_range') != [item['start'], item['end']] or
+            registration.get('contract_sha256') != digest):
+        raise CarveError(item['name'] + ': stale typed character registration/contract')
+    inputs = {}
+    for kind, path in [('source', source), ('original', original)]:
+        if not path.is_file() or (kind == 'source' and path.stat().st_size > 1024*1024):
+            raise CarveError('typed character missing/bounded '+kind)
+        pin = dict(path=str(path.resolve()), sha256=hashlib.sha256(path.read_bytes()).hexdigest())
+        if registration.get(kind+'_sha256') != pin['sha256']:
+            raise CarveError('typed character stale '+kind)
+        inputs[kind] = pin
+    compiler_root = root if (root/contract['cc1']).is_file() else CANONICAL_ROOT
+    cc1 = compiler_root/contract['cc1']
+    directory = cc1.parent
+    if (contract.get('flags') not in (['-O2', '-G8'], ['-O2', '-G0']) or
+            hashlib.sha256(cc1.read_bytes()).hexdigest() != contract.get('cc1_sha256')):
+        raise CarveError('typed character compiler contract/pin differs')
+    for kind in ('ee-gcc', 'cpp0', 'cc1'):
+        path = directory/kind
+        actual = hashlib.sha256(path.read_bytes()).hexdigest()
+        if registration.get('compiler_sha256', {}).get(kind) != actual:
+            raise CarveError('typed character compiler tool pin differs: '+kind)
+        inputs[kind] = dict(path=str(path), sha256=actual)
+    base = [str(directory/'ee-gcc'), '-B'+str(directory)+'/', '-nostdinc', '-fno-builtin']
+    cpp_argv = base+['-E']+contract['flags']+['-I', 'include', '-I', str(root/'include'), str(source), '-o', '/dev/stdout']
+    preprocessed = _character_process(cpp_argv, unit_dir)
+    cc1_argv = base+['-S']+contract['flags']+['-x', 'cpp-output', '/dev/stdin', '-o', '/dev/stdout']
+    assembly = _character_process(cc1_argv, unit_dir, preprocessed)
+    result = dict(context, inputs=inputs, registration=registration,
+                  preprocessed_text=preprocessed.decode(errors='surrogateescape'),
+                  assembly_text=assembly.decode(errors='surrogateescape'),
+                  generated_provenance=dict(preprocessed_sha256=hashlib.sha256(preprocessed).hexdigest(),
+                                            assembly_sha256=hashlib.sha256(assembly).hexdigest(),
+                                            argv=[cpp_argv, cc1_argv], raw_required_for_acceptance=True))
+    return result
+
+
+def typed_character_prefix_projection(item, cut, context):
+    """Revalidate real source/CPP/cc1/object/original evidence for one character cut.
+
+    Context contains pinned file inputs, never a caller-asserted type verdict.
+    This is a mechanical source projection, not source eligibility or recovery.
+    """
+    if not context:
+        raise CarveError('typed character cut lacks complete current input pins')
+    context = _materialize_character_context(item, cut, context)
+    required = {'source', 'original'}
+    if 'raw' in context.get('inputs', {}):
+        required |= {'raw', 'preprocessed', 'assembly'}
+    if not required <= set(context.get('inputs', {})):
+        raise CarveError('typed character cut lacks complete current input pins')
+    inputs = context['inputs']
+    paths = {}
+    for kind, pin in inputs.items():
+        path = Path(pin.get('path', ''))
+        if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != pin.get('sha256'):
+            raise CarveError('typed character cut has missing/stale ' + kind + ' input')
+        paths[kind] = path
+    if len(item.get('labels') or []) != 1 or item['name'] != item['labels'][0] or not item['start'] < cut < item['end']:
+        raise CarveError('typed character cut lacks one original item prefix')
+    name = item['name']
+    sys.path.insert(0, str(CANONICAL_ROOT / 'tools'))
+    import tu_edit
+    import tu_audit
+    from tu import data_gate as provenance
+    source = paths['source'].read_text(errors='surrogateescape')
+    tu, (declaration, tokens, payload) = _character_definition(source, name)
+    if len(payload) != cut-item['start']:
+        raise CarveError(name + ': typed character extent differs from cut')
+    pp = tu_audit.Preprocessed(context.get('preprocessed_text') or paths['preprocessed'].read_text(errors='surrogateescape'))
+    pre_tu, (pre_decl, pre_tokens, pre_payload) = _character_definition(pp.text, name)
+    origin, line = pp.attribute(pre_decl.start)
+    origin_path = Path(origin or '')
+    if not origin_path.is_absolute():
+        origin_path = Path(context['unit_dir']) / origin_path
+    if (tokens != pre_tokens or payload != pre_payload or origin_path.resolve() != paths['source'].resolve() or
+            not tu_edit.line_of(source, declaration.start) <= line <= tu_edit.line_of(source, declaration.end)):
+        raise CarveError(name + ': current CPP declaration/origin differs')
+    assembly = context.get('assembly_text') or paths['assembly'].read_text(errors='surrogateescape')
+    original = Elf(paths['original'].read_bytes())
+    provenance.compiler_only_section(assembly, pp.text, Path(context['unit_dir']), context['section'])
+    if _character_compiler_bytes(assembly, name, len(payload), context['section']) != payload:
+        raise CarveError(name + ': actual cc1 bytes differ from literal')
+    consumers = _character_direct_consumers(tu, name, provenance.cc1_functions(assembly))
+    if consumers != _character_direct_consumers(pre_tu, name, provenance.cc1_functions(assembly)):
+        raise CarveError(name + ': actual CPP character consumer differs')
+    if any(name in tu_edit.c_tokens(line) for line in tu_audit.asm_statement_lines(source)):
+        raise CarveError(name + ': authored ASM mentions character owner')
+    if context.get('registration', {}).get('payload_sha256', hashlib.sha256(payload).hexdigest()) != hashlib.sha256(payload).hexdigest():
+        raise CarveError(name + ': registered literal bytes differ')
+    if va_bytes(original, item['start'], len(payload)) != payload:
+        raise CarveError(name + ': original prefix differs from initializer')
+    if any(s.type == 1 and s.size > 0 and 0 < s.shndx < len(original.sections) and
+           s.value < item['end'] and item['start'] < s.value+s.size for s in original.symbols):
+        raise CarveError(name + ': character split overlaps a positive original OBJECT')
+    if any(s.name and s.type not in (3, 4) and 0 < s.shndx < len(original.sections) and
+           item['start'] < s.value < item['end'] for s in original.symbols):
+        raise CarveError(name + ': original interior symbol cannot be split as characters')
+    spans = [part for run in context['runs'] for part in run.get('c_input_spans', []) if
+             part.get('symbols') == [name] and [hx(v) for v in part.get('range', [])] == [item['start'], cut] and
+             len(part.get('object_range', [])) == 2 and
+             part['object_range'][1]-part['object_range'][0] == len(payload) and
+             base_section_name(part.get('section', '')) == context['section']]
+    if len(spans) != 1:
+        raise CarveError(name + ': exact registered character input span is absent/ambiguous')
+    if 'raw' not in paths:
+        return dict(kind='typed_character_prefix_projection', name=name, range=[item['start'], cut],
+                    original_item_range=[item['start'], item['end']], input_section=context['section'],
+                    input_offset=spans[0]['object_range'][0], size=len(payload), inputs=inputs,
+                    consumers=consumers, payload_sha256=hashlib.sha256(payload).hexdigest(),
+                    generated_provenance=context['generated_provenance'],
+                    grants_source_eligibility=False, grants_recovery=False)
+    elf = Elf(paths['raw'].read_bytes())
+    symbols = [s for s in elf.symbols if s.name == name and s.type == 1 and s.size == len(payload) and
+               s.bind in (0, 1) and 0 < s.shndx < len(elf.sections)]
+    if len(symbols) != 1:
+        raise CarveError(name + ': no exact current compiler character OBJECT')
+    symbol = symbols[0]
+    section = elf.sections[symbol.shndx]
+    if section.type != 1 or not section.flags & 2 or section.name != context['section']:
+        raise CarveError(name + ': character OBJECT section differs')
+    spans = [part for run in context['runs'] for part in run.get('c_input_spans', []) if
+             part.get('symbols') == [name] and [hx(v) for v in part.get('range', [])] == [item['start'], cut] and
+             part.get('object_range') == [symbol.value, symbol.value+symbol.size] and
+             base_section_name(part.get('section', '')) == section.name]
+    if len(spans) != 1:
+        raise CarveError(name + ': exact registered character input span is absent/ambiguous')
+    provenance.compiler_only_section(assembly, pp.text, Path(context['unit_dir']), section.name)
+    if any(name in tu_edit.c_tokens(line) for line in tu_audit.asm_statement_lines(source)):
+        raise CarveError(name + ': authored ASM mentions character owner')
+    consumers = _character_direct_consumers(tu, name, provenance.cc1_functions(assembly))
+    raw = elf.section_bytes(section)
+    if raw[symbol.value:symbol.value+symbol.size] != payload or va_bytes(original, item['start'], len(payload)) != payload:
+        raise CarveError(name + ': typed initializer/compiler/original bytes differ')
+    if any(s.type == 1 and s.size > 0 and 0 < s.shndx < len(original.sections) and
+           s.value < item['end'] and item['start'] < s.value+s.size for s in original.symbols):
+        raise CarveError(name + ': character split overlaps a positive original OBJECT')
+    if any(s.name and s.type not in (3, 4) and 0 < s.shndx < len(original.sections) and
+           item['start'] < s.value < item['end'] for s in original.symbols):
+        raise CarveError(name + ': original interior symbol cannot be split as characters')
+    if any(symbol.value < off+4 and off < symbol.value+symbol.size for off, _, _ in
+           read_relocations(elf).get(section.index, [])):
+        raise CarveError(name + ': character payload has a genuine relocation')
+    if any(s.index != symbol.index and s.type == 1 and s.size and s.shndx == section.index and
+           s.value < symbol.value+symbol.size and symbol.value < s.value+s.size for s in elf.symbols):
+        raise CarveError(name + ': overlapping compiler character owner')
+    return dict(kind='typed_character_prefix_projection', name=name, range=[item['start'], cut],
+                original_item_range=[item['start'], item['end']], input_section=section.name,
+                input_offset=symbol.value, size=symbol.size, binding=symbol.bind,
+                inputs=copy.deepcopy(inputs), consumers=consumers,
+                payload_sha256=hashlib.sha256(payload).hexdigest(),
+                grants_source_eligibility=False, grants_recovery=False)
+
+
+def _current_character_context(root, unit_dir, tu_id, section, runs, original, override=None):
+    context = dict(root=str(root), unit_dir=str(unit_dir), tu_id=tu_id,
+                   section=section, runs=runs, original=str(original))
+    if override:
+        context.update(copy.deepcopy(override))
+    return context
+
+
+def serialize_unknown_zero_suffix(item, context):
+    """Keep a proved original zero suffix as exact uncredited scaffold bytes.
+
+    Original-VA alignment is not input-section alignment. A suffix at phase
+    four of an eight-byte boundary cannot retain .align 3 in its new section:
+    that raises sh_addralign and moves its first original byte. Decode only
+    the closed numeric-zero/empty-string grammar, simulate its original VA,
+    and preserve that exact extent as byte directives. Symbolic or nonzero
+    storage is never interpreted through this route.
+    """
+    tail = item.get('uncredited_scaffold_suffix')
+    if not tail or item.get('labels'):
+        return item
+    lo, hi = tail['range']
+    if [item['start'],item['end']] != [lo,hi] or not 0 < hi-lo <= 65536:
+        raise CarveError(item['name'] + ': unknown suffix extent differs')
+    if not context:
+        raise CarveError(item['name'] + ': unknown suffix lacks original context')
+    original_path = Path((context.get('inputs',{}).get('original') or {}).get('path') or context.get('original',''))
+    if '_suffix_original' not in context:
+        context['_suffix_original'] = Elf(original_path.read_bytes())
+    original = context['_suffix_original']
+    cursor = lo
+    for line in item['block']['lines']:
+        address = ADDR.match(line)
+        text = re.sub(r'/\*.*?\*/', '', line).strip()
+        if not text or NONMATCHING.fullmatch(text):
+            continue
+        if address and int(address[1],16) != cursor:
+            raise CarveError(item['name'] + ': unknown suffix original datum address differs')
+        align = re.fullmatch(r'\.align\s+([0-7])',text)
+        empty = re.fullmatch(r'\.(ascii|asciz)\s+""',text)
+        numeric = re.fullmatch(r'\.(byte|short|word)\s+(.+)',text)
+        float_zero = re.fullmatch(r'\.float\s+0',text)
+        space = re.fullmatch(r'\.(?:space|skip|zero)\s+(0x[0-9A-Fa-f]+|[0-9]+)',text)
+        if align:
+            alignment = 1 << int(align[1])
+            cursor = (cursor+alignment-1)//alignment*alignment
+        elif empty:
+            cursor += empty[1] == 'asciz'
+        elif float_zero:
+            if address is None or cursor % 4 or hi-lo != 4 or cursor != lo:
+                raise CarveError(item['name'] + ': zero.float lacks original4-aligned addressed datum')
+            cursor += 4
+        elif numeric:
+            values = [value.strip() for value in numeric[2].split(',')]
+            if not values or any(not re.fullmatch(r'(?:0x0+|0+)',value) for value in values):
+                raise CarveError(item['name'] + ': unknown suffix has symbolic/nonzero datum')
+            width = {'byte':1,'short':2,'word':4}[numeric[1]]
+            cursor = (cursor+width-1)//width*width + width*len(values)
+        elif space:
+            cursor += int(space[1],0)
+        else:
+            raise CarveError(item['name'] + ': unsupported unknown suffix directive')
+        if cursor > hi:
+            raise CarveError(item['name'] + ': unknown suffix directives exceed original extent')
+    if cursor != hi or va_bytes(original,lo,hi-lo) != bytes(hi-lo):
+        raise CarveError(item['name'] + ': unknown suffix is not exact original zero storage')
+    if any(s.name and s.type not in (3,4) and 0 < s.shndx < len(original.sections) and
+           (lo <= s.value < hi or s.type == 1 and s.size > 0 and s.value < hi and lo < s.value+s.size)
+           for s in original.symbols):
+        raise CarveError(item['name'] + ': unknown suffix contains original storage identity')
+    marker = next((line for line in item['block']['lines'] if NONMATCHING.fullmatch(line.strip())),None)
+    if marker is None:
+        raise CarveError(item['name'] + ': unknown suffix lacks original fragment marker')
+    lines = [marker]
+    for start in range(lo,hi,16):
+        lines.append(f'    /* {start:08X} */ .byte '+', '.join('0x00' for _ in range(min(16,hi-start))))
+    proof = dict(kind='original_zero_scaffold_serialization',range=[lo,hi],
+                 original_elf_sha256=hashlib.sha256(original.data).hexdigest(),
+                 original_directives_sha256=hashlib.sha256('\n'.join(item['block']['lines']).encode()).hexdigest(),
+                 original_bytes_sha256=hashlib.sha256(bytes(hi-lo)).hexdigest(),
+                 output_alignment=1, credited=False, source_capacity_proved=False)
+    return dict(item,block=dict(item['block'],lines=lines),
+                uncredited_scaffold_suffix=dict(tail,serialization=proof))
+
+
+def original_unknown_suffix_is_zero(item, context):
+    """Scope only the zero serializer; nonzero scaffold keeps its old transport."""
+    if not item.get('uncredited_scaffold_suffix') or item.get('labels'):
+        return False
+    if '_suffix_original' not in context:
+        path = Path((context.get('inputs',{}).get('original') or {}).get('path') or context.get('original',''))
+        context['_suffix_original'] = Elf(path.read_bytes())
+    size = item['end']-item['start']
+    return size > 0 and va_bytes(context['_suffix_original'],item['start'],size) == bytes(size)
+
+
+def split_initialized_items(items, cuts, run_ends, tu_name, character_context=None):
     """Split PROGBITS data items only at exact directive boundaries or .space extents."""
     out = []
     for item in items:
@@ -531,21 +956,22 @@ def split_initialized_items(items, cuts, run_ends, tu_name):
                         directive = (cut, line_index)
                         break
             if directive is None:
-                # Splat can combine a final halfword and zero alignment bytes
-                # into one numeric .word. Separate only that proven zero tail
+                # Splat can combine a final byte/halfword and zero bytes
+                # into one numeric .short/.word. Separate only that zero tail
                 # in the generated scaffold; retain every original byte and
                 # leave the canonical scaffold file untouched.
                 addressed = _data_directives(current)
                 for addr, _, line_index in addressed:
                     line = current['block']['lines'][line_index]
-                    word = re.search(r'\*/\s*\.word\s+(0x[0-9A-Fa-f]+|\d+)\s*$', line)
+                    word = re.search(r'\*/\s*\.(word|short)\s+(0x[0-9A-Fa-f]+|\d+)\s*$', line)
+                    width = {'word': 4, 'short': 2}.get(word.group(1)) if word else None
                     if (cut not in run_ends or not word or
-                            not addr < cut < addr + 4):
+                            not addr < cut < addr + width):
                         continue
-                    value = int(word.group(1), 0)
-                    if not 0 <= value <= 0xffffffff:
+                    value = int(word.group(2), 0)
+                    if not 0 <= value < (1 << (8 * width)):
                         continue
-                    raw = value.to_bytes(4, 'little')
+                    raw = value.to_bytes(width, 'little')
                     if any(raw[cut - addr:]):
                         continue
                     following = [(a, current['block']['lines'][i])
@@ -563,6 +989,34 @@ def split_initialized_items(items, cuts, run_ends, tu_name):
                     directive = (cut, line_index + 1)
                     break
             if directive is None:
+                # A symbolic disassembler association can be printable character
+                # storage. Only a current typed C/CPP/cc1/original proof may
+                # project D_<hex>+constant; real image addresses remain pointers.
+                addressed = _data_directives(current)
+                for addr, _, line_index in addressed:
+                    symbolic = re.search(r'\*/\s*\.word\s+D_([0-9A-Fa-f]+)\s*\+\s*(0x[0-9A-Fa-f]+|\d+)\s*$',
+                                         current['block']['lines'][line_index])
+                    if cut not in run_ends or not symbolic or not addr < cut < addr+4 or not character_context:
+                        continue
+                    proof = typed_character_prefix_projection(item, cut, character_context)
+                    original = Elf(Path(proof['inputs']['original']['path']).read_bytes())
+                    raw = va_bytes(original, addr, 4)
+                    value = int.from_bytes(raw, 'little')
+                    if (int(symbolic[1], 16)+int(symbolic[2], 0) != value or any(raw[cut-addr:]) or
+                            any(s.flags & 2 and s.addr <= value < s.addr+s.size for s in original.sections) or
+                            any(s.name == 'D_'+symbolic[1] and s.shndx != 0 for s in original.symbols) or
+                            any(s.name and s.value == value and 0 < s.shndx < len(original.sections)
+                                and original.sections[s.shndx].flags & 2 for s in original.symbols)):
+                        raise CarveError(item['name'] + ': symbolic word is not a proved character projection')
+                    changed = list(current['block']['lines'])
+                    changed[line_index:line_index+1] = [
+                        f'    /* {addr:08X} */ .byte ' + ', '.join(f'0x{v:02X}' for v in raw[:cut-addr]),
+                        f'    /* {cut:08X} */ .byte ' + ', '.join(f'0x{v:02X}' for v in raw[cut-addr:])]
+                    current = dict(current, block=dict(current['block'], lines=changed),
+                                   typed_character_projection=proof)
+                    directive = (cut, line_index+1)
+                    break
+            if directive is None:
                 raise CarveError(f"{tu_name}: initialized cut inside {item['name']} at {h8(cut)} "
                                  "is not an exact data-directive boundary")
             size = cut - item['start'] if cut in run_ends else None
@@ -572,7 +1026,7 @@ def split_initialized_items(items, cuts, run_ends, tu_name):
     return out
 
 
-def repiece(tu_name, pieces, runs, read_items, allow_space_cuts=False):
+def repiece(tu_name, pieces, runs, read_items, allow_space_cuts=False, character_context=None):
     """New pieces of one TU section for its C runs.
 
     `pieces`: [dict(name, start, end, c_split, file)] in address order (the
@@ -607,8 +1061,13 @@ def repiece(tu_name, pieces, runs, read_items, allow_space_cuts=False):
         bounds = [p['start']] + cuts + [p['end']]
         starts = {it['start'] for it in items}
         if allow_space_cuts and any(b not in starts for b in cuts):
-            items = split_initialized_items(items, cuts, {hi for _, hi in runs}, tu_name)
+            items = split_initialized_items(items, cuts, {hi for _, hi in runs}, tu_name,
+                                            character_context=character_context)
             starts = {it['start'] for it in items}
+            if character_context is not None:
+                items = [serialize_unknown_zero_suffix(item,character_context)
+                         if run_of(item['start'],item['end']) is None and
+                            original_unknown_suffix_is_zero(item,character_context) else item for item in items]
         for b in cuts:
             if b not in starts:
                 raise CarveError(f'{tu_name}: {h8(b)} is not an item boundary of {p["name"]}')
@@ -866,12 +1325,14 @@ def main_section_items(unit_dir, t, sec):
     return items
 
 
-def apply_main(root, unit_dir, manifest, registry=None, write=True):
+def apply_main(root, unit_dir, manifest, registry=None, write=True, typed_character_inputs=None):
     """(effective manifest, report) with every declared MAIN run carved.
 
     The manifest is not modified in place and never written back: the tracked
     `config/objects/main.objects.json` stays what splat was configured with.
     With nothing declared for MAIN the same manifest object is returned."""
+    if write and typed_character_inputs is not None:
+        raise CarveError('typed character input overrides are read-only diagnostics')
     registry = load_registry(root) if registry is None else registry
     declared = unit_runs(registry, 'main')
     if not declared and not registry.get('common_tail'):
@@ -1012,13 +1473,21 @@ def apply_main(root, unit_dir, manifest, registry=None, write=True):
             def read(p, sec=sec):
                 return piece_items(main_piece_file(unit_dir, p, sec), p['start'], p['end'])
 
+            character_context = _current_character_context(root, unit_dir, tu_id, sec, runs,
+                Path(unit_dir)/'orig/SLUS_204.69',
+                (typed_character_inputs or {}).get(tu_id)) if sec not in ('.bss', '.sbss') else None
             new = repiece(t['name'], pieces, spans, read,
                           allow_space_cuts=(sec in ('.sbss', '.bss') or
-                                            any(run.get('c_input_spans') for run in runs)))
+                                            any(run.get('c_input_spans') for run in runs)),
+                          character_context=character_context)
             out_pieces = []
             for p in new:
                 entry = dict(c_split=p['c_split'], end=f'0x{p["end"]:08X}', name=p['name'],
                              start=f'0x{p["start"]:08X}')
+                suffixes = [copy.deepcopy(it['uncredited_scaffold_suffix']) for it in p.get('items',[])
+                            if it.get('uncredited_scaffold_suffix') and not p['c_split']]
+                if suffixes:
+                    entry['uncredited_scaffold_suffixes'] = suffixes
                 if p['c_split'] and runs[p['run']].get('padding_tail'):
                     # the next input is pinned: these pad bytes are linker fill
                     entry['padding_tail'] = runs[p['run']]['padding_tail']
@@ -1302,6 +1771,29 @@ def apply_main(root, unit_dir, manifest, registry=None, write=True):
         tail['native_common_pieces'] = native
     from data_completion import mark_alignment
     report.extend(mark_alignment(root, unit_dir, m))
+    # A newly exposed original-item tail is unknown scaffold storage. Numeric
+    # zero bytes alone do not turn that tail into alignment or linker fill.
+    unknown = []
+    seen_unknown = set()
+    for tu in m['tus']:
+        for section, detail in tu.get('sections',{}).items():
+            for piece in detail.get('pieces',[]):
+                for suffix in piece.get('uncredited_scaffold_suffixes',[]):
+                    key = (tu['id'],section,*suffix['range'])
+                    if key not in seen_unknown:
+                        unknown.append((tu['id'],tu['name'],section,suffix))
+                        seen_unknown.add(key)
+                    piece.pop('linker_padding',None)
+    for tu_id, tu_name, section, suffix in unknown:
+        lo,hi = suffix['range']
+        for row in m['sections'][section]['order']:
+            if row['tu'] == tu_name and hx(row['start']) < hi and lo < hx(row['end']):
+                row.pop('linker_padding',None)
+                row['uncredited_scaffold_suffixes'] = [copy.deepcopy(suffix)]
+        report = [row for row in report if not (row.get('tu') == tu_id and row.get('section') == section and
+                  row.get('kind') == 'unreferenced_original_alignment' and
+                  hx(row['range'][0]) < hi and lo < hx(row['range'][1]))]
+        report.append(dict(tu=tu_id,section=section,**suffix))
     return m, report
 
 
@@ -4820,7 +5312,139 @@ def nobits_layout_runs(root, unit, ctx, tu_id, source, obj, elf, sec, requested)
     return runs, proof
 
 
+def _require_typed_character_registrations(ctx, runs):
+    """An actual symbolic-word prefix cannot silently lose its registration."""
+    for sec, entries in runs.items():
+        candidates = [run for run in entries if len(run.get('range', [])) == 2 and
+                      hx(run['range'][1]) % 4 and sec not in ('.bss', '.sbss')]
+        if not candidates:
+            continue
+        items = section_items(ctx, sec)
+        for run in candidates:
+            lo, cut = [hx(v) for v in run['range']]
+            for item in items:
+                if not item['start'] <= lo < cut < item['end']:
+                    continue
+                for addr, _, index in _data_directives(item):
+                    if addr < cut < addr+4 and re.search(
+                            r'\*/\s*\.word\s+D_[0-9A-Fa-f]+\s*\+\s*(?:0x[0-9A-Fa-f]+|\d+)\s*$',
+                            item['block']['lines'][index]):
+                        if not isinstance(run.get('typed_character_prefix_proof'), dict):
+                            raise CarveError(item['name'] + ': required symbolic character registration is missing')
+
+
+def _retain_typed_character_prefix_proofs(root, unit, unit_dir, tu_id, source, obj, requested, result):
+    """Transport registration only after fresh compiler and actual-object proof.
+
+    The registration is configure input, not a type waiver or derived ownership.
+    In particular, both the requested and freshly derived compiler coordinates
+    must agree before the current source/contract and raw sidecars are read.
+    """
+    registered = [(sec, run) for sec, runs in requested.items() for run in runs
+                  if 'typed_character_prefix_proof' in run]
+    if not registered:
+        return
+    if unit != 'main':
+        raise CarveError('typed character registration is supported only for MAIN')
+    ctx = tu_context(root, unit, unit_dir, tu_id)
+    config = json.loads((Path(root)/'config/tu-build.json').read_bytes())
+    tus = [tu for tu in config['tus'] if tu['id'] == tu_id]
+    if len(tus) != 1 or Path(source).resolve() != (Path(root)/tus[0]['path']).resolve():
+        raise CarveError('typed character derivation source/TU identity differs')
+    receipts = []
+    for sec, request in registered:
+        registration = request['typed_character_prefix_proof']
+        if not isinstance(registration, dict):
+            raise CarveError('typed character registration is not a proof record')
+        name = registration.get('name')
+        bounds = [hx(v) for v in request.get('range', [])]
+        if (len(bounds) != 2 or request.get('c_owned_symbols') != [name] or
+                registration.get('range') != bounds):
+            raise CarveError('typed character registration owner/range differs')
+        derived = [run for run in result['runs'].get(sec, [])
+                   if [hx(v) for v in run.get('range', [])] == bounds]
+        if len(derived) != 1 or derived[0].get('c_owned_symbols') != [name]:
+            raise CarveError(str(name) + ': no unique freshly derived character owner/range')
+        current = derived[0]
+        requested_view = normalize_runs({sec: [request]})[sec][0]
+        derived_view = normalize_runs({sec: [current]})[sec][0]
+        if (not request.get('c_input_spans') or
+                requested_view.get('c_input_spans') != derived_view.get('c_input_spans')):
+            raise CarveError(str(name) + ': registered/fresh character input spans differ')
+        items = [item for item in section_items(ctx, sec)
+                 if item['name'] == name and item['start'] == bounds[0] and
+                 [item['start'], item['end']] == registration.get('original_item_range')]
+        if len(items) != 1:
+            raise CarveError(str(name) + ': missing unique original character item identity')
+        item = items[0]
+        run = copy.deepcopy(current)
+        run['typed_character_prefix_proof'] = copy.deepcopy(registration)
+        clean_context = _current_character_context(root, unit_dir, tu_id, sec, [run], ctx['orig'])
+        clean = typed_character_prefix_projection(item, bounds[1], clean_context)
+        files = dict(source=Path(source), raw=Path(obj), original=Path(ctx['orig']))
+        for kind, suffix in [('assembly', '.s'), ('preprocessed', '.i')]:
+            sidecar = Path(str(obj)+suffix)
+            files[kind] = sidecar if sidecar.is_file() else Path(obj).with_suffix(suffix)
+        inputs = {}
+        for kind, path in files.items():
+            if not path.is_file():
+                raise CarveError(str(name) + ': missing actual character '+kind+' input')
+            inputs[kind] = dict(path=str(path.resolve()), sha256=hashlib.sha256(path.read_bytes()).hexdigest())
+        raw_context = _current_character_context(root, unit_dir, tu_id, sec, [run], ctx['orig'],
+                                                 dict(inputs=inputs))
+        raw = typed_character_prefix_projection(item, bounds[1], raw_context)
+        if any(clean[key] != raw[key] for key in
+               ('name', 'range', 'original_item_range', 'input_section', 'input_offset',
+                'size', 'payload_sha256', 'consumers')):
+            raise CarveError(str(name) + ': fresh/current compiler character proofs differ')
+        # Keep the splitter's genuine symbolic-base, allocated-pointer and
+        # payload-relocation guards as part of the actual registration route.
+        split_initialized_items([item], {bounds[1]}, {bounds[1]}, ctx['name'], raw_context)
+        receipts.append(dict(section=sec, clean=clean, current_object=raw,
+                             grants_source_eligibility=False, grants_recovery=False))
+        current['typed_character_prefix_proof'] = copy.deepcopy(registration)
+    result['typed_character_prefix_proofs'] = receipts
+
+
 def derive(root, unit, unit_dir, tu_id, source, obj, *, _declared=None,
+           accepted_root=CANONICAL_ROOT, accepted_runs=None, declared=None):
+    """Derive ordinary ownership, then revalidate any configure registration."""
+    requested = copy.deepcopy(_declared if _declared is not None else declared if declared is not None
+                              else load_registry(root)['tus'].get(tu_id) or {})
+    registered = any('typed_character_prefix_proof' in run for runs in requested.values() for run in runs)
+    try:
+        if unit == 'main':
+            _require_typed_character_registrations(tu_context(root, unit, unit_dir, tu_id), requested)
+    except (CarveError, OSError, ValueError, KeyError, TypeError) as exc:
+        return dict(tu=tu_id, unit=unit, source=str(source), object=str(obj), runs={}, sections={},
+                    problems=['typed character registration refused: '+str(exc)],
+                    typed_character_prefix_proof_refused=True)
+    result = _derive_current(root, unit, unit_dir, tu_id, source, obj, _declared=_declared,
+                             accepted_root=accepted_root, accepted_runs=accepted_runs, declared=declared)
+    if registered and result['problems']:
+        result['typed_character_prefix_proof_refused'] = True
+    if not result['problems']:
+        try:
+            if unit == 'main':
+                # Check the fresh ownership too: a no-entry fallback must not
+                # erase the configure input needed by the actual symbolic cut.
+                check = copy.deepcopy(result['runs'])
+                for sec, entries in check.items():
+                    for run in entries:
+                        matches = [request for request in requested.get(sec, [])
+                                   if request.get('range') == run.get('range') and
+                                   'typed_character_prefix_proof' in request]
+                        if len(matches) == 1:
+                            run['typed_character_prefix_proof'] = matches[0]['typed_character_prefix_proof']
+                _require_typed_character_registrations(tu_context(root, unit, unit_dir, tu_id), check)
+            _retain_typed_character_prefix_proofs(root, unit, unit_dir, tu_id, source, obj, requested, result)
+        except (CarveError, OSError, ValueError, KeyError, TypeError) as exc:
+            result['problems'].append('typed character registration refused: '+str(exc))
+            result['typed_character_prefix_proof_refused'] = True
+    return result
+
+
+def _derive_current(root, unit, unit_dir, tu_id, source, obj, *, _declared=None,
            accepted_root=CANONICAL_ROOT, accepted_runs=None, declared=None):
     """{'runs': {section: [run]}, 'sections': {section: detail}, 'problems': [..]} for one candidate.
 
@@ -5736,6 +6360,9 @@ def derive_entry(root, unit, unit_dir, tu_id, source, obj, basis=None, rounds=4)
         return got
 
     got = attempt(old, 'registry entry' if old else 'no registry entry')
+    if got.get('typed_character_prefix_proof_refused'):
+        got['derive_attempts'] = attempts
+        return got
     if got['problems'] and old:
         nobits = {sec: runs for sec, runs in old.items() if sec in ('.bss', '.sbss') and runs}
         starts = ([(nobits, 'registry NOBITS runs only')] if nobits and nobits != old else []) + \

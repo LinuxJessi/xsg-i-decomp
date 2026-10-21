@@ -121,15 +121,15 @@ typedef struct {
 
 extern DebugMenuPageState GameLoopState;
 
-extern char *tbl_1_00367A70[];
+static const char *tbl_1_00367A70[];
 
-extern char D_004C04B0[];
+extern const char D_004C04B0[];
 extern char D_004D9F18[];
 extern char D_004D9F20[];
-extern char D_004C0528[];
-extern char D_004C0538[];
+extern const char D_004C0528[];
+extern const char D_004C0538[];
 extern char D_004D9F48[];
-extern char D_004C0548[];
+extern const char D_004C0548[];
 extern char D_004D9F28[];
 extern char D_004D9F30[];
 extern char D_004D9F38[];
@@ -209,7 +209,7 @@ extern unsigned char SnapDrawCreditFlag;
 
 extern u8 GameDiskChangeT10K;
 
-extern char D_004C03A8[];
+extern const char D_004C03A8[];
 
 extern char D_004D9F00[];
 
@@ -217,7 +217,30 @@ extern char D_004D9F08[];
 
 extern char D_004D9F10[];
 
-extern char *tbl_0_00367A50[];
+static const char *tbl_0_00367A50[];
 
+
+extern const char D_004C0310[17];
+extern const char D_004C0328[17];
+extern const char D_004C0340[19];
+extern const char D_004C0358[13];
+extern const char D_004C0368[19];
+extern const char D_004C0380[15];
+extern const char D_004C0390[19];
+extern const char D_004C0410[11];
+extern const char D_004C0420[13];
+extern const char D_004C0430[9];
+extern const char D_004C0440[15];
+extern const char D_004C0450[15];
+extern const char D_004C0460[15];
+extern const char D_004C0470[9];
+extern const char D_004C0480[11];
+extern const char D_004C0490[13];
+extern const char D_004C04A0[11];
+extern const char D_004C04D0[16];
+extern const char D_004C04E0[16];
+extern const char D_004C04F0[16];
+extern const char D_004C0500[16];
+extern const char D_004C0510[24];
 
 #endif /* SRC_MAIN_GAME_DEBUG_MENU_H */

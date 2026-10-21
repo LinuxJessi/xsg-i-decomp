@@ -199,6 +199,8 @@ extern void xglSleep(void);
 
 int xglArxExtract(u32 *dest, u32 *src);
 
+void calcPara2Org(void);
+
 void objRemovePure(ObjectTask *task);
 
 void resultProcInit(void);

@@ -833,8 +833,6 @@ extern int xglHddMcSave(HddMcRequestParam *request);
  * EN: Save */
 #define MC_TEXT_SAVE "\xA5\xBB\xA1\xBC\xA5\xD6"
 
-static unsigned char tbl_48[4];
-
 static unsigned char tbl_49[4];
 
 
@@ -2356,6 +2354,8 @@ static void MemcardTest(void)
             }
             xglFontDebugPrintf(8, work.result * 16 + 48, menu_cursor);
             if (PAD_U16_AT(42) & 0x20) {
+                static unsigned char tbl_48[4] = { 32, 48, 64, 80 };
+
                 if (PAD_U16_AT(40) & 0x8) {
                     state = 0;
                     sceMcSync(0, &sync_command, &sync_result);
@@ -2746,8 +2746,6 @@ char D_004C13F8[16] __attribute__((section(".rodata"))) = "host0:%s.xtx";
 char D_004C1408[16] __attribute__((section(".rodata"))) = "tbw:%d:%08x\n";
 
 char D_004C1418[40] __attribute__((section(".rodata"))) = "[%s],%d,(%d,%d)-(%d,%d),(%d,%d)\n";
-
-static unsigned char tbl_48[4] = { 32, 48, 64, 80 };
 
 static unsigned char tbl_49[4] = { 112, 128, 0, 0 };
 
@@ -3598,8 +3596,6 @@ extern char D_004D9F88[8];
 static char h_50[7];
 
 static char test_36[6];
-
-static unsigned char tbl_48[4];
 
 static unsigned char tbl_49[4];
 

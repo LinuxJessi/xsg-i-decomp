@@ -177,7 +177,11 @@ static void sprt_put(int context, EwSpriteWidget *widget);
 
 extern void xglFontPrint(int x, int y, int color, const char *text);
 
-extern char *tmp_0;
+/* Mutable font colour command. Opcode 0x0f consumes three parameter bytes,
+ * including the embedded zero, before the terminal zero. */
+char D_004DA5B8[5] = "\017D\000\200";
+
+static char *tmp_0 = D_004DA5B8;
 
 /* Retail maps ewComponent as a GLOBAL OBJECT at 0x0099CA30 with size 0xA00.
  * This table has 64 observed 0x28-byte slots; only flags are modeled here. */
@@ -1243,3 +1247,6 @@ static void label_put(EwDrawContext *context, EwLabelWidget *widget)
     }
     xglPrimAddGifTagDirect(context->packet, gif, (qword - gif) / 4);
 }
+
+/* The original default resource path is stored in this TU's read-only data. */
+char D_004C23C0[23] __attribute__((section(".rodata"))) = "host0:/home/xeno/work/";

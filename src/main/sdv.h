@@ -5,6 +5,10 @@
 #ifndef SRC_MAIN_SDV_H
 #define SRC_MAIN_SDV_H
 
+typedef struct GamePlayerRecord {
+    u8 unmodeled_00[0xa8];
+} GamePlayerRecord;
+
 /* Private typed view of the zero-initialized serialized battle-data buffer.
  * The resource is loaded at runtime; it is not an ELF initializer. */
 typedef struct BattleDataS32Parts {

@@ -2818,3 +2818,14 @@ void Java_xeno_Chr_ignoreShape__I(JThread *thread, ChrIntCall *arguments)
         peer->render_flags &= ~0x400;
     }
 }
+
+float D_004D83F0 = 3.1415927410125732f;
+float D_004D83F4 = 3.1415927410125732f;
+float D_004D83F8 = 3.1415927410125732f;
+float D_004D83FC = 3.1415927410125732f;
+float D_004D8400 = 3.1415927410125732f;
+float D_004D8404 = 3.1415927410125732f;
+float D_004D8408 = 3.1415927410125732f;
+float D_004D840C = 3.1415927410125732f;
+float D_004D8410 = 3.1415927410125732f;
+const char D_004DC198[3] = "id";

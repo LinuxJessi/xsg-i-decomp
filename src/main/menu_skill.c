@@ -105,6 +105,8 @@ int SkillCharPointPlus(int character_id, int point_delta)
     return 0;
 }
 
+const char D_004C9590[9]  = "/Extract";
+
 void MenuSkillPasMain(void)
 {
     SkillPasWork *work = MenuSkillPas;
@@ -455,6 +457,10 @@ void MenuSkillStatusMain(void)
     }
 }
 
+const char D_004C9918[19]  = "Extract\nSet\nCancel";
+
+const char D_004C9930[16]  = " Extract skill\?";
+
 void MenuSkillMenuMain(void)
 {
     MenuSkillMenuWork *self = MenuSkillMenu;
@@ -514,6 +520,8 @@ void MenuSkillMenuMain(void)
         break;
     }
 }
+
+char D_004C9940[19] __attribute__((section(".rodata"))) = "\014\200\200\200\036\000: Set Search";
 
 void MenuSkillExMain(void)
 {
@@ -670,6 +678,10 @@ void MenuSkillL1R1Main(void)
     }
 }
 
+const char D_004C99E8[15]  = " 1\241\246\n 2\241\246\n 3\241\246";
+
+const char D_004C99F8[11]  = "Set Skills";
+
 void MenuSkillSetListMain(void)
 {
     MenuSkillSetListWork *self = MenuSkillSetList;
@@ -719,6 +731,8 @@ void MenuSkillSetListMain(void)
         break;
     }
 }
+
+const SkillCategoryIconIds D_004C9A08  = { .id = { 265, 266, 772, 773, 774 } };
 
 void MenuSkillCategoryMain(void)
 {
@@ -861,6 +875,8 @@ void MenuSkillCategoryMain(void)
         }
     }
 }
+
+const char D_004C9A18[18]  = "List\003\220S.Lv\003\007S.Pts";
 
 static int MenuSkillListChange00(void)
 {
@@ -1065,6 +1081,26 @@ void MenuSkillListMain(void)
         }
     }
 }
+
+const char D_004DB600[1] = "";
+
+const char D_004DB608[7] = "Yes\nNo";
+
+const char D_004DB610[5] = "Menu";
+
+char D_004DB618[7] = "\001S.Pts";
+
+char D_004DB620[6] = "\001S.Lv";
+
+const SkillL1R1SpriteIdPair D_004DB628[1] = { { .id = { 274, 272 } } };
+
+const SkillL1R1SlideStep D_004DB630[1] = { { .side = { 1, -1 } } };
+
+const SkillCategoryEdgeStep D_004DB638[1] = { { .side = { 1, -1 } } };
+
+const char D_004DB640[4] = "Set";
+
+const char D_004C9A88[30]  = "data\\endou\\skill\\skilldat.bin";
 
 void MenuSkill(void)
 {
@@ -1439,3 +1475,44 @@ void MenuSkill(void)
 /* Defined after MenuSkill: the original .sdata holds it at 0x004DB658, after
  * MenuSkill's "\x0bskill" literal at 0x004DB650. */
 unsigned char *SkillDataBuf = 0;
+
+extern const char D_004C9590[9];
+extern const char D_004DB5D0[8];
+extern const char D_004DB5D8[8];
+extern const char D_004C9918[19];
+extern const char D_004DB608[7];
+extern const char D_004C9930[16];
+extern char D_004DB618[7];
+extern char D_004DB620[6];
+extern char D_004C9940[19];
+extern const char D_004C99E8[15];
+
+static const char * msg_0_0036DD58[3]  = { D_004DB5D8, D_004C9590, D_004DB5D0 };
+
+static const char * msg00_1_0036DD68[1] __attribute__((section(".data"))) = { D_004C9918 };
+
+static const char * msg01_2_0036DD70[2] __attribute__((section(".data"))) = { D_004DB608, D_004C9930 };
+
+static char * msg00_3_0036DD78[3]  = { D_004DB620, D_004DB618, D_004C9940 };
+
+static const char * msg00_4_0036DD88[1] __attribute__((section(".data"))) = { D_004C99E8 };
+
+SkillPasWork * MenuSkillPas = 0;
+
+SkillScreenState * MenuSkillInfo = 0;
+
+MenuSkillStatusWork * MenuSkillStatus = 0;
+
+MenuSkillMenuWork * MenuSkillMenu = 0;
+
+SkillScreenState * MenuSkillEx = 0;
+
+MenuSkillL1R1Work * MenuSkillL1R1 = 0;
+
+MenuSkillSetListWork * MenuSkillSetList = 0;
+
+MenuSkillCategoryWork * MenuSkillCategory = 0;
+
+MenuSkillListWork * MenuSkillList = 0;
+
+static short MenuSkillParty[8];

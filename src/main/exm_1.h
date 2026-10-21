@@ -96,47 +96,55 @@ extern int ibuf;
 
 extern int startjnt;
 
-extern unsigned char abelcol[];
+typedef struct ExCollisionPrimitive {
+    unsigned short joint;
+    unsigned short kind;
+    unsigned char unmodeled_004[12];
+    Vector4 start;
+    Vector4 end;
+} ExCollisionPrimitive;
 
-extern unsigned char albeltcol[];
+static ExCollisionPrimitive abelcol[3];
 
-extern unsigned char allencol[];
+static ExCollisionPrimitive albeltcol[3];
 
-extern unsigned char chaoscol[];
+static ExCollisionPrimitive allencol[2];
 
-extern unsigned char ellycol[];
+static ExCollisionPrimitive chaoscol[2];
 
-extern unsigned char gaignuncol[];
+static ExCollisionPrimitive ellycol[5];
 
-extern unsigned char helmercol[];
+static ExCollisionPrimitive gaignuncol[2];
 
-extern unsigned char hyakucol[];
+static ExCollisionPrimitive helmercol[3];
 
-extern unsigned char kebincol[];
+static ExCollisionPrimitive hyakucol[4];
 
-extern unsigned char kebinhcol[];
+static ExCollisionPrimitive kebincol[3];
 
-extern unsigned char mamcol[];
+static ExCollisionPrimitive kebinhcol[2];
 
-extern unsigned char miyukicol[];
+static ExCollisionPrimitive mamcol[4];
 
-extern unsigned char momo1col[];
+static ExCollisionPrimitive miyukicol[3];
 
-extern unsigned char momo4col[];
+static ExCollisionPrimitive momo1col[8];
 
-extern unsigned char momocol[];
+static ExCollisionPrimitive momo4col[5];
 
-extern unsigned char offcol[];
+static ExCollisionPrimitive momocol[4];
 
-extern unsigned char robotcol[];
+static ExCollisionPrimitive offcol[2];
 
-extern unsigned char shionchcol[];
+static ExCollisionPrimitive robotcol[2];
 
-extern unsigned char shioncol[];
+static ExCollisionPrimitive shionchcol[3];
 
-extern unsigned char shitancol[];
+static ExCollisionPrimitive shioncol[5];
 
-extern unsigned char tonnycol[];
+static ExCollisionPrimitive shitancol[4];
+
+static ExCollisionPrimitive tonnycol[4];
 
 extern const float D_004D8614;
 
@@ -226,14 +234,6 @@ extern const float D_004D86D0;
 
 void MATRIX_translate4s(Matrix4 matrix, float x, float y, float z);
 
-typedef struct ExCollisionPrimitive {
-    unsigned short joint;
-    unsigned short kind;
-    unsigned char unmodeled_004[12];
-    Vector4 start;
-    Vector4 end;
-} ExCollisionPrimitive;
-
 
 typedef struct ExCollisionRequest {
     struct ExCollisionPrimitive *primitives;
@@ -315,7 +315,7 @@ extern ExHairParameters hairpara[];
 
 extern float JR_coatAdjust[];
 
-static int EXM_CheckExCollision(ExMotionJointWork *work, register const float position[3],
+static int EXM_CheckExCollision(ExMotionJointWork *work, const float position[3],
                                const Matrix4 jointMatrix, ExCollisionRequest *request);
 
 void EXM_GetWindPower(float output[3], ExMotionJointWork *work, const float input[3],

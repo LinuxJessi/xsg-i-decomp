@@ -42,6 +42,16 @@ extern TecStatus *func_A1A378(short tecId);
 
 #include "shared.h"
 
+extern const char D_004C8290[];
+extern const char D_004C82A8[];
+extern const char D_004C82C8[];
+extern char D_004DB2C0[8];
+extern char D_004DB2D8[8];
+extern char D_004DB2E0[8];
+extern char D_004C82D8[20];
+
+
+
 typedef struct EtherUnitRecord {
     unsigned char unmodeled_00[0x17];
     signed char capUsed; /* +0x17 */
@@ -160,20 +170,19 @@ extern const EtherL1R1SpriteIdPair D_004DB2E8[];
 
 extern const EtherL1R1SlideStep D_004DB2F0[];
 
-const char D_004C8870[32] = "data\\endou\\ether\\etree.bin";
+extern const char D_004C8870[32];
 
-const char D_004C7CD0[48] =
-    "Choose a character.\0\0\0\0\0 cannot be chosen.\0\0\0\0\0";
+extern const char D_004C7CD0[48];
 
 typedef struct EtherInfoCharacterHelp { const char *text[2]; } EtherInfoCharacterHelp;
 
 extern EtherInfoCharacterHelp D_004DB278[];
 
-char D_004DB280[8] = "Cancel.";
+extern char D_004DB280[8];
 
 extern char D_004DB288[];
 
-char D_004DB290[8] = " to ";
+extern char D_004DB290[8];
 
 extern char D_004DB298[];
 
@@ -185,23 +194,23 @@ extern char D_004DB2B0[];
 
 extern char D_004DB2B8[];
 
-char D_004DB2C0[8] = "Yes\nNo";
+extern char D_004DB2C0[8];
 
 extern char D_004DB2C8[];
 
 extern char D_004DB2D0[];
 
-char D_004DB2D8[8] = "\x01Wt";
+extern char D_004DB2D8[8];
 
-char D_004DB2E0[8] = "\x01" "E.Pts";
+extern char D_004DB2E0[8];
 
 extern char D_004DB2F8[];
 
-const char D_004C8290[] = "Evolve\nTransfer\nCancel";
+extern const char D_004C8290[];
 
-const char D_004C82A8[] = "Use\nSet\nUse E.Pts\nCancel";
+extern const char D_004C82A8[];
 
-const char D_004C82C8[] = " Is this okay?";
+extern const char D_004C82C8[];
 
 /* The four-byte record of an ether (its slot ethers), or 0 outside 1..80. */
 
@@ -283,7 +292,7 @@ typedef struct EtherPasWork {
 } EtherPasWork;
 
 
-EtherPasWork *MenuEtherPas = 0;
+extern EtherPasWork *MenuEtherPas;
 
 static const char *msg_0_0036DC00[6] = {
     "Ether",
@@ -293,6 +302,18 @@ static const char *msg_0_0036DC00[6] = {
     "/Evolve",
     "/Transfer"
 };
+
+static const char * msg00_1_0036DC18[2] __attribute__((section(".data"))) = { D_004C82A8, D_004C8290 };
+
+static const char * msg01_2_0036DC20[2] __attribute__((section(".data"))) = { D_004DB2C0, D_004C82C8 };
+
+static const char * msg00_3_0036DC28[2] __attribute__((section(".data"))) = { D_004DB2E0, D_004DB2D8 };
+
+static char * msg01_4_0036DC30[1] __attribute__((section(".data"))) = { D_004C82D8 };
+
+short MenuEtherParty[16] __attribute__((section(".data"))) = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+
+
 
 typedef struct EtherMenuWindowDX {
     short x; /* +0x00 */
@@ -330,11 +351,11 @@ typedef struct EtherMenuScreen {
 } EtherMenuScreen;
 
 
-EtherMenuScreen *MenuEtherMenu = 0;
+extern EtherMenuScreen *MenuEtherMenu;
 
-extern char *msg00_1_0036DC18[];
+static const char * msg00_1_0036DC18[2];
 
-extern char *msg01_2_0036DC20[];
+static const char * msg01_2_0036DC20[2];
 
 typedef struct EtherL1R1Sprite {
     unsigned char unmodeled_00[0x04];
@@ -354,7 +375,7 @@ typedef struct EtherL1R1Work {
 } EtherL1R1Work;
 
 
-EtherL1R1Work *MenuEtherL1R1 = 0;
+extern EtherL1R1Work *MenuEtherL1R1;
 
 #define MENU_STATE_CHANGED 0x01
 
@@ -418,17 +439,17 @@ typedef struct EtherListWork {
 
 #define ETHER_L1R1_SIZE    0x58
 
-EtherScreenWork *MenuEtherInfo = 0;
+extern EtherScreenWork *MenuEtherInfo;
 
-EtherScreenWork *MenuEtherEx = 0;
+extern EtherScreenWork *MenuEtherEx;
 
-EtherScreenWork *MenuEtherStatus = 0;
+extern EtherScreenWork *MenuEtherStatus;
 
-EtherScreenWork *MenuEtherStatus2 = 0;
+extern EtherScreenWork *MenuEtherStatus2;
 
-EtherListWork *MenuEtherList = 0;
+extern EtherListWork *MenuEtherList;
 
-EtherScreenWork *MenuEtherList2 = 0;
+extern EtherScreenWork *MenuEtherList2;
 
 extern short MenuEtherParty[16];
 
@@ -771,13 +792,13 @@ typedef struct EtherTargetStatusWork {
 
 
 
-extern const char D_004C8670[16];
+extern const char D_004C8670[9];
 
-extern const char D_004C8680[16];
+extern const char D_004C8680[9];
 
-extern const char D_004C8690[16];
+extern const char D_004C8690[12];
 
-extern const char D_004C86A0[16];
+extern const char D_004C86A0[12];
 
 typedef struct EtherMenuListWindow {
     unsigned char state;
@@ -1080,6 +1101,85 @@ void MenuEtherPasMain(void) {
     }
 }
 
+const char D_004C7CD0[48] =
+    "Choose a character.\0\0\0\0\0 cannot be chosen.\0\0\0\0\0";
+
+const char D_004C7D00[28]  = "Utilize Ether available to ";
+
+const char D_004C7D20[85]  = "Set Ether. Caution: You must complete this step in order to utilize any Ether skill.";
+
+const char D_004C7D78[79]  = "Use E.Pts to obtain new Ether skills and/or transfer them to other characters.";
+
+const EtherInfoCommandHelp D_004C7DC8 = {
+    { D_004C7D00, D_004C7D20, D_004C7D78, D_004DB280, D_004DB288 }
+};
+
+const char D_004C7DE0[38]  = "Use E.Pts to obtain new Ether skills.";
+
+const char D_004C7E08[72]  = "Use E.Pts to transfer Ether skills to other characters.\n(Uses 1/2 E.Pt)";
+
+const EtherInfoActionHelp D_004C7E50 = {
+    { D_004C7DE0, D_004C7E08, D_004DB280 }
+};
+
+const char D_004C7E60[26]  = "Acquire new Ether skill, ";
+
+const char D_004C7E80[14]  = "You acquired ";
+
+const char D_004C7E90[18]  = "Not enough E.Pts.";
+
+const char D_004C7EA8[40]  = "This is the highest level of evolution.";
+
+const char D_004C7ED0[27]  = "You have already acquired ";
+
+const char D_004C7EF0[69]  = "Transferred Ether skills cannot be evolved or transferred to others.";
+
+const char D_004C7F38[50]  = "This Ether skill is only available during battle.";
+
+const char D_004C7F70[40]  = "This Ether skill cannot be transferred.";
+
+const EtherInfoAcquireHelp D_004C7F98 = {
+    { D_004C7E60, D_004C7E80, D_004C7E90, D_004C7EA8, D_004C7ED0,
+      D_004C7E90, D_004C7EF0, D_004C7F38, D_004C7F70 }
+};
+
+const char D_004C7FC0[10]  = "Transfer ";
+
+const char D_004C7FD0[23]  = "Cannot be transferred.";
+
+const char D_004C7FE8[37]  = "This character has already acquired ";
+
+const char D_004C8010[43]  = ".\nSelect a recipient for this Ether skill.";
+
+const EtherInfoTransferHelp D_004C8040 = {
+    { D_004C7FC0, D_004C7FC0, D_004DB290, D_004DB290, D_004C7FD0,
+      D_004C7FE8, D_004C8010 }
+};
+
+const char D_004C8060[58]  = "The maximum allotment \nfor Ether skills has been reached.";
+
+const char D_004C80A0[13]  = " complete. \037";
+
+EtherInfoCharacterHelp D_004DB278[1] = {
+    {{D_004C7CD0, D_004C7CD0 + 24}}
+};
+
+char D_004DB280[8] = "Cancel.";
+
+char D_004DB288[8] = ".";
+
+char D_004DB290[8] = " to ";
+
+char D_004DB298[8] = { 0 };
+
+char D_004DB2A0[8] = ".\n";
+
+char D_004DB2A8[8] = ". \x1f";
+
+char D_004DB2B0[8] = "of ";
+
+char D_004DB2B8[8] = "?";
+
 void MenuEtherInfoMain(void) {
     EtherInfoWork *screen = EtherInfoWorkGet(&MenuEtherInfo);
     const char *capHelp = D_004C8060;
@@ -1302,6 +1402,18 @@ void MenuEtherInfoMain(void) {
     WindowDXMain((WindowDX *)(void *)(window));
 }
 
+const char D_004C8290[] = "Evolve\nTransfer\nCancel";
+
+const char D_004C82A8[] = "Use\nSet\nUse E.Pts\nCancel";
+
+const char D_004C82C8[] = " Is this okay?";
+
+char D_004DB2C0[8] = "Yes\nNo";
+
+char D_004DB2C8[5] = "Menu";
+
+char D_004DB2D0[7] = "Select";
+
 void MenuEtherMenuMain(void) {
     EtherMenuScreen *work = MenuEtherMenu;
     short target[2];
@@ -1426,14 +1538,20 @@ typedef struct EtherDetailWork {
     EtherPasMessage message;
 } EtherDetailWork;
 
-extern const char *msg00_3_0036DC28[];
-extern char *msg01_4_0036DC30[];
+static const char * msg00_3_0036DC28[2];
+static char * msg01_4_0036DC30[1];
 void eRibbonSet(void *ribbon, int mode);
 void eRibbonMain(void *ribbon);
 void eTagFontSet(void *font, const char *text);
 void eTagFontMain(void *font);
 void eNumberSet(void *number, int mode);
 void eNumberMain(void *number);
+
+char D_004C82D8[20] __attribute__((section(".rodata"))) = "\014\200\200\200\036\000\241\247 Set Search";
+
+char D_004DB2D8[8] = "\x01Wt";
+
+char D_004DB2E0[8] = "\x01" "E.Pts";
 
 void MenuEtherExMain(void)
 {
@@ -1570,6 +1688,10 @@ void MenuEtherExMain(void)
   MoveSlide(&screen->message.x, &messageTarget, 3.0f);
   eMessageMain(&screen->message);
 }
+
+const EtherL1R1SpriteIdPair D_004DB2E8[1] = { { .id = { 274, 272 } } };
+
+const EtherL1R1SlideStep D_004DB2F0[1] = { { .side = { 1, -1 } } };
 
 void MenuEtherL1R1Main(void) {
     EtherL1R1Work *self = MenuEtherL1R1;
@@ -2134,6 +2256,14 @@ void MenuEtherStatusMain2(void)
     }
 }
 
+const char D_004C8670[9]  = "List\003\234Ep";
+
+const char D_004C8680[9]  = "List\003\235Wt";
+
+const char D_004C8690[12]  = "List\003\234E.Pts";
+
+const char D_004C86A0[12]  = "List\003\232E.Pts";
+
 void MenuEtherListMain(void)
 {
     short targetX[2];
@@ -2336,6 +2466,10 @@ void MenuEtherListMain(void)
     }
 }
 
+
+const char D_004C8810[14]  = "TransferEther";
+
+char D_004DB2F8[8] = "Result";
 
 void MenuEtherListMain2(void) {
     EtherResultWork *screen = (void *)MenuEtherList2;
@@ -2636,6 +2770,8 @@ int MenuEtherEquip(void) {
     }
     return 1;
 }
+
+const char D_004C8870[32] = "data\\endou\\ether\\etree.bin";
 
 void MenuEther(void)
 {
@@ -3294,20 +3430,45 @@ void MenuEther(void)
     xglFontDebugPrintf(0, 0x88, "\vumm%2d", MenuWork.slotCount);
 }
 
-EtherInfoCharacterHelp D_004DB278[1] = {
-    {{D_004C7CD0, D_004C7CD0 + 24}}
-};
+extern EtherInfoCharacterHelp D_004DB278[1];
 
-char D_004DB288[8] = ".";
+extern char D_004DB288[8];
 
-char D_004DB298[8] = { 0 };
+extern char D_004DB298[8];
 
-char D_004DB2A0[8] = ".\n";
+extern char D_004DB2A0[8];
 
-char D_004DB2A8[8] = ". \x1f";
+extern char D_004DB2A8[8];
 
-char D_004DB2B0[8] = "of ";
+extern char D_004DB2B0[8];
 
-char D_004DB2B8[8] = "?";
+extern char D_004DB2B8[8];
 
-char D_004DB2F8[8] = "Result";
+extern char D_004DB2F8[8];
+
+
+unsigned char (*MenuEtherDataBuf)[4] = 0;
+
+EtherPasWork *MenuEtherPas = 0;
+
+EtherScreenWork *MenuEtherInfo = 0;
+
+EtherMenuScreen *MenuEtherMenu = 0;
+
+EtherScreenWork *MenuEtherEx = 0;
+
+EtherL1R1Work *MenuEtherL1R1 = 0;
+
+EtherScreenWork *MenuEtherStatus = 0;
+
+EtherScreenWork *MenuEtherStatus2 = 0;
+
+EtherListWork *MenuEtherList = 0;
+
+EtherScreenWork *MenuEtherList2 = 0;
+
+const char D_004C88A0[11]  = "/Use T.Pts";
+
+const char D_004C88B0[13]  = "Tech Attacks";
+
+const char D_004DB370[5] = "/Set";

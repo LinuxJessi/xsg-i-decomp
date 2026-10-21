@@ -89,7 +89,8 @@ static FlushEnvironmentPacket FlushEnv_2_0036AC40 = {
     .dma_tag = 0,
     .vif_nop = 0,
     .vif_direct = 0x51000002,
-    .gif_tag = { 1 | (1 << 15), 0x10000000, 0x0000000E, 0 },
+    /* One packed A+D loop, with the end-of-packet flag set. */
+    .gif_tag = { 0x00008001, 0x10000000, 0x0000000E, 0 },
     .finish = { { .value = 0 }, 0x3F, 0 },
 };
 
@@ -236,3 +237,7 @@ void tyaDisplaySetting(u8 *framebuffer_or_mode)
     }
     xglSleep();
 }
+
+const char D_004C15E8[24] = "data\\yajima\\mnt_set.jpg";
+
+const char D_004C1600[20] = "%04x %04x\n%04x %04x";

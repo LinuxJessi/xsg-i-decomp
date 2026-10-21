@@ -32,9 +32,196 @@ _compiler_only_section = lru_cache(maxsize=32)(data_gate.compiler_only_section)
 _compiler_include_views = {}
 
 
+@lru_cache(maxsize=32)
+def source_discovery_view(source):
+    """Mask comment/literal contents while preserving every source offset.
+
+    Literal delimiters remain visible so a declaration's trailing whitespace
+    cannot consume its initializer. Only the three already supported section
+    attribute strings retain their spelling; none contains declaration tokens.
+    Decoders always receive the corresponding original initializer slice.
+    """
+    view=list(source);at=0
+    def hide(lo,hi):
+        for i in range(lo,hi):
+            if view[i]!='\n':view[i]=' '
+    while at<len(source):
+        if source.startswith('/*',at):
+            end=source.find('*/',at+2)
+            if end<0:return ''.join('\n' if c=='\n' else ' ' for c in source)
+            end+=2;hide(at,end);at=end;continue
+        if source.startswith('//',at):
+            end=source.find('\n',at+2);end=len(source) if end<0 else end
+            # Preprocessed input must have resolved splicing already. Refuse
+            # escapes, including GNU continuations with horizontal whitespace,
+            # rather than expose comment text as a declaration on the next line.
+            if '\\' in source[at:end]:
+                return ''.join('\n' if c=='\n' else ' ' for c in source)
+            hide(at,end);at=end;continue
+        if source[at]=='#':
+            start=source.rfind('\n',0,at)+1
+            if ''.join(view[start:at]).strip():
+                return ''.join('\n' if c=='\n' else ' ' for c in source)
+            # A preprocessor filename/metadata token is never a C expression.
+            # Parse only enough metadata to blank its complete physical line;
+            # unsupported continued or multiline forms refuse all discovery.
+            end=at+1
+            while end<len(source) and source[end]!='\n':
+                if source.startswith('/*',end):
+                    close=source.find('*/',end+2)
+                    if close<0 or '\n' in source[end:close+2]:
+                        return ''.join('\n' if c=='\n' else ' ' for c in source)
+                    end=close+2;continue
+                if source.startswith('//',end):
+                    close=source.find('\n',end+2);close=len(source) if close<0 else close
+                    if '\\' in source[end:close]:
+                        return ''.join('\n' if c=='\n' else ' ' for c in source)
+                    end=close;break
+                if source[end] in ('"',"'"):
+                    quote=source[end];close=end+1
+                    while close<len(source) and source[close]!=quote:
+                        if source[close]=='\n' or source[close]=='\\' and source[close+1:close+2] in ('\n','\r'):
+                            return ''.join('\n' if c=='\n' else ' ' for c in source)
+                        close+=2 if source[close]=='\\' else 1
+                    if close>=len(source):return ''.join('\n' if c=='\n' else ' ' for c in source)
+                    end=close+1;continue
+                if source[end]=='\\':
+                    return ''.join('\n' if c=='\n' else ' ' for c in source)
+                end+=1
+            hide(at,end);at=end;continue
+        if source[at] in ('"',"'"):
+            quote=source[at];end=at+1
+            while end<len(source):
+                if source[end]=='\\':end+=2;continue
+                if source[end]==quote:break
+                end+=1
+            if end>=len(source):return ''.join('\n' if c=='\n' else ' ' for c in source)
+            if source[at:end+1] not in ('".data"','".sdata"','".rodata"'):hide(at+1,end)
+            at=end+1;continue
+        if source[at]=='\\':
+            # Preprocessed syntax must already have performed line splicing.
+            # Do not guess token/comment formation, including GNU horizontal
+            # whitespace before a continued newline, from unprocessed escapes.
+            return ''.join('\n' if c=='\n' else ' ' for c in source)
+        at+=1
+    return ''.join(view)
+
+
+def source_matches(pattern, source, flags=0):
+    """Discover syntax lexically, then recover its exact original spelling."""
+    pattern=re.compile(pattern,flags) if isinstance(pattern,str) else pattern
+    for visible in pattern.finditer(source_discovery_view(source)):
+        actual=pattern.match(source,visible.start())
+        if actual and actual.end()==visible.end():yield actual
+
+
+def source_findall(pattern, source, flags=0):
+    return [m[0] if not m.re.groups else (m[1] or '') if m.re.groups==1 else tuple(v or '' for v in m.groups())
+            for m in source_matches(pattern,source,flags)]
+
+
+def source_search(pattern, source, flags=0):
+    return next(source_matches(pattern,source,flags),None)
+
+
+@lru_cache(maxsize=32)
+def actual_source_asm_lines(preprocessed):
+    """Decode actual asm templates with C escapes, after lexical discovery."""
+    import tu_audit
+    written=set();view=source_discovery_view(preprocessed)
+    for match in re.finditer(r'\b(?:__asm__|__asm|asm)\b',view):
+        prefix=re.match(r'\s*(?:(?:__volatile__|__volatile|volatile)\s*)?\(\s*',view[match.end():])
+        if not prefix:raise RuntimeError('Unsupported lexically present actual asm statement')
+        at=match.end()+prefix.end();parts=[]
+        while at<len(view) and view[at]=='"':
+            end=at+1
+            while end<len(preprocessed):
+                if preprocessed[end]=='\\':end+=2;continue
+                if preprocessed[end]=='"':break
+                end+=1
+            if end>=len(preprocessed):raise RuntimeError('Unclosed actual asm-template literal')
+            parts.append(preprocessed[at:end+1]);at=end+1
+            whitespace=re.match(r'\s*',view[at:]);at+=whitespace.end()
+        if not parts or at>=len(view) or view[at] not in '):':
+            raise RuntimeError('Unsupported actual asm-template expression')
+        try:template=b''.join(c_literal_bytes(token) for token in parts).decode('latin1')
+        except (ValueError,SyntaxError,UnicodeError) as error:
+            raise RuntimeError('Unsupported actual C asm-template literal') from error
+        for line in template.splitlines():
+            normalized=tu_audit._norm_asm_line(tu_audit._strip_comment(line))
+            if normalized:written.add(normalized)
+    return frozenset(written)
+
+
+def compiler_pool_line_numbers(assembly, preprocessed, unit_dir):
+    """Reuse the audit's exact cc1 pool boundary and authored-line veto.
+
+    GCC can defer #NO_APP until after the next function's constant pool. The
+    approved source parser records that narrow grammar separately from actual
+    top-level asm. This changes only provenance interpretation, never output.
+    """
+    import tu_audit
+    parsed=tu_audit.AsmFile(assembly)
+    if parsed.errors:raise RuntimeError('cc1 provenance parser errors: '+str(parsed.errors))
+    if not parsed.pool_lines:return frozenset()
+    lines=assembly.splitlines();first=min(number for number,_ in parsed.pool_lines)
+    preceding=[i for i,line in enumerate(lines[:first-1],1) if line.strip() in ('#APP','#NO_APP')]
+    if not preceding or lines[preceding[-1]-1].strip()!='#APP':
+        raise RuntimeError('Deferred cc1 pool lacks its original APP include boundary')
+    begin=preceding[-1]
+    prefix=[line.strip() for line in lines[begin:first-1] if line.strip()]
+    if (begin!=next((i for i,line in enumerate(lines,1) if line.strip()=='#APP'),None)
+        or prefix!=['.include "include/labels.inc"']
+        or any(re.match(r'\s*\.ent\b',line) for line in lines[:begin])):
+        raise RuntimeError('Unsupported deferred compiler pool APP origin')
+    finish=next((i for i in range(first,len(lines)+1) if lines[i-1].strip()=='#NO_APP'),None)
+    if not finish or any(not first<=number<finish for number,_ in parsed.pool_lines):
+        raise RuntimeError('Unsupported multiple deferred compiler pool regions')
+    statements=list(source_matches(r'\b(?:__asm__|__asm|asm)\s*\(\s*("(?:\\.|[^"\\])*")\s*\)\s*;',preprocessed))
+    exact=[match for match in statements if c_literal_bytes(match[1])==b'.include "include/labels.inc"\n']
+    if len(exact)!=1:raise RuntimeError('Missing unique actual source labels include')
+    include=Path(unit_dir)/'include/labels.inc'
+    # This is the pinned macro-only include used by the selected legacy EE
+    # assembler. Re-read it on every proof; basename alone is no provenance.
+    if (not include.is_file() or hashlib.sha256(include.read_bytes()).hexdigest()!=
+        '2cff19a41f1917f2acf5516b3e3f06b69195340442afe65fad70fb0fc694de19'):
+        raise RuntimeError('Deferred compiler pool labels include differs')
+    written=actual_source_asm_lines(preprocessed)
+    for _,line in parsed.pool_lines:
+        if not tu_audit._app_line_allowed(line) and tu_audit._norm_asm_line(line) in written:
+            raise RuntimeError('Authored asm line in deferred cc1 constant pool')
+    return frozenset(number for number,_ in parsed.pool_lines)
+
+
+def outside_app_section_payload(assembly, section, preprocessed='', unit_dir=None):
+    """Refuse direct authored payload in the witnessed compiler section."""
+    current=previous=None;app=False
+    pool_lines=compiler_pool_line_numbers(assembly,preprocessed,unit_dir) if preprocessed and unit_dir is not None else frozenset()
+    for number,line in enumerate(assembly.splitlines(),1):
+        if line.strip()=='#APP':app=True;continue
+        if line.strip()=='#NO_APP':app=False;continue
+        line=line.split('#',1)[0]
+        selected=re.match(r'\s*\.(data|sdata|rdata|rodata|lit4|lit8|text)\s*$',line)
+        explicit=re.match(r'\s*\.section\s+"?(\.[\w.]+)"?(?:\s|,|$)',line)
+        if app and re.match(r'\s*\.(?:section|data|sdata|rdata|rodata|lit4|lit8|text)\b',line) and not (selected or explicit):
+            raise RuntimeError('Unsupported authored section selection in compiler provenance')
+        if selected or explicit:
+            previous,current=current,'.'+selected[1] if selected else explicit[1]
+            if current=='.rdata':current='.rodata'
+            continue
+        if re.match(r'\s*\.previous\s*$',line):current,previous=previous,current;continue
+        if app and re.match(r'\s*\.(?:pushsection|popsection)\b',line):
+            raise RuntimeError('Unsupported authored section stack in compiler provenance')
+        if app and number not in pool_lines and current==section and re.match(r'\s*\.(?:byte|half|short|word|float|double|quad|dword|ascii|asciz|string|space|zero|incbin|fill|org|balign|p2align|align)\b',line):
+            raise RuntimeError('Authored APP payload in compiler section '+section)
+    if app:raise RuntimeError('Unclosed APP provenance region')
+    return True
+
+
 def compiler_only_section(assembly, preprocessed, unit_dir, section):
     # Includes have external file dependencies: always re-check their contents.
     # Without includes the proof depends only on these immutable text inputs.
+    outside_app_section_payload(assembly,section,preprocessed,unit_dir)
     if re.search(r'\.include\b', assembly):
         view = _compiler_include_views.get(assembly, unit_dir)
         return data_gate.compiler_only_section(assembly, preprocessed, view, section)
@@ -623,7 +810,7 @@ def integer_literal_arrays(preprocessed):
     """
     widths = {'char': 1, 'short': 2, 'short int': 2, 'int': 4,
               'long long': 8, 'long long int': 8}
-    for declaration in re.finditer(r'\btypedef\s+([^;{}]+?)\s+(\w+)\s*;', preprocessed):
+    for declaration in source_matches(r'\btypedef\s+([^;{}]+?)\s+(\w+)\s*;', preprocessed):
         spelling = re.sub(r'\b(?:signed|unsigned|const|volatile)\b', '', declaration[1])
         spelling = ' '.join(spelling.split())
         if spelling in widths:
@@ -631,7 +818,7 @@ def integer_literal_arrays(preprocessed):
     arrays = {}
     pattern = r'\b(?:static\s+)?(?:const\s+)?([\w ]+?)\s+(\w+)\s*\[\s*(0[xX][0-9a-fA-F]+|\d+)\s*\]\s*=\s*\{([^{}]*)\}\s*;'
     literal = re.compile(r'(0[xX][0-9a-fA-F]+|0[0-7]*|[1-9][0-9]*)(?:[uUlL]*)')
-    for declaration in re.finditer(pattern, preprocessed):
+    for declaration in source_matches(pattern, preprocessed):
         spelling = re.sub(r'\b(?:signed|unsigned|const|volatile)\b', '', declaration[1])
         width = widths.get(' '.join(spelling.split()))
         if width is None:
@@ -737,7 +924,7 @@ def function_static_source_bindings(preprocessed, compiler, assembly):
         pattern=(r'\bstatic\s+((?:[A-Za-z_]\w*\s+)+)(?:\(\s*\*\s*'+re.escape(name)+
                  r'\s*((?:\[\s*(?:0[xX][\da-fA-F]+|\d+)?\s*\])*)\s*\)\s*\([^;{}]*\)|'+
                  re.escape(name)+r'\s*((?:\[\s*(?:0[xX][\da-fA-F]+|\d+)?\s*\])*))\s*(?==|;)')
-        declarations=list(re.finditer(pattern,function.text(preprocessed)))
+        declarations=list(source_matches(pattern,function.text(preprocessed)))
         if len(declarations)!=1:continue
         declaration=declarations[0]
         result[symbol.name]=dict(source_function=function.name,source_lexical_name=name,
@@ -766,9 +953,9 @@ def numeric_union_source_objects(preprocessed, compiler, assembly):
         'unsigned long int':8,'long long':8,'long long int':8,'unsigned long long':8,
         'unsigned long long int':8}
     aliases={}
-    for match in re.finditer(r'\btypedef\s+([^;{}()]+?)\s+(\w+)\s*;',preprocessed):
+    for match in source_matches(r'\btypedef\s+([^;{}()]+?)\s+(\w+)\s*;',preprocessed):
         aliases.setdefault(match[2],set()).add(clean(match[1]))
-    ti={m[1] for m in re.finditer(r'\btypedef\s+unsigned\s+int\s+(\w+)\s+__attribute__\s*\(\(\s*mode\s*\(\s*TI\s*\)\s*\)\)\s*;',preprocessed)}
+    ti={m[1] for m in source_matches(r'\btypedef\s+unsigned\s+int\s+(\w+)\s+__attribute__\s*\(\(\s*mode\s*\(\s*TI\s*\)\s*\)\)\s*;',preprocessed)}
     def scalar(typename,seen=()):
         typename=clean(typename)
         if typename in seen:return None
@@ -777,7 +964,7 @@ def numeric_union_source_objects(preprocessed, compiler, assembly):
         choices=aliases.get(typename,set())
         return scalar(next(iter(choices)),seen+(typename,)) if len(choices)==1 else None
     unions={}
-    for match in re.finditer(r'\btypedef\s+union(?:\s+\w+)?\s*\{([^{}]*)\}\s*(\w+)\s*;',preprocessed):
+    for match in source_matches(r'\btypedef\s+union(?:\s+\w+)?\s*\{([^{}]*)\}\s*(\w+)\s*;',preprocessed):
         fields=[]
         try:
             for text in _record_split(match[1],';'):
@@ -798,7 +985,7 @@ def numeric_union_source_objects(preprocessed, compiler, assembly):
                         unions.setdefault(match[2],[]).append(dict(fields=fields,size=size,alignment=alignment))
         except RecordLayoutError:continue
     emitted=typed_compiler_data(assembly);result={}
-    for declaration in re.finditer(r'\b(?:static\s+)?(?:const\s+)?(\w+)\s+(\w+)\s*=\s*',preprocessed):
+    for declaration in source_matches(r'\b(?:static\s+)?(?:const\s+)?(\w+)\s+(\w+)\s*=\s*',preprocessed):
         typename,name=declaration[1],declaration[2]
         choices=unions.get(typename,[])
         if len(choices)!=1 or name not in emitted:continue
@@ -861,10 +1048,10 @@ def numeric_record_union_source_objects(preprocessed, compiler, assembly):
         'unsigned long int':8,'long long':8,'long long int':8,'unsigned long long':8,
         'unsigned long long int':8}
     aliases={};records={}
-    for m in re.finditer(r'\btypedef\s+([^;{}()]+?)\s+(\w+)\s*;',preprocessed):
+    for m in source_matches(r'\btypedef\s+([^;{}()]+?)\s+(\w+)\s*;',preprocessed):
         aliases.setdefault(m[2],set()).add(clean(m[1]))
-    ti={m[1] for m in re.finditer(r'\btypedef\s+unsigned\s+int\s+(\w+)\s+__attribute__\s*\(\(\s*mode\s*\(\s*TI\s*\)\s*\)\)\s*;',preprocessed)}
-    for m in re.finditer(r'\btypedef\s+(struct|union)(?:\s+\w+)?\s*\{',preprocessed):
+    ti={m[1] for m in source_matches(r'\btypedef\s+unsigned\s+int\s+(\w+)\s+__attribute__\s*\(\(\s*mode\s*\(\s*TI\s*\)\s*\)\)\s*;',preprocessed)}
+    for m in source_matches(r'\btypedef\s+(struct|union)(?:\s+\w+)?\s*\{',preprocessed):
         at=m.end();end=at;depth=1
         while end<len(preprocessed) and depth:
             depth+=(preprocessed[end]=='{')-(preprocessed[end]=='}');end+=1
@@ -939,7 +1126,7 @@ def numeric_record_union_source_objects(preprocessed, compiler, assembly):
             decoded.append(decode(field['layout'],item))
         return b''.join(decoded)
     emitted=typed_compiler_data(assembly);result={}
-    for declaration in re.finditer(r'\b(?:static\s+)?(?:const\s+)?(\w+)\s+(\w+)\s*=\s*',preprocessed):
+    for declaration in source_matches(r'\b(?:static\s+)?(?:const\s+)?(\w+)\s+(\w+)\s*=\s*',preprocessed):
         typename,name=declaration[1],declaration[2]
         if name not in emitted:continue
         try:
@@ -978,7 +1165,7 @@ def numeric_character_source_objects(preprocessed, compiler, assembly):
     emitted=typed_compiler_data(assembly);result={}
     declaration=re.compile(r'\b(?:static\s+)?(?:const\s+)?(?:unsigned\s+|signed\s+)?char\s+(\w+)\s*\[\s*([^\[\]]+)\s*\]\s*'
         r'(?:__attribute__\s*\(\(\s*section\s*\(\s*"\.[\w.]+"\s*\)\s*\)\)\s*)?=\s*')
-    for m in declaration.finditer(preprocessed):
+    for m in source_matches(declaration, preprocessed):
         name=m[1]
         if name not in emitted:continue
         try:count=_record_bound(m[2])
@@ -1031,7 +1218,7 @@ def numeric_byte_expression_source_objects(preprocessed, compiler, assembly):
         'unsigned':32,'unsigned int':32,'unsigned long':64,'unsigned long int':64,
         'unsigned long long':64,'unsigned long long int':64}
     aliases={}
-    for m in re.finditer(r'\btypedef\s+([\w ]+?)\s+(\w+)\s*;',preprocessed):
+    for m in source_matches(r'\btypedef\s+([\w ]+?)\s+(\w+)\s*;',preprocessed):
         aliases.setdefault(m[2],set()).add(' '.join(m[1].split()))
     def unsigned_width(name,seen=()):
         name=' '.join(name.split())
@@ -1088,7 +1275,7 @@ def numeric_byte_expression_source_objects(preprocessed, compiler, assembly):
         return value
     emitted=typed_compiler_data(assembly);result={}
     pattern=re.compile(r'\b(?:static\s+)?(?:const\s+)?([\w ]+?)\s+(\w+)\s*\[([^\[\]]+)\]\s*=\s*\{([^{}]*)\}\s*;',re.S)
-    for m in pattern.finditer(preprocessed):
+    for m in source_matches(pattern, preprocessed):
         typename,name=m[1].strip(),m[2]
         if unsigned_width(typename)!=8 or name not in emitted:continue
         try:
@@ -1120,12 +1307,67 @@ def numeric_byte_expression_source_objects(preprocessed, compiler, assembly):
     return result
 
 
-def typed_literal_source_objects(preprocessed, compiler, assembly):
+def literal_integer_expression(text,unsigned64_types=()):
+    """Decode bounded literal C integer arithmetic without names or casts.
+
+    Retain EE int32/long64 literal suffixes and usual integer conversions.
+    Refuse signed overflow and implementation-defined shifts. A caller may
+    admit casts of literal operands to independently resolved unsigned64 types.
+    """
+    if len(text)>512:raise ValueError('integer expression extent')
+    cast='|'.join(re.escape(n).replace(r'\ ',r'\s+') for n in unsigned64_types)
+    token=re.compile(r'(?<![\w.])(?:(\(\s*(?:'+(cast or r'(?!)')+r')\s*\))\s*)?((?:0[xX][\da-fA-F]+|0[0-7]*|[1-9]\d*)([uUlL]*))(?![\w.])')
+    literals={}
+    def spelling(m):
+        value=re.sub(r'[uUlL]+$','',m[2]);suffix=m[3].lower()
+        if not re.fullmatch(r'(?:u(?:ll|l)?|(?:ll|l)u?|)',suffix):raise ValueError('integer suffix')
+        number=int(value,16 if value.lower().startswith('0x') else 8 if value.startswith('0') else 10)
+        bits=64 if 'l' in suffix or number>=1<<32 else 32
+        unsigned='u' in suffix
+        if not unsigned and number>=1<<(bits-1):
+            if value.lower().startswith('0x') or value.startswith('0') and len(value)>1:unsigned=True
+            elif bits==32:bits=64
+            else:raise ValueError('decimal integer range')
+        if not 0<=number<1<<bits:raise ValueError('integer literal range')
+        if m[1]:bits,unsigned=64,True
+        key='__literal_'+str(len(literals));literals[key]=(number,bits,unsigned);return key
+    if re.sub(r'[\s()+*<>|&^\-]','',token.sub('',text.strip())):
+        raise ValueError('nonliteral integer spelling')
+    normalized=token.sub(spelling,text.strip())
+    tree=ast.parse(normalized,mode='eval')
+    if sum(1 for _ in ast.walk(tree))>128:raise ValueError('integer expression depth')
+    def value(node):
+        if isinstance(node,ast.Name) and node.id in literals:return literals[node.id]
+        elif isinstance(node,ast.UnaryOp) and isinstance(node.op,(ast.UAdd,ast.USub)):
+            a,bits,unsigned=value(node.operand);result=a*(-1 if isinstance(node.op,ast.USub) else 1)
+        elif isinstance(node,ast.BinOp) and isinstance(node.op,(ast.Add,ast.Sub,ast.Mult,ast.LShift,ast.RShift,ast.BitOr,ast.BitAnd,ast.BitXor)):
+            a,abits,au=value(node.left);b,bbits,bu=value(node.right)
+            if isinstance(node.op,(ast.LShift,ast.RShift)):
+                bits,unsigned=abits,au
+                if a<0 or not 0<=b<bits:raise ValueError('nonportable integer shift')
+                result=a<<b if isinstance(node.op,ast.LShift) else a>>b
+            else:
+                bits=max(abits,bbits)
+                unsigned=(au or bu) if abits==bbits else au if abits>bbits else bu
+                if unsigned:a%=1<<bits;b%=1<<bits
+                if isinstance(node.op,(ast.BitOr,ast.BitAnd,ast.BitXor)):
+                    if a<0 or b<0:raise ValueError('signed integer bit operation')
+                    result=a|b if isinstance(node.op,ast.BitOr) else a&b if isinstance(node.op,ast.BitAnd) else a^b
+                else:result=a+b if isinstance(node.op,ast.Add) else a-b if isinstance(node.op,ast.Sub) else a*b
+        else:raise ValueError('nonliteral integer expression')
+        if unsigned:result%=1<<bits
+        elif not -(1<<(bits-1))<=result<1<<(bits-1):raise ValueError('signed integer expression overflow')
+        return result,bits,unsigned
+    return value(tree.body)[0]
+
+
+def typed_literal_source_objects(preprocessed, compiler, assembly, templates_only=False):
     """Decode pointer-free C scalar/array/record initializers independently.
 
     The EE scalar widths and explicit source fields establish layout. Strings
-    are admitted only as char arrays; unions admit only their complete first
-    member. Unknown expressions, pointers, attributes and divergent types
+    are admitted only as char arrays; unions admit a complete first member or
+    an explicit complete active member. Explicit unsigned bitfields must fill their declared 32/64-bit
+    containers. Unknown expressions, pointers, attributes and divergent types
     refuse. Whole decoded bytes, cc1 OBJECT extent/alignment and absence of
     actual compiler DATA relocations are mandatory before original binding.
     """
@@ -1185,27 +1427,59 @@ def typed_literal_source_objects(preprocessed, compiler, assembly):
         'long':(8,False),'long int':(8,False),'unsigned long':(8,True),'unsigned long int':(8,True),
         'long long':(8,False),'long long int':(8,False),'unsigned long long':(8,True),'unsigned long long int':(8,True)}
     aliases={};records={}
-    for m in re.finditer(r'\btypedef\s+([^;{}()]+?)\s+(\w+)\s*;',preprocessed):aliases.setdefault(m[2],set()).add(clean(m[1]))
-    for m in re.finditer(r'\b(typedef\s+)?(struct|union)(?:\s+(\w+))?\s*\{',preprocessed):
+    native_ti=Counter(m[1] for m in source_matches(r'\btypedef\s+unsigned\s+int\s+(\w+)\s+__attribute__\s*\(\(\s*mode\s*\(\s*TI\s*\)\s*\)\)\s*;',preprocessed))
+    for m in source_matches(r'\btypedef\s+([^;{}()]+?)\s+(\w+)\s*;',preprocessed):aliases.setdefault(m[2],set()).add(clean(m[1]))
+    for m in source_matches(r'\b(typedef\s+)?(struct|union)(?:\s+(\w+))?\s*\{',preprocessed):
         at=m.end();end=at;depth=1
         while end<len(preprocessed) and depth:depth+=(preprocessed[end]=='{')-(preprocessed[end]=='}');end+=1
         tail=re.match(r'\s*(\w+)?\s*;',preprocessed[end:])
-        if depth or not tail or (not m[1] and tail[1]):continue
-        names=([tail[1]] if m[1] and tail[1] else [])+([m[2]+' '+m[3]] if m[3] else [])
+        tagged_object=(templates_only and not m[1] and m[3] and re.match(
+            r'\s*\w+\s*(?:\[\s*(?:0[xX][\da-fA-F]+|\d+)\s*\]\s*)*;',preprocessed[end:]))
+        if depth or not tagged_object and (not tail or not m[1] and tail[1]):continue
+        names=([tail[1]] if m[1] and tail and tail[1] else [])+([m[2]+' '+m[3]] if m[3] else [])
         for n in names:records.setdefault(n,set()).add((m[2],preprocessed[at:end-1]))
-    def layout(typename,seen=()):
+    def layout(typename,seen=(),inline=None):
         typename=clean(typename)
         if typename in seen:raise RecordLayoutError('recursive type')
-        if typename in widths:
+        if inline is None and typename in native_ti:
+            if native_ti[typename]!=1 or typename in aliases or typename in records:
+                raise RecordLayoutError('ambiguous native-TI typedef')
+            # An actual EE native-TI typedef can establish storage/alignment
+            # for an inactive union view. It never decodes an opaque payload.
+            return dict(kind='native-ti-storage',size=16,align=16,source_typedef=typename)
+        if inline is None and typename in widths:
             width,unsigned=widths[typename];return dict(kind='integer',size=width,align=width,unsigned=unsigned,char='char' in typename)
-        if typename in ('float','double'):return dict(kind='float',size=4 if typename=='float' else 8,align=4 if typename=='float' else 8)
-        if len(aliases.get(typename,set()))==1:return layout(next(iter(aliases[typename])),seen+(typename,))
-        definitions=records.get(typename,set())
+        if inline is None and typename in ('float','double'):return dict(kind='float',size=4 if typename=='float' else 8,align=4 if typename=='float' else 8)
+        if inline is None and len(aliases.get(typename,set()))==1:return layout(next(iter(aliases[typename])),seen+(typename,))
+        definitions=records.get(typename,set()) if inline is None else {inline}
         if len(definitions)!=1:raise RecordLayoutError('unknown/ambiguous or pointer type')
-        kind,body=next(iter(definitions));fields=[];offset=0;alignment=1
+        kind,body=next(iter(definitions));fields=[];offset=0;alignment=1;bits=None
         for spelling in split(body,';'):
+            bitfield=re.fullmatch(r'\s*([\w ]+?)\s+(\w+)\s*:\s*(\d+)\s*',spelling)
+            if bitfield:
+                child=layout(bitfield[1],seen+(typename,));width=int(bitfield[3])
+                if (kind!='struct' or child['kind']!='integer' or not child['unsigned']
+                    or child['size'] not in (4,8) or not 0<width<=child['size']*8):
+                    raise RecordLayoutError('unsigned bitfield container')
+                if bits is None or bits['used']==bits['size']*8:
+                    place=(offset+child['align']-1)//child['align']*child['align']
+                    bits=dict(offset=place,size=child['size'],used=0,type=clean(bitfield[1]))
+                    offset=place+child['size'];alignment=max(alignment,child['align'])
+                if bits['type']!=clean(bitfield[1]) or bits['used']+width>bits['size']*8:
+                    raise RecordLayoutError('mixed/crossing bitfield container')
+                fields.append(dict(name=bitfield[2],offset=bits['offset'],layout=child,
+                    bit_offset=bits['used'],bit_width=width));bits['used']+=width
+                continue
+            if bits and bits['used']!=bits['size']*8:raise RecordLayoutError('incomplete bitfield container')
+            bits=None
             m=re.fullmatch(r'\s*([\w ]+?)\s+(\w+)\s*((?:\[\s*(?:0[xX][\da-fA-F]+|\d+)\s*\]\s*)*)',spelling)
-            if not m:
+            embedded=re.fullmatch(r'\s*(struct|union)\s*\{(.*)\}\s*(\w+)\s*((?:\[\s*(?:0[xX][\da-fA-F]+|\d+)\s*\]\s*)*)',spelling,re.S)
+            if embedded:
+                child=layout(typename+'.'+embedded[3],seen+(typename,),inline=(embedded[1],embedded[2]))
+                field_name,dimensions=embedded[3],embedded[4]
+            elif m:
+                child=layout(m[1],seen+(typename,));field_name,dimensions=m[2],m[3]
+            else:
                 # A full-width unnamed integer bit-field is explicit storage
                 # padding and consumes no initializer. Partial bit-fields remain
                 # unsupported; no bit packing is guessed.
@@ -1218,29 +1492,38 @@ def typed_literal_source_objects(preprocessed, compiler, assembly):
                 fields.append(dict(name=None,offset=place,layout=child))
                 alignment=max(alignment,child['align']);offset=place+child['size']
                 continue
-            child=layout(m[1],seen+(typename,))
-            for bound in reversed(re.findall(r'\[\s*([^\]]+)\s*\]',m[3])):
+            for bound in reversed(re.findall(r'\[\s*([^\]]+)\s*\]',dimensions)):
                 count=int(bound,16 if 'x' in bound.lower() else 10)
                 if not 0<count<=65536:raise RecordLayoutError('field count')
                 child=dict(kind='array',child=child,count=count,size=count*child['size'],align=child['align'])
             place=0 if kind=='union' else (offset+child['align']-1)//child['align']*child['align']
-            fields.append(dict(name=m[2],offset=place,layout=child));alignment=max(alignment,child['align'])
+            fields.append(dict(name=field_name,offset=place,layout=child));alignment=max(alignment,child['align'])
             offset=max(offset,child['size']) if kind=='union' else place+child['size']
+        if bits and bits['used']!=bits['size']*8:raise RecordLayoutError('incomplete final bitfield container')
         size=(offset+alignment-1)//alignment*alignment
         if not fields or not 0<size<=65536:raise RecordLayoutError('record extent')
         if kind=='union' and fields[0]['layout']['size']!=size:raise RecordLayoutError('union first view incomplete')
         return dict(kind=kind,size=size,align=alignment,fields=fields)
+    unsigned64_types=['unsigned long','unsigned long int','unsigned long long','unsigned long long int']
+    for name in aliases:
+        try:node=layout(name)
+        except RecordLayoutError:continue
+        if node['kind']=='integer' and node['size']==8 and node['unsigned']:unsigned64_types.append(name)
+    def contains_native_ti(node):
+        return (node['kind']=='native-ti-storage' or
+            node['kind']=='array' and contains_native_ti(node['child']) or
+            node['kind'] in ('struct','union') and any(contains_native_ti(f['layout']) for f in node['fields']))
     def decode(node,text):
         text=text.strip();kind=node['kind']
+        if kind=='native-ti-storage':raise RecordLayoutError('native-TI view is storage only')
         if kind=='integer':
             if re.fullmatch(r"'(?:\\.|[^'\\])*'",text):
                 data=quoted(text,"'")
                 if len(data)!=1:raise RecordLayoutError('multi-character literal')
                 n=data[0]
             else:
-                if not re.fullmatch(r'[-+]?(?:0[xX][\da-fA-F]+|0[0-7]*|[1-9]\d*)[uUlL]*',text):raise RecordLayoutError('integer expression')
-                value=re.sub(r'[uUlL]+$','',text);sign=-1 if value.startswith('-') else 1;value=value.lstrip('+-')
-                n=sign*int(value,16 if value.lower().startswith('0x') else 8 if value.startswith('0') else 10)
+                try:n=literal_integer_expression(text,unsigned64_types)
+                except (ValueError,SyntaxError,RecursionError):raise RecordLayoutError('integer expression') from None
             bits=node['size']*8
             if not -(1<<(bits-1))<=n<1<<(bits if node['unsigned'] else bits-1):raise RecordLayoutError('integer conversion range')
             return (n%(1<<bits)).to_bytes(node['size'],'little')
@@ -1258,24 +1541,53 @@ def typed_literal_source_objects(preprocessed, compiler, assembly):
         items=split(text[1:-1]);result=bytearray(node['size'])
         if kind=='array':
             if len(items)>node['count']:raise RecordLayoutError('array excess initializer')
+            if contains_native_ti(node) and len(items)!=node['count']:
+                raise RecordLayoutError('native-TI union array requires every active element')
             for i,item in enumerate(items):
                 if item.startswith('.') or item.startswith('['):raise RecordLayoutError('array designator unsupported')
                 payload=decode(node['child'],item);start=i*node['child']['size'];result[start:start+len(payload)]=payload
         else:
-            fields=[f for f in (node['fields'][:1] if kind=='union' else node['fields']) if f['name'] is not None]
+            selected=node['fields'][:1] if kind=='union' else node['fields']
+            if kind=='union' and len(items)==1:
+                active=re.match(r'\.(\w+)\s*=\s*',items[0])
+                if active:
+                    selected=[f for f in node['fields'] if f['name']==active[1]]
+                    if len(selected)!=1 or selected[0]['layout']['size']!=node['size']:
+                        raise RecordLayoutError('incomplete explicit union initializer')
+            fields=[f for f in selected if f['name'] is not None]
             if len(items)>len(fields):raise RecordLayoutError('record excess initializer')
-            for field,item in zip(fields,items):
+            if kind=='union' and contains_native_ti(node):
+                if len(items)!=1 or len(fields)!=1 or fields[0]['layout']['size']!=node['size']:
+                    raise RecordLayoutError('native-TI union requires one complete active view')
+                active_text=re.sub(r'^\s*\.\w+\s*=\s*','',items[0]).strip()
+                active=fields[0]['layout']
+                if (active['kind']!='array' or active['child']['kind']!='integer'
+                    or not active_text.startswith('{') or not active_text.endswith('}')
+                    or len(split(active_text[1:-1]))!=active['count']):
+                    raise RecordLayoutError('native-TI union requires explicit complete scalar slots')
+            cursor=0
+            for item in items:
                 designator=re.match(r'\.(\w+)\s*=\s*',item)
                 if designator:
-                    if designator[1]!=field['name']:raise RecordLayoutError('record designator order')
+                    positions=[i for i,f in enumerate(fields) if f['name']==designator[1]]
+                    if len(positions)!=1 or positions[0]<cursor:raise RecordLayoutError('record designator order')
+                    cursor=positions[0]
                     item=item[designator.end():]
-                payload=decode(field['layout'],item);result[field['offset']:field['offset']+len(payload)]=payload
+                if cursor>=len(fields):raise RecordLayoutError('record excess initializer')
+                field=fields[cursor];cursor+=1;payload=decode(field['layout'],item)
+                if 'bit_width' in field:
+                    integer=int.from_bytes(payload,'little')
+                    if integer>=1<<field['bit_width']:raise RecordLayoutError('bitfield conversion range')
+                    start=field['offset'];end=start+len(payload)
+                    combined=int.from_bytes(result[start:end],'little') | integer<<field['bit_offset']
+                    result[start:end]=combined.to_bytes(len(payload),'little')
+                else:result[field['offset']:field['offset']+len(payload)]=payload
         return bytes(result)
     emitted=typed_compiler_data(assembly);result={}
-    declarations=re.finditer(r'\b(?:static\s+)?(?:const\s+)?([\w ]+?)\s+(\w+)\s*((?:\[\s*(?:0[xX][\da-fA-F]+|\d+)?\s*\]\s*)*)\s*(?:__attribute__\s*\(\(\s*(?:section\s*\(\s*"\.(?:data|rodata|sdata)"\s*\)|aligned\s*\(\s*(?:1|2|4|8|16|32|64|128|256)\s*\))\s*\)\)\s*)?=\s*',preprocessed)
+    declarations=source_matches(r'\b(?:static\s+)?(?:const\s+)?([\w ]+?)\s+(\w+)\s*((?:\[\s*(?:0[xX][\da-fA-F]+|\d+)?\s*\]\s*)*)\s*(?:__attribute__\s*\(\(\s*(?:section\s*\(\s*"\.(?:data|rodata|sdata)"\s*\)|aligned\s*\(\s*(?:1|2|4|8|16|32|64|128|256)\s*\))\s*\)\)\s*)?=\s*',preprocessed)
     for declaration in declarations:
         typename,name=clean(declaration[1]),declaration[2]
-        if name not in emitted:continue
+        if name not in emitted and not templates_only:continue
         try:
             node=layout(typename);at=declaration.end();end=at;depth=0;quote=None;escape=False
             while end<len(preprocessed):
@@ -1301,6 +1613,10 @@ def typed_literal_source_objects(preprocessed, compiler, assembly):
             if node['size']>65536:continue
             raw=decode(node,text)
         except (RecordLayoutError,ValueError,OverflowError):continue
+        if templates_only:
+            result[declaration.start()]=dict(name=name,source_type=typename,source_offset=declaration.start(),
+                explicit_extent=len(raw),payload=raw,independent_typed_layout=node)
+            continue
         symbols=[s for s in compiler.symbols if s.name==name and s.type==1 and s.size==len(raw) and 0<s.shndx<len(compiler.sections) and compiler.sections[s.shndx].type==1]
         if len(symbols)!=1:continue
         symbol=symbols[0];section=compiler.sections[symbol.shndx]
@@ -1316,6 +1632,38 @@ def typed_literal_source_objects(preprocessed, compiler, assembly):
         result[name]=dict(raw=raw,integer_offsets=None,source_type=typename,kind='complete-typed-literal-object',symbol=symbol,
             typed_literal_initializer_proof=dict(layout=node,explicit_storage_alignment=int(explicit_alignment[1]) if explicit_alignment else None,complete_decoded_sha256=hashlib.sha256(raw).hexdigest(),
                 no_pointers_or_unknown_expressions=True,standard_initializer_zero_fill=True,cc1_storage=emitted[name]))
+    if templates_only:
+        # A const array compound literal has a complete source type and
+        # initializer, but no named ELF object. Reuse the identical independent
+        # layout/decoder; the caller still needs actual cc1 bytes, affine
+        # placement and original instruction consumers. Quoted source text and
+        # comments cannot supply this expression witness.
+        masked=source_discovery_view(preprocessed)
+        expressions=re.finditer(r'\(\s*const\s+([A-Za-z_]\w*(?:\s+[A-Za-z_]\w*)*)\s*\[\s*(\d+)\s*\]\s*\)\s*\{',masked)
+        for expression in expressions:
+            typename=clean(expression[1]);count=int(expression[2]);at=expression.end()-1;end=at;depth=0;quote=None;escape=False
+            while end<len(preprocessed):
+                char=preprocessed[end]
+                if quote:
+                    if escape:escape=False
+                    elif char=='\\':escape=True
+                    elif char==quote:quote=None
+                elif char in '\"\'':quote=char
+                elif char=='{':depth+=1
+                elif char=='}':
+                    depth-=1
+                    if not depth:end+=1;break
+                end+=1
+            if depth or quote or not 0<count<=65536:continue
+            try:
+                child=layout(typename)
+                node=dict(kind='array',child=child,count=count,size=count*child['size'],align=child['align'])
+                if node['size']>65536:continue
+                raw=decode(node,preprocessed[at:end])
+            except (RecordLayoutError,ValueError,OverflowError):continue
+            result[expression.start()]=dict(name=None,source_type=typename,source_offset=expression.start(),
+                source_expression='const array compound literal',explicit_extent=len(raw),payload=raw,
+                independent_typed_layout=node)
     return result
 
 
@@ -1323,9 +1671,10 @@ def typed_literal_source_objects(preprocessed, compiler, assembly):
 def numeric_source_objects(preprocessed, compiler, assembly):
     """Literal-only numeric source objects, with independently emitted storage.
 
-    Struct admission resolves its existing field types recursively and refuses
-    pointers, unions, bitfields, casts and expressions. Compiler bytes provide
-    the layout witness, never the initializer hypothesis. A separate bounded
+    The initial struct route resolves existing field types and refuses pointers
+    and unknown layouts. Separate typed routes decode explicit unsigned
+    bitfields, complete unions and bounded literal arithmetic. Compiler bytes
+    provide the layout witness, never the initializer hypothesis. A bounded
     record route admits four-byte int fields among pointer fields; it proves
     each scalar's literal value and offset and leaves all pointer words alone.
     """
@@ -1335,7 +1684,7 @@ def numeric_source_objects(preprocessed, compiler, assembly):
     integers = {'int'}
     aliases, records, pointer_types = {}, {}, set()
     enumerators={}
-    for declaration in re.finditer(r'\benum(?:\s+\w+)?\s*\{([^{}]+)\}',preprocessed):
+    for declaration in source_matches(r'\benum(?:\s+\w+)?\s*\{([^{}]+)\}',preprocessed):
         values={};value=-1
         for item in declaration[1].split(','):
             if not item.strip():continue
@@ -1344,13 +1693,13 @@ def numeric_source_objects(preprocessed, compiler, assembly):
             value=int(match[2],0) if match[2] else value+1;values[match[1]]=value
         else:enumerators.update(values)
     clean = lambda t: ' '.join(re.sub(r'\b(?:const|volatile|signed|unsigned)\b','',t).split())
-    for m in re.finditer(r'\btypedef\s+([^;{}]+?)\s+(\w+)\s*;',preprocessed):
+    for m in source_matches(r'\btypedef\s+([^;{}]+?)\s+(\w+)\s*;',preprocessed):
         if '*' not in m[1] and '(' not in m[1]:aliases[m[2]]=clean(m[1])
-    for m in re.finditer(r'\btypedef\s+[^;{}]+\(\s*\*\s*(\w+)\s*\)\s*\([^;{}]*\)\s*;',preprocessed):
+    for m in source_matches(r'\btypedef\s+[^;{}]+\(\s*\*\s*(\w+)\s*\)\s*\([^;{}]*\)\s*;',preprocessed):
         pointer_types.add(m[1])
-    for m in re.finditer(r'\btypedef\s+struct(?:\s+\w+)?\s*\{([^{}]*)\}\s*(\w+)\s*;',preprocessed):
+    for m in source_matches(r'\btypedef\s+struct(?:\s+\w+)?\s*\{([^{}]*)\}\s*(\w+)\s*;',preprocessed):
         records[m[2]]=m[1]
-    for m in re.finditer(r'\bstruct\s+(\w+)\s*\{([^{}]*)\}\s*;',preprocessed):
+    for m in source_matches(r'\bstruct\s+(\w+)\s*\{([^{}]*)\}\s*;',preprocessed):
         records['struct '+m[1]]=m[2]
     def numeric(typename, seen=()):
         typename=clean(typename)
@@ -1388,7 +1737,7 @@ def numeric_source_objects(preprocessed, compiler, assembly):
     token=re.compile(r'\s*(?:[{},]|\.\w+\s*=|'+number+r')')
     result={}
     pattern=r'\b(?:static\s+)?(?:const\s+)?([\w ]+?)\s+(\w+)\s*((?:\[\s*(?:0[xX][\da-fA-F]+|\d+)?\s*\])*)\s*=\s*'
-    for declaration in re.finditer(pattern,preprocessed):
+    for declaration in source_matches(pattern,preprocessed):
         typename,name=clean(declaration[1]),declaration[2]
         lexical_static=None
         if name not in emitted:
@@ -1451,14 +1800,15 @@ def numeric_source_objects(preprocessed, compiler, assembly):
                     else:
                         end=next((i for i in range(start,len(initializer)) if initializer[i] in ',}'),len(initializer))
                         value=initializer[start:end].strip()
-                    # Ordinary integer literals only; no casts/expressions,
-                    # omitted slots, designators or pointer/union values.
-                    numbers=re.findall(r'[-+]?(?:0[xX][\da-fA-F]+|\d+)[uUlL]*',value)
-                    residue=re.sub(r'[-+]?(?:0[xX][\da-fA-F]+|\d+)[uUlL]*','',value)
-                    if not re.sub(r'[\s{},]','',residue) and len(numbers)==len(members):
-                        for literal,(place,width,path) in zip(numbers,members):
+                    # Explicit literal integer arithmetic only; no names,
+                    # casts, omitted slots or pointer/union values.
+                    numbers=[v.strip() for v in re.split(r'[{},]',value) if v.strip()]
+                    try:integers_decoded=[literal_integer_expression(v) for v in numbers]
+                    except (ValueError,SyntaxError,RecursionError):integers_decoded=[]
+                    if len(integers_decoded)==len(members):
+                        for literal,integer,(place,width,path) in zip(numbers,integers_decoded,members):
                             if width!=4:continue
-                            integer=re.sub(r'[uUlL]+$','',literal);integer=int(integer,16 if 'x' in integer.lower() else 10)
+                            if not -(1<<31)<=integer<1<<32:continue
                             position=prefix_offset+place;expected=(integer&0xffffffff).to_bytes(4,'little')
                             if position not in relocated and raw[position:position+4]==expected:
                                 offsets[position]=dict(member=match[2]+('.'+path if path else ''),offset=position,
@@ -1508,7 +1858,7 @@ def numeric_source_objects(preprocessed, compiler, assembly):
     for name,proof in numeric_byte_expression_source_objects(preprocessed,compiler,assembly).items():
         if name not in result:result[name]=proof
     for name,proof in typed_literal_source_objects(preprocessed,compiler,assembly).items():
-        if name not in result:result[name]=proof
+        if name not in result or result[name]['integer_offsets'] is not None:result[name]=proof
     return result
 
 
@@ -1847,17 +2197,10 @@ def compiler_string_identity(part, original, compiled, assembly, preprocessed,
                 payloads.append((payload,dict(fragments[0][0],consecutive_ascii_rows=[r for r,_ in fragments])))
             fragments=[]
     literals=[]
-    for token in re.findall(r'"(?:\\.|[^"\\])*"',preprocessed):
+    for token in source_findall(r'"(?:\\.|[^"\\])*"',preprocessed):
         try:literals.append(c_literal_bytes(token)+b'\0')
         except (ValueError,SyntaxError,UnicodeError):pass
-    symbols={s.index:s for s in compiled.symbols};relocations={}
-    for rel in compiled.sections:
-        if rel.type==9 and rel.info==text.index:
-            for i in range(0,rel.size,rel.entsize):
-                place,info=struct.unpack_from('<II',compiled.data,rel.offset+i)
-                relocations[place]=(info&255,symbols[info>>8])
-    claimed={f['original_symbol']:f for f in scope};functions=[s for s in compiled.symbols if s.type==2 and s.shndx==text.index and s.name in claimed]
-    code=compiled.section_bytes(text);raw=compiled.section_bytes(csection);proofs=[]
+    raw=compiled.section_bytes(csection);proofs=[]
     block=re.compile(r'(?:nonmatching\s+([A-Za-z_][\w.]*)\s*\n\s*)?dlabel\s+([A-Za-z_][\w.]*)\s*\n(.*?)enddlabel\s+\2\s*\n\.size\s+\2,\s*\.\s*-\s*\2',re.S)
     def replace(match):
         name=match[2]
@@ -1892,9 +2235,8 @@ def compiler_string_identity(part, original, compiled, assembly, preprocessed,
         if len(rows)!=1 or len(offsets)!=1:return match[0]
         offset=offsets[0]
         objects=[s for s in compiled.symbols if s.shndx==csection.index and s.type==1 and s.value<offset+len(payload) and offset<s.value+max(s.size,1)]
-        # An existing named C owner is compared through its own storage
-        # identity. Only compiler-anonymous pools need identity removal.
-        if objects:return match[0]
+        # Named char owners need their existing registered storage and source
+        # literal proof below. They do not establish a retail named identity.
         named=None
         if objects:
             if len(runs)!=1:return match[0]
@@ -1903,7 +2245,7 @@ def compiler_string_identity(part, original, compiled, assembly, preprocessed,
             if (candidate.name,candidate.value,candidate.size)!=(name,offset,len(payload)) or not storage:return match[0]
             if (storage['section'],storage['size'])!=(section.name,len(payload)):return match[0]
             definition=re.compile(r'(?<![\w])(?:static\s+)?const\s+(?:unsigned\s+)?char\s+'+re.escape(name)+r'\s*\[\s*(?:\d+)?\s*\]\s*=\s*("(?:\\.|[^"\\])*")\s*;')
-            definitions=list(definition.finditer(preprocessed))
+            definitions=list(source_matches(definition, preprocessed))
             if len(definitions)!=1:return match[0]
             try:initializer=c_literal_bytes(definitions[0][1])+b'\0'
             except (ValueError,SyntaxError,UnicodeError):return match[0]
@@ -1911,27 +2253,7 @@ def compiler_string_identity(part, original, compiled, assembly, preprocessed,
             named=dict(c_name=candidate.name,binding=candidate.bind,type=candidate.type,size=candidate.size,
                        source_form='const char array with literal initializer',cc1_typed_storage=storage,
                        original_named_object_identity_not_asserted=True)
-        consumers=[]
-        for place,(kind,symbol) in relocations.items():
-            if kind!=5 or symbol.shndx!=csection.index:continue
-            high=struct.unpack_from('<I',code,place)[0]
-            if high>>26!=15:continue
-            for lowplace in range(place+4,min(place+132,len(code)),4):
-                lowrel=relocations.get(lowplace)
-                if not lowrel or lowrel[0]!=6 or lowrel[1].index!=symbol.index:continue
-                low=struct.unpack_from('<I',code,lowplace)[0];immediate=low&65535
-                if low>>21&31!=high>>16&31 or low>>26 not in (8,9,*range(32,64)):continue
-                if ((high&65535)<<16)+immediate-(65536 if immediate&32768 else 0)+symbol.value!=offset:continue
-                owners=[f for f in functions if f.value<=place<lowplace<f.value+f.size]
-                if len(owners)!=1:continue
-                f=owners[0];claim=claimed[f.name]
-                of=verification.original_symbol(original,f.name,claim['size'],claim['va'])
-                if (f.bind,f.type,f.size)!=(of.bind,of.type,of.size):continue
-                os=original.sections[of.shndx];base=os.offset+of.value-os.addr-f.value
-                oh,ol=struct.unpack_from('<I',original.data,base+place)[0],struct.unpack_from('<I',original.data,base+lowplace)[0]
-                if (high&0xffff0000,low&0xffff0000)!=(oh&0xffff0000,ol&0xffff0000):continue
-                if ((oh&65535)<<16)+(ol&65535)-(65536 if ol&32768 else 0)!=lo:continue
-                consumers.append(dict(function=f.name,cc1_hi_offset=place,cc1_lo_offset=lowplace,original_string_address=lo))
+        consumers=compiler_pool_consumers(original,compiled,offset,section.name,lo,scope,preprocessed,assembly)
         # A DATA pointer is also an original consumer of an anonymous string.
         # Its actual cc1 relocation and accepted affine owner span must resolve
         # to this exact original address; incidental equal integer words do not.
@@ -2005,7 +2327,13 @@ def compiler_switch_identity(part, original, compiled, assembly, preprocessed,
         if any(int(r[1],16)!=lo+4*i or bytes.fromhex(r[2])!=expected[i*4:i*4+4] for i,r in enumerate(rows)):return match[0]
         if any(s.type in(1,2) and s.shndx==section.index and s.value<hi and lo<s.value+max(s.size,1) for s in original.symbols):return match[0]
         runs=[r for r in registry.get('.rodata',[]) if int(r['range'][0],16)<=lo and hi<=int(r['range'][1],16)
-              and name in r.get('c_owned_symbols',[])]
+              and (name in r.get('c_owned_symbols',[]) or any(
+                  (span.get('support_only') is True or span.get('anonymous_emission') is True and span.get('credit')=='verified')
+                  and not span.get('symbols') and not span.get('uncredited_dependency')
+                  and span.get('section')=='.rodata' and explicit_object_range(span)
+                  and len(span.get('range',[]))==2 and int(span['range'][0],16)<=lo<hi<=int(span['range'][1],16)
+                  and explicit_object_range(span)[1]-explicit_object_range(span)[0]==int(span['range'][1],16)-int(span['range'][0],16)
+                  for span in r.get('c_input_spans',[])))]
         if len(runs)!=1:return match[0]
         functions=set(runs[0].get('generated_by') or regions).intersection(regions).intersection(claimed).intersection(cfunctions)
         candidates=[]
@@ -2039,6 +2367,15 @@ def compiler_switch_identity(part, original, compiled, assembly, preprocessed,
             if not function_bytes_exact:continue
             for off in sorted(relocations):
                 if off+len(expected)>len(raw):continue
+                if name not in runs[0].get('c_owned_symbols',[]):
+                    transports=[span for span in runs[0].get('c_input_spans',[]) if explicit_object_range(span)
+                        and not span.get('symbols') and not span.get('uncredited_dependency')
+                        and (span.get('support_only') is True or span.get('anonymous_emission') is True and span.get('credit')=='verified')
+                        and span.get('section')=='.rodata' and len(span.get('range',[]))==2
+                        and explicit_object_range(span)[1]-explicit_object_range(span)[0]==int(span['range'][1],16)-int(span['range'][0],16)
+                        and explicit_object_range(span)[0]<=off<off+len(expected)<=explicit_object_range(span)[1]
+                        and int(span['range'][0],16)+off-explicit_object_range(span)[0]==lo]
+                    if len(transports)!=1:continue
                 if any(s.type==1 and s.shndx==rodata.index and s.value<off+len(expected) and off<s.value+max(s.size,1) for s in compiled.symbols):continue
                 targets=[]
                 for index in range(len(rows)):
@@ -2102,7 +2439,7 @@ def compiler_nobits_alias_identity(part, original, compiled, assembly,
             if len(current)!=1 or (current[0].bind,current[0].type,current[0].size)!=(0,0,0):continue
             storage=definitions.get(owner_name)
             if not storage or (storage['section'],storage['size'],storage['extent_kind'])!=('.bss',size,'label-space'):continue
-            declarations=re.findall(r'\bstatic\s+((?:(?:unsigned|signed)\s+)?[A-Za-z_]\w*)\s+'+re.escape(owner_name)+r'\s*\[\s*(0[xX][\da-fA-F]+|\d+)\s*\]\s*;',preprocessed)
+            declarations=source_findall(r'\bstatic\s+((?:(?:unsigned|signed)\s+)?[A-Za-z_]\w*)\s+'+re.escape(owner_name)+r'\s*\[\s*(0[xX][\da-fA-F]+|\d+)\s*\]\s*;',preprocessed)
             source=list({(' '.join(ctype.split()),extent) for ctype,extent in declarations})
             if len(source)!=1:continue
             count=int(source[0][1],16 if 'x' in source[0][1].lower() else 10)
@@ -2186,7 +2523,7 @@ def registered_nobits_foreign_aliases(body, reference, original, compiled,
                     storage=definitions.get(owner)
                     if not storage or (storage['section'],storage['size'],storage['extent_kind'])!=(section_name,hi-lo,'label-space'):continue
                     if coordinates!=[actual[0].value,actual[0].value+storage['size']] or coordinates[1]>csection.size:continue
-                    declarations=set(re.findall(r'\bstatic\s+((?:(?:unsigned|signed)\s+)?[A-Za-z_]\w*)\s+'+re.escape(owner)+r'\s*(\[[^;]+\])?\s*;',preprocessed))
+                    declarations=set(source_findall(r'\bstatic\s+((?:(?:unsigned|signed)\s+)?[A-Za-z_]\w*)\s+'+re.escape(owner)+r'\s*(\[[^;]+\])?\s*;',preprocessed))
                     if len(declarations)!=1:continue
                     owners.append(dict(owner=owner,original_range=[lo,hi],registered_c_input_span=span,
                         source_declaration=next(iter(declarations)),cc1_outside_APP_storage=storage,
@@ -2219,111 +2556,16 @@ def registered_nobits_foreign_aliases(body, reference, original, compiled,
 
 
 def registered_anonymous_char_identities(body, reference, original, compiled,
-                                        assembly, preprocessed, registry, tu, cwd, destination):
-    """Remove Splat's invented GLOBAL identity over a complete C char array.
+                                        assembly, preprocessed, registry, tu, cwd, destination,
+                                        scope=()):
+    """Use the shared source/consumer proof for anonymous identities only.
 
-    This does not assert an original OBJECT, name or binding from the candidate.
-    It retains an internal address label and every storage directive/consumer.
-    A complete registered individual C owner, independent SOURCE initializer,
-    ordinary cc1 emission, original bytes and absent retail identities are
-    mandatory. Shorter arrays and any nominal relocation consumer refuse.
+    Complete named C owners remain available for the separate exact identity
+    transport. No legacy byte-equality-only anonymous route can bypass the
+    strict instruction/DATA-pointer consumer and source initializer checks.
     """
-    from data_types import _record_split, _record_bound, RecordLayoutError
-    typed=typed_compiler_data(assembly);proofs=[];replacements={}
-    reloc_symbols=set()
-    for rel in reference.sections:
-        if rel.type==9:
-            reloc_symbols.update(struct.unpack_from('<II',reference.data,p)[1]>>8
-                for p in range(rel.offset,rel.offset+rel.size,8))
-    pattern=re.compile(r'(?:nonmatching\s+(\S+)\s*\n\s*)?dlabel\s+(\S+)\s*\n(.*?)enddlabel\s+\2\s*\n\.size\s+\2,\s*\.\s*-\s*\2',re.S)
-    def replace(match):
-        name=match[2];symbols=[s for s in reference.symbols if s.name==name and 0<s.shndx<len(reference.sections)]
-        if len(symbols)!=1:return match[0]
-        target=symbols[0];section=reference.sections[target.shndx]
-        if section.name not in ('.data','.sdata','.rodata') or (target.bind,target.type)!=(1,1) or target.size<=0 or target.index in reloc_symbols:return match[0]
-        mapped=tu.get('sections',{}).get(section.name)
-        if not mapped:return match[0]
-        lo=int(mapped['start'],16)+target.value;hi=lo+target.size;retail=original.section(section.name)
-        if not int(mapped['start'],16)<=lo<hi<=int(mapped['end'],16):return match[0]
-        if any(s.name and s.shndx==retail.index and s.type in (0,1,2)
-            and s.value<hi and lo<s.value+max(s.size,1) for s in original.symbols):return match[0]
-        if any(s.name in (name,name+'.NON_MATCHING') and s.shndx not in (0,0xfff1) for s in original.symbols):return match[0]
-        actual=[s for s in compiled.symbols if s.name==name and (s.bind,s.type,s.size)==(0,1,target.size) and 0<s.shndx<len(compiled.sections)
-            and compiled.sections[s.shndx].name==section.name]
-        if len(actual)!=1:return match[0]
-        cs=actual[0];emission=typed.get(name)
-        if not emission or (emission['section'],emission['size'])!=(section.name,target.size):return match[0]
-        declarations=list(re.finditer(r'\bstatic\s+(?:const\s+)?(?:signed\s+|unsigned\s+)?char\s+'+re.escape(name)+r'\s*\[\s*([^\[\]]+)\s*\]\s*'
-            r'(?:__attribute__\s*\(\(\s*section\s*\(\s*"'+re.escape(section.name)+r'"\s*\)\s*\)\)\s*)?=\s*',preprocessed))
-        if len(declarations)!=1:return match[0]
-        declaration=declarations[0]
-        try:count=_record_bound(declaration[1])
-        except RecordLayoutError:return match[0]
-        if count!=target.size:return match[0]
-        at=declaration.end();initializer=None;spelling=''
-        if preprocessed[at:at+1]=='"':
-            literal=re.match(r'"(?:\\.|[^"\\])*"\s*;',preprocessed[at:])
-            if not literal:return match[0]
-            spelling=literal[0][:-1].strip()
-            try:initializer=c_literal_bytes(spelling)+b'\0'
-            except (ValueError,SyntaxError,UnicodeError):return match[0]
-            if len(initializer)>count:return match[0]
-            initializer+=bytes(count-len(initializer))
-        elif preprocessed[at:at+1]=='{':
-            end=preprocessed.find('}',at)
-            if end<0 or not re.match(r'\s*;',preprocessed[end+1:]):return match[0]
-            spelling=preprocessed[at:end+1];items=_record_split(spelling[1:-1],',')
-            if len(items)!=count:return match[0]
-            decoded=[]
-            for item in items:
-                if not re.fullmatch(r'[-+]?(?:0[xX][\da-fA-F]+|\d+)[uUlL]*',item):return match[0]
-                text=re.sub(r'[uUlL]+$','',item);value=int(text,16 if 'x' in text.lower() else 10)
-                if not -128<=value<=255:return match[0]
-                decoded.append(value%256)
-            initializer=bytes(decoded)
-        if initializer is None:return match[0]
-        expected=original.data[retail.offset+lo-retail.addr:retail.offset+hi-retail.addr]
-        raw=compiled.section_bytes(compiled.sections[cs.shndx])[cs.value:cs.value+cs.size]
-        if not len(expected)==len(raw)==len(initializer)==target.size or expected!=raw or expected!=initializer:return match[0]
-        if any(rel.type==9 and rel.info==cs.shndx and any(cs.value<=struct.unpack_from('<I',compiled.data,p)[0]<cs.value+cs.size
-            for p in range(rel.offset,rel.offset+rel.size,8)) for rel in compiled.sections):return match[0]
-        spans=[]
-        for run in registry.get(section.name,[]):
-            if name not in run.get('c_owned_symbols',[]):continue
-            for span in run.get('c_input_spans',[]):
-                extent=explicit_object_range(span)
-                if not extent or span.get('section')!=section.name or name not in span.get('symbols',[]):continue
-                coordinates=span.get('range')
-                if not isinstance(coordinates,(list,tuple)) or len(coordinates)!=2 or any(not isinstance(v,str) or not re.fullmatch(r'0x[\da-fA-F]+',v) for v in coordinates):continue
-                r=[int(v,16) for v in coordinates]
-                if not r[0]<r[1]:continue
-                if r[1]-r[0]==extent[1]-extent[0] and extent[0]<=cs.value<cs.value+cs.size<=extent[1] and r[0]+cs.value-extent[0]==lo:spans.append(span)
-        if len(spans)!=1:return match[0]
-        temporary=f'.Lobjdiff_registered_char_{lo:08X}';replacements[name]=temporary
-        proofs.append(dict(scaffold_name=name,temporary_reference_name=temporary,original_range=[lo,hi],
-            registered_individual_c_owner=name,registered_c_input_span=spans[0],compiler_offset=cs.value,
-            explicit_source_array_extent=count,source_initializer=spelling,cc1_typed_storage=emission,
-            original_payload_sha256=hashlib.sha256(expected).hexdigest(),no_retail_named_identity=True,
-            no_nominal_relocation_consumer=True,original_object_identity_not_asserted=True,
-            complete_storage_preserved_and_no_new_SOURCE_credit=True))
-        return '.local '+name+'\n'+name+':\n'+match[3]
-    rewritten=pattern.sub(replace,body)
-    rewritten,extra=registered_anonymous_storage(rewritten,reference,original,compiled,assembly,preprocessed,registry,tu,cwd)
-    proofs.extend(extra)
-    replacements.update({p["scaffold_name"]:p["temporary_reference_name"] for p in extra})
-    if not proofs:return body,[]
-    def rename(text):
-        for name,temporary in replacements.items():text=re.sub(r'(?<![\w.$])'+re.escape(name)+r'(?![\w.$])',lambda _:temporary,text)
-        return text
-    if destination is None:return rename(rewritten),proofs
-    def include(match):
-        path=Path(match[1]);path=path if path.is_absolute() else cwd/path
-        old=path.read_text();new=rename(old)
-        if old==new:return match[0]
-        local=destination.parent/'joint-anonymous-asm'/path.name
-        local.parent.mkdir(exist_ok=True);local.write_text(new)
-        return '.include '+json.dumps(str(local))
-    return rename(re.sub(r'\.include\s+"([^\"]+\.s)"',include,rewritten)),proofs
+    return registered_source_pool_identities(body,reference,original,compiled,
+        assembly,preprocessed,registry,tu,cwd,scope)
 
 
 def original_reference_signature(elf):
@@ -2466,9 +2708,9 @@ def compiler_function_static_identity(part, original, compiled, assembly,
         declarations=[]
         for function in functions:
             if function.name not in claimed:continue
-            rows=re.findall(r'\bstatic\s+([A-Za-z_]\w*)\s+'+re.escape(name)+r'\s*;',function.text(preprocessed))
+            rows=source_findall(r'\bstatic\s+([A-Za-z_]\w*)\s+'+re.escape(name)+r'\s*;',function.text(preprocessed))
             for ctype in rows:
-                if not re.search(r'\btypedef\s+struct\s*\{[^{}]*\}\s*'+re.escape(ctype)+r'\s*;',preprocessed,re.S):continue
+                if not source_search(r'\btypedef\s+struct\s*\{[^{}]*\}\s*'+re.escape(ctype)+r'\s*;',preprocessed,re.S):continue
                 region=re.search(r'^\s*\.ent\s+'+re.escape(function.name)+r'\s*$(.*?)^\s*\.end\s+'+re.escape(function.name)+r'\s*$',ordinary,re.M|re.S)
                 if not region or not re.search(r'%hi\('+re.escape(actual_name)+r'\)',region[1]) or not re.search(r'%lo\('+re.escape(actual_name)+r'\)',region[1]):continue
                 declaration=claimed[function.name]
@@ -2622,6 +2864,249 @@ def unused_scaffold_external(symbol, reference, original, body, cwd):
                 undefined_symbol_preserved=True,no_address_inferred=True)
 
 
+def compiler_character_pointer_references(part, reference, original, compiled,
+        assembly, preprocessed, registry, tu, scope, cwd):
+    """Restore omitted char-pointer expressions from actual C relocations.
+
+    Admit only complete source char-pointer arrays (or a record containing
+    exactly one such array). Original matching code or an already accepted
+    affine input span must locate the emitted array; every character destination
+    must equal the original bytes. Numeric DATA without this proof stays literal.
+    """
+    section_match=re.search(r'^\.section\s+(\.[\w.]+)',part,re.M)
+    if not section_match or section_match[1] not in ('.data','.rodata','.sdata'):return part,[]
+    section_name=section_match[1]
+    csec=next((s for s in compiled.sections if s.name==section_name),None)
+    text=next((s for s in compiled.sections if s.name=='.text'),None)
+    if not csec or not text:return part,[]
+    try:compiler_only_section(assembly,preprocessed,cwd,section_name)
+    except (RuntimeError,ValueError):return part,[]
+    sequences=[]
+    records={}
+    for row in source_matches(r'\btypedef\s+struct(?:\s+\w+)?\s*\{\s*(?:const\s+)?char\s*\*\s*(?:const\s+)?\w+\s*\[\s*(\d+)\s*\]\s*;\s*\}\s*(\w+)\s*;',preprocessed):
+        records[row[2]]=int(row[1])
+    direct=r'(?:const\s+)?char\s*\*\s*(?:const\s+)?'
+    types=direct+'|'+('|'.join(re.escape(n) for n in records) if records else r'(?!)')
+    declaration=re.compile(r'\b(?:static\s+)?('+types+r')\s*(\w+)\s*\[\s*(\d*)\s*\]\s*=\s*\{')
+    chars={n:p for n,p in numeric_source_objects(preprocessed,compiled,assembly).items()
+           if p['kind']=='literal-only-character-array'
+           or p['source_type'] in ('char','signed char','unsigned char')}
+    atom=re.compile(r'\s*(?:("(?:\\.|[^"\\])*"(?:\s*"(?:\\.|[^"\\])*")*)|([A-Za-z_]\w*)(?:\s*\+\s*(0[xX][\da-fA-F]+|\d+))?)\s*')
+    for row in source_matches(declaration, preprocessed):
+        at=row.end();end=at;depth=1;quote=False;escape=False
+        while end<len(preprocessed) and depth:
+            c=preprocessed[end]
+            if quote:
+                if escape:escape=False
+                elif c=='\\':escape=True
+                elif c=='"':quote=False
+            elif c=='"':quote=True
+            elif c=='{':depth+=1
+            elif c=='}':depth-=1
+            end+=1
+        if depth or not re.match(r'\s*;',preprocessed[end:]):continue
+        initializer=preprocessed[at:end-1]
+        # Flatten aggregate braces outside literals only. Braces inside source
+        # text remain ordinary character payload and are never rewritten.
+        tokens=re.findall(r'"(?:\\.|[^"\\])*"|[^"{}]+|[{}]',initializer)
+        initializer=''.join(v for v in tokens if v not in ('{','}'));items=[];cursor=0
+        while cursor<len(initializer):
+            m=atom.match(initializer,cursor)
+            if not m:break
+            if m[1]:
+                try:payload=b''.join(c_literal_bytes(v) for v in re.findall(r'"(?:\\.|[^"\\])*"',m[1]))+b'\0'
+                except (ValueError,UnicodeError):break
+                item=dict(payload=payload,source_literal=m[1])
+            else:
+                proof=chars.get(m[2]);addend=int(m[3],0) if m[3] else 0
+                if not proof or not 0<=addend<len(proof['raw']):break
+                item=dict(payload=proof['raw'][addend:],source_char_object=m[2],source_addend=addend,
+                          destination_symbol=proof['symbol'])
+            items.append(item);cursor=m.end()
+            if cursor==len(initializer):break
+            if initializer[cursor]!=',':break
+            cursor+=1
+            if not initializer[cursor:].strip():cursor=len(initializer);break
+        count=(int(row[3]) if row[3] else len(items))*records.get(row[1].strip(),1)
+        if cursor==len(initializer) and 0<len(items)==count<=1024:
+            sequences.append(dict(source_name=row[2],source_type=row[1].strip(),items=items,source_offset=row.start()))
+    if not sequences:return part,[]
+    symbols={s.index:s for s in compiled.symbols};relocs={}
+    for rel in compiled.sections:
+        if rel.type==9:
+            relocs[rel.info]={struct.unpack_from('<II',compiled.data,p)[0]:(struct.unpack_from('<II',compiled.data,p)[1]&255,symbols[struct.unpack_from('<II',compiled.data,p)[1]>>8])
+                for p in range(rel.offset,rel.offset+rel.size,8)}
+    pointers=relocs.get(csec.index,{});code=compiled.section_bytes(text);text_relocs=relocs.get(text.index,{})
+    claimed={f['original_symbol']:f for f in scope};anchors=[]
+    for place,(kind,symbol) in text_relocs.items():
+        if kind!=5 or symbol.shndx!=csec.index:continue
+        high=struct.unpack_from('<I',code,place)[0]
+        if high>>26!=15:continue
+        for lowplace in range(place+4,min(place+132,len(code)),4):
+            lowrel=text_relocs.get(lowplace)
+            if not lowrel or lowrel[0]!=6 or lowrel[1].index!=symbol.index:continue
+            low=struct.unpack_from('<I',code,lowplace)[0]
+            if low>>21&31!=high>>16&31 or low>>26 not in (8,9,*range(32,64)):continue
+            offset=((high&65535)<<16)+(low&65535)-(65536 if low&32768 else 0)+symbol.value
+            owners=[s for s in compiled.symbols if s.type==2 and s.shndx==text.index and s.name in claimed and s.value<=place<lowplace<s.value+s.size]
+            if len(owners)!=1:continue
+            f=owners[0];claim=claimed[f.name];of=verification.original_symbol(original,f.name,claim['size'],claim['va'])
+            if (f.bind,f.type,f.size)!=(of.bind,of.type,of.size):continue
+            os=original.sections[of.shndx];base=os.offset+of.value-os.addr-f.value
+            oh,ol=struct.unpack_from('<I',original.data,base+place)[0],struct.unpack_from('<I',original.data,base+lowplace)[0]
+            if (high&0xffff0000,low&0xffff0000)!=(oh&0xffff0000,ol&0xffff0000):continue
+            address=((oh&65535)<<16)+(ol&65535)-(65536 if ol&32768 else 0)
+            anchors.append(dict(compiler_offset=offset,original_address=address,function=f.name,hi_offset=place,lo_offset=lowplace))
+    for run in registry.get(section_name,[]):
+        for span in run.get('c_input_spans',[]):
+            extent=explicit_object_range(span);coords=[int(v,16) for v in span.get('range',[])]
+            if (not extent or len(coords)!=2 or span.get('section')!=section_name
+                or span.get('anonymous_emission') is not True or span.get('symbols')
+                or span.get('uncredited_dependency') or span.get('credit')=='uncredited_dependency'
+                or coords[1]-coords[0]!=extent[1]-extent[0]
+                or not 0<=extent[0]<extent[1]<=csec.size):continue
+            for offset,(kind,_) in pointers.items():
+                if kind==2 and extent[0]<=offset<offset+4<=extent[1]:
+                    anchors.append(dict(compiler_offset=offset,original_address=coords[0]+offset-extent[0],
+                        accepted_anonymous_C_input_span=span))
+    raw=compiled.section_bytes(csec);proofs=[]
+    word=re.compile(r'^(\s*/\*\s+\S+\s+([\da-fA-F]{8})\s+([\da-fA-F]{8})\s*\*/\s*\.word\s+)(0x[\da-fA-F]+)\s*$',re.M)
+    def replace(row):
+        address=int(row[2],16);value=int(row[4],16)
+        retail=original.section(section_name)
+        if not retail.addr<=address<address+4<=retail.addr+retail.size or bytes.fromhex(row[3])!=value.to_bytes(4,'little'):return row[0]
+        if original.section_bytes(retail)[address-retail.addr:address-retail.addr+4]!=bytes.fromhex(row[3]):return row[0]
+        choices=[]
+        for anchor in anchors:
+            start=anchor['compiler_offset'];lo=anchor['original_address']
+            for source in sequences:
+                extent=len(source['items'])*4;index=(address-lo)//4
+                if not lo<=address<lo+extent or (address-lo)%4 or not 0<=start<start+extent<=len(raw):continue
+                if not retail.addr<=lo<lo+extent<=retail.addr+retail.size:continue
+                runs=[run for run in registry.get(section_name,[]) if int(run['range'][0],16)<=lo and lo+extent<=int(run['range'][1],16)]
+                if len(runs)!=1:continue
+                targets=[]
+                for i,item in enumerate(source['items']):
+                    relocation=pointers.get(start+i*4)
+                    if not relocation or relocation[0]!=2 or not 0<relocation[1].shndx<len(compiled.sections):break
+                    symbol=relocation[1];dest=compiled.sections[symbol.shndx]
+                    if dest.name not in ('.rodata','.sdata'):break
+                    offset=symbol.value+struct.unpack_from('<I',raw,start+i*4)[0];payload=item['payload']
+                    if compiled.section_bytes(dest)[offset:offset+len(payload)]!=payload:break
+                    named=item.get('destination_symbol')
+                    if named and (named.shndx,named.value+item['source_addend'])!=(dest.index,offset):break
+                    pointer=struct.unpack_from('<I',original.data,retail.offset+lo-retail.addr+i*4)[0]
+                    os=original.section(dest.name)
+                    if not os.addr<=pointer<pointer+len(payload)<=os.addr+os.size or original.section_bytes(os)[pointer-os.addr:pointer-os.addr+len(payload)]!=payload:break
+                    targets.append(dict(value=pointer,section=dest.name,compiler_offset=offset,payload_sha256=hashlib.sha256(payload).hexdigest(),source={k:v for k,v in item.items() if k not in ('payload','destination_symbol')}))
+                if len(targets)==len(source['items']) and targets[index]['value']==value:
+                    choices.append((source,anchor,runs[0],targets,index))
+        unique={(s['source_offset'],a['compiler_offset'],a['original_address']):(s,a,r,t,i) for s,a,r,t,i in choices}
+        if len(unique)!=1:return row[0]
+        source,anchor,run,targets,index=next(iter(unique.values()));target=targets[index]
+        mapped=tu.get('sections',{}).get(target['section'])
+        if not mapped:return row[0]
+        start=int(mapped['start'],16);candidates=[]
+        for symbol in reference.symbols:
+            if symbol.type!=1 or symbol.size<=0 or not 0<symbol.shndx<len(reference.sections) or reference.sections[symbol.shndx].name!=target['section']:continue
+            if start+symbol.value<=value<start+symbol.value+symbol.size:candidates.append(symbol)
+        if len(candidates)!=1:return row[0]
+        symbol=candidates[0];addend=value-start-symbol.value;expression=symbol.name+(f' + 0x{addend:X}' if addend else '')
+        proofs.append(dict(original_pointer_address=address,original_pointer_value=value,restored_expression=expression,
+            source_array=source['source_name'],source_type=source['source_type'],pointer_index=index,
+            complete_source_pointer_count=len(targets),original_owner_mapping=anchor,
+            registered_owner_run=run['range'],compiler_R_MIPS_32_verified=True,original_char_payloads=targets,
+            no_numeric_or_unknown_source_words_admitted=True))
+        return row[1]+expression
+    return word.sub(replace,part),proofs
+
+
+def registered_pointer_template_references(part, reference, original, compiled,
+        assembly, preprocessed, registry, tu, scope, cwd):
+    """Restore literal pointer fields only from the strict complete template proof.
+
+    The source pointer type, actual cc1 R32, unique registered original span,
+    original table words and closed original instruction consumer are all
+    established by registered_pointer_pool_templates. Pointee storage earns no
+    credit here; an existing positive reference owner supplies its expression.
+    """
+    section_match=re.search(r'^\.section\s+(\.[\w.]+)',part,re.M)
+    if not section_match:return part,[]
+    name=section_match[1];proofs=[]
+    templates=registered_pointer_pool_templates(original,compiled,assembly,preprocessed,registry,scope,cwd)
+    word=re.compile(r'^(\s*/\*\s+\S+\s+([\da-fA-F]{8})\s+([\da-fA-F]{8})\s*\*/\s*\.word\s+)(0x[\da-fA-F]+)\s*$',re.M)
+    def replace(row):
+        address=int(row[2],16);value=int(row[4],16);raw=bytes.fromhex(row[3])
+        if raw!=value.to_bytes(4,'little'):return row[0]
+        choices=[]
+        for template,va,offset,span,consumers in templates:
+            if template['section']!=name or not va<=address<va+len(template['payload']) or (address-va)%4:continue
+            index=(address-va)//4
+            fields=[p for p in template['source']['actual_R_MIPS32_proofs'] if p['index']==index]
+            if len(fields)!=1 or fields[0]['original_pointer']!=value:continue
+            field=fields[0]
+            retail=original.section(name)
+            if (not retail.addr<=address<address+4<=retail.addr+retail.size
+                or original.section_bytes(retail)[address-retail.addr:address-retail.addr+4]!=raw):continue
+            if field.get('source_kind')=='foreign_char':
+                # The complete typed template already proves this exact
+                # undefined C R32 symbol and original address. Restoring its
+                # expression does not claim storage for the foreign pointee.
+                expression=field.get('source_char_name','')
+                if (not field.get('exact_actual_R_MIPS32_symbol')
+                    or not field.get('no_pointee_storage_credit')
+                    or not re.fullmatch(r'D_[\da-fA-F]{8}',expression)
+                    or int(expression[2:],16)!=value):continue
+                choices.append((template,va,offset,span,consumers,field,expression))
+                continue
+            dest=field.get('compiler_destination_section')
+            mapped=tu.get('sections',{}).get(dest)
+            if not mapped:continue
+            start=int(mapped['start'],16)
+            owners=[s for s in reference.symbols if s.type==1 and s.size>0
+                and 0<s.shndx<len(reference.sections) and reference.sections[s.shndx].name==dest
+                and start+s.value<=value<start+s.value+s.size]
+            if len(owners)!=1:continue
+            owner=owners[0];addend=value-start-owner.value
+            expression=owner.name+(f' + 0x{addend:X}' if addend else '')
+            choices.append((template,va,offset,span,consumers,field,expression))
+        if len(choices)!=1:return row[0]
+        template,va,offset,span,consumers,field,expression=choices[0]
+        proofs.append(dict(original_pointer_address=address,original_pointer_value=value,
+            restored_expression=expression,source_array=template['source']['name'],
+            source_type=template['source']['source_type'],pointer_index=field['index'],
+            complete_source_pointer_count=len(template['payload'])//4,
+            registered_pointer_template=template['label'],registered_owner_span=span,
+            compiler_R_MIPS_32_verified=True,actual_C_pointer_field=field,
+            original_consumer_proofs=consumers,original_bytes_retained=True,
+            no_numeric_or_unknown_source_words_admitted=True,no_pointee_storage_credit=True))
+        return row[1]+expression
+    return word.sub(replace,part),proofs
+
+
+def compiler_switch_target_labels(reference, original, switch_proofs, tu):
+    """Locate only invented global jlabels of already proved switch targets."""
+    text=original.section('.text');mapped=tu.get('text')
+    if not mapped:return {}
+    start=int(mapped['start'],16);result={}
+    for proof in switch_proofs:
+        if not proof.get('all_real_R_MIPS32_targets_exact') or not proof.get('owner_nonrelocated_instructions_exact'):continue
+        for address in set(proof['original_targets']):
+            if any(s.name and s.shndx==text.index and s.value==address for s in original.symbols):continue
+            name=f'.L{address:08X}'
+            if any(s.name==name for s in original.symbols):continue
+            symbols=[s for s in reference.symbols if s.name==name and 0<s.shndx<len(reference.sections)
+                and reference.sections[s.shndx].name=='.text' and start+s.value==address
+                and (s.bind,s.type,s.size)==(1,1,0)]
+            if len(symbols)!=1 or sum(s.name==name for s in reference.symbols)!=1:continue
+            symbol=symbols[0]
+            result[name]=dict(scaffold_name=name,address=address,previous_identity=[symbol.bind,symbol.type,symbol.size],
+                restored_identity=[0,0,0],proved_switch=proof['scaffold_name'],generated_by=proof['generated_by'],
+                no_real_original_or_colocated_identity=True,all_real_R_MIPS32_targets_exact=True,
+                raw_words_and_addresses_retained=True,no_storage_or_credit=True)
+    return result
+
+
 def joint_original(reference, text_reference, data, original_path, destination,
                    cwd, obj, tu, assembler, flags, prefix, compiler_object=None,
                    compiler_assembly=None, preprocessed='', scope=(), registry=None):
@@ -2638,7 +3123,7 @@ def joint_original(reference, text_reference, data, original_path, destination,
     source = text_reference.with_suffix('.s')
     if not source.is_file():source=Path(str(text_reference)+'.s')
     if not source.is_file():return reference, []
-    body=source.read_text();identities=[];switch_proofs=[];padding_proofs=[];string_proofs=[];nobits_proofs=[];static_proofs=[];marker_proofs=[]
+    body=source.read_text();identities=[];switch_proofs=[];padding_proofs=[];string_proofs=[];nobits_proofs=[];static_proofs=[];marker_proofs=[];pointer_proofs=[];source_pool_proofs=[]
     for path, scaffold_source in data:
         source=path.with_suffix('.s')
         if not source.is_file():source=scaffold_source
@@ -2647,6 +3132,12 @@ def joint_original(reference, text_reference, data, original_path, destination,
         part=re.sub(r'^\s*\.include\s+"macro.inc"\s*$', '',part,flags=re.M)
         part=re.sub(r'^(\.section\s+\.[\w.]+),[^\n]*$',r'\1',part,flags=re.M)
         if compiler_object and compiler_assembly:
+            part,typed_pointer_rows=registered_pointer_template_references(part,before,original,parsed_elf(compiler_object.read_bytes()),
+                compiler_assembly.read_text(),preprocessed,registry or {},tu,scope,cwd)
+            pointer_proofs.extend(typed_pointer_rows)
+            part,pointer_rows=compiler_character_pointer_references(part,before,original,parsed_elf(compiler_object.read_bytes()),
+                compiler_assembly.read_text(),preprocessed,registry or {},tu,scope,cwd)
+            pointer_proofs.extend(pointer_rows)
             part,pad_proofs=source_alignment_padding(part,original,parsed_elf(compiler_object.read_bytes()),
                 compiler_assembly.read_text(),registry or {},tu,parsed_elf(path.read_bytes()))
             padding_proofs.extend(pad_proofs)
@@ -2736,11 +3227,21 @@ def joint_original(reference, text_reference, data, original_path, destination,
                                                size=owner.size, restored_colocated_empty_alias=name,
                                                registered_run=owners[0]['range']))
         body+='\n'+part
+    switch_label_candidates={}
+    switch_label_proofs={}
     if switch_proofs or string_proofs or nobits_proofs or static_proofs:
         replacements={p['scaffold_name']:p['temporary_reference_name'] for p in switch_proofs+string_proofs+nobits_proofs+static_proofs}
         def rename(text):
             for old,new in replacements.items():
                 text=re.sub(r'(?<![\w.$])'+re.escape(old)+r'(?![\w.$])',lambda _:new,text)
+            def local_target(match):
+                name=match[1]
+                if name not in switch_label_candidates:return match[0]
+                switch_label_proofs[name]=switch_label_candidates[name]
+                # This contractual assembler gives a local unsized label its
+                # actual NOTYPE0 identity; it does not accept @notype syntax.
+                return f'.local {name}\n{name}:'
+            text=re.sub(r'^\s*jlabel\s+(\.L[\da-fA-F]{8})\s*$',local_target,text,flags=re.M)
             return text
         def include(match):
             path=Path(match[1]);path=path if path.is_absolute() else cwd/path
@@ -2755,10 +3256,34 @@ def joint_original(reference, text_reference, data, original_path, destination,
         run([assembler,'-EL','-m5900','-mabi=eabi',next(f for f in flags if f.startswith('-G')),
              '-I.','-Iinclude','-o',destination,assembly],cwd)
         after=parsed_elf(destination.read_bytes())
+        switch_label_candidates=compiler_switch_target_labels(after,original,switch_proofs,tu)
+        if switch_label_candidates:
+            body=rename(re.sub(r'\.include\s+"([^\"]+\.s)"',include,body))
+            if switch_label_proofs:
+                previous=after
+                assembly.write_text(body)
+                run([assembler,'-EL','-m5900','-mabi=eabi',next(f for f in flags if f.startswith('-G')),
+                     '-I.','-Iinclude','-o',destination,assembly],cwd)
+                after=parsed_elf(destination.read_bytes())
+                if original_reference_signature(previous)!=original_reference_signature(after):return reference,[]
+                others=lambda e:{(s.name,s.value,s.size,s.bind,s.type,s.other,s.shndx) for s in e.symbols
+                    if s.name not in switch_label_proofs}
+                if others(previous)!=others(after):return reference,[]
+        # Record the independent typed/source/raw/original-consumer witness
+        # before older generic anonymous metadata routes can consume its label.
+        if compiler_object and compiler_assembly:
+            body,source_pool_proofs=registered_source_pool_identities(body,after,original,
+                parsed_elf(compiler_object.read_bytes()),compiler_assembly.read_text(),
+                preprocessed,registry or {},tu,cwd,scope)
+            if source_pool_proofs:
+                assembly.write_text(body)
+                run([assembler,'-EL','-m5900','-mabi=eabi',next(f for f in flags if f.startswith('-G')),
+                     '-I.','-Iinclude','-o',destination,assembly],cwd)
+                after=parsed_elf(destination.read_bytes())
         anonymous_char_proofs=[]
         if compiler_object and compiler_assembly:
             rewritten,anonymous_char_proofs=registered_anonymous_char_identities(body,after,original,
-                parsed_elf(compiler_object.read_bytes()),compiler_assembly.read_text(),preprocessed,registry,tu,cwd,destination)
+                parsed_elf(compiler_object.read_bytes()),compiler_assembly.read_text(),preprocessed,registry,tu,cwd,destination,scope)
             if anonymous_char_proofs:
                 old=after;body=rewritten;assembly.write_text(body)
                 run([assembler,'-EL','-m5900','-mabi=eabi',next(f for f in flags if f.startswith('-G')),
@@ -2820,8 +3345,42 @@ def joint_original(reference, text_reference, data, original_path, destination,
                         if (alias.value+start,alias.bind,alias.type,alias.size)!=(owner['address'],owner['binding'],owner['type'],owner['size']):return reference,[]
                 signature=lambda e,adjust:{(s.name,s.value,adjust.get(s.name,s.size),s.bind,s.type,s.other,s.shndx) for s in e.symbols if s.name not in removed and s.name not in added}
                 if signature(previous,sizes)!=signature(after,{}):return reference,[]
+        named_literal_proofs=[];literal_word_proofs=[];nobits_zero_size_proofs=[]
+        if compiler_object and compiler_assembly:
+            compiled=parsed_elf(compiler_object.read_bytes());cc1=compiler_assembly.read_text()
+            body=assembly.read_text()
+            body,found=registered_source_pool_identities(body,after,original,compiled,
+                cc1,preprocessed,registry or {},tu,cwd,scope)
+            source_pool_proofs.extend(found)
+            body,named_literal_proofs=registered_named_literal_identities(body,after,before,original,compiled,
+                cc1,preprocessed,registry or {},tu,cwd)
+            body,literal_word_proofs=registered_literal_word_references(body,original,compiled,
+                cc1,preprocessed,registry or {},tu,cwd,scope)
+            body,nobits_zero_size_proofs=registered_nobits_zero_sizes(body,after,original,compiled,
+                cc1,registry or {},tu,identities)
+            if source_pool_proofs or named_literal_proofs or literal_word_proofs or nobits_zero_size_proofs:
+                assembly.write_text(body)
+                run([assembler,'-EL','-m5900','-mabi=eabi',next(f for f in flags if f.startswith('-G')),
+                     '-I.','-Iinclude','-o',destination,assembly],cwd)
+                after=parsed_elf(destination.read_bytes())
         funcs=lambda e:{(s.name,s.value,s.size,s.bind,s.type) for s in e.symbols if s.type==2}
         if funcs(before)!=funcs(after):return reference, []
+        for proof in switch_label_proofs.values():
+            labels=[s for s in after.symbols if s.name==proof['scaffold_name']]
+            # Ordinary local .L labels are omitted by the contractual
+            # assembler, just as cc1's anonymous case labels are omitted.
+            # The preceding byte/relocation signature proves their addresses.
+            if not labels:
+                proof['assembler_local_symbol_elided']=True
+                proof['allocated_bytes_and_real_relocations_unchanged']=True
+                continue
+            if len(labels)!=1:return reference,[]
+            label=labels[0]
+            if (not 0<label.shndx<len(after.sections) or after.sections[label.shndx].name!='.text'
+                or (label.bind,label.type,label.size)!=(0,0,0)
+                or label.value+int(tu['text']['start'],16)!=proof['address']):return reference,[]
+            proof['assembler_local_symbol_elided']=False
+            proof['allocated_bytes_and_real_relocations_unchanged']=True
         for old in before.sections:
             if not old.flags&2:continue
             # The modern scaffold assembler adds its ABI declaration section.
@@ -2840,6 +3399,7 @@ def joint_original(reference, text_reference, data, original_path, destination,
             if annotation:
                 if (proof['binding'],proof['type'],size)!=(0,0,0):return reference,[]
                 size=annotation['reconstructed_object_size']
+            if any(p['target_name']==proof['target_name'] for p in nobits_zero_size_proofs):size=0
             if (s.value+start,s.bind,s.type,s.size)!=(proof['address'],proof['binding'],proof['type'],size):return reference, []
         # Link the reference normally at original addresses. This checks every
         # changed local addend together with all unchanged foreign relocations.
@@ -2887,9 +3447,15 @@ def joint_original(reference, text_reference, data, original_path, destination,
             compiler_switch_table_identity_proofs=switch_proofs,
             source_alignment_padding_proofs=padding_proofs,
             compiler_string_identity_proofs=string_proofs,
+            compiler_character_pointer_reference_proofs=pointer_proofs,
             compiler_nobits_alias_identity_proofs=nobits_proofs,
             registered_nobits_foreign_alias_identity_proofs=registered_nobits_proofs,
             registered_anonymous_char_identity_proofs=anonymous_char_proofs,
+            registered_source_pool_identity_proofs=source_pool_proofs,
+            compiler_switch_target_label_identity_proofs=list(switch_label_proofs.values()),
+            registered_named_literal_identity_proofs=named_literal_proofs,
+            registered_literal_word_reference_proofs=literal_word_proofs,
+            registered_nobits_zero_size_proofs=nobits_zero_size_proofs,
             compiler_function_static_identity_proofs=static_proofs,
             splat_data_marker_identity_proofs=marker_proofs,
             original_synthetic_call_destination_proofs=call_proofs,
@@ -2949,7 +3515,7 @@ def character_storage(preprocessed, compiled, assembly, oi):
     emitted = oi.typed_compiler_data(assembly)
     pattern = re.compile(r'\b(?:static\s+)?(?:const\s+)?(?:unsigned\s+|signed\s+)?char\s+(\w+)\s*\[\s*([^\[\]]*)\s*\]\s*=\s*')
     result = {}
-    for m in pattern.finditer(preprocessed):
+    for m in source_matches(pattern, preprocessed):
         name, bound = m[1], m[2].strip()
         if name not in emitted:
             continue
@@ -3267,108 +3833,1394 @@ def registered_initialized_extents(body, reference, original, compiled, assembly
 
 
 def registered_anonymous_storage(body, reference, original, compiled,
-                                 assembly, preprocessed, registry, tu, cwd):
+                                 assembly, preprocessed, registry, tu, cwd, scope=()):
+    """Compatibility entry point with the same strict source/consumer proof."""
+    return registered_source_pool_identities(body,reference,original,compiled,
+        assembly,preprocessed,registry,tu,cwd,scope)
+
+
+def source_literal_templates(preprocessed, compiled, assembly):
+    """Decode complete primitive array initializers, including embedded NULs.
+
+    These are source witnesses, not storage claims. A caller must independently
+    bind their bytes to cc1 directives, an actual object and a registered span.
+    """
+    return list(typed_literal_source_objects(preprocessed,compiled,assembly,templates_only=True).values())
+
+
+def cc1_literal_templates(assembly, preprocessed, compiled):
+    """Pair anonymous cc1 literal directives with independently decoded C arrays."""
+    import tu_audit
+    parsed=tu_audit.AsmFile(assembly)
+    rows={row['line']:row for row in parsed.top_data}
+    sources=source_literal_templates(preprocessed,compiled,assembly);result=[];lines=assembly.splitlines()
+    for index,line in enumerate(lines):
+        label=re.fullmatch(r'\s*(\$LC\d+):\s*',line)
+        if not label:continue
+        payload=bytearray();used=[];section=None
+        for number in range(index+2,len(lines)+1):
+            if not lines[number-1].strip():continue
+            row=rows.get(number)
+            if not row or row['directive'] not in ('.byte','.half','.word','.ascii'):break
+            if section is None:section=row['section']
+            if row['section']!=section:break
+            try:
+                if row['directive']=='.ascii':fragment=c_literal_bytes(row['operands'])
+                else:
+                    width={'.byte':1,'.half':2,'.word':4}[row['directive']]
+                    values=[literal_integer_expression(value) for value in row['operands'].split(',')]
+                    if any(not -(1<<(width*8-1))<=value<1<<(width*8) for value in values):break
+                    fragment=b''.join((value%(1<<(width*8))).to_bytes(width,'little') for value in values)
+            except (ValueError,SyntaxError,UnicodeError):break
+            payload.extend(fragment);used.append(row)
+        if not payload:continue
+        choices=[s for s in sources if s['payload']==bytes(payload)]
+        # String expressions also materialize ordinary anonymous cc1 strings.
+        if not choices:
+            for match in source_matches(r'"(?:\\.|[^"\\])*"',preprocessed):
+                try:decoded=c_literal_bytes(match[0])+b'\0'
+                except (ValueError,SyntaxError,UnicodeError):continue
+                if decoded==bytes(payload):
+                    choices.append(dict(name=None,source_type='string literal',source_offset=match.start(),
+                                        explicit_extent=len(payload),payload=bytes(payload)))
+        if not choices:continue
+        source=dict(choices[0],identical_source_offsets=[choice['source_offset'] for choice in choices])
+        alignment=re.fullmatch(r'\s*\.align\s+(\d+)\s*',lines[index-1]) if index else None
+        result.append(dict(label=label[1],section='.rodata' if section=='.rdata' else section,
+                           payload=bytes(payload),directives=used,source=source,
+                           alignment=1<<int(alignment[1]) if alignment and int(alignment[1])<=8 else None))
+    return result
+
+
+def compiler_data_coordinates(assembly, compiled, preprocessed='', unit_dir=None):
+    """Read initialized cc1 directive coordinates and explicit ALIGN gaps.
+
+    An entire section counter must agree with the real ELF before any of its
+    labels or gaps can witness a reference identity. Unknown directives refuse.
+    """
+    import tu_audit
+    from data_types import _record_split, RecordLayoutError
+    parsed=tu_audit.AsmFile(assembly)
+    rows={row['line']:row for row in parsed.top_data+[row for region in parsed.regions for row in region['data']]}
+    counters={name:0 for name in ('.data','.sdata','.rodata','.lit4','.lit8')}
+    labels={};gaps=[];invalid=set();section=None;previous=None;app=False
+    try:pool_lines=compiler_pool_line_numbers(assembly,preprocessed,unit_dir) if preprocessed and unit_dir is not None else frozenset()
+    except RuntimeError:return {},[]
+    for number,line in enumerate(assembly.splitlines(),1):
+        if re.match(r'\s*#APP\b',line):app=True;continue
+        if re.match(r'\s*#NO_APP\b',line):app=False;continue
+        if app and number not in pool_lines:continue
+        selected=re.match(r'\s*\.(data|sdata|rdata|rodata|lit4|lit8|text)\s*$',line)
+        explicit=re.match(r'\s*\.section\s+(\.[\w.]+)',line)
+        if selected or explicit:
+            previous,section=section,('.'+selected[1] if selected else explicit[1])
+            if section=='.rdata':section='.rodata'
+            continue
+        if re.match(r'\s*\.previous\s*$',line):section,previous=previous,section;continue
+        if section not in counters:continue
+        align=re.fullmatch(r'\s*\.align\s+(\d+)\s*',line)
+        if align:
+            exponent=int(align[1])
+            if exponent>8:invalid.add(section);continue
+            before=counters[section];after=(before+(1<<exponent)-1)//(1<<exponent)*(1<<exponent)
+            if after>before:gaps.append(dict(section=section,range=[before,after],alignment=1<<exponent,line=number))
+            counters[section]=after;continue
+        label=re.fullmatch(r'\s*([\w.$]+):\s*',line)
+        if label:labels[label[1]]=(section,counters[section]);continue
+        row=rows.get(number)
+        if not row:continue
+        try:
+            directive=row['directive']
+            if directive=='.ascii':size=len(c_literal_bytes(row['operands']))
+            elif directive in ('.space','.zero'):size=literal_integer_expression(row['operands'])
+            elif directive in ('.byte','.half','.short','.word','.float','.double','.dword','.quad'):
+                width={'.byte':1,'.half':2,'.short':2,'.word':4,'.float':4,'.double':8,'.dword':8,'.quad':16}[directive]
+                size=width*len(_record_split(row['operands'],','))
+            else:invalid.add(section);continue
+            if not 0<=size<=1048576:invalid.add(section);continue
+            counters[section]+=size
+        except (ValueError,SyntaxError,UnicodeError,RecordLayoutError):invalid.add(section)
+    for name,count in counters.items():
+        actual=[s for s in compiled.sections if s.name==name]
+        if len(actual)!=1 or actual[0].size!=count:invalid.add(name)
+    return ({name:value for name,value in labels.items() if value[0] not in invalid},
+            [gap for gap in gaps if gap['section'] not in invalid])
+
+
+def compiler_pool_consumers(original, compiled, offset, section_name, va, scope, preprocessed='', assembly=''):
+    """Prove matching consumers in a closed, unmodified HI/LO basic-block slice.
+
+    Calls, branches, delay slots and incoming interior edges cannot be crossed.
+    Computed jumps require the actual bounded cc1 switch idiom and every real
+    table relocation/original target; unsupported indirect control refuses.
+    """
+    text=compiled.section('.text');code=compiled.section_bytes(text);relocations={}
+    for rel in compiled.sections:
+        if rel.type!=9 or rel.info!=text.index or rel.entsize!=8 or rel.size%8:continue
+        for at in range(rel.offset,rel.offset+rel.size,8):
+            place,info=struct.unpack_from('<II',compiled.data,at)
+            if info>>8>=len(compiled.symbols) or place in relocations:return []
+            relocations[place]=(info&255,compiled.symbols[info>>8])
+    claimed={row['original_symbol']:row for row in scope};proofs=[];controls={}
+    def control(word):
+        opcode=word>>26;function=word&63
+        return (opcode in (1,2,3,4,5,6,7,20,21,22,23)
+            or opcode==0 and function in (8,9,12,13,48,49,50,51,52,54)
+            or opcode in (16,17,18) and (word>>21&31)==8
+            or opcode==16 and (word>>21&31)==16)
+    def nonlikely_branch(word):
+        return (word>>26 in (4,5) or word>>26 in (6,7) and word>>16&31==0
+                or word>>26==1 and word>>16&31 in (0,1))
+    def may_write(word,gpr):
+        opcode=word>>26;rt=word>>16&31;rd=word>>11&31;function=word&63
+        if opcode==0:
+            if function in (8,12,13,15,17,19):return False
+            # R5900 MULT/MULTU optionally write rd as well as HI/LO.
+            if function in (24,25):return rd==gpr
+            if function in (26,27):return rd!=0
+            if function in (0,2,3,4,6,7,9,10,11,16,18,20,22,23,32,33,34,35,36,37,38,39,42,43,44,45,46,47,56,58,59,60,62,63):return rd==gpr
+            return True
+        if control(word):return True
+        if opcode in (40,41,42,43,44,45,46,47,49,53,57,61,63):return False
+        if opcode in (8,9,10,11,12,13,14,15,24,25,26,27,32,33,34,35,36,37,38,39,48,52,55,56,60):return rt==gpr
+        if opcode==17:
+            operation=word>>21&31
+            if operation in (0,2):return rt==gpr
+            return operation not in (4,6,8,16,17,20,21)
+        return True
+    def typed_opaque_call(function,retail,at,rs,oword):
+        """Bind the one evidenced runtime callback form to its actual C type."""
+        if not preprocessed or not source_discovery_view(preprocessed).strip() or at-12<function.value:return None
+        if sum(struct.unpack_from('<I',code,p)[0]&0xfc00003f==9 for p in range(function.value,function.value+function.size,4))!=1:return None
+        import tu_edit
+        try:source=tu_edit.TU(preprocessed)
+        except tu_edit.ParseError:return None
+        blocks=[b for b in source.blocks if b.state=='c' and b.name==function.name]
+        if len(blocks)!=1:return None
+        body=preprocessed[blocks[0].core_start:blocks[0].core_end];choices=[]
+        for match in source_matches(r'\b(\w+)\s*\*\s*(\w+)\s*=\s*&\s*(\w+)\s*;',body):
+            typename,alias,name=match.groups()
+            types=list(source_matches(r'\btypedef\s+int\s*\(\s*\*\s*'+re.escape(typename)+r'\s*\)\s*\(\s*int\s*\)\s*;',preprocessed))
+            calls=list(source_matches(r'\(\s*\*\s*'+re.escape(alias)+r'\s*\)\s*\(\s*command\s*\)\s*;',body))
+            declarations=list(source_matches(r'\bstatic\s+'+re.escape(typename)+r'\s+'+re.escape(name)+r'\s*;',preprocessed))
+            if len(types)!=1 or len(calls)!=1 or not declarations:continue
+            owners=[s for s in compiled.symbols if s.name==name and 0<s.shndx<len(compiled.sections)]
+            originals=[s for s in original.symbols if s.name==name and 0<s.shndx<len(original.sections)]
+            if len(owners)!=1 or len(originals)!=1:continue
+            owner=owners[0];old=originals[0];section=compiled.sections[owner.shndx]
+            load=struct.unpack_from('<I',code,at-12)[0];branch=struct.unpack_from('<I',code,at-8)[0]
+            load_delay=struct.unpack_from('<I',code,at-4)[0];call_delay=struct.unpack_from('<I',code,at+4)[0]
+            if (load>>26!=35 or (load>>21&31,load>>16&31)!=(28,rs)
+                or branch>>26!=4 or (branch>>21&31,branch>>16&31)!=(rs,0)
+                or (branch&65535)!=4 or (owner.bind,owner.type,owner.size)!=(0,0,0)
+                or (old.bind,old.type,old.size)!=(0,0,0) or section.name!='.sbss'
+                or original.sections[old.shndx].name!='.sbss'
+                or owner.value+4>section.size or control(load_delay) or may_write(load_delay,rs)
+                or control(call_delay)):continue
+            refs=[r for r in data_carve.section_references(compiled,section)
+                  if r['offset']==at-12 and r['type']==7 and r['target']==owner.value]
+            gps=[s.value for s in original.symbols if s.name=='_gp' and s.shndx!=0]
+            old_load=oword(at-12)
+            if (len(refs)!=1 or len(set(gps))!=1 or old_load&0xffff0000!=load&0xffff0000
+                or gps[0]+(old_load&65535)-(65536 if old_load&32768 else 0)!=old.value):continue
+            choices.append(dict(source_callback_type=types[0][0],source_address_alias=match[0],
+                source_typed_call=calls[0][0],source_offset=blocks[0].core_start+calls[0].start(),
+                actual_callback_storage=name,compiler_callback_offset=owner.value,
+                original_callback_address=old.value,actual_GPREL_load=at-12,
+                actual_nonnull_branch=at-8,targets_unknown=True,normal_return_not_assumed=True))
+        return choices[0] if len(choices)==1 else None
+    def fixed_header_print_call(function,retail,at,gpr):
+        """Revision-bound normal-return certificate for two literal headers.
+
+        This is deliberately not a general DB_println or ABI summary. The
+        independent original-runtime inspection covers these exact eight-ASCII
+        no-format headers, bounded vsprintf output and no frame-pointer escape.
+        Ordinary valid-C buffer lifetime and ABI frame discipline are explicit
+        premises; arbitrary formats, destinations and calls remain unsupported.
+        """
+        if (gpr!=16 or not preprocessed or (retail.name,retail.value,retail.size,retail.bind,retail.type)!=
+            ('ACT_info',0x306090,1252,0,2) or at-8<function.value):return None
+        site=retail.value+at-function.value
+        headers={0x306300:(0x4d1760,b'     SCL\0'),0x30647c:(0x4d17c8,b'  CENTER\0')}
+        if site not in headers:return None
+        if hashlib.sha256(original.data).hexdigest()!='412d448de31505c03ad474cc63d500b3b4f8c48d49d32bd24c89fe5b21af0fb2':return None
+        callees=[s for s in original.symbols if s.name=='DB_println' and s.shndx!=0]
+        if len(callees)!=1:return None
+        callee=callees[0]
+        if (callee.value,callee.size,callee.bind,callee.type)!=(0x260938,172,1,2):return None
+        cs=original.sections[callee.shndx];body=original.section_bytes(cs)[callee.value-cs.addr:callee.value-cs.addr+callee.size]
+        if hashlib.sha256(body).hexdigest()!='1c1b7bfd4486b54949a8f435a06f8b048ef927ba170578b3249aac42706b413b':return None
+        call=struct.unpack_from('<I',code,at)[0];rel=relocations.get(at)
+        if (call!=0x0c000000 or not rel or rel[0]!=4 or rel[1].name!='DB_println' or rel[1].shndx!=0):return None
+        os=original.sections[retail.shndx];obase=os.offset+retail.value-os.addr-function.value
+        old_call=struct.unpack_from('<I',original.data,obase+at)[0]
+        if (((site+4)&0xf0000000)|((old_call&0x3ffffff)<<2))!=callee.value or old_call>>26!=3:return None
+        high,low=[struct.unpack_from('<I',code,p)[0] for p in (at-8,at-4)]
+        old_high,old_low=[struct.unpack_from('<I',original.data,obase+p)[0] for p in (at-8,at-4)]
+        if (high&0xffff0000,low&0xffff0000)!=(0x3c040000,0x24840000):return None
+        if (old_high&0xffff0000,old_low&0xffff0000)!=(high&0xffff0000,low&0xffff0000):return None
+        header,payload=headers[site]
+        if ((old_high&65535)<<16)+(old_low&65535)-(65536 if old_low&32768 else 0)!=header:return None
+        rh,rl=relocations.get(at-8),relocations.get(at-4)
+        if not rh or not rl or (rh[0],rl[0],rh[1].index)!=(5,6,rl[1].index):return None
+        symbol=rh[1]
+        if not 0<symbol.shndx<len(compiled.sections):return None
+        section=compiled.sections[symbol.shndx]
+        offset=symbol.value+((high&65535)<<16)+(low&65535)-(65536 if low&32768 else 0)
+        # Bind the complete literal declaration and actual raw OBJECT. This
+        # certificate supplies no storage credit or claimed retail C name.
+        definitions=list(source_matches(r'\b(?:static\s+)?(?:const\s+)?char\s+D_'+f'{header:08X}'+r'\s*\[\s*(?:9)?\s*\]\s*=\s*("(?:\\.|[^"\\])*")\s*;',preprocessed))
+        if len(definitions)!=1:return None
+        try:source_payload=c_literal_bytes(definitions[0][1])+b'\0'
+        except (ValueError,SyntaxError,UnicodeError):return None
+        owners=[s for s in compiled.symbols if s.name==f'D_{header:08X}' and s.shndx==section.index
+                and s.value==offset and s.type==1 and s.size==9]
+        if len(owners)!=1 or source_payload!=payload or compiled.section_bytes(section)[offset:offset+9]!=payload:return None
+        if data_carve.va_bytes(original,header,9)!=payload:return None
+        closure=[]
+        for name in ('xglFontGetFlags','vsprintf','vfprintf','_vfprintf_r','_mbtowc_r','__sprint','__sfvwrite','memmove',
+            '__sinit','std','localeconv','_localeconv_r','xglFontPrint','set_xyz','set_ot','xglFontPrintDirectCore'):
+            symbols=[s for s in original.symbols if s.name==name and s.type==2 and s.shndx!=0]
+            if len(symbols)!=1:return None
+            s=symbols[0];sec=original.sections[s.shndx]
+            raw=original.section_bytes(sec)[s.value-sec.addr:s.value-sec.addr+s.size]
+            closure.append(dict(name=name,address=s.value,size=s.size,binding=s.bind,sha256=hashlib.sha256(raw).hexdigest()))
+        return dict(kind='fixed-eight-ASCII-header-DB_println-normal-return',original_revision_sha256=hashlib.sha256(original.data).hexdigest(),
+            caller_original_identity=[retail.name,retail.value,retail.size,retail.bind,retail.type],original_call_site=site,
+            actual_compiler_R26_target='DB_println',callee_original_identity=['DB_println',callee.value,callee.size,1,2],
+            callee_sha256=hashlib.sha256(body).hexdigest(),original_header_address=header,header_hex=payload.hex(),
+            actual_source_header=definitions[0][0],compiler_header_offset=offset,source_raw_retail_header_exact=True,
+            saved_s0_frame_offset=256,saved_ra_frame_offset=264,frame_size=368,
+            formatter_output_at_most=9,formatter_buffer_size=256,header_has_no_format_conversion=True,
+            preserved_GPRs_on_normal_return=[16],return_not_assumed=True,exception_paths_not_assumed_to_continue=True,
+            valid_C_buffer_lifetime_and_original_ABI_frame_discipline_required=True,
+            original_semantic_closure=closure,new_storage_or_credit=False)
+    def fptodp_call_preservation(function,retail,at,gpr):
+        """Exact four-function, pointer-free-entry floating conversion closure.
+
+        None of its instructions writes s0/s2. The two nonleaf frames save RA
+        at+32, while the only exposed local conversion objects occupy0..23.
+        __unpack_f writes only its16B output; __pack_d never stores. Thus the
+        actual closure returns with its saved linkage and preserves these GPRs
+        on normal continuation, independently of the floating argument value.
+        """
+        if gpr not in (16,18):return None
+        if hashlib.sha256(original.data).hexdigest()!='412d448de31505c03ad474cc63d500b3b4f8c48d49d32bd24c89fe5b21af0fb2':return None
+        rel=relocations.get(at);word=struct.unpack_from('<I',code,at)[0]
+        if not rel or rel[0]!=4 or rel[1].shndx!=0 or rel[1].name!='fptodp' or word!=0x0c000000:return None
+        os=original.sections[retail.shndx];old=struct.unpack_from('<I',original.data,os.offset+retail.value-os.addr-function.value+at)[0]
+        site=retail.value+at-function.value
+        if old>>26!=3 or (((site+4)&0xf0000000)|((old&0x3ffffff)<<2))!=0x32bb88:return None
+        expected=[('fptodp',0x32bb88,60,'1af414975b5126bf021fa57c767d449502c23c7c67418e25b02ad8627eb9ca67'),
+            ('__unpack_f',0x32dbf8,92,'c2ed8f498eb76593ae6d3a5c65266f30df6f6130445b7deaab30af2a0b66cfe5'),
+            ('__make_dp',0x32c4b8,44,'0d12c4f5e5618c6712aea39e067c0fe4db0bdd4383c95e68e1767c3524c57bb5'),
+            ('__pack_d',0x32dc88,280,'7302732fbbbdb045483c7e172cfdde32bb49c418260dfa778960a101e54b98d0')]
+        closure=[]
+        for name,address,size,sha in expected:
+            symbols=[s for s in original.symbols if s.name==name and s.shndx!=0]
+            if len(symbols)!=1:return None
+            s=symbols[0]
+            if (s.value,s.size,s.bind,s.type)!=(address,size,1,2):return None
+            sec=original.sections[s.shndx];raw=original.section_bytes(sec)[address-sec.addr:address-sec.addr+size]
+            if hashlib.sha256(raw).hexdigest()!=sha:return None
+            closure.append(dict(name=name,address=address,size=size,sha256=sha))
+        return dict(kind='original-fptodp-four-function-normal-return',actual_compiler_R26_target='fptodp',
+            original_call_site=site,preserved_GPRs_on_normal_return=[16,18],original_closure=closure,
+            no_instruction_in_closure_writes_preserved_GPRs=True,direct_call_graph=[['fptodp','__unpack_f'],
+                ['fptodp','__make_dp'],['__make_dp','__pack_d']],unknown_indirect_calls_absent=True,
+            nonleaf_frame_size=48,saved_RA_offset=32,exposed_local_objects=[0,24],
+            unpack_output_size=16,pack_has_no_stores=True,entry_argument_float_f12_not_a_pointer=True,
+            return_not_assumed=True,valid_C_object_and_original_ABI_frame_discipline_required=True,
+            new_storage_or_credit=False)
+    def fixed_font_packet_call(function,retail,at,gpr):
+        """Three revision/site-bound font calls, conditional normal return only.
+
+        These are the two bounded menu-label tables and the fixed XYZ scalar
+        packet. This certificate is not an arbitrary-format or generic ABI
+        summary. Actual retail frame/packet/callee inspection establishes the
+        preservation fact under ordinary valid-C output-buffer lifetime and
+        original ABI frame discipline; unknown control never gains an entry.
+        """
+        if gpr not in (16,18) or not preprocessed or not assembly:return None
+        expected_revision='412d448de31505c03ad474cc63d500b3b4f8c48d49d32bd24c89fe5b21af0fb2'
+        if hashlib.sha256(original.data).hexdigest()!=expected_revision:return None
+        sites={('PauseMenuPage2',0x250da0,1744,0,2):(0x648,'a9c4d42e7cbbf85fe8edf06fa43a6861f61b49c432f4df0d32d2e1e294f20063',0x367a50,7),
+            ('PauseMenuPage3',0x251470,2476,0,2):(0xdd4,'3616b9bf3ea79a09d40d5da954237723c171b0c6457eaffbf5bc80d262ec6929',0x367a70,10),
+            ('On_Ladder',0x2cf380,4108,1,2):(0xfa4,'e558576e400ab4c8768922306ba5d7eac6f8b7c551d95d623ff9e76d38535477',0x4cacd8,0)}
+        identity=(retail.name,retail.value,retail.size,retail.bind,retail.type)
+        spec=sites.get(identity)
+        if not spec or at!=spec[0] and not (identity[0]=='On_Ladder' and at==0xf58):return None
+        rel=relocations.get(at);call=struct.unpack_from('<I',code,at)[0]
+        if not rel or rel[0]!=4 or rel[1].shndx!=0 or rel[1].name!='xglFontDebugPrintf' or call!=0x0c000000:return None
+        os=original.sections[retail.shndx];obase=os.offset+retail.value-os.addr-function.value
+        old=struct.unpack_from('<I',original.data,obase+at)[0];site=retail.value+at-function.value
+        if old>>26!=3 or (((site+4)&0xf0000000)|((old&0x3ffffff)<<2))!=0x219298:return None
+        import tu_edit
+        try:source=tu_edit.TU(preprocessed)
+        except tu_edit.ParseError:return None
+        blocks=[b for b in source.blocks if b.state=='c' and b.name==function.name]
+        if len(blocks)!=1:return None
+        body=preprocessed[blocks[0].core_start:blocks[0].core_end]
+        if hashlib.sha256(body.encode()).hexdigest()!=spec[1]:return None
+        def materialized(high_at,low_at,register,address):
+            high,low=[struct.unpack_from('<I',code,p)[0] for p in (high_at,low_at)]
+            old_high,old_low=[struct.unpack_from('<I',original.data,obase+p)[0] for p in (high_at,low_at)]
+            rh,rl=relocations.get(high_at),relocations.get(low_at)
+            if (high>>26!=15 or high>>16&31!=register or low>>26!=9 or low>>21&31!=register
+                or not rh or not rl or (rh[0],rl[0],rh[1].index)!=(5,6,rl[1].index)
+                or not 0<rh[1].shndx<len(compiled.sections)
+                or (high&0xffff0000,low&0xffff0000)!=(old_high&0xffff0000,old_low&0xffff0000)
+                or ((old_high&65535)<<16)+(old_low&65535)-(65536 if old_low&32768 else 0)!=address):return None
+            target=rh[1];where=target.value+((high&65535)<<16)+(low&65535)-(65536 if low&32768 else 0)
+            return compiled.sections[target.shndx],where,dict(hi_offset=high_at,lo_offset=low_at,
+                compiler_target_symbol=target.name,compiler_target_section=compiled.sections[target.shndx].name,
+                compiler_target_offset=where,original_target_address=address)
+        format_address,count=spec[2:];formats=[]
+        if count:
+            table_name='tbl_'+str(count==10 and 1 or 0)+'_'+f'{format_address:08X}'
+            declarations=list(source_matches(r'\bstatic\s+const\s+char\s*\*\s*'+table_name+r'\s*\[\s*'+str(count)+r'\s*\]\s*=\s*\{([^{}]+)\}\s*;',preprocessed))
+            if len(declarations)!=1:return None
+            names=[name.strip() for name in declarations[0][1].split(',')]
+            if len(names)!=count or any(not re.fullmatch(r'D_[0-9A-F]{8}',name) for name in names):return None
+            owners=[s for s in compiled.symbols if s.name==table_name and s.bind==0 and s.type==1
+                and s.size==4*count and 0<s.shndx<len(compiled.sections)]
+            if len(owners)!=1:return None
+            table_owner=owners[0];csection=compiled.sections[table_owner.shndx];cbytes=compiled.section_bytes(csection)
+            emitted=typed_compiler_data(assembly).get(table_name)
+            if emitted!={'section':csection.name,'size':4*count,'extent_kind':'typed-object'}:return None
+            table_lines=list(re.finditer(r'^'+re.escape(table_name)+r':\s*\n((?:\s*\.word\s+[^\n]+\n)+)',assembly,re.M))
+            if len(table_lines)!=1 or re.findall(r'\.word\s+(\S+)',table_lines[0][1])!=names:return None
+            coordinates=materialized(0x600 if count==7 else 0xd8c,at-20,20,format_address)
+            alternate=materialized(0x600 if count==7 else 0xd8c,at-44,20,format_address)
+            if (not coordinates or coordinates[:2]!=(csection,table_owner.value)
+                or not alternate or alternate[:2]!=(csection,table_owner.value)
+                or struct.unpack_from('<I',code,at-20)[0]>>16&31!=2
+                or struct.unpack_from('<I',code,at-4)[0]!=0x8c460000):return None
+            fields={}
+            for relsec in compiled.sections:
+                if relsec.type!=9 or relsec.info!=csection.index or relsec.entsize!=8:continue
+                for p in range(relsec.offset,relsec.offset+relsec.size,8):
+                    place,info=struct.unpack_from('<II',compiled.data,p)
+                    if info>>8>=len(compiled.symbols):return None
+                    fields.setdefault(place,[]).append((info&255,compiled.symbols[info>>8]))
+            table=data_carve.va_bytes(original,format_address,4*count)
+            for i,name in enumerate(names):
+                address=struct.unpack_from('<I',table,4*i)[0]
+                if name!=f'D_{address:08X}':return None
+                try:_,(_,tokens,payload)=data_carve._character_definition(preprocessed,name,allow_initializer_references=True)
+                except (data_carve.CarveError,tu_edit.ParseError):return None
+                if not 1<len(payload)<=19 or any(byte<32 or byte==37 for byte in payload[:-1]):return None
+                if data_carve.va_bytes(original,address,len(payload))!=payload:return None
+                owners=[s for s in compiled.symbols if s.name==name and s.type==1 and s.size==len(payload) and 0<s.shndx<len(compiled.sections)]
+                if len(owners)!=1 or compiled.section_bytes(compiled.sections[owners[0].shndx])[owners[0].value:owners[0].value+len(payload)]!=payload:return None
+                try:emitted_payload=data_carve._character_compiler_bytes(assembly,name,len(payload),compiled.sections[owners[0].shndx].name)
+                except data_carve.CarveError:return None
+                if emitted_payload!=payload:return None
+                field=table_owner.value+4*i;rows=fields.get(field,[]);owner=owners[0]
+                if (len(rows)!=1 or rows[0][0]!=2 or rows[0][1].shndx!=owner.shndx
+                    or rows[0][1].value+struct.unpack_from('<I',cbytes,field)[0]!=owner.value):return None
+                formats.append(dict(source_name=name,original_address=address,payload_hex=payload.hex(),
+                    actual_compiler_table_R32_offset=field,actual_compiler_pointee_offset=owner.value,
+                    percent_conversion_absent=True))
+            argument_proof=dict(actual_table_object=[table_owner.name,table_owner.value,table_owner.size,0,1],
+                actual_table_base_HI_LO=coordinates[2],actual_a2_table_load=at-4,
+                alternate_branch_likely_table_base_HI_LO=alternate[2],
+                table_index_from_source_i=True)
+        else:
+            numeric_header=at==0xf58
+            payload=b'NUM = %3d,%3d,%8f\0' if numeric_header else b'XYZ = %4f,%4f,%4f\0'
+            format_address=0x4cacc0 if numeric_header else 0x4cacd8
+            if data_carve.va_bytes(original,format_address,len(payload))!=payload:return None
+            pattern=(r'\bxglFontDebugPrintf\s*\(\s*4\s*,\s*2\s*,\s*("(?:\\.|[^"\\])*")\s*,\s*ladder_id\s*,\s*direction\s*,\s*height\s*\)\s*;' if numeric_header else
+                r'\bxglFontDebugPrintf\s*\(\s*4\s*,\s*10\s*,\s*("(?:\\.|[^"\\])*")\s*,\s*move_x\s*,\s*move_y\s*,\s*move_z\s*\)\s*;')
+            calls=list(source_matches(pattern,body))
+            if len(calls)!=1 or c_literal_bytes(calls[0][1])+b'\0'!=payload:return None
+            high_at,low_at,capture=(0xf34,0xf40,0xf44) if numeric_header else (0xf48,0xf5c,0xf84)
+            coordinates=materialized(high_at,low_at,16,format_address)
+            if not coordinates:return None
+            section,where,argument_proof=coordinates
+            if compiled.section_bytes(section)[where:where+len(payload)]!=payload:return None
+            labels,_=compiler_data_coordinates(assembly,compiled)
+            templates=[t for t in cc1_literal_templates(assembly,preprocessed,compiled)
+                if t['payload']==payload and labels.get(t['label'])==(section.name,where)]
+            if len(templates)!=1:return None
+            argument_proof['actual_cc1_literal_label']=templates[0]['label']
+            for relsec in compiled.sections:
+                if relsec.type!=9 or relsec.info!=section.index or relsec.entsize!=8:continue
+                for p in range(relsec.offset,relsec.offset+relsec.size,8):
+                    target,info=struct.unpack_from('<II',compiled.data,p)
+                    if where<=target<where+len(payload):return None
+            if struct.unpack_from('<I',code,capture)[0]!=0x0200302d:return None
+            argument_proof.update(actual_a2_capture=capture,actual_raw_literal_hex=payload.hex(),
+                actual_typed_source_literal=calls[0][1])
+            if numeric_header:
+                conversion=fptodp_call_preservation(function,retail,0xf30,16)
+                if not conversion:return None
+                argument_proof['HI_delay_normal_return_call']=conversion
+            else:
+                first=fixed_font_packet_call(function,retail,0xf58,16)
+                conversions=[fptodp_call_preservation(function,retail,p,16) for p in (0xf60,0xf6c,0xf78)]
+                if not first or not all(conversions):return None
+                argument_proof['actual_normal_return_preserved_calls']=[first,*conversions]
+            formats.append(dict(original_address=format_address,payload_hex=payload.hex(),numeric_float_arguments=1 if numeric_header else 3,
+                numeric_integer_arguments=2 if numeric_header else 0,
+                meaningful_packet_bytes=[0,32],pointer_varargs_absent=True))
+        expected=[('xglFontDebugPrintf',0x219298,220,'b74cfda305b80992216086fc66d4aefc963f968cb848a1b248eec749985a19d4'),
+            ('xglFontPrintSub',0x218d70,652,'59057a14f2c5c4d39c016a96e5d9e633aa599aae6a838cc888bff37e502cf0d2'),
+            ('set_xyz',0x218bc0,256,'93e21d14fb54cc1e6443f0b110ef93864054e7f60e7fd30b48fcff2b2a2d3cc1'),
+            ('set_ot',0x218b60,92,'6dbf5d355cdfa1d7c75043686ec877ce8ddc9cdbe12be163adf19e72a1cc6f54'),
+            ('dptofp',0x32c4e8,84,'ebb3b8d9fb237b0a8bec6c42bf958416d70989a5ce8bfe6b36abc33d5c83fd65'),
+            ('__unpack_d',0x32dda0,172,'e8f1d3445b57cf5a224cb91d2c0fef7b368846095c97b3d2fe021f7cfb865c13'),
+            ('__make_fp',0x32dc58,44,'d2ec47e3e5490b4d74dd892d42587a3217b5c034f0283252627a1c6acacba07b'),
+            ('__pack_f',0x32df70,208,'ae91002ecdedf68d15cc677a7c314adfa90d56a2ebaa258fbd5836ac011d8b10')]
+        closure=[]
+        for name,address,size,sha in expected:
+            symbols=[s for s in original.symbols if s.name==name and s.shndx!=0]
+            if len(symbols)!=1:return None
+            s=symbols[0]
+            binding=0 if name in ('xglFontPrintSub','set_xyz','set_ot') else 1
+            if (s.value,s.size,s.bind,s.type)!=(address,size,binding,2):return None
+            sec=original.sections[s.shndx];raw=original.section_bytes(sec)[address-sec.addr:address-sec.addr+size]
+            if hashlib.sha256(raw).hexdigest()!=sha:return None
+            closure.append(dict(name=name,address=address,size=size,sha256=sha))
+        return dict(kind='fixed-font-packet-normal-return',original_revision_sha256=expected_revision,
+            caller_original_identity=list(identity),original_call_site=site,actual_compiler_R26_target='xglFontDebugPrintf',
+            exact_source_function_body_sha256=spec[1],source_format_and_original_bytes=formats,
+            actual_compiler_format_argument_proof=argument_proof,
+            preserved_GPRs_on_normal_return=[16,18],return_not_assumed=True,exception_paths_not_assumed_to_continue=True,
+            wrapper_frame_size=352,packet_bytes=[0,256],saved_s0_frame_offset=256,saved_ra_frame_offset=264,
+            print_sub_frame_size=32,print_sub_saved_offsets=[0,8,16,24],packet_and_format_cursors_read_only=True,
+            selected_formats_have_no_SPcode_path=True,float_path_emits_scalar_seven_byte_command=True,
+            dptofp_frame_size=64,dptofp_saved_RA_offset=48,unpack_output_bytes=[0,24],
+            make_fp_local_bytes=[0,16],make_fp_saved_RA_offset=16,pack_f_has_no_stores=True,
+            packet_or_frame_pointer_escape_absent_in_actual_closure=True,
+            valid_C_output_buffer_lifetime_and_original_ABI_frame_discipline_required=True,
+            original_semantic_closure=closure,new_storage_or_credit=False)
+    def function_control(function,retail):
+        """Enumerate all potential interior entries, or decline the function."""
+        key=function.index
+        if key in controls:return controls[key]
+        controls[key]=None
+        start,end=function.value,function.value+function.size
+        if start%4 or function.size%4 or end>len(code):return None
+        osection=original.sections[retail.shndx]
+        obase=osection.offset+retail.value-osection.addr-start
+        word=lambda at:struct.unpack_from('<I',code,at)[0]
+        oword=lambda at:struct.unpack_from('<I',original.data,obase+at)[0]
+        # Both CFGs must carry the same actual instructions. Only relocation
+        # fields may differ; the switch table targets are checked separately.
+        for at in range(start,end,4):
+            rel=relocations.get(at);kind=rel[0] if rel else None
+            if rel and kind not in (4,5,6,7,8):return None
+            mask=0xfc000000 if kind==4 else 0xffff0000 if rel else 0xffffffff
+            if word(at)&mask!=oword(at)&mask:return None
+        edges=[];dispatches=[];opaque_calls=[]
+        for at in range(start,end,4):
+            w=word(at);opcode=w>>26;rs=w>>21&31;rt=w>>16&31;fn=w&63
+            if opcode in (4,5,6,7,20,21,22,23) or opcode==1 and rt in (0,1,2,3,16,17,18,19) or opcode in (16,17,18) and rs==8:
+                target=at+4+((w&65535)-(65536 if w&32768 else 0))*4
+                edges.append((at,target));continue
+            if opcode in (2,3):
+                rel=relocations.get(at)
+                original_target=((retail.value+at-start+4)&0xf0000000)|((oword(at)&0x3ffffff)<<2)
+                original_internal=retail.value<=original_target<retail.value+retail.size
+                if rel:
+                    if rel[0]!=4:return None
+                    target=((w&0x3ffffff)<<2)+rel[1].value if rel[1].shndx==text.index else None
+                else:
+                    target=start+original_target-retail.value if original_internal else None
+                internal=target is not None and start<=target<end
+                if original_internal!=internal or internal and original_target!=retail.value+target-start:return None
+                if internal:edges.append((at,target))
+                continue
+            if opcode==0 and fn==8 and rs==31:
+                if w!=((31<<21)|8):return None
+                continue
+            if opcode==0 and fn==9:
+                # Canonical JALR-ra is an opaque call, not a computed jump
+                # dispatch. No callee target or return is asserted. A possible
+                # return falls through after its delay slot with ALL GPRs
+                # killed. The constructor checker below refuses every crossing
+                # of this call and every HI/LOW in its delay slot.
+                if not 0<rs<31 or w!=((rs<<21)|(31<<11)|9) or at+8>=end:return None
+                typed=typed_opaque_call(function,retail,at,rs,oword)
+                if not typed:return None
+                opaque_calls.append(dict(offset=at,target_register=rs,possible_return=at+8,
+                    all_GPRs_killed=True,callee_targets_unknown=True,return_not_assumed=True,actual_typed_C_call=typed))
+                if at+8<end:edges.append((at,at+8))
+                continue
+            if opcode==0 and fn in (12,13,48,49,50,51,52,54):
+                # An architectural exception resumes at its EPC or successor.
+                # It remains a hard barrier for the constructor slice below;
+                # it supplies no arbitrary computed intra-function entry.
+                edges.append((at,at+4));continue
+            if opcode==0 and fn==8:
+                # Exact GCC bounded switch: sltiu; beq out; delay; sll;
+                # lui; addu; lw; jr; nop. The complete real table bounds all
+                # possible targets, including paths that re-enter this slice.
+                if at-28<start or at+8>end or word(at+4)!=0 or not rs or w!=((rs<<21)|8):return None
+                branch,delay,shift,hi,add,load=[word(at+d) for d in (-24,-20,-16,-12,-8,-4)]
+                saved_index=None;branch_at=at-24
+                # cc1 can schedule ordinary saved-register stores between the
+                # actual bound test and branch. They change neither bound nor
+                # indexed value. Require a unique test and only exact SP stores;
+                # the whole-function entry guards still cover the wider range.
+                bounds=[]
+                for begin in range(max(start,at-44),at-24,4):
+                    candidate=word(begin)
+                    if candidate>>26!=11:continue
+                    if any(word(p)>>26 not in (43,63) or word(p)>>21&31!=29
+                           for p in range(begin+4,at-24,4)):continue
+                    bounds.append((begin,candidate))
+                if len(bounds)==1:
+                    begin,bound=bounds[0]
+                elif not bounds and at-48>=start and word(at-24)>>26==11 and word(at-20)>>26==20:
+                    # The two actual menu dispatches precompute s0=s2*4
+                    # before a fixed label call, then bounds-check the still
+                    # preserved s2. On the dispatch path BEQL's increment slot
+                    # is annulled. Both facts require this exact call proof.
+                    begin=at-48;shift=word(begin);bound=word(at-24)
+                    branch_at=at-20;branch=word(branch_at);delay=word(at-16)
+                    proofs=[fixed_font_packet_call(function,retail,at-32,gpr) for gpr in (16,18)]
+                    if not all(proofs):return None
+                    if (shift!=0x00128080 or word(at-44)!=0x02021021
+                        or word(at-40) not in (0x24040020,0x24040010)
+                        or word(at-36)!=0x8c460000 or word(at-28)!=0x0220282d
+                        or bound>>21&31!=18):return None
+                    saved_index=dict(shift_offset=begin,bound_offset=at-24,
+                        preserved_index_register=16,preserved_source_register=18,
+                        actual_normal_return_call=proofs[0])
+                else:return None
+                n=bound&65535;source=bound>>21&31;test=bound>>16&31;index=shift>>11&31;base=hi>>16&31
+                if (bound>>26!=11 or not 0<n<=1024 or not source or not test or source==test
+                    or branch>>26 not in (4,20) or (branch>>21&31,branch>>16&31)!=(test,0)
+                    or control(delay) or branch>>26==4 and may_write(delay,source)
+                    or shift>>26 or shift&63 or shift>>21&31 or (shift>>16&31,shift>>6&31)!=(source,2) or not index
+                    or hi>>26!=15 or not base
+                    or add>>26 or add&63!=33 or add>>11&31!=base or {add>>21&31,add>>16&31}!={base,index}
+                    or base==index or load>>26!=35 or (load>>21&31,load>>16&31)!=(base,rs)):
+                    return None
+                exit_target=branch_at+4+((branch&65535)-(65536 if branch&32768 else 0))*4
+                if begin<=exit_target<=at+4:return None
+                rh,rl=relocations.get(at-12),relocations.get(at-4)
+                if not rh or not rl or (rh[0],rl[0],rh[1].index)!=(5,6,rl[1].index):return None
+                symbol=rh[1]
+                if not 0<symbol.shndx<len(compiled.sections):return None
+                table=compiled.sections[symbol.shndx];raw=compiled.section_bytes(table)
+                table_offset=((hi&65535)<<16)+(load&65535)-(65536 if load&32768 else 0)+symbol.value
+                original_table=((oword(at-12)&65535)<<16)+(oword(at-4)&65535)-(65536 if oword(at-4)&32768 else 0)
+                original_tables=[s for s in original.sections if s.flags&2 and s.type!=8 and s.addr<=original_table<original_table+4*n<=s.addr+s.size]
+                if len(original_tables)!=1 or not 0<=table_offset<table_offset+4*n<=len(raw):return None
+                table_rels={}
+                for rel in compiled.sections:
+                    if rel.type!=9 or rel.info!=table.index or rel.entsize!=8 or rel.size%8:continue
+                    for p in range(rel.offset,rel.offset+rel.size,8):
+                        place,info=struct.unpack_from('<II',compiled.data,p)
+                        if info>>8>=len(compiled.symbols):return None
+                        table_rels.setdefault(place,[]).append((info&255,compiled.symbols[info>>8]))
+                targets=[];osection=original_tables[0]
+                for i in range(n):
+                    place=table_offset+4*i;rows=table_rels.get(place,[])
+                    if len(rows)!=1 or rows[0][0]!=2 or rows[0][1].shndx!=text.index:return None
+                    target=struct.unpack_from('<I',raw,place)[0]+rows[0][1].value
+                    if not start<=target<end or target%4:return None
+                    old=struct.unpack_from('<I',original.data,osection.offset+original_table-osection.addr+4*i)[0]
+                    if old!=retail.value+target-start:return None
+                    targets.append(target);edges.append((at,target))
+                dispatches.append(dict(range=[begin,at+8],table_section=table.name,
+                    compiler_table_offset=table_offset,original_table_address=original_table,
+                    bounded_entry_count=n,actual_targets=targets,
+                    exact_SP_stores_between_bound_and_branch=(at-28-begin)//4 if saved_index is None else 0,
+                    precomputed_index_across_proved_normal_return_call=saved_index,
+                    branch_likely_delay_annulled_on_dispatch_path=branch>>26==20))
+                continue
+            # Calls through registers, non-ABI returns, traps, coprocessor
+            # transfers and unsupported REGIMM operations have unknown paths.
+            if control(w):return None
+        for dispatch in dispatches:
+            begin,finish=dispatch['range']
+            # A bound test in a preceding control transfer's delay slot does
+            # not dominate the later dispatch. In particular a callee may
+            # clobber both source and test, then return after the bound test.
+            if begin>=4 and control(word(begin-4)):return None
+            if retail.value+begin-start>=osection.addr+4 and control(oword(begin-4)):return None
+            if any(begin<target<finish for _,target in edges):return None
+        result=dict(incoming_edges=edges,proved_switch_dispatches=dispatches,
+                    all_nonrelocated_function_instructions_exact=True,
+                    unsupported_indirect_jumps_absent=True,opaque_calls=opaque_calls)
+        controls[key]=result;return result
+    for place,(kind,symbol) in relocations.items():
+        if kind!=5 or not 0<symbol.shndx<len(compiled.sections):continue
+        if compiled.sections[symbol.shndx].name!=section_name or place+4>len(code):continue
+        high=struct.unpack_from('<I',code,place)[0]
+        if high>>26!=15 or not high>>16&31:continue
+        for lowplace in range(place+4,min(place+1028,len(code)),4):
+            lowrel=relocations.get(lowplace)
+            if not lowrel or (lowrel[0],lowrel[1].index)!=(6,symbol.index):continue
+            low=struct.unpack_from('<I',code,lowplace)[0];imm=low&65535
+            if low>>21&31!=high>>16&31 or low>>26 not in (8,9,*range(32,64)):continue
+            if ((high&65535)<<16)+imm-(65536 if imm&32768 else 0)+symbol.value!=offset:continue
+            # A direct JAL's unconditional delay slot executes before the
+            # callee. Its sole pre-slot GPR write is $ra. This narrow form
+            # permits cc1's actual argument construction; all other control
+            # transfers and every instruction after a call delay still refuse.
+            call_delay_low=(lowplace>=place+8 and struct.unpack_from('<I',code,lowplace-4)[0]>>26==3
+                            and high>>16&31!=31)
+            preceding=struct.unpack_from('<I',code,lowplace-4)[0]
+            branch_delay_low=lowplace>=place+8 and nonlikely_branch(preceding)
+            taken_entry=None
+            if place>=4:
+                branch=struct.unpack_from('<I',code,place-4)[0]
+                if nonlikely_branch(branch):
+                    entry=place+((branch&65535)-(65536 if branch&32768 else 0))*4
+                    if place+8<entry<=lowplace:
+                        escape=struct.unpack_from('<I',code,entry-8)[0]
+                        slot=struct.unpack_from('<I',code,entry-4)[0]
+                        exit_target=entry-4+((escape&65535)-(65536 if escape&32768 else 0))*4
+                        before_escape=struct.unpack_from('<I',code,entry-12)[0]
+                        if (escape>>26==4 and escape>>16&1023==0 and not control(slot) and not control(before_escape)
+                            and not place<exit_target<=lowplace):taken_entry=entry
+            # The selected branch successor can be a separate basic block.
+            # Its other lexical predecessor must end in an unconditional exit;
+            # no fallthrough carrying a clobbered HI can reach this LOW.
+            slice_start=taken_entry if taken_entry is not None else place+4
+            owners=[s for s in compiled.symbols if s.type==2 and s.shndx==text.index
+                    and s.name in claimed and s.value<=place<lowplace<s.value+s.size]
+            if len(owners)!=1:continue
+            function=owners[0];claim=claimed[function.name]
+            retail=verification.original_symbol(original,function.name,claim['size'],claim['va'])
+            if (function.bind,function.type,function.size)!=(retail.bind,retail.type,retail.size):continue
+            preserved_calls=[];blocked=False
+            for p in range(slice_start,lowplace,4):
+                if (call_delay_low or branch_delay_low) and p==lowplace-4:continue
+                instruction=struct.unpack_from('<I',code,p)[0]
+                if instruction>>26==3:
+                    certificate=(fptodp_call_preservation(function,retail,p,high>>16&31)
+                        or fixed_font_packet_call(function,retail,p,high>>16&31))
+                    if certificate:preserved_calls.append(certificate);continue
+                if control(instruction) or may_write(instruction,high>>16&31):blocked=True;break
+            if blocked:continue
+            cfg=function_control(function,retail)
+            if not cfg:continue
+            high_preceding=struct.unpack_from('<I',code,place-4)[0] if place>function.value else 0
+            call_delay_high=(fixed_header_print_call(function,retail,place-4,high>>16&31)
+                or fptodp_call_preservation(function,retail,place-4,high>>16&31)) if high_preceding>>26==3 else None
+            # A canonical nonlikely branch executes its HI delay slot on both
+            # successors. Only that exact predecessor may enter the later
+            # straight-line slice; all other interior entries remain closed.
+            branch_delay_high=(place>function.value and nonlikely_branch(high_preceding)
+                and (place<function.value+8 or not control(struct.unpack_from('<I',code,place-8)[0])))
+            if (control(high_preceding) and not branch_delay_high and not call_delay_high
+                or any(place<target<=lowplace and not (branch_delay_high and origin==place-4)
+                       for origin,target in cfg['incoming_edges'])):continue
+            section=original.sections[retail.shndx];base=section.offset+retail.value-section.addr-function.value
+            oh,ol=struct.unpack_from('<I',original.data,base+place)[0],struct.unpack_from('<I',original.data,base+lowplace)[0]
+            if (high&0xffff0000,low&0xffff0000)!=(oh&0xffff0000,ol&0xffff0000):continue
+            original_va=((oh&65535)<<16)+(ol&65535)-(65536 if ol&32768 else 0)
+            if va is not None and original_va!=va:continue
+            proofs.append(dict(function=function.name,hi_offset=place,lo_offset=lowplace,
+                               compiler_pool_offset=offset,original_pool_address=original_va,
+                               hi_register_unmodified_until_low=True,
+                               closed_straight_line_slice=True,
+                               direct_JAL_delay_slot_low=call_delay_low,
+                               nonlikely_conditional_branch_delay_slot_low=branch_delay_low,
+                               hi_is_not_delay_slot=not branch_delay_high and not call_delay_high,
+                               nonlikely_conditional_branch_delay_slot_hi=branch_delay_high,
+                               selected_taken_successor=taken_entry,
+                               unselected_lexical_path_has_unconditional_exit=taken_entry is not None,
+                               normal_return_call_delay_slot_hi=call_delay_high,
+                               conditional_normal_return_preserved_calls=preserved_calls,
+                               no_unproved_incoming_interior_edge=True,
+                               function_control_proof=cfg))
+    return proofs
+
+
+def registered_pointer_pool_templates(original, compiled, assembly, preprocessed, registry, scope, cwd):
+    """Prove anonymous char-pointer arrays using source and actual relocations."""
+    import tu_audit
+    from data_types import _record_split, RecordLayoutError
+    chars=numeric_source_objects(preprocessed,compiled,assembly);sources=[];initializers=[]
+    coordinates,_=compiler_data_coordinates(assembly,compiled,preprocessed,cwd)
+    declaration=re.compile(r'\b(?:const\s+)?char\s*\*\s*(?:const\s+)?(\w+)\s*\[\s*(\d*)\s*\]\s*=\s*\{([^{}]*)\}\s*;',re.S)
+    for match in source_matches(declaration, preprocessed):
+        try:items=_record_split(match[3],',')
+        except RecordLayoutError:continue
+        if not 0<len(items)==(int(match[2]) if match[2] else len(items))<=1024:continue
+        initializers.append(dict(name=match[1],source_offset=match.start(),items=items,
+                                 source_layout='complete char-pointer array'))
+    records=re.compile(r'\bstruct\s+(\w+)\s*\{([^{}]*)\}\s*(\w+)\s*\[\s*(\d+)\s*\]\s*=\s*\{',re.S)
+    for match in source_matches(records, preprocessed):
+        fields=[field.strip() for field in match[2].split(';') if field.strip()]
+        if not fields or any(not re.fullmatch(r'(?:const\s+)?char\s*\*\s*(?:const\s+)?\w+',field) for field in fields):continue
+        count=int(match[4]);at=match.end();end=at;depth=1;quote=False;escape=False
+        while end<len(preprocessed) and depth:
+            char=preprocessed[end]
+            if quote:
+                if escape:escape=False
+                elif char=='\\':escape=True
+                elif char=='"':quote=False
+            elif char=='"':quote=True
+            elif char=='{':depth+=1
+            elif char=='}':depth-=1
+            end+=1
+        if depth or not re.match(r'\s*;',preprocessed[end:]) or not 0<count*len(fields)<=1024:continue
+        try:
+            rows=_record_split(preprocessed[at:end-1],',');items=[]
+            if len(rows)!=count:continue
+            for row in rows:
+                if not row.strip().startswith('{') or not row.strip().endswith('}'):break
+                values=_record_split(row.strip()[1:-1],',')
+                if len(values)!=len(fields):break
+                items.extend(values)
+            else:
+                initializers.append(dict(name=match[3],source_offset=match.start(),items=items,
+                    source_layout=dict(record_name=match[1],char_pointer_fields=fields,record_count=count,
+                                       pointer_width=4,record_size=4*len(fields),no_internal_padding=True)))
+        except RecordLayoutError:continue
+    for initializer in initializers:
+        items=initializer['items']
+        decoded=[]
+        for item in items:
+            item=item.strip()
+            if item=='0':decoded.append(dict(kind='null'));continue
+            token=re.fullmatch(r'(\w+)(?:\s*\+\s*(0x[\da-fA-F]+|\d+))?',item)
+            if token:
+                source=chars.get(token[1]);addend=int(token[2],0) if token[2] else 0
+                if not source and not addend and re.fullmatch(r'D_[\da-fA-F]{8}',token[1]):
+                    declarations=source_findall(r'\bextern\s+(?:const\s+)?(?:signed\s+|unsigned\s+)?char\s+'
+                        +re.escape(token[1])+r'\s*\[\s*\]\s*;',preprocessed)
+                    if declarations:
+                        decoded.append(dict(kind='foreign_char',name=token[1],addend=0,
+                            registered_scaffold_declaration=declarations[0],no_pointee_storage_credit=True));continue
+                if (not source or source.get('integer_offsets') is not None
+                    or source['source_type'] not in ('char','signed char','unsigned char','char array')
+                    or not 0<=addend<len(source['raw'])):break
+                decoded.append(dict(kind='named_char',name=token[1],symbol=source['symbol'],addend=addend,
+                                    payload=source['raw'][addend:]));continue
+            # Parenthesized literal macros retain precisely the same pointer
+            # initializer. Admit only balanced outer parentheses around one
+            # adjacent-literal sequence, never casts or other expressions.
+            literal_sequence=re.fullmatch(r'(\(*\s*)((?:"(?:\\.|[^"\\])*"\s*)+)(\)*)',item)
+            if (not literal_sequence
+                or literal_sequence[1].count('(')!=len(literal_sequence[3])):break
+            literals=re.findall(r'"(?:\\.|[^"\\])*"',literal_sequence[2])
+            try:payload=b''.join(c_literal_bytes(token) for token in literals)+b'\0'
+            except (ValueError,SyntaxError,UnicodeError):break
+            decoded.append(dict(kind='string_literal',payload=payload))
+        else:
+            sources.append(dict(name=initializer['name'],source_offset=initializer['source_offset'],items=decoded,
+                                source_layout=initializer['source_layout']))
+    def affine(section,offset):
+        values=set()
+        for output,runs in registry.items():
+            for run in runs:
+                for span in run.get('c_input_spans',[]):
+                    ext=explicit_object_range(span);coords=[int(v,16) for v in span.get('range',[])]
+                    if (ext and len(coords)==2 and span.get('section')==section
+                        and not span.get('uncredited_dependency') and span.get('credit')!='uncredited_dependency'
+                        and ext[1]-ext[0]==coords[1]-coords[0] and ext[0]<=offset<ext[1]):
+                        values.add(coords[0]+offset-ext[0])
+        return next(iter(values)) if len(values)==1 else None
+    relocs={}
+    for rel in compiled.sections:
+        if rel.type!=9 or rel.entsize!=8 or rel.size%8:continue
+        for at in range(rel.offset,rel.offset+rel.size,8):
+            offset,info=struct.unpack_from('<II',compiled.data,at)
+            if info>>8<len(compiled.symbols):relocs.setdefault((rel.info,offset),[]).append((info&255,compiled.symbols[info>>8]))
+    literal_labels={row['label']:row['payload'] for row in cc1_literal_templates(assembly,preprocessed,compiled)}
+    rows={row['line']:row for row in tu_audit.AsmFile(assembly).top_data};lines=assembly.splitlines();result=[]
+    for index,line in enumerate(lines):
+        label=re.fullmatch(r'\s*(\$LC\d+):\s*',line)
+        if not label:continue
+        directives=[]
+        for number in range(index+2,len(lines)+1):
+            row=rows.get(number)
+            if not row or row['directive']!='.word':break
+            directives.append(row)
+        if not directives:continue
+        name=directives[0]['section'];name='.rodata' if name=='.rdata' else name
+        try:compiler_only_section(assembly,preprocessed,cwd,name)
+        except (RuntimeError,ValueError):continue
+        section=compiled.section(name);raw=compiled.section_bytes(section);retail=original.section(name)
+        choices=[];size=len(directives)*4
+        for source in sources:
+            if len(source['items'])!=len(directives):continue
+            if any(item['kind']=='null' and row['operands'].strip()!='0'
+                   or item['kind'] in ('named_char','foreign_char') and re.sub(r'\s+|\+','',row['operands'])!=item['name']+(str(item['addend']) if item['addend'] else '')
+                   or item['kind']=='string_literal' and literal_labels.get(row['operands'].strip())!=item['payload']
+                   for item,row in zip(source['items'],directives)):continue
+            for run in registry.get(name,[]):
+                for span in run.get('c_input_spans',[]):
+                    ext=explicit_object_range(span);coords=[int(v,16) for v in span.get('range',[])]
+                    if (not ext or len(coords)!=2 or span.get('section')!=name
+                        or not (span.get('anonymous_emission') is True and span.get('credit')=='verified' or span.get('support_only') is True)
+                        or span.get('symbols') or span.get('uncredited_dependency')
+                        or ext[1]-ext[0]!=coords[1]-coords[0] or ext[1]>section.size):continue
+                    for offset in range(ext[0],ext[1]-size+1,4):
+                        if coordinates.get(label[1])!=(name,offset):continue
+                        va=coords[0]+offset-ext[0];values=[];witnesses=[]
+                        for i,item in enumerate(source['items']):
+                            place=offset+i*4;word=struct.unpack_from('<I',raw,place)[0];rel=relocs.get((section.index,place),[])
+                            if item['kind']=='null':
+                                if word or rel:break
+                                values.append(0);continue
+                            if len(rel)!=1 or rel[0][0]!=2:break
+                            symbol=rel[0][1]
+                            if item['kind']=='foreign_char':
+                                pointer=int(item['name'][2:],16)
+                                if (symbol.shndx!=0 or symbol.name!=item['name'] or word
+                                    or not any(s.flags&2 and s.addr<=pointer<s.addr+s.size for s in original.sections)):break
+                                values.append(pointer);witnesses.append(dict(index=i,compiler_relocation_offset=place,
+                                    original_pointer=pointer,source_kind='foreign_char',source_char_name=item['name'],
+                                    registered_scaffold_declaration=item['registered_scaffold_declaration'],
+                                    exact_actual_R_MIPS32_symbol=True,no_pointee_storage_credit=True));continue
+                            if not 0<symbol.shndx<len(compiled.sections):break
+                            dest=compiled.sections[symbol.shndx];at=symbol.value+word;pointer=affine(dest.name,at)
+                            try:compiler_only_section(assembly,preprocessed,cwd,dest.name)
+                            except (RuntimeError,ValueError):break
+                            if pointer is None or at+len(item['payload'])>dest.size:break
+                            if compiled.section_bytes(dest)[at:at+len(item['payload'])]!=item['payload']:break
+                            if item['kind']=='named_char':
+                                owner=item['symbol']
+                                if (dest.index,at)!=(owner.shndx,owner.value+item['addend']):break
+                            original_dest=original.section(dest.name)
+                            if original.section_bytes(original_dest)[pointer-original_dest.addr:pointer-original_dest.addr+len(item['payload'])]!=item['payload']:break
+                            values.append(pointer);witnesses.append(dict(index=i,compiler_relocation_offset=place,
+                                compiler_destination_section=dest.name,compiler_destination_offset=at,original_pointer=pointer,
+                                source_kind=item['kind'],source_char_name=item.get('name'),payload_sha256=hashlib.sha256(item['payload']).hexdigest()))
+                        else:
+                            payload=b''.join(value.to_bytes(4,'little') for value in values)
+                            if original.section_bytes(retail)[va-retail.addr:va-retail.addr+size]!=payload:continue
+                            consumers=compiler_pool_consumers(original,compiled,offset,name,va,scope,preprocessed,assembly)
+                            if consumers:choices.append((source,va,offset,span,consumers,payload,witnesses))
+        if len(choices)!=1:continue
+        source,va,offset,span,consumers,payload,witnesses=choices[0]
+        alignment=re.fullmatch(r'\s*\.align\s+(\d+)\s*',lines[index-1]) if index else None
+        template=dict(label=label[1],section=name,payload=payload,directives=directives,
+            source=dict(name=source['name'],source_type='complete char-pointer array',source_offset=source['source_offset'],
+                        explicit_extent=size,source_layout=source['source_layout'],actual_R_MIPS32_proofs=witnesses),
+            alignment=1<<int(alignment[1]) if alignment and int(alignment[1])<=8 else None)
+        result.append((template,va,offset,span,consumers))
+    return result
+
+
+def registered_assembler_double_pools(original, compiled, assembly, preprocessed, registry, scope, cwd):
+    """Bind standard li.d assembler pools to actual C double literals.
+
+    A unique verified anonymous input span, exact source/cc1 binary64 value,
+    actual LD consumer and retail HI/LO address establish each eight-byte pool.
+    This does not invent a C or retail object for an assembler temporary.
+    """
+    import math
+    import tu_edit
+    import tu_audit
+    if not re.search(r'^\s*li\.d\s+',assembly,re.M):return []
+    try:compiler_only_section(assembly,preprocessed,cwd,'.rodata')
+    except (RuntimeError,ValueError):return []
+    try:source=tu_edit.TU(preprocessed)
+    except tu_edit.ParseError:return []
+    values={};view=source_discovery_view(preprocessed)
+    number=r'(?<![\w.])(?:\d+\.\d*|\.\d+)(?:[eE][-+]?\d+)?(?![\w.])'
+    for block in source.blocks:
+        if block.state!='c':continue
+        bits=[]
+        for token in re.compile(number).finditer(view,block.core_start,block.core_end):
+            try:
+                value=float(preprocessed[token.start():token.end()])
+                if math.isfinite(value):bits.append(struct.pack('<d',value))
+            except (ValueError,OverflowError,struct.error):continue
+        values[block.name]=Counter(bits)
+    authored=actual_source_asm_lines(preprocessed);pseudos={};function=None;app=False
+    pattern=re.compile(r'\s*li\.d\s+\$(\d+),\s*([-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?)\s*(?:#.*)?$')
+    for line_number,line in enumerate(assembly.splitlines(),1):
+        if line.strip()=='#APP':app=True;continue
+        if line.strip()=='#NO_APP':app=False;continue
+        if app:continue
+        ent=re.fullmatch(r'\s*\.ent\s+(\S+)\s*',line)
+        end=re.fullmatch(r'\s*\.end\s+(\S+)\s*',line)
+        if ent:function=ent[1];continue
+        if end:function=None;continue
+        match=pattern.fullmatch(line)
+        if not match or not function or not 0<int(match[1])<31:continue
+        if tu_audit._norm_asm_line(tu_audit._strip_comment(line)) in authored:continue
+        try:
+            value=float(match[2])
+            if not math.isfinite(value):continue
+            payload=struct.pack('<d',value)
+        except (ValueError,OverflowError,struct.error):continue
+        pseudos.setdefault((function,payload),[]).append(dict(line=line_number,destination=int(match[1]),spelling=match[2]))
+    result=[];section=compiled.section('.rodata');retail=original.section('.rodata');raw=compiled.section_bytes(section)
+    refs=data_carve.section_references(compiled,section);text=compiled.section('.text');code=compiled.section_bytes(text)
+    for run in registry.get('.rodata',[]):
+        for span in run.get('c_input_spans',[]):
+            extent=explicit_object_range(span);coords=span.get('range',[])
+            if (not extent or len(coords)!=2 or extent[1]-extent[0]!=8 or span.get('section')!='.rodata'
+                or span.get('symbols') or span.get('anonymous_emission') is not True or span.get('credit')!='verified'
+                or span.get('uncredited_dependency')):continue
+            va,hi=map(lambda v:int(v,16),coords);offset=extent[0]
+            if hi-va!=8 or not 0<=offset<offset+8<=len(raw) or not retail.addr<=va<hi<=retail.addr+retail.size:continue
+            payload=raw[offset:offset+8]
+            if original.section_bytes(retail)[va-retail.addr:hi-retail.addr]!=payload:continue
+            if any(s.shndx==section.index and s.type not in (3,4)
+                   and (offset<=s.value<offset+8 or s.size>0 and s.value<offset+8 and offset<s.value+s.size)
+                   for s in compiled.symbols):continue
+            if any(rel.type in (4,9) and rel.info==section.index and any(offset<struct.unpack_from('<I',compiled.data,p)[0]+4
+                   and struct.unpack_from('<I',compiled.data,p)[0]<offset+8 for p in range(rel.offset,rel.offset+rel.size,rel.entsize or 8))
+                   for rel in compiled.sections):continue
+            consumers=compiler_pool_consumers(original,compiled,offset,'.rodata',va,scope,preprocessed,assembly);choices=[]
+            for consumer in consumers:
+                name=consumer['function'];pseudo=pseudos.get((name,payload),[])
+                if not pseudo or values.get(name,Counter())[payload]!=len(pseudo):continue
+                load=struct.unpack_from('<I',code,consumer['lo_offset'])[0]
+                high=struct.unpack_from('<I',code,consumer['hi_offset'])[0]
+                if (load>>26!=55 or high>>16&31!=1
+                    or load>>16&31 not in {p['destination'] for p in pseudo}):continue
+                actual=[r for r in refs if r['target']==offset and r['offset'] in (consumer['hi_offset'],consumer['lo_offset'])]
+                if sorted((r['offset'],r['type']) for r in actual)!=[(consumer['hi_offset'],5),(consumer['lo_offset'],6)]:continue
+                choices.append((consumer,pseudo))
+            if not choices:continue
+            template=dict(label='assembler_li_d_'+str(offset),section='.rodata',payload=payload,directives=[],
+                source=dict(name=None,source_type='double literal via standard li.d',explicit_extent=8,
+                    literal_binary64=payload.hex(),function=choices[0][0]['function'],
+                    actual_cc1_li_d=choices[0][1],actual_LD_HI_LO_pairs=[p[0] for p in choices],
+                    source_literal_and_cc1_value_exact=True,no_named_C_or_original_object_claim=True))
+            result.append((template,va,offset,span,[p[0] for p in choices]))
+    return result
+
+
+def registered_source_pool_identities(body, reference, original, compiled, assembly,
+                                      preprocessed, registry, tu, cwd, scope):
+    """Remove only invented identities over source-proved anonymous C pools.
+
+    Registered affine placement, independent source/cc1 payloads and original
+    instruction consumers establish every pool. All bytes, zero gaps, section
+    extents and genuine original identities remain in the reference.
+    """
+    templates=cc1_literal_templates(assembly,preprocessed,compiled);located=[];proofs=[]
+    coordinates,alignment_gaps=compiler_data_coordinates(assembly,compiled,preprocessed,cwd)
+    pointer_pools=registered_pointer_pool_templates(original,compiled,assembly,preprocessed,registry,scope,cwd)
+    for template in templates:
+        name=template['section'];payload=template['payload']
+        if name not in ('.rodata','.sdata'):continue
+        try:compiler_only_section(assembly,preprocessed,cwd,name)
+        except (RuntimeError,ValueError):continue
+        section=compiled.section(name);retail=original.section(name);raw=compiled.section_bytes(section)
+        candidates=[]
+        for run in registry.get(name,[]):
+            for span in run.get('c_input_spans',[]):
+                extent=explicit_object_range(span);coords=[int(v,16) for v in span.get('range',[])]
+                if (not extent or len(coords)!=2 or span.get('section')!=name
+                    or not (span.get('anonymous_emission') is True and span.get('credit')=='verified' or span.get('support_only') is True)
+                    or span.get('symbols') or span.get('uncredited_dependency')
+                    or coords[1]-coords[0]!=extent[1]-extent[0] or extent[1]>section.size):continue
+                for at in range(extent[0],extent[1]-len(payload)+1):
+                    if coordinates.get(template['label'])!=(name,at):continue
+                    if raw[at:at+len(payload)]!=payload:continue
+                    va=coords[0]+at-extent[0]
+                    if original.section_bytes(retail)[va-retail.addr:va-retail.addr+len(payload)]!=payload:continue
+                    if any(s.type==1 and s.shndx==section.index and s.value<at+len(payload)
+                           and at<s.value+max(1,s.size) for s in compiled.symbols):continue
+                    if any(rel.type in (4,9) and rel.info==section.index and any(at<=struct.unpack_from('<I',compiled.data,p)[0]<at+len(payload)
+                           for p in range(rel.offset,rel.offset+rel.size,rel.entsize or (12 if rel.type==4 else 8))) for rel in compiled.sections):continue
+                    consumers=compiler_pool_consumers(original,compiled,at,name,va,scope,preprocessed,assembly)
+                    consumers.extend(dict(pointer_template=t['label'],original_table_address=table_va,actual_C_R_MIPS32=proof)
+                        for t,table_va,off,s,used in pointer_pools for proof in t['source'].get('actual_R_MIPS32_proofs',[])
+                        if proof.get('original_pointer')==va and proof.get('compiler_destination_section')==name
+                        and proof.get('compiler_destination_offset')==at)
+                    if consumers:candidates.append((va,at,span,consumers))
+        if len(candidates)==1:located.append((template,*candidates[0]))
+        elif not candidates and template['source'].get('source_type')!='string literal':
+            # A function-local C template need not be a recovered storage run.
+            # Its original coordinate must come from an actual closed original
+            # address constructor, never from a byte search or label spelling.
+            position=coordinates.get(template['label'])
+            if not position or position[0]!=name:continue
+            at=position[1]
+            if raw[at:at+len(payload)]!=payload:continue
+            explicit_claim=False
+            for run in registry.get(name,[]):
+                for span in run.get('c_input_spans',[]):
+                    if span.get('section')!=name:continue
+                    extent=explicit_object_range(span)
+                    if not extent or extent[0]<at+len(payload) and at<extent[1]:explicit_claim=True
+            if explicit_claim:continue
+            if len(template['source'].get('identical_source_offsets',[]))!=1:continue
+            if any(s.type==1 and s.shndx==section.index and s.value<at+len(payload)
+                   and at<s.value+max(1,s.size) for s in compiled.symbols):continue
+            if any(rel.type in (4,9) and rel.info==section.index and any(at<=struct.unpack_from('<I',compiled.data,p)[0]<at+len(payload)
+                   for p in range(rel.offset,rel.offset+rel.size,rel.entsize or (12 if rel.type==4 else 8))) for rel in compiled.sections):continue
+            consumers=compiler_pool_consumers(original,compiled,at,name,None,scope,preprocessed,assembly)
+            addresses={p['original_pool_address'] for p in consumers}
+            if len(addresses)!=1:continue
+            va=next(iter(addresses));mapped=tu.get('sections',{}).get(name)
+            if not mapped:continue
+            start=int(mapped['start'],16)
+            items=[s for s in reference.symbols if s.type==1 and 0<s.shndx<len(reference.sections)
+                and reference.sections[s.shndx].name==name and start+s.value==va
+                and len(payload)<=s.size<=len(payload)+15]
+            if len(items)!=1:continue
+            item=items[0];hi=va+item.size
+            if any(s.shndx==retail.index and s.type not in (3,4) and
+                   (va<=s.value<hi or s.size>0 and s.value<hi and va<s.value+s.size)
+                   for s in original.symbols):continue
+            # Historical registrations name generated templates without object
+            # coordinates. Admit that distinct witness only when the actual
+            # source name and original constructor function are registered.
+            # A present (even empty/malformed) modern span list never falls back.
+            overlaps=[r for r in registry.get(name,[]) if int(r['range'][0],16)<hi and va<int(r['range'][1],16)]
+            if not overlaps:continue
+            legacy=None
+            if overlaps:
+                if len(overlaps)!=1:continue
+                run=overlaps[0];generated=run.get('generated',[])
+                if ('c_input_spans' in run or template['source'].get('name') not in run.get('c_owned_symbols',[])
+                    or len(generated)!=2):continue
+                generated=list(map(lambda value:int(value,16),generated))
+                if not int(run['range'][0],16)<=generated[0]<=va<va+len(payload)<=generated[1]<=int(run['range'][1],16):continue
+                consumers=[p for p in consumers if p['function'] in run.get('generated_by',[])]
+                if not consumers:continue
+                legacy=dict(range=run['range'],generated=run['generated'],
+                    c_owned_source_name=template['source']['name'],generated_by=run['generated_by'],
+                    no_modern_object_coordinate_claim=True)
+            if not retail.addr<=va<va+len(payload)<=hi<=retail.addr+retail.size:continue
+            if original.section_bytes(retail)[va-retail.addr:va-retail.addr+len(payload)]!=payload:continue
+            witness=dict(kind='legacy-registered-template-and-closed-consumer',registered_run=True,
+                original_item=[va,hi],compiler_payload=[at,at+len(payload)],
+                original_item_symbol=item.name,original_item_symbol_size=item.size,
+                reference_sha256=hashlib.sha256(reference.data).hexdigest(),
+                explicit_object_coordinates_from_registry=False,legacy_source_registration=legacy,
+                no_source_storage_credit=True)
+            located.append((template,va,at,witness,consumers))
+    located.extend(pointer_pools)
+    located.extend(registered_assembler_double_pools(original,compiled,assembly,preprocessed,registry,scope,cwd))
+    pattern=re.compile(r'(?:nonmatching\s+(\S+)(?:\s*,[^\n]*)?\s*\n\s*)?dlabel\s+(D_[\da-fA-F]{8})\s*\n(.*?)enddlabel\s+\2\s*\n\.size\s+\2,\s*[^\n]*',re.S)
+    replacements={}
+    def replace(match):
+        name=match[2];symbols=[s for s in reference.symbols if s.name==name and s.type==1 and 0<s.shndx<len(reference.sections)]
+        if len(symbols)!=1:return match[0]
+        target=symbols[0];section=reference.sections[target.shndx];mapped=tu.get('sections',{}).get(section.name)
+        if not mapped:return match[0]
+        lo=int(mapped['start'],16)+target.value;hi=lo+target.size
+        if lo!=int(name[2:],16):return match[0]
+        retail=original.section(section.name)
+        if any(s.name and s.shndx==retail.index and s.value<hi and lo<s.value+max(1,s.size) for s in original.symbols):return match[0]
+        pools=[row for row in located if row[0]['section']==section.name and lo<=row[1]<row[1]+len(row[0]['payload'])<=hi]
+        pools.sort(key=lambda row:row[1])
+        if not pools or pools[0][1]!=lo:return match[0]
+        cursor=lo;gaps=[]
+        for template,va,offset,span,consumers in pools:
+            if va<cursor:return match[0]
+            if cursor<va:gaps.append((cursor,va))
+            cursor=va+len(template['payload'])
+        if cursor<hi:gaps.append((cursor,hi))
+        raw=original.section_bytes(retail)[lo-retail.addr:hi-retail.addr]
+        if any(not 0<b-a<=15 or any(raw[a-lo:b-lo]) or original_references(original,a,b) for a,b in gaps):return match[0]
+        gap_proofs=[]
+        for a,b in gaps:
+            preceding=[row for row in pools if row[1]+len(row[0]['payload'])==a]
+            if len(preceding)!=1:return match[0]
+            previous=preceding[0];compiler_end=previous[2]+len(previous[0]['payload'])
+            emitted=[gap for gap in alignment_gaps if gap['section']==section.name
+                     and gap['range']==[compiler_end,compiler_end+b-a]]
+            linker=[piece['linker_padding'] for piece in mapped.get('pieces',[]) if piece.get('linker_padding')
+                    and [int(v,16) for v in piece['linker_padding'].get('range',[])]==[a,b]
+                    and piece['linker_padding'].get('kind')=='unreferenced_original_alignment']
+            if len(emitted)==1:gap_proofs.append(dict(original_range=[a,b],cc1_alignment=emitted[0]))
+            elif len(linker)==1:gap_proofs.append(dict(original_range=[a,b],ordinary_linker_padding=linker[0]))
+            elif b==hi:
+                # A split original pool can precede a separately allocated C
+                # owner even when cc1 inserted another pool between them.
+                # Require that real next owner and its own emitted alignment.
+                owners=[]
+                typed=typed_compiler_data(assembly)
+                for cname,source,owner_va,owner_span in registered_literal_source_spans(original,compiled,assembly,preprocessed,registry,cwd):
+                    symbol=source['symbol'];emission=typed.get(cname)
+                    if (owner_va==b and compiled.sections[symbol.shndx].name==section.name and emission
+                        and owner_span.get('credit')=='verified'):
+                        # Derive the next owner's actual preceding cc1 ALIGN.
+                        label=re.search(r'^'+re.escape(cname)+r':\s*$',assembly,re.M)
+                        prefix=assembly[:label.start()].splitlines()[-5:] if label else []
+                        align=[int(m[1]) for line in prefix for m in [re.fullmatch(r'\s*\.align\s+(\d+)\s*',line)] if m]
+                        if len(align)==1 and align[0]<=8 and (a+(1<<align[0])-1)//(1<<align[0])*(1<<align[0])==b:
+                            owners.append(dict(name=cname,original_address=b,cc1_alignment=1<<align[0],registered_span=owner_span))
+                if len(owners)==1:gap_proofs.append(dict(original_range=[a,b],following_registered_C_owner=owners[0]))
+                elif not owners:
+                    # A partial compiler template does not prove the original
+                    # item's capacity or alignment. Keep this exact zero suffix
+                    # as unknown original storage, outside every source claim.
+                    named_spans=[span for run in registry.get(section.name,[]) for span in run.get('c_input_spans',[])
+                        if span.get('symbols') and len(span.get('range',[]))==2
+                        and int(span['range'][0],16)<b and a<int(span['range'][1],16)]
+                    if named_spans:return match[0]
+                    gap_proofs.append(dict(original_range=[a,b],kind='unknown_original_zero_suffix',
+                        credited=False,credited_bytes=0,original_capacity_proved=False,alignment_proved=False,
+                        existing_original_rejection_index_no_hit=True))
+                else:return match[0]
+            else:return match[0]
+        temporary=f'.Lobjdiff_source_pool_{lo:08X}';replacements[name]=temporary
+        proofs.append(dict(scaffold_name=name,temporary_reference_name=temporary,original_range=[lo,hi],
+            pools=[dict(compiler_label=t['label'],compiler_offset=off,original_address=va,size=len(t['payload']),
+                        payload_sha256=hashlib.sha256(t['payload']).hexdigest(),source={k:v for k,v in t['source'].items() if k!='payload'},
+                        cc1_directives=t['directives'],registered_span=span if span.get('kind')!='legacy-registered-template-and-closed-consumer' else None,
+                        original_span_witness=span if span.get('kind')=='legacy-registered-template-and-closed-consumer' else None,original_consumers=consumers)
+                   for t,va,off,span,consumers in pools],retained_uncredited_zero_gaps=gaps,alignment_proofs=gap_proofs,
+            no_original_named_identity=True,all_section_storage_retained=True,new_source_credit=False))
+        return '.local '+name+'\n'+name+':\n'+match[3]
+    rewritten=pattern.sub(replace,body)
+    def rename(text):
+        for old,new in replacements.items():text=re.sub(r'(?<![\w.$])'+re.escape(old)+r'(?![\w.$])',lambda _:new,text)
+        return text
+    def include(match):
+        path=Path(match[1]);path=path if path.is_absolute() else cwd/path
+        old=path.read_text();new=rename(old)
+        return new if new!=old else match[0]
+    rewritten=rename(re.sub(r'\.include\s+"([^\"]+\.s)"',include,rewritten))
+    return rewritten,proofs
+
+
+def registered_literal_source_spans(original, compiled, assembly, preprocessed, registry, cwd):
+    """Bind complete decoded named literal owners to exact accepted placements."""
+    decoded=numeric_source_objects(preprocessed,compiled,assembly);result=[]
+    for name,proof in decoded.items():
+        if proof.get('integer_offsets') is not None:continue
+        symbol=proof['symbol'];section=compiled.sections[symbol.shndx]
+        if section.name not in ('.data','.sdata','.rodata') or len(proof['raw'])!=symbol.size:continue
+        try:compiler_only_section(assembly,preprocessed,cwd,section.name)
+        except (RuntimeError,ValueError):continue
+        spans=[]
+        for run in registry.get(section.name,[]):
+            if name not in run.get('c_owned_symbols',[]):continue
+            for span in run.get('c_input_spans',[]):
+                extent=explicit_object_range(span);coords=[int(v,16) for v in span.get('range',[])]
+                if (not extent or len(coords)!=2 or span.get('section')!=section.name
+                    or name not in span.get('symbols',[]) or span.get('uncredited_dependency')
+                    or span.get('credit')=='uncredited_dependency' or coords[1]-coords[0]!=extent[1]-extent[0]
+                    or not extent[0]<=symbol.value<symbol.value+symbol.size<=extent[1]):continue
+                va=coords[0]+symbol.value-extent[0];retail=original.section(section.name)
+                if not retail.addr<=va<va+symbol.size<=retail.addr+retail.size:continue
+                if original.section_bytes(retail)[va-retail.addr:va-retail.addr+symbol.size]!=proof['raw']:continue
+                spans.append((va,span))
+        if len(spans)==1:result.append((name,proof,spans[0][0],spans[0][1]))
+    return result
+
+
+def registered_named_literal_identities(body, reference, scaffold, original, compiled,
+                                        assembly, preprocessed, registry, tu, cwd):
+    """Retain actual named compiler storage without asserting a retail name.
+
+    Older string/pool routes hid even complete named C owners. Restore their
+    independently proved compiler identity over the same bytes; all genuine
+    original symbols and any unowned tail remain untouched.
+    """
     proofs=[]
-    for section in ('.rodata','.sdata'):
-        body,rows=registered_anonymous_storage_section(body,reference,original,compiled,
-            assembly,preprocessed,registry,tu,cwd,section)
-        proofs.extend(rows)
+    for name,source,va,span in registered_literal_source_spans(original,compiled,assembly,preprocessed,registry,cwd):
+        symbol=source['symbol'];section=compiled.sections[symbol.shndx];retail=original.section(section.name)
+        hi=va+symbol.size
+        if any(s.name and s.shndx==retail.index and s.value<hi and va<s.value+max(1,s.size) for s in original.symbols):continue
+        existing=[s for s in reference.symbols if s.name==name and 0<s.shndx<len(reference.sections)]
+        if len(existing)>1:continue
+        mapped=tu.get('sections',{}).get(section.name)
+        if not mapped:continue
+        targets=[s for s in scaffold.symbols if s.name==name and s.type==1 and 0<s.shndx<len(scaffold.sections)
+                 and scaffold.sections[s.shndx].name==section.name and s.value+int(mapped['start'],16)==va
+                 and s.size>=symbol.size]
+        if len(targets)!=1:continue
+        bucket=targets[0]
+        if bucket.size>symbol.size:
+            tail=original.section_bytes(retail)[hi-retail.addr:va+bucket.size-retail.addr]
+            if any(tail) or original_references(original,hi,va+bucket.size):continue
+        if existing:
+            current=existing[0]
+            if reference.sections[current.shndx].name!=section.name or current.value+int(mapped['start'],16)!=va:continue
+            if (current.bind,current.type,current.size)==(symbol.bind,symbol.type,symbol.size):continue
+            label=name
+        else:
+            labels=[label for label in (f'.Lobjdiff_string_{va:08X}',f'.Lobjdiff_registered_char_{va:08X}')
+                    if re.search(r'^\s*'+re.escape(label)+r':\s*$',body,re.M)]
+            if len(labels)!=1:continue
+            label=labels[0]
+        directives=[f'.{"local" if symbol.bind==0 else "globl"} {name}',f'.type {name}, @object']
+        if label!=name:directives.append(f'.equ {name}, {label}')
+        directives.append(f'.size {name}, {symbol.size}')
+        # The contractual assembler retains its first size directive.
+        body=re.sub(r'^\s*\.size\s+'+re.escape(name)+r'\s*,[^\n]*$', '',body,flags=re.M)
+        body+='\n'+'\n'.join(directives)+'\n'
+        proofs.append(dict(c_name=name,section=section.name,original_address=va,compiler_offset=symbol.value,
+            compiler_identity=[symbol.bind,symbol.type,symbol.size],registered_span=span,
+            source_kind=source['kind'],initializer_sha256=hashlib.sha256(source['raw']).hexdigest(),
+            original_named_identity_not_asserted=True,retained_uncredited_tail=[hi,va+bucket.size],
+            all_storage_and_genuine_original_identities_retained=True,new_source_credit=False))
     return body,proofs
 
 
-def registered_anonymous_storage_section(body, reference, original, compiled,
-                                 assembly, preprocessed, registry, tu, cwd, section_name):
-    """Restore anonymous C constant pools from accepted affine storage proofs.
-
-    No original named identity is removed. Every byte and padding byte stays
-    present, with the ordinary joint link checking the complete result.
-    """
-    try:
-        compiler_only_section(assembly, preprocessed, cwd, section_name)
-    except (RuntimeError, ValueError):
-        return body, []
-    section = next((s for s in compiled.sections if s.name == section_name), None)
-    mapped = tu.get('sections', {}).get(section_name)
-    if not section or not mapped:
-        return body, []
-    retail = original.section(section_name)
-    nominal = set()
-    for rel in reference.sections:
-        if rel.type == 9:
-            nominal.update(struct.unpack_from('<II', reference.data, p)[1] >> 8
-                           for p in range(rel.offset, rel.offset + rel.size, 8))
-    proofs = []
-    pattern = re.compile(r'dlabel\s+(D_[\da-fA-F]{8})\s*\n(.*?)enddlabel\s+\1\s*\n\.size\s+\1,\s*\.\s*-\s*\1', re.S)
+def registered_literal_word_references(body, original, compiled, assembly, preprocessed, registry, tu, cwd, scope):
+    """Keep numeric words numeric only inside independently decoded C owners."""
+    zones=[dict(name=name,payload=proof['raw'],original_address=va,compiler_offset=proof['symbol'].value,
+                section=compiled.sections[proof['symbol'].shndx],registered_span=span,source_kind=proof['kind'])
+           for name,proof,va,span in registered_literal_source_spans(original,compiled,assembly,preprocessed,registry,cwd)]
+    coordinates,alignment_gaps=compiler_data_coordinates(assembly,compiled,preprocessed,cwd)
+    # A numeric scaffold word may straddle the end of an authenticated partial
+    # character owner. Prove its C bytes independently; the remaining zero
+    # bytes stay original, unknown, and outside the C extent and credit.
+    for zone in zones:
+        payload=zone['payload'];va=zone['original_address'];end=va+len(payload)
+        width=(-end)%4
+        if not width:continue
+        registrations=[run.get('typed_character_prefix_proof') for run in registry.get(zone['section'].name,[])
+            if zone['name'] in run.get('c_owned_symbols',[])
+            and run.get('typed_character_prefix_proof') is not None]
+        if len(registrations)!=1 or not isinstance(registrations[0],dict):continue
+        registration=registrations[0];bounds=registration.get('original_item_range')
+        if (registration.get('schema')!='typed-character-prefix-proof/1'
+            or registration.get('name')!=zone['name'] or registration.get('range')!=[va,end]
+            or not isinstance(bounds,list) or len(bounds)!=2 or bounds[0]!=va or not end<end+width<=bounds[1]
+            or registration.get('original_sha256')!=hashlib.sha256(original.data).hexdigest()
+            or registration.get('payload_sha256')!=hashlib.sha256(payload).hexdigest()):continue
+        source_path=Path(cwd).parent.parent/tu.get('path','')
+        if (not source_path.is_file() or source_path.stat().st_size>1024*1024
+            or hashlib.sha256(source_path.read_bytes()).hexdigest()!=registration.get('source_sha256')):continue
+        try:
+            _,(_,source_tokens,source_payload)=data_carve._character_definition(source_path.read_text(),zone['name'],True)
+            _,(_,cpp_tokens,cpp_payload)=data_carve._character_definition(preprocessed,zone['name'],True)
+            emitted=data_carve._character_compiler_bytes(assembly,zone['name'],len(payload),zone['section'].name)
+        except (data_carve.CarveError,ValueError,IndexError):continue
+        if source_tokens!=cpp_tokens or source_payload!=payload or cpp_payload!=payload or emitted!=payload:continue
+        section=zone['section'];offset=zone['compiler_offset']+len(payload);retail=original.section(section.name)
+        gaps=[gap for gap in alignment_gaps if gap['section']==section.name
+              and gap['range'][0]==offset and offset+width<=gap['range'][1]]
+        if len(gaps)!=1:continue
+        tail=compiled.section_bytes(section)[offset:offset+width]
+        if len(tail)!=width or any(tail) or original.section_bytes(retail)[end-retail.addr:end-retail.addr+width]!=tail:continue
+        if any(s.shndx==section.index and s.type not in (3,4)
+               and (offset<=s.value<offset+width or s.size>0 and s.value<offset+width and offset<s.value+s.size)
+               for s in compiled.symbols):continue
+        if any(s.shndx==retail.index and s.type not in (3,4)
+               and (va<=s.value<end+width or s.size>0 and s.value<end+width and va<s.value+s.size)
+               for s in original.symbols):continue
+        if original_references(original,end,end+width):continue
+        zone['payload']=payload+tail
+        zone['partial_character_terminal_word']=dict(registration=registration,
+            actual_source_sha256=registration['source_sha256'],C_extent=[va,end],
+            retained_unknown_zero_suffix=[end,end+width],unknown_suffix_C_bytes=0,
+            unknown_suffix_credit=0,original_capacity_proved=False,source_cpp_cc1_prefix_exact=True)
+    pointer_pools=registered_pointer_pool_templates(original,compiled,assembly,preprocessed,registry,scope,cwd)
+    for template in cc1_literal_templates(assembly,preprocessed,compiled):
+        name=template['section'];position=coordinates.get(template['label'])
+        if not position or position[0]!=name or name not in ('.data','.sdata','.rodata'):continue
+        try:compiler_only_section(assembly,preprocessed,cwd,name)
+        except (RuntimeError,ValueError):continue
+        section=compiled.section(name);offset=position[1];payload=template['payload']
+        if compiled.section_bytes(section)[offset:offset+len(payload)]!=payload:continue
+        spans=[]
+        for run in registry.get(name,[]):
+            for span in run.get('c_input_spans',[]):
+                ext=explicit_object_range(span);coords=[int(v,16) for v in span.get('range',[])]
+                if (ext and len(coords)==2 and span.get('section')==name and not span.get('symbols')
+                    and (span.get('anonymous_emission') is True and span.get('credit')=='verified' or span.get('support_only') is True)
+                    and not span.get('uncredited_dependency') and ext[1]-ext[0]==coords[1]-coords[0]
+                    and ext[0]<=offset<offset+len(payload)<=ext[1]):spans.append((coords[0]+offset-ext[0],span))
+        if len(spans)!=1:continue
+        va,span=spans[0];consumers=compiler_pool_consumers(original,compiled,offset,name,va,scope,preprocessed,assembly)
+        consumers.extend(dict(pointer_template=t['label'],original_table_address=table_va,actual_C_R_MIPS32=proof)
+            for t,table_va,off,s,used in pointer_pools for proof in t['source'].get('actual_R_MIPS32_proofs',[])
+            if proof.get('original_pointer')==va and proof.get('compiler_destination_section')==name
+            and proof.get('compiler_destination_offset')==offset)
+        if not consumers:continue
+        padding=[gap for gap in alignment_gaps if gap['section']==name and gap['range'][0]==offset+len(payload)]
+        if len(padding)==1 and 0<padding[0]['range'][1]-padding[0]['range'][0]<=15:
+            end=padding[0]['range'][1];tail=compiled.section_bytes(section)[offset+len(payload):end]
+            if any(tail):continue
+            payload+=tail
+        retail=original.section(name)
+        if original.section_bytes(retail)[va-retail.addr:va-retail.addr+len(payload)]!=payload:continue
+        zones.append(dict(name=template['label'],payload=payload,original_address=va,compiler_offset=offset,
+            section=section,registered_span=span,source_kind='source-proved-anonymous-literal',source=template['source'],
+            original_consumers=consumers,cc1_alignment=padding[0] if len(padding)==1 else None))
+    proofs=[]
+    pattern=re.compile(r'^(\s*/\*\s+\S+\s+([\da-fA-F]{8})\s+([\da-fA-F]{8})\s*\*/\s*\.word\s+)'
+                       r'([A-Za-z_.$][\w.$]*)(?:\s*\+\s*(0x[\da-fA-F]+|\d+))?\s*$',re.M)
+    _,original_values,_=original_symbol_indexes(original.data)
     def replace(match):
-        name = match[1]
-        targets = [s for s in reference.symbols if s.name == name and s.type == 1
-                   and 0 < s.shndx < len(reference.sections)
-                   and reference.sections[s.shndx].name == section_name]
-        if len(targets) != 1 or targets[0].index in nominal:
-            return match[0]
-        target = targets[0]
-        lo = int(mapped['start'], 16) + target.value
-        hi = lo + target.size
-        if lo != int(name[2:], 16) or hi > int(mapped['end'], 16):
-            return match[0]
-        if any(s.name and s.shndx == retail.index and s.value < hi
-               and lo < s.value + max(s.size, 1) for s in original.symbols):
-            return match[0]
-        spans = []
-        for run in registry.get(section_name, []):
-            if name not in run.get('c_owned_symbols', []):
-                continue
-            candidates = list(run.get('c_input_spans', []))
-            if not candidates:
-                # Historical dense carves predate individual span records.
-                # Their entire ordinary C section must equal the original
-                # registered generated range; only its anonymous tail qualifies.
-                generated = [int(v, 16) for v in run.get('generated', [])]
-                offset = lo - generated[0] if len(generated) == 2 else -1
-                if (len(generated) == 2 and generated[1]-generated[0] == section.size
-                    and int(mapped['start'],16) <= generated[0] <= lo < generated[1] <= hi
-                    and 0 <= offset < section.size
-                    and compiled.section_bytes(section) == original.section_bytes(retail)[generated[0]-retail.addr:generated[1]-retail.addr]
-                    and not any(s.name == name for s in compiled.symbols)):
-                    candidates.append(dict(section=section_name,range=[hex(lo),hex(generated[1])],
-                        object_range=[offset,section.size],symbols=[],anonymous_emission=True,credit='verified',
-                        reconstructed_from_accepted_dense_generated_range=run['generated']))
-            for span in candidates:
-                extent = explicit_object_range(span)
-                coords = [int(v, 16) for v in span.get('range', [])]
-                if (not extent or len(coords) != 2 or coords[0] != lo
-                    or span.get('section') != section_name
-                    or span.get('anonymous_emission') is not True
-                    or span.get('credit') != 'verified' or span.get('symbols')
-                    or not 0 <= extent[0] < extent[1] <= section.size
-                    or coords[1] - lo != extent[1] - extent[0]
-                    or not 0 <= hi - coords[1] <= 15):
-                    continue
-                if any(s.type == 1 and s.shndx == section.index
-                       and s.value < extent[1] and extent[0] < s.value + s.size
-                       for s in compiled.symbols):
-                    continue
-                if any(rel.type == 9 and rel.info == section.index
-                       and any(extent[0] <= struct.unpack_from('<I', compiled.data, p)[0] < extent[1]
-                               for p in range(rel.offset, rel.offset + rel.size, 8))
-                       for rel in compiled.sections):
-                    continue
-                expected = original.section_bytes(retail)[lo-retail.addr:hi-retail.addr]
-                payload = compiled.section_bytes(section)[extent[0]:extent[1]]
-                if (expected[:len(payload)] != payload or any(expected[len(payload):])
-                    or original_references(original, coords[1], hi)):
-                    continue
-                spans.append(span)
-        if len(spans) != 1:
-            return match[0]
-        temporary = '.Lobjdiff_registered_pool_' + name[2:]
-        proofs.append(dict(scaffold_name=name, temporary_reference_name=temporary,
-                           original_range=[lo, hi], registered_c_input_span=spans[0],
-                           compiler_only_section_verified=True,
-                           no_retail_named_identity=True, no_nominal_relocation_consumer=True,
-                           complete_storage_preserved_and_no_new_SOURCE_credit=True))
-        return '.local ' + name + '\n' + name + ':\n' + match[2]
-    return pattern.sub(replace, body), proofs
+        va=int(match[2],16);raw=bytes.fromhex(match[3]);value=int.from_bytes(raw,'little')
+        name=match[4];addend=int(match[5],0) if match[5] else 0
+        numeric=re.fullmatch(r'D_([\da-fA-F]+)',name)
+        values={int(numeric[1],16)} if numeric else set(original_values.get(name,()))
+        if len(values)!=1 or value!=next(iter(values))+addend:return match[0]
+        candidates=[row for row in zones if row['original_address']<=va and va+4<=row['original_address']+len(row['payload'])
+                    and row['payload'][va-row['original_address']:va-row['original_address']+4]==raw]
+        if len(candidates)!=1:return match[0]
+        source=candidates[0];name=source['name'];section=source['section'];span=source['registered_span']
+        offset=source['compiler_offset']+va-source['original_address']
+        if compiled.section_bytes(section)[offset:offset+4]!=raw:return match[0]
+        if any(rel.type in (4,9) and rel.info==section.index and any(offset<struct.unpack_from('<I',compiled.data,p)[0]+4 and struct.unpack_from('<I',compiled.data,p)[0]<offset+4
+            for p in range(rel.offset,rel.offset+rel.size,rel.entsize or (12 if rel.type==4 else 8))) for rel in compiled.sections):return match[0]
+        if any(rel.type in (4,9) and any(va<struct.unpack_from('<I',original.data,p)[0]+4 and struct.unpack_from('<I',original.data,p)[0]<va+4
+            for p in range(rel.offset,rel.offset+rel.size,rel.entsize or (12 if rel.type==4 else 8))) for rel in original.sections):return match[0]
+        proofs.append(dict(original_word_address=va,compiler_offset=offset,value=value,c_owner=name,
+            registered_span=span,source_kind=source['source_kind'],full_source_initializer_decoded=True,
+            actual_compiler_relocation_absent=True,original_bytes_retained=True,
+            original_consumers=source.get('original_consumers'),cc1_alignment=source.get('cc1_alignment'),
+            partial_character_terminal_word=source.get('partial_character_terminal_word'),
+            no_alignment_storage_credit=True))
+        return match[1]+f'0x{value:08X}'
+    return pattern.sub(replace,body),proofs
+
+
+def registered_nobits_zero_sizes(body, reference, original, compiled, assembly, registry, tu, identities):
+    """Retain genuine NOTYPE/SIZE0 identities, keeping C extents as proof only."""
+    storage=emitted_storage(assembly);proofs=[]
+    for identity in identities:
+        if (identity['binding'],identity['type'],identity['size'])!=(0,0,0):continue
+        name=identity['target_name'];va=identity['address']
+        targets=[s for s in reference.symbols if s.name==name and (s.bind,s.type)==(0,0)
+                 and s.size>0 and 0<s.shndx<len(reference.sections)]
+        symbols=[s for s in compiled.symbols if s.name==name and (s.bind,s.type,s.size)==(0,0,0)
+                 and 0<s.shndx<len(compiled.sections)]
+        definition=storage.get(name)
+        if len(targets)!=1 or len(symbols)!=1 or not definition or definition.get('extent_kind')!='label-space':continue
+        target,symbol=targets[0],symbols[0];section=compiled.sections[symbol.shndx]
+        if section.type!=8 or reference.sections[target.shndx].name!=section.name or definition['section']!=section.name:continue
+        if target.size!=definition['size']:continue
+        # This route concerns a sub-alignment declaration whose unspecified
+        # ELF size makes native comparison include alignment. Larger accepted
+        # storage annotations and partial allocations are not reinterpreted.
+        if not 0<definition['size']<section.align:continue
+        cnext=min([s.value for s in compiled.symbols if s.name and s.shndx==symbol.shndx
+                   and s.type in (0,1) and s.value>symbol.value]+[section.size])
+        rsection=reference.sections[target.shndx]
+        rnext=min([s.value for s in reference.symbols if s.name and s.shndx==target.shndx
+                   and s.type in (0,1) and s.value>target.value]+[rsection.size])
+        native_extent=(definition['size']+section.align-1)//section.align*section.align
+        if cnext-symbol.value!=native_extent or rnext-target.value!=native_extent:continue
+        next_symbols=[s for s in compiled.symbols if s.name and s.shndx==symbol.shndx and s.value==cnext
+                      and s.name in storage and storage[s.name].get('alignment')==section.align]
+        if len(next_symbols)!=1:continue
+        if original_references(original,va+definition['size'],va+native_extent):continue
+        originals=[s for s in original.symbols if s.name==identity['original_name'] and s.value==va
+                   and (s.bind,s.type,s.size)==(0,0,0) and original.sections[s.shndx].name==section.name]
+        if len(originals)!=1:continue
+        spans=[]
+        for run in registry.get(section.name,[]):
+            if name not in run.get('c_owned_symbols',[]):continue
+            for span in run.get('c_input_spans',[]):
+                ext=explicit_object_range(span);coords=[int(v,16) for v in span.get('range',[])]
+                if (ext and len(coords)==2 and span.get('section')==section.name and name in span.get('symbols',[])
+                    and not span.get('uncredited_dependency') and span.get('credit')!='uncredited_dependency'
+                    and ext[1]-ext[0]==coords[1]-coords[0] and ext[0]<=symbol.value
+                    and symbol.value+definition['size']<=ext[1] and coords[0]+symbol.value-ext[0]==va):spans.append(span)
+        if len(spans)!=1:continue
+        sizes=re.compile(r'^\s*\.size\s+'+re.escape(name)+r'\s*,[^\n]*$',re.M)
+        if len(sizes.findall(body))!=1:continue
+        body=sizes.sub('.size '+name+', 0',body)
+        proofs.append(dict(target_name=name,original_name=identity['original_name'],original_address=va,
+            original_identity=[0,0,0],actual_compiler_identity=[0,0,0],source_storage=definition,
+            registered_span=spans[0],source_extent_remains_separate_from_symbol_size=True,
+            native_inferred_comparison_extent=native_extent,uncredited_alignment_bytes=native_extent-definition['size'],
+            next_cc1_storage_alignment=storage[next_symbols[0].name],
+            all_section_storage_retained=True,new_storage_or_padding_credit=False))
+    return body,proofs
+
+
 
 
 def prepare(root, evidence):

@@ -813,6 +813,8 @@ void On_Ladder(register LadderActor * const actor)
     }
 }
 
+const char D_004CAD30[16] = "HashigoBottom";
+
 int Ladder_Main(LadderActor *actor)
 {
     LadderWork *work = &enepc[actor->number];
@@ -845,8 +847,6 @@ int Ladder_Main(LadderActor *actor)
     ACT_updateMotion(actor);
     return 1;
 }
-
-const char D_004CAD30[16] = "HashigoBottom";
 
 extern short NowLadderStep;
 
