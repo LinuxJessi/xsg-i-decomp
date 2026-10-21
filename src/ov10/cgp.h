@@ -23,7 +23,8 @@ typedef struct CardHand {
     s8 playPoints[2];              /* +0x00: per-kind points available for playing cards */
     u8 unmodeled_02;
     u8 commandFlags;               /* +0x03: CardPlayCommandPlay command 37 sets bit 0 */
-    u8 unmodeled_04[4];
+    u8 deckCount;                  /* +0x04: cards left in the deck, CardPlayYamaCnt's result (CaedGameWinMode) */
+    u8 unmodeled_05[3];
     s16 cards[40];                 /* +0x08 */
 } CardHand;
 
@@ -186,7 +187,9 @@ typedef struct CardCommandControl {
                                     * CardEnemySet switch on it (`lhu` 0x00a32598 / 0x00a32684 from work
                                     * +0x5ACE) and advance it with `sh` */
     CardCommandInput input[2];     /* +0x10: player, enemy */
-    u8 unmodeled_20[8];
+    u8 unmodeled_20[4];
+    s16 exitMenuItem;              /* +0x24: START-menu cursor, 0..3 (NewCMPGameModeExit, lh 0x00a01e5c) */
+    s16 exitMenuSub;               /* +0x26: option row inside the item, -1 = none (lh 0x00a01e50) */
     u16 slideDirection;            /* +0x28: nonzero slides the offset down (CardMainProc 0x00a0859c lhu) */
     u16 slideTimer;                /* +0x2A: frames the slide still runs (0x00a08594 lhu, 0x00a085bc sh) */
     float slideOffset;             /* +0x2C: CardMainProc steps it by 0.1 per frame (0x00a085cc lwc1,
@@ -345,24 +348,32 @@ typedef struct CardGameWork {
     float highlightY;              /* +0x5B64 */
     float highlightScaleX;         /* +0x5B68 */
     float highlightScaleY;         /* +0x5B6C */
-    float cursorPos[3];            /* +0x5B70: cursor world position */
-    u8 unmodeled_5B7C[0x5BE2 - 0x5B7C];
+    float cursorPos[4];            /* +0x5B70: cursor world position, w = 1.0 (CardMainInit 0x00a00ca8) */
+    u8 unmodeled_5B80[0x5BBC - 0x5B80];
+    void *cursorLex[4];            /* +0x5BBC: layout file of each cursor kind, loaded by CardMainInit */
+    void *cursorXtx[4];            /* +0x5BCC: texture file of each cursor kind */
+    u8 unmodeled_5BDC[0x5BE2 - 0x5BDC];
     u16 effectsSet;                /* +0x5BE2: number of effect entries registered */
     u8 unmodeled_5BE4[0x5BF0 - 0x5BE4];
     CardEffect effects[64];        /* +0x5BF0: card-game effect table */
     CardModelEntry models[16];     /* +0x6BF0: models drawn after every fase (0x00a083a0 `addiu $16,$30,0x6BF0`) */
-    u8 unmodeled_70F0;
+    u8 rotStageFlag;               /* +0x70F0: rotation-request byte cleared beside rotStageCooldown/rotStageId
+                                    * (CardTitleInit 0x00a00978, CardMainInit 0x00a00d04, CardGameInit 0x00a253d4);
+                                    * no reader found in the overlay */
     u8 rotStageCooldown;           /* +0x70F1: nonzero while a pending CGPRotStageSub request is in effect;
                                     * CGPRotStageSub sets it to 20 when it stores a new rotStageId */
-    u8 unmodeled_70F2[0x70F3 - 0x70F2];
+    u8 rotStageActive;             /* +0x70F2: CardGameInit sets it to 1 (0x00a253b8); CardTitleInit (0x00a00984) and
+                                    * CardMainInit (0x00a00d10) clear it; no reader found in the overlay */
     u8 rotStageId;                 /* +0x70F3: stage id CGPRotStageSub last stored for a rotation request */
-    u8 unmodeled_70F4[0x7100 - 0x70F4];
+    float rotStageVector[3];       /* +0x70F4: CardGameInit stores -0.9f, -20.0f, 0.0f (0x00a25368, 0x00a25364,
+                                    * 0x00a253e0); CardTitleInit zeroes all three (0x00a00970, 0x00a00964, 0x00a00974) */
     u16 modelFadeInTimer;          /* +0x7100: ticks left for CardModelFadeIn (ov10/tu002) to run */
     u16 fadeOutTimer;              /* +0x7102: ticks left for CardFadeOut (ov10/tu002) to run */
     u8 fadeOutStep;                /* +0x7104: amount CardFadeOut subtracts per tick (read with lbu) */
-    u8 unmodeled_7105[0x7106 - 0x7105];
+    u8 fadeOutFlag;                /* +0x7105: only write is CardMainInit's clear (0x00a00cfc); no reader found */
     u8 fadeOutColor[4];            /* +0x7106: one level per model slot, CardFadeOut clamps each at zero */
-    u8 unmodeled_710A[0x7110 - 0x710A];
+    u8 fadeBaseColor[6];           /* +0x710A: CardMainInit sets the first four to 0x80 beside fadeOutColor;
+                                    * nothing evidences the last two */
     float modelFadeStep;           /* +0x7110: amount CardModelFadeIn adds per tick */
     u8 unmodeled_7114[0x7120 - 0x7114];
     float modelColor[4][4];        /* +0x7120: current color per model slot (0x10-byte rows);
