@@ -592,7 +592,232 @@ def nested_base_names(root, tu_id, allowed, actual):
     return found
 
 
-def original_text(reference, original_path, start, end, destination, cwd, obj, assembler, flags):
+def text_relocations(elf, section):
+    """Return section-relative REL/RELA sites, refusing malformed tables."""
+    offsets = []
+    for rel in elf.sections:
+        if rel.type not in (4, 9) or rel.info != section.index:
+            continue
+        width = 12 if rel.type == 4 else 8
+        verification.require(rel.entsize == width and rel.size % width == 0 and
+                             0 <= rel.offset <= len(elf.data) - rel.size,
+                             'malformed text relocation table')
+        for at in range(rel.offset, rel.offset + rel.size, width):
+            offset = struct.unpack_from('<I', elf.data, at)[0]
+            if elf.e_type != 1:
+                offset -= section.addr
+            verification.require(0 <= offset <= section.size - 4,
+                                 'text relocation outside section')
+            offsets.append(offset)
+    return offsets
+
+
+def unrelocated_text_functions(original, ordinary, base, scope):
+    """Select by verified identity and relocation absence, never operand values.
+
+    A final ELF cannot establish whether a prelink address was symbolic. Keep
+    symbolic references for compiler functions carrying any text relocation.
+    For functions with no relocations in either actual compiler view, fixed
+    original runtime operands provide the appropriate comparison reference.
+    This decision reads no compiler instruction bytes or similarity scores.
+    """
+    selected = []
+    for row in scope:
+        target = verification.original_symbol(original, row['original_symbol'],
+                                               row['size'], row['va'])
+        coordinates = []
+        for compiled in (ordinary, base):
+            symbols = [s for s in compiled.symbols if s.name == target.name and
+                       (s.type, s.bind, s.size) == (2, target.bind, target.size) and
+                       0 < s.shndx < len(compiled.sections)]
+            if len(symbols) != 1:
+                break
+            symbol = symbols[0]
+            section = compiled.sections[symbol.shndx]
+            lo = symbol.value - (section.addr if compiled.e_type != 1 else 0)
+            verification.require(section.name == '.text' and section.flags & 4 and
+                                 0 <= lo < lo + symbol.size <= section.size,
+                                 'verified compiler function outside text section')
+            sites = text_relocations(compiled, section)
+            if any(lo < site + 4 and site < lo + symbol.size for site in sites):
+                break
+            coordinates.append(lo)
+        if len(coordinates) == 2:
+            selected.append(dict(name=target.name, address=target.value, size=target.size,
+                                 binding=target.bind, compiler_offsets=coordinates))
+    return selected
+
+
+def text_relocation_identities(elf, section):
+    """Retain relocation identity even when reassembly renumbers symbols."""
+    text_relocations(elf, section)
+    verification.require(sum(s.type == 2 for s in elf.sections) == 1,
+                         'reference requires one unambiguous symbol table')
+    records = []
+    for rel in elf.sections:
+        if rel.type not in (4, 9) or rel.info != section.index:
+            continue
+        verification.require(0 < rel.link < len(elf.sections) and elf.sections[rel.link].type == 2,
+                             'text relocation has no symbol table')
+        for at in range(rel.offset, rel.offset + rel.size, rel.entsize):
+            offset, info = struct.unpack_from('<II', elf.data, at)
+            symbols = [s for s in elf.symbols if s.index == info >> 8]
+            verification.require(len(symbols) == 1, 'ambiguous text relocation symbol')
+            symbol = symbols[0]
+            identity = (symbol.name, symbol.type, symbol.bind, symbol.value, symbol.size,
+                        elf.sections[symbol.shndx].name if 0 < symbol.shndx < len(elf.sections)
+                        else symbol.shndx)
+            addend = struct.unpack_from('<i', elf.data, at + 8)[0] if rel.type == 4 else None
+            records.append((offset, info & 255, identity, addend))
+    return records
+
+
+def numeric_data_addresses(body, original, scope):
+    """Decode only authenticated contiguous LUI/ADDU/load DATA constructors.
+
+    The named original object, extent, carry and complete register flow must
+    agree with retail bytes. No compiler operand supplies a replacement word.
+    """
+    instruction = re.compile(r'^(\s*/\*\s+\S+\s+([\da-fA-F]{8})\s+'
+                             r'([\da-fA-F]{8})\s+\*/\s*)(\w+)([^\n]*)$', re.M)
+    address = re.compile(r'%(hi|lo)\(([A-Za-z_.$][\w.$]*)(?:\s*\+\s*(0x[\da-fA-F]+|\d+))?\)')
+    rows = list(instruction.finditer(body))
+    edits, proofs = [], []
+    for index, high in enumerate(rows[:-2]):
+        expr = address.search(high[5])
+        if not expr or expr[1] != 'hi':
+            continue
+        va = int(high[2], 16)
+        owners = [r for r in scope if r['address'] <= va and va + 12 <= r['address'] + r['size']]
+        if len(owners) != 1:
+            continue
+        owner = owners[0]
+        add, low = rows[index + 1:index + 3]
+        low_expr = address.search(low[5])
+        if (not low_expr or low_expr[1] != 'lo' or
+                (expr[2], expr[3]) != (low_expr[2], low_expr[3]) or
+                int(add[2], 16) != va + 4 or int(low[2], 16) != va + 8):
+            continue
+        # Labels/directives between these three instructions could add an
+        # entry point. Only whitespace may separate the constructor's rows.
+        if body[high.end():add.start()].strip() or body[add.end():low.start()].strip():
+            continue
+        symbols = [s for s in original.symbols if s.type == 1 and s.size and
+                   s.name.replace('.', '_') == expr[2] and
+                   0 < s.shndx < len(original.sections)]
+        if len(symbols) != 1:
+            continue
+        symbol = symbols[0]
+        data_section = original.sections[symbol.shndx]
+        addend = int(expr[3] or '0', 0)
+        # Overlay ELFs put code and DATA in one executable section. Require
+        # an actual OBJECT extent disjoint from every original FUNC instead
+        # of treating that container's executable flag as a DATA classifier.
+        if (not data_section.flags & 2 or
+                not data_section.addr <= symbol.value < symbol.value + symbol.size <= data_section.addr + data_section.size or
+                not 0 <= addend < symbol.size or
+                any(s.type == 2 and s.size and s.shndx == symbol.shndx and
+                    symbol.value < s.value + s.size and s.value < symbol.value + symbol.size
+                    for s in original.symbols)):
+            continue
+        section = original.sections[next(s.shndx for s in original.symbols
+            if s.name == owner['name'] and s.value == owner['address'] and s.type == 2)]
+        words = []
+        for line in (high, add, low):
+            at = int(line[2], 16)
+            raw = original.section_bytes(section)[at - section.addr:at - section.addr + 4]
+            verification.require(len(raw) == 4 and raw.hex().lower() == line[3].lower(),
+                                 'stale original DATA constructor bytes')
+            words.append(int.from_bytes(raw, 'little'))
+        hi, middle, lo = words
+        reg = (hi >> 16) & 31
+        rs, rt, rd = (middle >> 21) & 31, (middle >> 16) & 31, (middle >> 11) & 31
+        if (high[4] != 'lui' or hi >> 26 != 15 or (hi >> 21) & 31 or not reg or
+                add[4] != 'addu' or middle >> 26 or middle & 0x7ff != 0x21 or rd != reg or
+                (rs == reg) == (rt == reg) or not (rt if rs == reg else rs) or
+                lo >> 26 not in (0x23, 0x1a, 0x1b) or
+                low[4] != {0x23: 'lw', 0x1a: 'ldl', 0x1b: 'ldr'}[lo >> 26] or
+                (lo >> 21) & 31 != reg):
+            continue
+        # The old base must die; otherwise a later low relocation could depend
+        # on its HI16. Accept overwrite-by-load, next LUI, or an authenticated
+        # tail which never reads the assembler scratch register again.
+        if (lo >> 16) & 31 != reg:
+            if index + 3 >= len(rows):
+                continue
+            after = rows[index + 3]
+            if (int(after[2], 16) != va + 12 or va + 16 > owner['address'] + owner['size'] or
+                    body[low.end():after.start()].strip()):
+                continue
+            raw = original.section_bytes(section)[va + 12 - section.addr:va + 16 - section.addr]
+            verification.require(raw.hex().lower() == after[3].lower(), 'stale original DATA base overwrite')
+            word = int.from_bytes(raw, 'little')
+            if after[4] != 'lui' or word >> 26 != 15 or (word >> 21) & 31 or (word >> 16) & 31 != reg:
+                if reg != 1:
+                    continue
+                tail = rows[index + 3:]
+                previous, at, valid, returned = low, va + 12, True, False
+                for line in tail:
+                    if at >= owner['address'] + owner['size']:
+                        break
+                    if int(line[2], 16) != at or body[previous.end():line.start()].strip():
+                        valid = False
+                        break
+                    raw = original.section_bytes(section)[at - section.addr:at - section.addr + 4]
+                    verification.require(raw.hex().lower() == line[3].lower(), 'stale original DATA tail')
+                    word = int.from_bytes(raw, 'little')
+                    op, rs_tail, rt_tail = word >> 26, (word >> 21) & 31, (word >> 16) & 31
+                    if op == 15:  # lui: no input register
+                        reads = []
+                        writes = rt_tail
+                    elif op == 0 and word & 63 in (0x21, 0x2d):  # addu/daddu
+                        reads = [rs_tail, rt_tail]
+                        writes = (word >> 11) & 31
+                    elif op == 0 and word & 63 == 8:  # jr
+                        if rs_tail != 31 or at != owner['address'] + owner['size'] - 8:
+                            valid = False
+                            break
+                        returned = True
+                        reads = [rs_tail]
+                        writes = 0
+                    elif op in (0x23, 0x1a, 0x1b):  # lw/ldl/ldr
+                        reads = [rs_tail] + ([rt_tail] if op != 0x23 else [])
+                        writes = rt_tail
+                    elif op in (0x2b, 0x2c, 0x2d):  # sw/sdl/sdr
+                        reads = [rs_tail, rt_tail]
+                        writes = 0
+                    else:
+                        valid = False
+                        break
+                    if reg in reads or writes == 31:
+                        valid = False
+                        break
+                    previous, at = line, at + 4
+                if not valid or not returned or at != owner['address'] + owner['size']:
+                    continue
+        value = symbol.value + addend
+        signed = (lo & 0xffff) - (0x10000 if lo & 0x8000 else 0)
+        if (hi & 0xffff != ((value + 0x8000) >> 16) & 0xffff or
+                lo & 0xffff != value & 0xffff or ((hi & 0xffff) << 16) + signed != value):
+            continue
+        sites = text_relocations(original, section)
+        if any(at - section.addr < site + 4 and site < at - section.addr + 4
+               for at in (va, va + 8) for site in sites):
+            continue
+        for line, expression, immediate in ((high, expr, f'0x{hi & 0xffff:X}'),
+                                             (low, low_expr, str(signed))):
+            edits.append((line.start(5) + expression.start(), line.start(5) + expression.end(), immediate))
+        proofs.append(dict(function=owner, address=va, original_words=words,
+                           original_object=symbol.name, object_address=symbol.value,
+                           object_size=symbol.size, object_binding=symbol.bind, addend=addend,
+                           changed_sites=[va, va + 8], original_relocations_absent=True))
+    for lo, hi, replacement in reversed(sorted(edits)):
+        body = body[:lo] + replacement + body[hi:]
+    return body, proofs
+
+
+def original_text(reference, original_path, start, end, destination, cwd, obj, assembler, flags,
+                  ordinary=None, base=None, scope=()):
     """Keep original numeric operands where the retail ELF has no relocation.
 
     Turning a literal load into an external symbol invents GPREL16, whereas
@@ -639,6 +864,9 @@ def original_text(reference, original_path, start, end, destination, cwd, obj, a
     body = Path(str(reference) + '.s').read_text()
     expected = bytearray(scaffold.section_bytes(text))
     changes = []
+    selected = (unrelocated_text_functions(original, parsed_elf(ordinary.read_bytes()),
+                parsed_elf(base.read_bytes()), scope) if ordinary is not None and base is not None else [])
+    data_proofs = []
     instruction = re.compile(r'^(\s*/\*\s+\S+\s+([0-9A-Fa-f]{8})\s+'
                              r'([0-9A-Fa-f]{8})\s+\*/\s*)(lwc1|ldc1)\s+(\$f\d+),.*$', re.M)
     constant = re.compile(r'^(\s*/\*\s+\S+\s+([0-9A-Fa-f]{8})\s+([0-9A-Fa-f]{8})\s+\*/\s*)'
@@ -688,7 +916,13 @@ def original_text(reference, original_path, start, end, destination, cwd, obj, a
             expected[va - start:va - start + 4] = data
             return f'{line[1]}{line[4]} {line[5]}, {immediate}($gp)'
         old = path.read_text()
-        new = constant.sub(numeric_constant, instruction.sub(operand, old))
+        new, proofs = numeric_data_addresses(old, original, selected)
+        for proof in proofs:
+            for va in proof['changed_sites']:
+                changes.append(va - start)
+                expected[va - start:va - start + 4] = original.data[offset + va - start:offset + va - start + 4]
+        data_proofs.extend(proofs)
+        new = constant.sub(numeric_constant, instruction.sub(operand, new))
         if new == old:
             return match[0]
         local = destination.parent / 'original-asm' / path.name
@@ -708,12 +942,22 @@ def original_text(reference, original_path, start, end, destination, cwd, obj, a
                          functions(destination) == functions(reference),
                          f'{obj["id"]}: numeric disassembly changed other instructions or function scope')
     # No synthesized relocation may survive on a numeric original operand.
-    for rel in extracted.sections:
-        if rel.type == 9 and rel.info == extracted.section('.text').index:
-            relocated = {struct.unpack_from('<I', extracted.data, rel.offset + i)[0]
-                         for i in range(0, rel.size, rel.entsize)}
-            verification.require(not relocated.intersection(changes),
-                                 f'{obj["id"]}: original numeric operand received an invented relocation')
+    relocated = text_relocations(extracted, extracted.section('.text'))
+    verification.require(not any(change < site + 4 and site < change + 4
+                                 for change in changes for site in relocated),
+                         f'{obj["id"]}: original numeric operand received an invented relocation')
+    retained = [row for row in text_relocation_identities(scaffold, text)
+                if not any(change < row[0] + 4 and row[0] < change + 4 for change in changes)]
+    verification.require(Counter(retained) == Counter(text_relocation_identities(extracted, extracted.section('.text'))),
+                         f'{obj["id"]}: numeric original reference changed another relocation')
+    if data_proofs:
+        destination.with_suffix('.data-addresses.json').write_text(json.dumps(dict(
+            schema='original-numeric-data-addresses/1',
+            original_sha256=hashlib.sha256(original.data).hexdigest(),
+            ordinary_sha256=hashlib.sha256(ordinary.read_bytes()).hexdigest(),
+            base_sha256=hashlib.sha256(base.read_bytes()).hexdigest(),
+            reference_sha256=hashlib.sha256(extracted.data).hexdigest(),
+            pairs=data_proofs), indent=2) + '\n')
     return destination
 
 
@@ -5286,8 +5530,8 @@ def prepare(root, evidence):
                        if section in data_carve.SECTIONS and section!='.text'))
         compile_base=bool(checked['functions']) or data_only
         if compile_base:
-            verified_assembly = (verification.build_object(root, build, obj)[1]
-                                 if checked['functions'] else None)
+            verified_object, verified_assembly = (verification.build_object(root, build, obj)
+                                                   if checked['functions'] else (None, None))
             assembly = compile_source(root, unit_dir, root / obj['source'], base,
                                       ccdir, assembler, flags, skip_asm=True,
                                       verified_assembly=verified_assembly)
@@ -5296,7 +5540,8 @@ def prepare(root, evidence):
                           else [int(v, 16) for v in tu['text']])
             reference = destination / 'original.text.o'
             target_text = original_text(target_text, unit_dir / 'orig' / originals[unit]['file'],
-                                        start, end, reference, unit_dir, obj, assembler, flags)
+                                        start, end, reference, unit_dir, obj, assembler, flags,
+                                        ordinary=verified_object, base=base, scope=checked['functions'])
         literal_pool = False
         if unit == 'main' and checked['functions']:
             entry = tu.get('sections', {}).get('.lit4', {})
