@@ -14,7 +14,7 @@
       "credited_bytes": 0,
       "current_owner_sha256": "2e0a2f869f1e2eacb77a9d3e0c91d785f304dd715f55ac1fbaf848a33a604f86",
       "generator_inputs": {
-        "root:config/objects/data-carves.json": "35d72900abc4d9fd3b0965fbf89ff0b1cb6f50f8c9c7c038eb66568bb26e4195",
+        "root:config/objects/data-carves.json": "efacc6e4435501d2dc137b1a5aba6b5e487e04db8b32d7fa462e3a0c1d5b8c7a",
         "root:config/objects/main.compile.json": "b3c4e0e28cb11e468dba18a156c989ea5ad747e1fcc8fed96386d553e335e075",
         "root:config/objects/main.objects.json": "f7e0c2d5d7b1797d8f475a08e5f72c54988c8424656088f4aff60b51b836dcd9",
         "root:config/originals.json": "c1a3491583a5384e3d398a10d7265774a7d7c39d41289324681a7759954dd41f",
@@ -26,7 +26,7 @@
         "root:include/macro.inc": "86f9b2d691200ef10179e1d9b4f63186da07285c28f2945de940e97d6e8f7e12",
         "root:requirements.txt": "e3f7f2dd662c218657c25f46234f965b2687d4265f26029c767bcbf527bc4c2f",
         "root:tools/configure.py": "b02abcb0f64d3dd9919bd3cbcc3b6771b1bfaeead8d2935c672a5b86b59bbc5b",
-        "root:tools/tu/data_carve.py": "d6bbda7e10d3d382cca691b2ac91f43e39c444969d968e819d2577892cd943d8",
+        "root:tools/tu/data_carve.py": "00b6899bd5913da439e869383ead7d494af83c75ad4a7f8a63c9b4a3c4db5e02",
         "root:tools/tu/elfinfo.py": "a6385e9748bb85181af274136e9c75596af3a21fa0d20cae1a82ed1ccbb2097f",
         "root:tools/tu/legacy_dialect.py": "8fe8cec8eb7ba2048d796d6bf276a53dad017da2b9fcb84aafe9ef365af94464",
         "root:tools/tu/ninja_main.py": "f1c544ef816f6025bd2c8a6256521787bbe2373d00fbc68e5ea198681271f22b",

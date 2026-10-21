@@ -577,11 +577,14 @@ def native_case_vector_provenance(root, unit_dir, tu_id, original=None):
         return []
     items = section_items(context, '.rodata')
     classes_path = root / 'config/tu/source-classes.json'
-    classes = json.loads(classes_path.read_bytes()).get('tus', {}).get(tu_id, {}).get('functions', {})
+    # Private acceptance annotations are optional in the public CI checkout.
+    class_inputs = [classes_path] if classes_path.is_file() else []
+    classes = (json.loads(classes_path.read_bytes()).get('tus', {}).get(tu_id, {}).get('functions', {})
+               if class_inputs else {})
     references = _case_reference_sites(original_bytes)
     if references is None:
         return []
-    dependencies = [metadata, originals, root / 'config/toolchain-identity.json', classes_path,
+    dependencies = [metadata, originals, root / 'config/toolchain-identity.json', *class_inputs,
                     root / ('config/tu-build.json' if (root / 'config/tu-build.json').is_file() else 'config/objects/main.compile.json'),
                     unit_dir / 'tu-manifest.json', original_path, unit_dir / 'include/macro.inc', registry_input_path(root), *tools]
     dependencies += [context['path_of'](piece, '.rodata') for piece in context['pieces']['.rodata']]

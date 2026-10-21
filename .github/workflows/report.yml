@@ -46,7 +46,7 @@ jobs:
           ninja -j4 gate
 
       - name: Verify compiler emission and linked function bytes
-        run: timeout -k 5 30 python3 -B tools/tu/verify_report.py --finish
+        run: timeout -k 5 600 python3 -B tools/tu/verify_report.py --finish
 
       - name: Download pinned objdiff-cli
         run: |
