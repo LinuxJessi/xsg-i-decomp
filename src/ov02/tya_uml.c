@@ -193,7 +193,27 @@ static void tyaUmlDispType3(TyaUmlDispParam *parameter)
                         tyaUmlDispType3Sub1, parameter);
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov02/tya_uml", tyaUmlDispMain);
+extern void *memset(void *dest, int value, unsigned int size);
+extern int tyaUmlDispLoad(TyaUmlDispParam *parameter);
+extern TyaUmlImage image[8];
+
+int tyaUmlDispMain(TyaUmlDispParam *parameter)
+{
+    if (parameter == 0)
+        return -1;
+
+    if (parameter->resource_id < 0) {
+        memset(buffer, 0, 100);
+        memset(image, 0, 128);
+        tyaUmlDispType3(parameter);
+        return 0;
+    }
+    if (parameter->resource_id != parameter->loaded_resource_id)
+        return tyaUmlDispLoad(parameter);
+
+    tyaUmlDispType3(parameter);
+    return 0;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov02/tya_uml", find_text);
 
@@ -219,9 +239,48 @@ static int get_fileno(int target_id, int *file_index)
     return -1;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov02/tya_uml", get_indexno);
+static int get_indexno(int target_id)
+{
+    s16 *entry = base_tbl;
+    int index = 0;
 
-INCLUDE_ASM("asm/nonmatchings/ov02/tya_uml", get_selectno);
+    while (*entry != -2) {
+        s16 value = *entry;
+
+        if (value == -1)
+            index++;
+        if (value != -1 && value != -3 && value - 9000 == target_id)
+            return index;
+        entry++;
+    }
+
+    return -1;
+}
+
+/*
+ * The inverse of get_indexno: walks base_tbl counting n down at every -1
+ * separator and returns the running entry index once n reaches zero.
+ */
+static int get_selectno(int n)
+{
+    s16 *entry = base_tbl;
+    int index = 0;
+
+    while (*entry != -2) {
+        s16 value = *entry;
+
+        if (value == -1)
+            n--;
+        if (value != -1 && value != -3) {
+            if (n == 0)
+                return index;
+            index++;
+        }
+        entry++;
+    }
+
+    return -1;
+}
 
 /* Parses db_fileno.txt into the base identifier table. */
 static void dbfileno_load(void)

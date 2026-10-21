@@ -39,11 +39,53 @@ INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", MakeSprite);
 
 INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", SetDrawStatus);
 
-INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", SetTest);
+/* OV11 SetTest and SetRegAD packet tags are original scaffold-owned
+ * .rodata at 0x00A0BB80 and 0x00A0BB90. Refer to those symbols rather
+ * than introducing new C-emitted constants into the tightly carved TU.
+ * The stack-local copy is needed by the original 128-bit argument ABI. */
+typedef unsigned int Ov11Quadword __attribute__((mode(TI)));
+typedef union Ov11GifTag {
+    struct { u64 lo, hi; } part;
+    Ov11Quadword quad;
+} Ov11GifTag;
 
-INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", SetRegAD);
+extern const Ov11GifTag D_00A0BB80;
+extern const Ov11GifTag D_00A0BB90;
+extern void sceVif1PkCnt(XglPacket *packet, int mode);
+extern void sceVif1PkOpenDirectCode(XglPacket *packet, int mode);
+extern void sceVif1PkOpenGifTag(XglPacket *packet, Ov11Quadword tag);
+extern void sceVif1PkAddGsAD(XglPacket *packet, int reg, u64 value);
+extern void sceVif1PkCloseGifTag(XglPacket *packet);
+extern void sceVif1PkCloseDirectCode(XglPacket *packet);
 
+/* Preserve original compiler-owned NOBITS ordering: the BoxRGBA storage
+ * must precede Pkt in the source declaration order for this pinned TU. */
 static short BoxRGBA[4];
+static XglPacket *Pkt;
+
+/* Experimental C candidates: matching status must come from the full
+ * repository gate and compiler-emission verifier, never from appearance. */
+static void SetTest(int value)
+{
+    Ov11GifTag tag = D_00A0BB80;
+    sceVif1PkCnt(Pkt, 0);
+    sceVif1PkOpenDirectCode(Pkt, 0);
+    sceVif1PkOpenGifTag(Pkt, tag.quad);
+    sceVif1PkAddGsAD(Pkt, 0x47, value);
+    sceVif1PkCloseGifTag(Pkt);
+    sceVif1PkCloseDirectCode(Pkt);
+}
+
+static void SetRegAD(XglPacket *packet, int reg, int value)
+{
+    Ov11GifTag tag = D_00A0BB90;
+    sceVif1PkCnt(packet, 0);
+    sceVif1PkOpenDirectCode(packet, 0);
+    sceVif1PkOpenGifTag(packet, tag.quad);
+    sceVif1PkAddGsAD(packet, reg, value);
+    sceVif1PkCloseGifTag(packet);
+    sceVif1PkCloseDirectCode(packet);
+}
 
 static void ResetRGBA(void)
 {
@@ -429,7 +471,27 @@ static int check_real(void)
 
 INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", paid_action);
 
-INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", linepay_check);
+extern const struct W22LineIds {int index[5];} D_00A0BD50;
+static void linepay_check(void)
+{
+    struct W22LineIds ids = D_00A0BD50;
+    char *root = (char *)&Gwork;
+    char *score_root = root + 6;
+    int cap = ((struct CasinoSaveWork *)SaveWork)->coin_balance;
+    int sum = 0;
+    int *p = ids.index;
+    int count = 4;
+    do {
+        int offset = (*p) * 2;
+        int scoreoff = offset + 80;
+        short *score = (short *)((unsigned long)scoreoff + (unsigned long)score_root);
+        char *at = (char *)((unsigned long)offset + (unsigned long)root);
+        sum += *score;
+        if (cap < sum) { *score = 0; *(short *)(at + 96) = 0; }
+        ++p; --count;
+    } while (count >= 0);
+}
+
 
 INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", slot_key);
 
@@ -466,7 +528,20 @@ static void init_slot(void)
     xglCdReadFile(D_00A0BE70, (void *)SLOT_HELP_TEX_BUFFER, 0, 0);
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", NgTimePrint);
+/* W09 candidate: link to extant OV11 symbol tex_36 at 0x00A0A160;
+   no hard-coded address or new static data. */
+extern const unsigned int D_00A0BE90[4];
+extern unsigned int tex_36[7];
+struct Wave09Rect4 { unsigned int words[4]; };
+static void NgTimePrint(int time)
+{
+    struct Wave09Rect4 rect = *(const struct Wave09Rect4 *)D_00A0BE90;
+    if (time > 900) time = 900;
+    rect.words[2] = (time * 47 * 4) / 900;
+    SetDrawStatus(3, 0);
+    MakeSprite(tex_36, &rect);
+}
+
 
 /* ov11:0x00a03610. Draws the pending nine-reel payout at its fixed screen
  * position, multiplied by the current power-of-two streak factor. pow
@@ -502,7 +577,7 @@ INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", NgLamp);
  * (src/main/xgl_packet.c, still INCLUDE_ASM there). */
 extern void xglPacketTextureTrans(void *buffer);
 static void SetRegAD(XglPacket *packet, int reg, int value);
-static XglPacket *Pkt;
+/* Pkt defined above next to the packet helper candidates. */
 
 static void NineGameBG_Draw(void)
 {
@@ -540,7 +615,24 @@ static void NgAllStop(void)
 
 INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", NgCheckReal);
 
-INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", get_ngreal_shape);
+/* Hypothesis, OV11 0x00A03CA0. Original reads a 28-byte descriptor with
+ * three unaligned doubleword pairs and one final word; the struct copy
+ * is intended to expose that original GCC bulk-copy lowering. */
+struct Wave06Sprite28 { unsigned int word[7]; };
+static void *get_ngreal_shape(unsigned int *out, int reel, int shape)
+{
+    short *const *reel_table = (short *const *)0x00A0A738;
+    const struct Wave06Sprite28 *sprites = (const struct Wave06Sprite28 *)0x00A0A788;
+    short *indices;
+    int selected;
+    if (shape >= 21) shape -= 21;
+    if (shape < 0) shape += 21;
+    indices = reel_table[reel];
+    selected = indices[shape];
+    *(struct Wave06Sprite28 *)out = sprites[selected];
+    return out;
+}
+
 
 INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", DrawNgPanel);
 
@@ -1201,7 +1293,24 @@ static void test_mode(void)
 
 INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", DecPrint2);
 
-INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", UtlCurPrint);
+/* Wave 14: new C order hwxy; unverified, no inline assembly. */
+extern unsigned int Tex_106[56];
+extern int anm_107;
+static void UtlCurPrint(int x, int y)
+{
+    struct W14Rect { int x, y, w, h; } rect;
+    int n;
+    xglPacketTextureTrans((void *)0x0118B000);
+    SetRegAD(Pkt, 0x3F, 0);
+    rect.h = 24;
+    rect.w = 24;
+    rect.x = x;
+    rect.y = y;
+    n = anm_107;
+    MakeSprite(Tex_106 + 7 * (n % 8), &rect);
+    anm_107 = anm_107 + 1;
+}
+
 
 INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", coin_main);
 
