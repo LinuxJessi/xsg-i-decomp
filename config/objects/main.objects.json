@@ -3156,7 +3156,7 @@
         },
         {
           "c_split": false,
-          "end": "0x004D2188",
+          "end": "0x004D2170",
           "ordinal": 269,
           "piece": "map_2",
           "start": "0x004D2130",
@@ -3167,7 +3167,7 @@
           "end": "0x004D2200",
           "ordinal": 271,
           "piece": "unit6003",
-          "start": "0x004D2188",
+          "start": "0x004D2170",
           "tu": "unit6003"
         },
         {
@@ -5816,6 +5816,27 @@
         "reason": "differs from ELF name fname.67",
         "target": "fname_67",
         "va": "0x004DFF60"
+      },
+      {
+        "name": "D_004C7670",
+        "target": "D_004C7650",
+        "offset": 32,
+        "va": "0x004C7670",
+        "reason": "inside existing scaffold storage"
+      },
+      {
+        "name": "D_004C7698",
+        "target": "D_004C7650",
+        "offset": 72,
+        "va": "0x004C7698",
+        "reason": "inside existing scaffold storage"
+      },
+      {
+        "name": "D_004C89F8",
+        "target": "D_004C89E0",
+        "offset": 24,
+        "va": "0x004C89F8",
+        "reason": "inside existing scaffold storage"
       }
     ],
     "conflicts": [
@@ -81238,22 +81259,65 @@
           ],
           "bounds": [
             "0x004D2128",
-            "0x004D2188"
+            "0x004D2170"
           ],
-          "end": "0x004D2188",
-          "evidence_source": "map",
+          "end": "0x004D2170",
+          "evidence_source": "map and recovered compiler literal ownership",
           "pieces": [
             {
               "c_split": false,
-              "end": "0x004D2188",
+              "end": "0x004D2170",
               "name": "map_2",
               "start": "0x004D2130"
             }
           ],
-          "rule": "anchored start",
-          "size": 88,
+          "rule": "consumer-owned anonymous literal boundary",
+          "size": 64,
           "splat_type": "rodata",
-          "start": "0x004D2130"
+          "start": "0x004D2130",
+          "data_owner_correction": {
+            "schema": "consumer-owned-literal-boundary/1",
+            "basis": "Inferred reconstruction from the exclusive unit6003_draw consumer and exact complete compiler sections; no original positive symbol or debug owner is claimed.",
+            "previous_section": {
+              "anchored": [
+                "0x004D2130",
+                "0x004D2168"
+              ],
+              "bounds": [
+                "0x004D2128",
+                "0x004D2188"
+              ],
+              "end": "0x004D2188",
+              "evidence_source": "map",
+              "pieces": [
+                {
+                  "c_split": false,
+                  "end": "0x004D2188",
+                  "name": "map_2",
+                  "start": "0x004D2130"
+                }
+              ],
+              "rule": "anchored start",
+              "size": 88,
+              "splat_type": "rodata",
+              "start": "0x004D2130"
+            },
+            "literal_range": [
+              "0x004D2170",
+              "0x004D2186"
+            ],
+            "actual_alignment_range": [
+              "0x004D2186",
+              "0x004D2188"
+            ],
+            "transferred_bytes": 24,
+            "global_size_delta": 0,
+            "unknown_padding_transferred": false,
+            "source_proposal_sha256": [
+              "6488a6142dc52006da8397100b47ecc6d134a31ec9aaa9ca6456721c316f3656",
+              "fb383e7b2bf09cd80e4e50b415420cf7df5720c7c93e3742335b9277cd630324"
+            ]
+          }
         }
       },
       "shared_contract": {
@@ -81673,7 +81737,7 @@
         },
         ".rodata": {
           "anchored": [
-            "0x004D2188",
+            "0x004D2170",
             "0x004D21F4"
           ],
           "bounds": [
@@ -81681,19 +81745,62 @@
             "0x004D2200"
           ],
           "end": "0x004D2200",
-          "evidence_source": "map",
+          "evidence_source": "map and recovered compiler literal ownership",
           "pieces": [
             {
               "c_split": false,
               "end": "0x004D2200",
               "name": "unit6003",
-              "start": "0x004D2188"
+              "start": "0x004D2170"
             }
           ],
-          "rule": "anchored start",
-          "size": 120,
+          "rule": "consumer-owned anonymous literal boundary",
+          "size": 144,
           "splat_type": "rodata",
-          "start": "0x004D2188"
+          "start": "0x004D2170",
+          "data_owner_correction": {
+            "schema": "consumer-owned-literal-boundary/1",
+            "basis": "Inferred reconstruction from the exclusive unit6003_draw consumer and exact complete compiler sections; no original positive symbol or debug owner is claimed.",
+            "previous_section": {
+              "anchored": [
+                "0x004D2188",
+                "0x004D21F4"
+              ],
+              "bounds": [
+                "0x004D2168",
+                "0x004D2200"
+              ],
+              "end": "0x004D2200",
+              "evidence_source": "map",
+              "pieces": [
+                {
+                  "c_split": false,
+                  "end": "0x004D2200",
+                  "name": "unit6003",
+                  "start": "0x004D2188"
+                }
+              ],
+              "rule": "anchored start",
+              "size": 120,
+              "splat_type": "rodata",
+              "start": "0x004D2188"
+            },
+            "literal_range": [
+              "0x004D2170",
+              "0x004D2186"
+            ],
+            "actual_alignment_range": [
+              "0x004D2186",
+              "0x004D2188"
+            ],
+            "transferred_bytes": 24,
+            "global_size_delta": 0,
+            "unknown_padding_transferred": false,
+            "source_proposal_sha256": [
+              "6488a6142dc52006da8397100b47ecc6d134a31ec9aaa9ca6456721c316f3656",
+              "fb383e7b2bf09cd80e4e50b415420cf7df5720c7c93e3742335b9277cd630324"
+            ]
+          }
         }
       },
       "shared_contract": {
