@@ -2259,3 +2259,9 @@ void MenuTec(void)
 /* Defined after MenuTec: the original .sdata holds it at 0x004DB518, after
  * every string literal of the TU's functions (MenuTec's ends at 0x004DB517). */
 MenuTecData *MenuTecDataBuf = 0;
+
+extern const char D_004C89E0[];
+extern const char D_004C89F8[];
+
+/* MenuTecInfoMain copies these two character-selection prompts together. */
+const char *D_004DB378[2] = { D_004C89E0, D_004C89F8 };

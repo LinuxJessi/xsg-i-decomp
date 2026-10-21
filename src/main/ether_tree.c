@@ -127,7 +127,7 @@ struct EtherTreeColorTable {
     unsigned char colors[4][4];
 };
 
-const struct EtherTreeColorTable D_004C9AB0 = {
+const struct EtherTreeColorTable D_004C9AB0 __attribute__((aligned(16))) = {
     { { 0x00, 0x00, 0x00, 0x00 },
       { 0x40, 0x40, 0x40, 0x60 },
       { 0x80, 0x80, 0x80, 0x80 },

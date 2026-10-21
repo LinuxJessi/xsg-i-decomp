@@ -171,13 +171,14 @@ def data_sizes(root, objects):
         for o in objects}
 
 
-def linked_object_complete(root, build, obj, placed, derived, fills, original):
+def linked_object_complete(root, build, obj, placed, derived, fills, original, linked=None):
     """Objdiff's complete flag means the entire original object is recompiled.
 
     Check actual linker inputs, including initialized data and BSS. Partial
     data carves do not complete a TU while any original storage comes from an
     assembly input. Linker alignment fill is not an unrecovered data object.
     """
+    linked_object_complete.last_alignment_artifacts = {}
     unit, stem = obj['unit'], Path(obj['source']).stem
     compiled, _ = build_object(root, build, obj)
     owned = {str(compiled.relative_to(build / unit))}
@@ -189,6 +190,13 @@ def linked_object_complete(root, build, obj, placed, derived, fills, original):
     if unit == 'main':
         manifest = read(build / unit / 'tu-manifest.carved.json')
         tu = next(t for t in manifest['tus'] if t['name'] == stem)
+        from tu.data_completion import validate_compiler_suffix_alignments
+        if not validate_compiler_suffix_alignments(root, build / unit, tu,
+                                                   compiled, build_object(root, build, obj)[1],
+                                                   manifest=manifest, placed=placed, fills=fills, linked=linked):
+            return False
+        linked_object_complete.last_alignment_artifacts = dict(
+            validate_compiler_suffix_alignments.last_artifacts)
         spans = [(int(p['start'], 16), int(p['end'], 16))
                  for section in tu['sections'].values() for p in section.get('pieces', [])]
     else:
@@ -294,8 +302,26 @@ def finish(root, build, snapshot):
                     verified.append(dict(name=name, original_symbol=target.name,
                                          va=va, size=size, category=category,
                                          sha256=hashlib.sha256(b).hexdigest()))
+            linked_object_complete.last_alignment_artifacts = {}
             complete = (bool(obj['functions']) and len(verified) == len(obj['functions'])
-                        and linked_object_complete(root, build, obj, placed, derived, fills, original))
+                        and linked_object_complete(root, build, obj, placed, derived, fills, original, linked))
+            for name, expected in linked_object_complete.last_alignment_artifacts.items():
+                path = Path(name)
+                require(path.resolve().is_relative_to(root.resolve()),
+                        'ordinary alignment object evidence lies outside the build root')
+                relative = path.relative_to(root).as_posix()
+                # This reviewed recipe is a source/config input installed
+                # BEFORE --begin. It must match the frozen public snapshot;
+                # ordinary compiled artifacts still have the freshness gate.
+                if relative == 'config/objects/data-input-provenance.json':
+                    require(snapshot['files'].get(relative) == expected,
+                            'external input authority was absent/different at verification begin')
+                    actual = digest(path)
+                else:
+                    actual = fresh(path)
+                require(actual == expected,
+                        'ordinary alignment object evidence changed or lies outside the build root')
+                artifacts[str(path.relative_to(root))] = expected
             results[obj['id']] = dict(functions=verified, complete=complete)
     require(not problems, f'source/object scope inconsistencies: {problems[:3]}')
     sizes = data_sizes(root, objects)

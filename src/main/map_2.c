@@ -375,5 +375,3 @@ void MAP_getHeight(MapPosition *position)
 }
 
 
-
-const char D_004D2170[24] = "frame_type error(%d)\n";

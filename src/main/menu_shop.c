@@ -3167,3 +3167,12 @@ void MenuShopCore(void) {
 }
 
 INCLUDE_ASM("asm/main/nonmatchings/menu_shop", MenuShopMain);
+
+/* MenuShopModelMain copies all four coordinates to the camera at +0xD0. */
+const float D_004C7390[4] = { -2.0f, 1.8f, 8.5f, 1.0f };
+
+extern const char D_004C7670[];
+extern const char D_004C7698[];
+
+/* MenuShopInfo copies this pair and chooses the AG or VX maker prompt. */
+const char *D_004DB138[2] = { D_004C7670, D_004C7698 };

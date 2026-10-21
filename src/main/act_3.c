@@ -805,7 +805,7 @@ static void Footstep(ActShadowActor *actor)
         actor->previous_frame = 99;
         if ((motion == 1 || motion == 3) && !(actor->motion_flags & 2)) {
             sound = 0;
-            contacts = D_00478CCC[((ActFootstepSaveData *)SaveData)->language];
+            contacts = foot_tbl[((ActFootstepSaveData *)SaveData)->language - 1];
             if (motion == 3) contacts += 2;
             frame = F2I(actor->motion_frame / D_004D85C8);
             contact_frame = contacts[0];

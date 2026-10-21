@@ -109,6 +109,7 @@ stay original bytes at their original addresses; C literals keep theirs).
 import argparse
 import ast
 import copy
+import functools
 import hashlib
 import json
 import os
@@ -384,15 +385,401 @@ def piece_items(path, start, end):
     return header, items
 
 
-def write_piece_file(path, header, items):
+def _piece_text(header, items):
     lines = header + [line for it in items for line in it['block']['lines']]
     while lines and not lines[-1].strip():
         lines.pop()                    # as splat ends a data file: no trailing blank line
-    text = '\n'.join(lines) + '\n'
+    return '\n'.join(lines) + '\n'
+
+
+def write_piece_file(path, header, items):
+    text = _piece_text(header, items)
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     if not path.is_file() or path.read_text() != text:
         path.write_text(text)
+
+
+def _case_digest(value):
+    return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+
+
+def _case_va(elf, address, size):
+    section = next((s for s in elf.sections if s.type != 8 and
+                    s.addr <= address and address + size <= s.addr + s.size), None)
+    if section is None:
+        raise CarveError('case-vector witness lies outside its ELF section')
+    return elf.data[section.offset + address - section.addr:section.offset + address - section.addr + size]
+
+
+def _case_backend(root, record):
+    """Authenticate the selected backend's case-label rule, not original alignment."""
+    tc = Toolchain(root)
+    contract = record['contract']
+    recipe = tc.contract(contract['id'])
+    if (tc.relaxed or recipe['flags'] != contract['flags'] or
+            recipe.get('driver_flags') != ['-nostdinc', '-fno-builtin'] or
+            recipe.get('assembler_argv') != ['-EL', '-m5900', '-mabi=eabi', contract['flags'][1], '-I', '.']):
+        raise CarveError('case-vector selected contract differs')
+    entry = tc.entry(recipe['compiler'])
+    paths = [tc.dir(recipe['compiler']) / name for name in entry['files']]
+    for path in paths:
+        if hashlib.sha256(path.read_bytes()).hexdigest() != entry['files'][path.name]:
+            raise CarveError('case-vector compiler payload differs')
+    compiler = Elf((tc.dir(recipe['compiler']) / 'cc1').read_bytes())
+    if hashlib.sha256(compiler.data).hexdigest() != contract['cc1_sha256']:
+        raise CarveError('case-vector cc1 differs from provider contract')
+    def symbol(name):
+        matches = [s for s in compiler.symbols if s.name == name]
+        if len(matches) != 1:
+            raise CarveError('case-vector backend symbol missing/ambiguous: ' + name)
+        return matches[0]
+    def string(address):
+        section = next(s for s in compiler.sections if s.addr <= address < s.addr + s.size)
+        off = section.offset + address - section.addr
+        return compiler.data[off:compiler.data.index(b'\0', off)].decode('ascii')
+    flags, switches = symbol('target_flags'), symbol('target_switches')
+    options = {}
+    for offset in range(0, switches.size, 12):
+        name, value, _ = struct.unpack('<IiI', _case_va(compiler, switches.value + offset, 12))
+        name = string(name)
+        if name in ('', '5900'):
+            if name in options:
+                raise CarveError('ambiguous backend target default')
+            options[name] = value
+    scan = symbol('final_scan_insn')
+    body = _case_va(compiler, scan.value, scan.size)
+    # The closed x86 sequence is independently evidenced for this EE backend:
+    # readonly_data_section; choose8/16 by R5900; log2; fprintf(".align%d").
+    prefix = b'\xb8\x08\0\0\0\xba\0\0\0\0\xf6\x05' + struct.pack('<I', flags.value + 3) + b'\x02\x74\x0a\xb8\x10\0\0\0\xba\0\0\0\0\x52\x50\xe8'
+    positions = [m.start() for m in re.finditer(re.escape(prefix), body)]
+    if len(positions) != 1 or set(options) != {'', '5900'} or any(not value & 0x02000000 for value in options.values()):
+        raise CarveError('unsupported selected case-label alignment rule')
+    at = positions[0]
+    sequence = body[at - 5:at + len(prefix) + 22]
+    before = scan.value + at - 5
+    if (body[at - 5] != 0xe8 or before + 5 + struct.unpack_from('<i', body, at - 4)[0] != symbol('readonly_data_section').value or
+            body[at + len(prefix) + 4:at + len(prefix) + 6] != b'\x50\x68'):
+        raise CarveError('case-label branch is not readonly alignment emission')
+    call = scan.value + at + len(prefix) - 1
+    if call + 5 + struct.unpack_from('<i', body, at + len(prefix))[0] != symbol('exact_log2_wide').value:
+        raise CarveError('case-label alignment does not use exact log2')
+    address = struct.unpack_from('<I', body, at + len(prefix) + 6)[0]
+    if string(address) != '\t.align\t%d\n':
+        raise CarveError('case-label output format differs')
+    return dict(alignment=16, compiler_sha256=hashlib.sha256(compiler.data).hexdigest(),
+                target_flag=0x02000000, target_defaults=options,
+                function='final_scan_insn', rule_offset=at - 5,
+                rule_sha256=hashlib.sha256(sequence).hexdigest(),
+                contract_sha256=_case_digest(contract)), paths
+
+
+@functools.lru_cache(maxsize=2)
+def _case_reference_sites(original_bytes):
+    """Pure byte-keyed conservative index; never caches classification/admission."""
+    original, sites = Elf(original_bytes), []
+    for section in original.sections:
+        if section.type in (4, 9) and section.size:
+            return None  # unresolved original relocation evidence is unsupported
+        if not section.flags & 2 or section.type == 8:
+            continue
+        data = original.section_bytes(section)
+        if not section.flags & 4:
+            sites.extend((section.addr + off, struct.unpack_from('<I', data, off)[0])
+                         for off in range(0, len(data) - 3, 4))
+            continue
+        upper = {}
+        for off in range(0, len(data) - 3, 4):
+            word, = struct.unpack_from('<I', data, off)
+            opcode, rs, rt = word >> 26, word >> 21 & 31, word >> 16 & 31
+            immediate = word & 65535
+            signed = immediate - (65536 if immediate & 32768 else 0)
+            if opcode == 15:
+                upper[rt] = (immediate << 16, off)
+            elif opcode in (8, 9, 13) or 32 <= opcode <= 63:
+                if rs in upper and off - upper[rs][1] <= 128:
+                    value = upper[rs][0] | immediate if opcode == 13 else upper[rs][0] + signed
+                    sites.append((section.addr + off, value))
+                if rs == 28 and original.gp:
+                    sites.append((section.addr + off, original.gp + signed))
+    return tuple(sites)
+
+
+def _case_dispatch(words):
+    """One closed bounded-bias/scale/LUI+ADDU+LW/JR shape, all registers checked."""
+    def fields(w):
+        immediate = w & 65535
+        return (w >> 26, w >> 21 & 31, w >> 16 & 31, w >> 11 & 31,
+                w >> 6 & 31, w & 63, immediate, immediate - (65536 if immediate & 32768 else 0))
+    d = list(map(fields, words))
+    bias, bound, branch, delay, scale, upper, add, load, jump, nop = d
+    if not (bias[0] == 9 and bias[2] and bound[0] == 11 and bound[1] == bias[2] and bound[2] and bound[2] != bias[2]
+            and 1 < bound[6] <= 4096 and branch[:3] == (4, bound[2], 0)
+            and scale[0] == scale[1] == scale[5] == 0 and scale[2] == bias[2] and scale[3] and scale[4] == 2
+            and upper[0] == 15 and upper[2] and add[0] == 0 and add[5] == 33
+            and add[1] == add[3] == upper[2] and add[2] == scale[3]
+            and upper[2] != scale[3] and load[0] == 35 and load[1] == add[3] and load[2]
+            and jump[0] == 0 and jump[5] == 8 and jump[1] == load[2] and jump[2:5] == (0, 0, 0)
+            and words[9] == 0):
+        return None
+    live = {bias[2], bound[2], scale[3], upper[2]}
+    if words[3] and not (delay[0] == 9 and delay[1] == delay[2] and delay[2] not in live):
+        return None
+    return dict(count=bound[6], bias=bias[7], default_displacement=branch[7],
+                table=(upper[6] << 16) + load[7])
+
+
+def native_case_vector_provenance(root, unit_dir, tu_id, original=None):
+    """Provider-only current semantic reconstruction, zero source/storage credit.
+
+    This configure-safe API needs no compiled object. It authenticates the whole
+    original vector and current scaffold tokens. Runtime must ALSO validate the
+    actual regenerated object/relocations/map. Original source/alignment remains
+    unknown; hand-ASM and optimized/stripped computed-goto alternatives cannot be
+    disproved from bytes alone. No predecessor/gap/completion input is accepted.
+    """
+    root, unit_dir = Path(root), Path(unit_dir)
+    classifier_sha256 = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+    metadata = root / 'config/objects/main.objects.json'
+    metadata_bytes = metadata.read_bytes()
+    public = json.loads(metadata_bytes)
+    owners = [t for t in public['tus'] if t['id'] == tu_id]
+    if len(owners) != 1:
+        return []
+    owner = owners[0]
+    if (owner.get('kind') != 'gcc' or owner.get('category') != 'game' or
+            owner.get('in_scope') is not True or owner.get('boundary_kind') != 'gcc_marker' or
+            owner.get('contract', {}).get('compiler_profile') not in ('ee-gcc2_96-realconv-lp7', 'ee-gcc2_96-realconv')):
+        return []
+    record = _character_tu_record(root, tu_id)
+    if (record.get('kind') != 'gcc' or record.get('category') != 'game' or record.get('in_scope') is not True or
+            record['contract'].get('source_class') != 'game_c' or record['contract']['flags'] not in (['-O2', '-G0'], ['-O2', '-G8'])):
+        return []
+    originals = root / 'config/originals.json'
+    original_identity = json.loads(originals.read_bytes())['units']['main']
+    original_path = unit_dir / 'orig' / original_identity['file']
+    original_bytes = original_path.read_bytes()
+    if hashlib.sha256(original_bytes).hexdigest() != original_identity['sha256']:
+        raise CarveError('case-vector original identity differs')
+    parsed_original = Elf(original_bytes)
+    if original is not None and (original.data != original_bytes or
+            [vars(s) for s in original.symbols] != [vars(s) for s in parsed_original.symbols] or
+            [vars(s) for s in original.sections] != [vars(s) for s in parsed_original.sections]):
+        raise CarveError('case-vector supplied original differs')
+    original = parsed_original
+    text_lo, text_hi = hx(owner['text']['start']), hx(owner['text']['end'])
+    if not all(any(s.name == 'gcc2_compiled.' and s.value == address for s in original.symbols)
+               for address in (text_lo, text_hi)):
+        return []
+    backend, tools = _case_backend(root, record)
+    context = tu_context(root, 'main', unit_dir, tu_id)
+    if '.rodata' not in context['pieces']:
+        return []
+    items = section_items(context, '.rodata')
+    classes_path = root / 'config/tu/source-classes.json'
+    classes = json.loads(classes_path.read_bytes()).get('tus', {}).get(tu_id, {}).get('functions', {})
+    references = _case_reference_sites(original_bytes)
+    if references is None:
+        return []
+    dependencies = [metadata, originals, root / 'config/toolchain-identity.json', classes_path,
+                    root / ('config/tu-build.json' if (root / 'config/tu-build.json').is_file() else 'config/objects/main.compile.json'),
+                    unit_dir / 'tu-manifest.json', original_path, unit_dir / 'include/macro.inc', registry_input_path(root), *tools]
+    dependencies += [context['path_of'](piece, '.rodata') for piece in context['pieces']['.rodata']]
+    inputs = [dict(path=str(p), sha256=hashlib.sha256(p.read_bytes()).hexdigest())
+              for p in sorted({Path(p).resolve() for p in dependencies}, key=str)]
+    result = []
+    for function in owner['functions']:
+        registered = classes.get(function['name'], {})
+        if any(registered.get(key) in ('ee-asm', 'ee-asm-leaf', 'ee-fpu', 'ee-vu-clip', 'crt0-entry')
+               for key in ('source_class', 'function_class')):
+            continue
+        matches = [s for s in original.symbols if s.type == 2 and s.name == function['name'] and
+                   s.value == hx(function['va']) and s.size == function['size'] and
+                   s.bind == (0 if function['binding'] == 'LOCAL' else 1)]
+        if len(matches) != 1:
+            continue
+        parent = matches[0]
+        body = va_bytes(original, parent.value, parent.size)
+        if body is None or len(body) % 4:
+            continue
+        for offset in range(0, len(body) - 39, 4):
+            words = list(struct.unpack_from('<10I', body, offset))
+            dispatch = _case_dispatch(words)
+            if dispatch is None:
+                continue
+            lo, hi = dispatch['table'], dispatch['table'] + 4 * dispatch['count']
+            found = [it for it in items if (it['start'], it['end']) == (lo, hi)]
+            section = next((s for s in original.sections if s.name == '.rodata' and s.type == 1 and
+                            s.flags & 2 and not s.flags & 5 and s.addr <= lo < hi <= s.addr + s.size), None)
+            if len(found) != 1 or section is None or any(s.type == 1 and s.size > 0 and s.value < hi and lo < s.value + s.size for s in original.symbols):
+                continue
+            payload = va_bytes(original, lo, hi - lo)
+            targets = list(struct.unpack('<' + 'I' * dispatch['count'], payload))
+            default = parent.value + offset + 12 + 4 * dispatch['default_displacement']
+            if not parent.value <= default < parent.value + parent.size or any(
+                    target % 4 or not parent.value <= target < parent.value + parent.size for target in targets):
+                continue
+            if [(site, target) for site, target in references if lo <= target < hi] != [(parent.value + offset + 28, lo)]:
+                continue
+            item = found[0]
+            if item['labels'] != [item['name']]:
+                continue
+            addressed = []
+            permitted = True
+            for line in item['block']['lines']:
+                match = re.fullmatch(r'\s*/\* [0-9A-F]+ ([0-9A-F]{8}) ([0-9A-F]{8}) \*/\s*\.word\s+(\.L[0-9A-Fa-f]{8})\s*', line)
+                if match:
+                    addressed.append((int(match[1], 16), int(match[3][2:], 16), bytes.fromhex(match[2])))
+                elif (line.strip() and not ALIGN.fullmatch(line) and
+                      not re.fullmatch(r'nonmatching\s+' + re.escape(item['name']), line) and
+                      not re.fullmatch(r'dlabel\s+' + re.escape(item['name']), line) and
+                      not re.fullmatch(r'enddlabel\s+' + re.escape(item['name']), line) and
+                      not re.fullmatch(r'\.size\s+' + re.escape(item['name']) + r',\s*\.\s*-\s*' + re.escape(item['name']), line)):
+                    permitted = False
+            if (not permitted or len(addressed) != len(targets) or any(
+                    address != lo + 4 * index or target != targets[index] or raw != payload[4 * index:4 * index + 4]
+                    for index, (address, target, raw) in enumerate(addressed))):
+                continue
+            alignment_lines = [line for line in item['block']['lines'] if ALIGN.fullmatch(line)]
+            if alignment_lines not in (['.align 3'], ['.align 4']) or lo % backend['alignment']:
+                continue
+            result.append(dict(schema='native-case-vector-reconstruction/1', provider_tu=tu_id,
+                classifier_sha256=classifier_sha256,
+                section='.rodata', table_range=[lo, hi], slot_count=len(targets), targets=targets,
+                table_sha256=hashlib.sha256(payload).hexdigest(), alignment=backend['alignment'],
+                parent=dict(name=parent.name, va=parent.value, size=parent.size, binding=parent.bind,
+                            sha256=hashlib.sha256(body).hexdigest()),
+                dispatch=dict(va=parent.value + offset, words=words, bias=dispatch['bias'],
+                              bound=dispatch['count'], default_target=default),
+                scaffold=dict(item_range=[lo, hi], item_tokens_sha256=_case_digest(item['block']['lines'])),
+                backend=backend, inputs=inputs, credited_bytes=0, grants_source_eligibility=False,
+                original_input_alignment_proved=False, original_source_type_proved=False))
+    # Use the ordinary item-boundary carve planner to recover the WHOLE retained
+    # provider input. The vector is only a subrange of that actual input.
+    runs = unit_runs(load_registry(root), 'main').get(tu_id, {}).get('.rodata', [])
+    if result and runs:
+        pieces = context['pieces']['.rodata']
+        def read_piece(piece):
+            return piece_items(context['path_of'](piece, '.rodata'), piece['start'], piece['end'])
+        planned = repiece(context['name'], pieces, declared_runs(tu_id, '.rodata', runs), read_piece)
+        retained = []
+        for receipt in result:
+            inputs_for_vector = [p for p in planned if not p['c_split'] and p['carved'] and
+                                 p['start'] <= receipt['table_range'][0] < receipt['table_range'][1] <= p['end']]
+            if len(inputs_for_vector) != 1:
+                continue
+            piece = inputs_for_vector[0]
+            projected = _native_case_vector_items(piece['items'], result)
+            assembly = _piece_text(piece['header'], projected)
+            if (receipt['table_range'][0] - piece['start']) % receipt['alignment']:
+                continue
+            receipt['input'] = dict(section='.rodata', original_range=[piece['start'], piece['end']],
+                size=piece['end'] - piece['start'], source=f'{CARVE_DIR}/main/{piece["name"].split("/")[-1]}.rodata.s',
+                object=f'build/data/{piece["name"]}.rodata.o', assembly=assembly,
+                assembly_sha256=hashlib.sha256(assembly.encode()).hexdigest(),
+                original_payload_sha256=hashlib.sha256(va_bytes(original, piece['start'], piece['end'] - piece['start'])).hexdigest())
+            retained.append(receipt)
+        result = retained
+    else:
+        result = []
+    if (hashlib.sha256(Path(__file__).read_bytes()).hexdigest() != classifier_sha256 or
+            metadata.read_bytes() != metadata_bytes or _character_tu_record(root, tu_id) != record or
+            any(hashlib.sha256(Path(p['path']).read_bytes()).hexdigest() != p['sha256'] for p in inputs)):
+        raise CarveError('case-vector provenance inputs changed')
+    return result
+
+
+def _native_case_vector_items(items, receipts):
+    """Pure normal-generation projection of authenticated whole-item metadata."""
+    result = copy.deepcopy(items)
+    for item in result:
+        proofs = [p for p in receipts if p['table_range'] == [item['start'], item['end']]]
+        if not proofs:
+            continue
+        if len(proofs) != 1 or _case_digest(item['block']['lines']) != proofs[0]['scaffold']['item_tokens_sha256']:
+            raise CarveError('case-vector regeneration item differs from authenticated tokens')
+        item['block']['lines'] = ['.align 4' if line == '.align 3' else line for line in item['block']['lines']]
+    return result
+
+
+def validate_native_case_vector_input(root, unit_dir, tu_id, receipt, object_path, original=None):
+    """Validate the actual selected route, then use the same pure-byte proof."""
+    path = Path(object_path)
+    if path.resolve() != (Path(unit_dir) / receipt['input']['object']).resolve():
+        raise CarveError('corrected provider object route differs')
+    data = path.read_bytes()
+    proof = validate_native_case_vector_object(root, unit_dir, tu_id, receipt, data, original)
+    if path.read_bytes() != data:
+        raise CarveError('corrected provider object changed during proof')
+    return dict(proof, object=str(path.resolve()))
+
+
+def validate_native_case_vector_object(root, unit_dir, tu_id, receipt, object_bytes, original=None):
+    """Fresh full provider payload/R32 meaning proof, never a gap/credit proof.
+
+    Whole ordinary assembler-object reproduction and linked/map checks remain
+    independently mandatory. This helper resolves all bytes of the real input,
+    including native tables unrelated to the particular classified vector.
+    """
+    current = native_case_vector_provenance(root, unit_dir, tu_id, original)
+    if receipt not in current:
+        raise CarveError('corrected provider receipt is stale or invented')
+    expected = receipt['input']
+    if original is None:
+        filename = json.loads((Path(root) / 'config/originals.json').read_bytes())['units']['main']['file']
+        original = Elf((Path(unit_dir) / 'orig' / filename).read_bytes())
+    if type(object_bytes) is not bytes:
+        raise CarveError('corrected provider replay must be immutable bytes')
+    data = object_bytes
+    image = Elf(data)
+    sections = [s for s in image.sections if s.name == expected['section']]
+    if (len(sections) != 1 or sections[0].type != 1 or sections[0].flags != 2 or
+            sections[0].size != expected['size'] or sections[0].align != receipt['alignment'] or
+            any(s.flags & 2 and s.type in (1, 8) and s.size and s.name != expected['section'] for s in image.sections)):
+        raise CarveError('corrected provider actual section metadata differs')
+    section = sections[0]
+    resolved = bytearray(image.section_bytes(section))
+    meaning, occupied = [], set()
+    for relsec in image.sections:
+        if relsec.type not in (4, 9):
+            continue
+        if relsec.type != 9 or relsec.info != section.index or relsec.entsize != 8:
+            raise CarveError('unsupported corrected provider relocation section')
+        for cursor in range(relsec.offset, relsec.offset + relsec.size, 8):
+            offset, info = struct.unpack_from('<II', image.data, cursor)
+            if info & 255 != 2 or offset % 4 or offset + 4 > len(resolved) or offset in occupied:
+                raise CarveError('unsupported corrected provider R32 slot')
+            occupied.add(offset)
+            symbol = image.symbols[info >> 8]
+            addend = struct.unpack_from('<I', resolved, offset)[0]
+            label = re.fullmatch(r'\.L([0-9A-Fa-f]{8})', symbol.name)
+            if label and symbol.shndx == 0:
+                target = int(label[1], 16) + addend
+                if not any(s.type == 2 and s.value <= target < s.value + s.size for s in original.symbols):
+                    raise CarveError('corrected provider code target lacks original FUNCTION')
+            elif symbol.shndx == section.index:
+                target = expected['original_range'][0] + symbol.value + addend
+                if not expected['original_range'][0] <= target <= expected['original_range'][1]:
+                    raise CarveError('corrected provider internal target outside whole input')
+            else:
+                raise CarveError('unresolved corrected provider relocation target')
+            struct.pack_into('<I', resolved, offset, target)
+            meaning.append(dict(offset=offset, type=2, symbol=symbol.name, binding=symbol.bind,
+                                symbol_type=symbol.type, addend=addend, target=target))
+    retail = va_bytes(original, expected['original_range'][0], expected['size'])
+    if bytes(resolved) != retail or hashlib.sha256(retail).hexdigest() != expected['original_payload_sha256']:
+        raise CarveError('corrected provider whole resolved payload differs from original')
+    vector_offset = receipt['table_range'][0] - expected['original_range'][0]
+    if [r['target'] for r in sorted(meaning, key=lambda row:row['offset'])
+            if vector_offset <= r['offset'] < vector_offset + 4 * receipt['slot_count']] != receipt['targets']:
+        raise CarveError('corrected provider classified vector R32 identities differ')
+    if any(hashlib.sha256(Path(p['path']).read_bytes()).hexdigest() != p['sha256'] for p in receipt['inputs']):
+        raise CarveError('corrected provider object changed during proof')
+    return dict(schema='native-case-vector-input-proof/1',
+                object_sha256=hashlib.sha256(data).hexdigest(), section=section.name,
+                size=section.size, alignment=section.align, original_range=expected['original_range'],
+                resolved_payload_sha256=hashlib.sha256(resolved).hexdigest(),
+                relocation_meaning=meaning, credited_bytes=0, grants_source_eligibility=False)
 
 
 def _data_directives(item):
@@ -1528,6 +1915,7 @@ def apply_main(root, unit_dir, manifest, registry=None, write=True, typed_charac
                           allow_space_cuts=(sec in ('.sbss', '.bss') or
                                             any(run.get('c_input_spans') for run in runs)),
                           character_context=character_context)
+            case_vectors = native_case_vector_provenance(root, unit_dir, tu_id) if sec == '.rodata' else []
             out_pieces = []
             for p in new:
                 entry = dict(c_split=p['c_split'], end=f'0x{p["end"]:08X}', name=p['name'],
@@ -1691,8 +2079,13 @@ def apply_main(root, unit_dir, manifest, registry=None, write=True, typed_charac
                 if p['carved']:
                     rel = f'{CARVE_DIR}/main/{p["name"].split("/")[-1]}.{sec[1:]}.s'
                     entry['file'] = rel
+                    generated_items = _native_case_vector_items(p['items'], case_vectors) if not p['c_split'] else p['items']
+                    emitted_vectors = [proof for proof in case_vectors if any(
+                        proof['table_range'] == [item['start'], item['end']] for item in generated_items)] if not p['c_split'] else []
+                    if emitted_vectors:
+                        entry['native_case_vectors'] = emitted_vectors
                     if write:
-                        write_piece_file(Path(unit_dir) / rel, p['header'], p['items'])
+                        write_piece_file(Path(unit_dir) / rel, p['header'], generated_items)
                 elif p['source'].get('file'):
                     entry['file'] = p['source']['file']
                 out_pieces.append(entry)
@@ -1709,6 +2102,10 @@ def apply_main(root, unit_dir, manifest, registry=None, write=True, typed_charac
                          **({'c_owned_symbols': p['c_owned_symbols']} if p.get('c_owned_symbols') else {}),
                          **({'c_storage_aliases': p['c_storage_aliases']}
                             if p.get('c_storage_aliases') else {}),
+                         **({'native_case_vectors': copy.deepcopy(p['native_case_vectors'])}
+                            if p.get('native_case_vectors') else {}),
+                         **({'uncredited_scaffold_suffixes': copy.deepcopy(p['uncredited_scaffold_suffixes'])}
+                            if p.get('uncredited_scaffold_suffixes') else {}),
                          **({'padding_tail': p['padding_tail']} if p.get('padding_tail') else {}))
                     for p in out_pieces]
             order[idx[0]:idx[-1] + 1] = repl
@@ -1817,8 +2214,9 @@ def apply_main(root, unit_dir, manifest, registry=None, write=True, typed_charac
                                end=h8(hx(tail['end'])), object=f'build/data/{stem}.{sec[1:]}.o',
                                source=rel))
         tail['native_common_pieces'] = native
-    from data_completion import mark_alignment
+    from data_completion import mark_alignment, compiler_suffix_alignments
     report.extend(mark_alignment(root, unit_dir, m))
+    report.extend(compiler_suffix_alignments(root, unit_dir, m))
     # A newly exposed original-item tail is unknown scaffold storage. Numeric
     # zero bytes alone do not turn that tail into alignment or linker fill.
     unknown = []
@@ -1826,6 +2224,9 @@ def apply_main(root, unit_dir, manifest, registry=None, write=True, typed_charac
     for tu in m['tus']:
         for section, detail in tu.get('sections',{}).items():
             for piece in detail.get('pieces',[]):
+                if piece.get('linker_padding',{}).get('kind') in (
+                        'compiler_alignment_fill', 'external_input_alignment_fill'):
+                    continue
                 for suffix in piece.get('uncredited_scaffold_suffixes',[]):
                     key = (tu['id'],section,*suffix['range'])
                     if key not in seen_unknown:
@@ -3551,7 +3952,7 @@ def split_plans(root, unit, unit_dir, tu_id, obj_elf, registry=None):
                     raise CarveError(f'{tu_id} {input_sec}: raw object names do not cover mapped span')
                 byte_piece = dict(offset=p['offset'], length=p['length'], end=p['end'], lo=p['lo'], hi=p['hi'])
                 equal = compare_bytes(obj_elf, csec, [byte_piece], ctx,
-                                      target_pieces=explicit_inputs)
+                                      target_pieces=explicit_inputs, original_elf=orig)
                 if not equal.get('checked') or not equal.get('equal'):
                     raise CarveError(f'{tu_id} {input_sec}: raw mapped bytes differ from original scaffold bytes '
                                      f'for VA {h8(p["lo"])}-{h8(p["hi"])} at {input_sec}+0x{p["offset"]:x}: {equal}')
@@ -6525,6 +6926,11 @@ def compare_bytes(elf, csec, pieces, ctx, target_pieces=None, original_elf=None)
         pieces = [dict(offset=0, length=len(data), lo=pieces)]
     orig = original_elf if original_elf is not None else Elf(Path(ctx['orig']).read_bytes())
     text = next((s for s in elf.sections if s.name == '.text'), None)
+    # Local lookup lists preserve duplicate identities and the existing
+    # len==1 refusal. They derive only from this call's immutable ELF views;
+    # no proof result or admission decision survives the call.
+    raw_function_symbols = None
+    original_function_symbols = None
     unresolved, diff = 0, []
     wants = []
     for p in pieces:
@@ -6574,14 +6980,19 @@ def compare_bytes(elf, csec, pieces, ctx, target_pieces=None, original_elf=None)
                 continue
             value = pieces[j]['lo'] + target - pieces[j]['offset']
         else:
-            raw_funcs = [s for s in elf.symbols if s.shndx == text.index and s.type == 2
-                         and s.value <= target < s.value + max(s.size, 1)]
+            if raw_function_symbols is None:
+                raw_function_symbols = [s for s in elf.symbols if s.shndx == text.index and s.type == 2]
+            raw_funcs = [s for s in raw_function_symbols if s.value <= target < s.value + max(s.size, 1)]
             if len(raw_funcs) != 1:
                 unresolved += 1
                 continue
             raw_func = raw_funcs[0]
-            original_funcs = [s for s in orig.symbols if s.name == raw_func.name and s.shndx != 0
-                              and s.type == 2 and s.bind == raw_func.bind]
+            if original_function_symbols is None:
+                original_function_symbols = {}
+                for symbol in orig.symbols:
+                    if symbol.shndx != 0 and symbol.type == 2:
+                        original_function_symbols.setdefault((symbol.name, symbol.bind), []).append(symbol)
+            original_funcs = original_function_symbols.get((raw_func.name, raw_func.bind), [])
             if len(original_funcs) != 1:
                 unresolved += 1
                 continue

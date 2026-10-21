@@ -147,6 +147,10 @@ int getEmptyVM(ScriptObserverTask *observer);
 
 extern ScriptPadRecord PadData[2];
 
+extern const char D_004C1D30[];
+
+static const char *debugBasePath = D_004C1D30;
+
 static unsigned int s_nScriptFadeOutTime = 30;
 
 static unsigned int s_nScriptFadeRequest = 0;
@@ -375,8 +379,6 @@ typedef struct ScriptEventDebugState {
 extern ScriptEventDebugState evtDebug;
 
 extern unsigned char xglFontLoad(int font_id, int flags);
-
-extern const char *debugBasePath;
 
 const char *loadScript(ScriptDbEntry *entry, const char *path_base, const char *path);
 

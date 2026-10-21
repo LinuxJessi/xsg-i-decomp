@@ -250,12 +250,6 @@ extern void ANM_update(void *slot);
 
 extern char *strstr(const char *haystack, const char *needle);
 
-extern const char D_004D1800[];
-
-extern const char D_004D1810[];
-
-extern const char D_004DC230[];
-
 static void ACT_updateMotionSub(Actor *actor, int pause);
 
 extern void ACT_initMotion(Actor *actor);
@@ -680,11 +674,11 @@ static void ACT_updateMotionSub(Actor *actor, int pause)
             pausedFlags |= 0x200;
         }
         if (model != 0) {
-            if (strstr((char *)model + 0x10, D_004DC230) != 0) {
+            if (strstr((char *)model + 0x10, "chaos") != 0) {
                 pausedFlags |= 0x40000;
             }
-            if (strstr((char *)model + 0x10, D_004D1800) != 0
-                || strstr((char *)model + 0x10, D_004D1810) != 0) {
+            if (strstr((char *)model + 0x10, "boss_016") != 0
+                || strstr((char *)model + 0x10, "boss_019") != 0) {
                 pausedFlags |= 0x20000;
             }
         }

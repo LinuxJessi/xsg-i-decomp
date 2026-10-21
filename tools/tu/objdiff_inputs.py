@@ -5467,10 +5467,313 @@ def registered_nobits_zero_sizes(body, reference, original, compiled, assembly, 
 
 
 
-def prepare(root, evidence):
+def registered_current_data_layout(root, unit_dir, obj, tu, base, assembly, preprocessed,
+                                   evidence, destination, prefix, reference=None):
+    """Ordinary LD placement of verified C inputs, never imported DATA bytes.
+
+    The compiler object stays immutable. This comparison view uses the same
+    selected input sections and genuine ALIGN operations as the verified link.
+    It retains the complete original TU footprint, including zero-input fill.
+    """
+    checked=evidence['objects'][obj['id']]
+    if obj['unit']!='main' or not checked.get('complete'):return None
+    manifest=verification.read(unit_dir/'tu-manifest.carved.json')
+    current=next(t for t in manifest['tus'] if t['id']==obj['id'])
+    verification.require(tu['name']==current['name'] and tu['text']==current['text'] and all(
+        all(entry[k]==current['sections'][name][k] for k in ('start','end'))
+        for name,entry in tu.get('sections',{}).items()),'current DATA view TU coordinates differ from verified manifest')
+    route=current.get('c_link_object')
+    if not route or not route.endswith('.carved.o'):return None
+    compiled=parsed_elf(base.read_bytes())
+    # This route is needed only when the original comparison still invents
+    # OBJECT identities over registered anonymous compiler literal emissions.
+    # It is independent of scores, a TU name or a requested matching result.
+    if reference is not None:
+        candidate=parsed_elf(reference.read_bytes())
+        original=parsed_elf((unit_dir/'orig'/verification.read(root/cov.ORIGINALS)['units']['main']['file']).read_bytes())
+        found=False
+        registry=data_carve.load_registry(root)['tus'].get(obj['id'],{})
+        for secname,runs in registry.items():
+            entry=tu.get('sections',{}).get(secname)
+            if not entry:continue
+            sections=[s for s in compiled.sections if s.name==secname and s.type==1 and s.flags&2]
+            if len(sections)!=1:continue
+            csection=sections[0]
+            # The closed placement adapter handles an anonymous pool family
+            # whose current compiler extent differs from its original physical
+            # footprint. Named storage and already coordinate-identical views
+            # keep their existing proof routes.
+            if csection.size==int(entry['end'],16)-int(entry['start'],16) or any(
+                    s.type==1 and s.shndx==csection.index for s in compiled.symbols):continue
+            start=int(entry['start'],16)
+            spans=[span for r in runs for span in r.get('c_input_spans',[]) if
+                   span.get('anonymous_emission') is True and span.get('credit')=='verified' and
+                   not span.get('symbols') and not any(span.get(k) for k in ('support_only','uncredited_dependency'))]
+            for symbol in candidate.symbols:
+                if not (symbol.type==1 and symbol.name.startswith('D_') and 0<symbol.shndx<len(candidate.sections)
+                        and candidate.sections[symbol.shndx].name==secname):continue
+                va=start+symbol.value
+                if not any(int(s['range'][0],16)<=va<int(s['range'][1],16) for s in spans):continue
+                retail=original.section(secname)
+                if any(s.shndx==retail.index and s.type not in (3,4) and
+                       (va<=s.value<va+symbol.size or s.size and s.value<va+symbol.size and va<s.value+s.size)
+                       for s in original.symbols):continue
+                found=True
+        if not found:return None
+    raw_path,_=verification.build_object(root,root/'build',obj)
+    selected_path=unit_dir/route
+    original_path=unit_dir/'orig'/verification.read(root/cov.ORIGINALS)['units']['main']['file']
+    artifact_paths=(raw_path,selected_path,unit_dir/'build/main.rom.elf.map',
+                    unit_dir/'build/main.rom.elf',unit_dir/'tu-manifest.carved.json',original_path)
+    source_paths=(root/obj['source'],root/'config/objects/data-carves.json',root/'config/objects/main.objects.json')
+    pins={}
+    for paths,authority in ((artifact_paths,evidence['artifacts']),(source_paths,evidence['inputs']['files'])):
+        for path in paths:
+            actual=verification.digest(path)
+            verification.require(authority.get(path.relative_to(root).as_posix())==actual,
+                                 'current DATA view lacks fresh verified authority/input')
+            pins[str(path)]=actual
+    registry_path=data_carve.registry_input_path(root)
+    verification.require(verification.digest(registry_path)==pins[str(root/'config/objects/data-carves.json')],
+                         'ordinary selected registry differs from tracked verified DATA authority')
+    pins[str(registry_path)]=verification.digest(registry_path)
+    compiled=parsed_elf(base.read_bytes());raw=parsed_elf(raw_path.read_bytes());selected=parsed_elf(selected_path.read_bytes())
+    def signature(image):
+        rows=[]
+        for sec in image.sections:
+            if not sec.flags&2 or sec.name=='.reginfo':continue
+            rows.append((sec.name,sec.type,sec.flags,sec.align,sec.size,image.section_bytes(sec)))
+        rel=[]
+        for section in image.sections:
+            if section.type not in (4,9):continue
+            for off,kind,index,addend in data_carve._rel_entries(image,section):
+                s=image.symbols[index]
+                rel.append((image.sections[section.info].name,off,kind,addend,s.name,s.bind,s.type,s.value,s.size,
+                            image.sections[s.shndx].name if 0<s.shndx<len(image.sections) else s.shndx))
+        identities=sorted((s.name,s.bind,s.type,s.size,s.value,s.other,
+            image.sections[s.shndx].name if 0<s.shndx<len(image.sections) else s.shndx)
+            for s in image.symbols if s.type in (1,2) and s.shndx!=0)
+        return sorted(rows),sorted(rel,key=repr),identities
+    verification.require(signature(compiled)==signature(raw),'native C emission differs from verified ordinary input')
+    verification.require(functions(base)=={f['name']:f['size'] for f in checked['functions']},
+                         'current DATA view includes a function outside verified C scope')
+    registry=data_carve.load_registry(root)
+    plans=data_carve.split_plans(root,'main',unit_dir,obj['id'],raw,registry)
+    plans={sec:(p['pieces'] if isinstance(p,dict) else p) for sec,p in plans.items()}
+    verification.require(data_carve.split_object(raw.data,plans)==selected.data,
+                         'current DATA input differs from complete ordinary split')
+    map_path=unit_dir/'build/main.rom.elf.map';map_text=map_path.read_text()
+    placed=verification.parse_link_map(map_text)[0]
+    fills=[(int(a,16),int(a,16)+int(n,16)) for a,n in re.findall(
+        r'^ \*fill\*\s+0x([0-9a-f]+)\s+0x([0-9a-f]+)\b',map_text,re.M)]
+    original=parsed_elf((unit_dir/'orig'/verification.read(root/cov.ORIGINALS)['units']['main']['file']).read_bytes())
+    linked=parsed_elf((unit_dir/'build/main.rom.elf').read_bytes())
+    families=('.data','.rodata','.sdata','.lit4','.lit8')
+    script=['SECTIONS {','.text 0 : { '+json.dumps(str(selected_path))+'(.text) }']
+    layout={};transport=[]
+    for family in families:
+        mapped=tu.get('sections',{}).get(family)
+        if not mapped:continue
+        lo,hi=(int(mapped[k],16) for k in ('start','end'))
+        if lo==hi:continue
+        inputs=[]
+        for sec in selected.sections:
+            if not sec.size or not (sec.name==family or sec.name.startswith(family+'.carve.')):continue
+            place=placed.get((route,sec.name))
+            verification.require(place is not None and place[1]==sec.size and sec.type==1 and sec.flags&2,
+                                 'current C selected section placement is missing or malformed')
+            start,size=place
+            verification.require(lo<=start<start+size<=hi and start%sec.align==0,
+                                 'current C input lies outside its original TU footprint')
+            inputs.append((start,start+size,sec))
+        inputs.sort(key=lambda row:row[0])
+        if not inputs:return None
+        blocks=[];cursor=lo
+        script.append(f'{family} 0 : {{')
+        gaps={tuple(int(v,16) for v in p['linker_padding']['range']):p['linker_padding']
+              for p in current['sections'].get(family,{}).get('pieces',[]) if p.get('linker_padding')}
+        def gap(a,b):
+            proof=gaps.get((a,b))
+            verification.require(proof is not None and proof.get('credited_bytes')==0 and
+                proof.get('grants_source_eligibility') is False and proof.get('original_capacity_proved') is False and
+                proof.get('kind') in ('compiler_alignment_fill','external_input_alignment_fill') and
+                (a,b) in fills and not any(size>0 and start<b and a<start+size for start,size in placed.values()),
+                'DATA view gap is not exact proved zero-input linker fill')
+            alignment=proof['alignment']
+            verification.require((a+alignment-1)&-alignment==b and lo%alignment==0 and
+                not any(data_carve.va_bytes(original,a,b-a)) and
+                data_carve.va_bytes(linked,a,b-a)==data_carve.va_bytes(original,a,b-a),
+                'DATA view ALIGN does not reproduce genuine original-coordinate fill')
+            script.append(f'. = ALIGN({alignment});')
+            blocks.append(dict(kind='linker_alignment',range=[a,b],proof=proof))
+        for start,end,sec in inputs:
+            verification.require(start>=cursor,'overlapping current C selected inputs')
+            if cursor<start:gap(cursor,start)
+            script.append(json.dumps(str(selected_path))+'('+sec.name+')')
+            blocks.append(dict(kind='C_input',range=[start,end],section=sec.name,alignment=sec.align))
+            cursor=end
+        if cursor<hi:gap(cursor,hi)
+        script.append('}')
+        layout[family]=dict(range=[lo,hi],blocks=blocks)
+        for registration in registry['tus'].get(obj['id'],{}).get(family,[]):
+            for span in registration.get('c_input_spans',[]):
+                ext=explicit_object_range(span);coords=[int(v,16) for v in span.get('range',[])]
+                if ext and len(coords)==2 and span.get('section')==family and ext[1]-ext[0]==coords[1]-coords[0]:
+                    transport.append(dict(section=family,raw=ext,original=coords,span=span))
+    if not layout:return None
+    # Nonempty unexplained allocated sections cannot slip through as orphans.
+    verification.require(all(s.name=='.text' or s.name=='.reginfo' or s.name in families or
+        any(s.name.startswith(f+'.carve.') for f in families) or not s.size or not s.flags&2
+        for s in selected.sections),'unsupported allocated current DATA view section')
+    # These are ELF/debug/ABI declaration records, never code or DATA input
+    # storage. Keep .reginfo: its GP value participates in real GPREL semantics.
+    # The ordinary data-placement link must not merge stale GP debug tables.
+    script.append('/DISCARD/ : { *(.MIPS.abiflags) *(.pdr) *(.gnu.attributes) *(.mdebug*) *(.comment) *(.note*) *(.gptab.*) }')
+    script.append('}')
+    script_path=destination.with_suffix('.ld');script_path.write_text('\n'.join(script)+'\n')
+    run([str(prefix)+'ld','-EL','-m','elf32lr5900','-r','-T',script_path,'-o',destination,selected_path],unit_dir)
+    image=parsed_elf(destination.read_bytes())
+    for family,row in layout.items():
+        sec=image.section(family);lo,hi=row['range']
+        verification.require(sec.size==hi-lo,'ordinary placement changed the original DATA denominator')
+    verification.require(functions(destination)==functions(base),'ordinary DATA placement changed C function identities')
+    # Resolve the ordinary comparison object at the actual original addresses.
+    # All relocations, including DATA-to-DATA coordinates, must reproduce the
+    # independently verified linked bytes. No unresolved-name address guessing.
+    definitions=[f'_gp = 0x{original.gp:08X};'];placements=[]
+    for symbol in image.symbols:
+        if symbol.shndx!=0 or not symbol.name or symbol.name=='_gp':continue
+        values={s.value for s in linked.symbols if s.name==symbol.name and s.shndx!=0}
+        verification.require(len(values)==1,'current C placement has unresolved/ambiguous linked symbol')
+        definitions.append(f'{symbol.name} = 0x{values.pop():08X};')
+    for sec in image.sections:
+        if not sec.flags&2 or not sec.size or sec.name=='.reginfo':continue
+        start=int(tu['text']['start'],16) if sec.name=='.text' else layout[sec.name]['range'][0]
+        placements.append(f'{sec.name} 0x{start:08X} : {{ *({sec.name}) }}')
+    resolved_script=destination.with_suffix('.resolve.ld');resolved_path=destination.with_suffix('.resolve.elf')
+    resolved_script.write_text('\n'.join(definitions)+'\nSECTIONS {\n'+'\n'.join(placements)+'\n}\n')
+    run([str(prefix)+'ld','-EL','-m','elf32lr5900','-T',resolved_script,'-o',resolved_path,destination],unit_dir)
+    resolved=parsed_elf(resolved_path.read_bytes());resolved_proofs=[]
+    for sec in resolved.sections:
+        if not sec.flags&2 or not sec.size or sec.type==8 or sec.name=='.reginfo':continue
+        payload=resolved.section_bytes(sec)
+        verification.require(payload==data_carve.va_bytes(original,sec.addr,sec.size)==data_carve.va_bytes(linked,sec.addr,sec.size),
+                             'ordinary C placement resolved payload differs from original/verified link')
+        resolved_proofs.append(dict(section=sec.name,range=[sec.addr,sec.addr+sec.size],sha256=hashlib.sha256(payload).hexdigest()))
+    for path,digest in pins.items():
+        verification.require(verification.digest(Path(path))==digest,'current DATA view authority/input changed')
+    pins.update({str(p):verification.digest(p) for p in (base,assembly)})
+    return dict(schema='native-current-registered-C-placement/1',layout=layout,transport=transport,
+                compiler_sha256=hashlib.sha256(compiled.data).hexdigest(),original_sha256=hashlib.sha256(original.data).hexdigest(),
+                input_pins=pins,ordinary_comparison_object=str(destination),resolved_payload_proofs=resolved_proofs,
+                no_new_source_or_storage_credit=True)
+
+
+def current_layout_reference(body, reference, original, compiled, assembly, preprocessed,
+                             registry, tu, cwd, scope, placement):
+    """Recover only invented reference metadata over decoded current C pools.
+
+    Real original identities and every byte/extent remain. The alternative to
+    the old straight-line consumer recognizer is the actual verified C input
+    placement, whose ordinary full split and linked semantics were checked.
+    """
+    verification.require(placement['compiler_sha256']==hashlib.sha256(compiled.data).hexdigest() and
+        placement['original_sha256']==hashlib.sha256(original.data).hexdigest(),
+        'current reference view input identity differs')
+    for path,digest in placement['input_pins'].items():
+        verification.require(verification.digest(Path(path))==digest,'current reference placement input changed')
+    coordinates,gaps=compiler_data_coordinates(assembly,compiled,preprocessed,cwd)
+    zones=[]
+    for template in cc1_literal_templates(assembly,preprocessed,compiled):
+        name=template['section'];position=coordinates.get(template['label'])
+        if name not in placement['layout'] or not position or position[0]!=name:continue
+        if not compiler_only_section(assembly,preprocessed,cwd,name):continue
+        offset=position[1];payload=template['payload'];sec=compiled.section(name)
+        if compiled.section_bytes(sec)[offset:offset+len(payload)]!=payload:continue
+        owners=[r for r in placement['transport'] if r['section']==name and
+            r['span'].get('anonymous_emission') is True and r['span'].get('credit')=='verified' and
+            not r['span'].get('symbols') and not any(r['span'].get(k) for k in ('support_only','uncredited_dependency')) and
+            r['raw'][0]<=offset<offset+len(payload)<=r['raw'][1]]
+        if len(owners)!=1:continue
+        owner=owners[0];va=owner['original'][0]+offset-owner['raw'][0]
+        if data_carve.va_bytes(original,va,len(payload))!=payload:continue
+        if any(s.type==1 and s.shndx==sec.index and s.value<offset+len(payload) and offset<s.value+max(s.size,1)
+               for s in compiled.symbols):continue
+        if any(rel.type in (4,9) and rel.info==sec.index and any(offset<p+4 and p<offset+len(payload)
+               for p,k,n,a in data_carve._rel_entries(compiled,rel)) for rel in compiled.sections):continue
+        zones.append(dict(section=name,range=[va,va+len(payload)],raw=[offset,offset+len(payload)],
+                          payload=payload,source=template['source'],span=owner['span']))
+    # Some anonymous constructors are genuine pointer arrays or assembler
+    # double pools. Their established source/real-REL proof remains mandatory.
+    for template,va,offset,span,consumers in (registered_pointer_pool_templates(original,compiled,assembly,preprocessed,registry,scope,cwd)+
+                                           registered_assembler_double_pools(original,compiled,assembly,preprocessed,registry,scope,cwd)):
+        zones.append(dict(section=template['section'],range=[va,va+len(template['payload'])],
+                          raw=[offset,offset+len(template['payload'])],payload=template['payload'],
+                          source=template['source'],span=span,existing_consumers=consumers))
+    identity_proofs=[];word_proofs=[];renames={}
+    pattern=re.compile(r'(?:nonmatching\s+(\S+)(?:\s*,[^\n]*)?\s*\n\s*)?dlabel\s+(D_[\da-fA-F]{8})\s*\n(.*?)enddlabel\s+\2\s*\n\.size\s+\2,\s*[^\n]*',re.S)
+    def replace(match):
+        name=match[2];symbols=[s for s in reference.symbols if s.name==name and s.type==1 and 0<s.shndx<len(reference.sections)]
+        if len(symbols)!=1:return match[0]
+        symbol=symbols[0];family=reference.sections[symbol.shndx].name
+        if family not in placement['layout']:return match[0]
+        start=placement['layout'][family]['range'][0];lo=start+symbol.value;hi=lo+symbol.size
+        if lo!=int(name[2:],16):return match[0]
+        retail=original.section(family)
+        if any(s.shndx==retail.index and s.type not in (3,4) and
+               (lo<=s.value<hi or s.size and s.value<hi and lo<s.value+s.size) for s in original.symbols):return match[0]
+        pieces=sorted((z for z in zones if z['section']==family and lo<=z['range'][0]<z['range'][1]<=hi),key=lambda z:z['range'])
+        if not pieces or pieces[0]['range'][0]!=lo:return match[0]
+        cursor=lo;proved_gaps=[]
+        for zone in pieces:
+            a,b=zone['range']
+            if a!=cursor:return match[0]
+            cursor=b
+            following=[z['range'][0] for z in pieces if z['range'][0]>=cursor]
+            end=min(following) if following else hi
+            if end>cursor:
+                raw_end=zone['raw'][1];amount=end-cursor
+                events=[g for g in gaps if g['section']==family and g['range'][0]<=raw_end<raw_end+amount<=g['range'][1]]
+                if len(events)!=1 or any(data_carve.va_bytes(original,cursor,amount)) or original_references(original,cursor,end):return match[0]
+                proved_gaps.append(dict(original_range=[cursor,end],actual_cc1_alignment=events[0]));cursor=end
+        if cursor!=hi:return match[0]
+        temporary=f'.Lobjdiff_current_pool_{lo:08X}';renames[name]=temporary
+        identity_proofs.append(dict(scaffold_name=name,original_range=[lo,hi],source_pools=[
+            dict(range=z['range'],raw=z['raw'],source={k:v for k,v in z['source'].items() if k!='payload'},span=z['span'],payload_sha256=hashlib.sha256(z['payload']).hexdigest()) for z in pieces],
+            real_alignment_gaps=proved_gaps,no_original_identity=True,all_storage_retained=True,no_new_credit=True))
+        return '.local '+name+'\n'+name+':\n'+match[3]
+    body=pattern.sub(replace,body)
+    word=re.compile(r'^(\s*/\*\s+\S+\s+([\da-fA-F]{8})\s+([\da-fA-F]{8})\s*\*/\s*\.word\s+)(D_[\da-fA-F]+)(?:\s*\+\s*(0x[\da-fA-F]+|\d+))?\s*$',re.M)
+    def numeric(match):
+        va=int(match[2],16);raw=bytes.fromhex(match[3]);value=int(match[4][2:],16)+int(match[5] or '0',0)
+        candidates=[z for z in zones if not z.get('existing_consumers') and z['range'][0]<=va<va+4<=z['range'][1] and
+                    z['payload'][va-z['range'][0]:va-z['range'][0]+4]==raw]
+        if len(candidates)!=1 or value!=int.from_bytes(raw,'little') or data_carve.va_bytes(original,va,4)!=raw:return match[0]
+        zone=candidates[0];sec=original.section(zone['section'])
+        if any(rel.type in (4,9) and rel.info==sec.index and any(va<p+4 and p<va+4 for p,k,n,a in data_carve._rel_entries(original,rel)) for rel in original.sections):return match[0]
+        word_proofs.append(dict(original_address=va,value=value,source={k:v for k,v in zone['source'].items() if k!='payload'},registered_span=zone['span'],
+                               no_actual_compiler_or_original_relocation=True,all_bytes_retained=True))
+        return match[1]+f'0x{value:08X}'
+    body=word.sub(numeric,body)
+    def rename(text):
+        for old,new in renames.items():text=re.sub(r'(?<![\w.$])'+re.escape(old)+r'(?![\w.$])',lambda m:new,text)
+        return text
+    def include(match):
+        p=Path(match[1]);p=p if p.is_absolute() else cwd/p
+        old=p.read_text();new=rename(old)
+        return new if new!=old else match[0]
+    body=rename(re.sub(r'\.include\s+"([^\"]+\.s)"',include,body))
+    return body,dict(identities=identity_proofs,literal_words=word_proofs)
+
+
+def prepare(root, evidence, only_objects=None):
     build, project = root / 'build', root / 'build/objdiff'
     project.mkdir(exist_ok=True)
     objects, targets, _, _, _ = cov.tracked_scope(root)
+    if only_objects is not None:
+        requested=set(only_objects)
+        verification.require(requested and requested<={o['id'] for o in objects},'unknown scoped native object')
+        objects=[o for o in objects if o['id'] in requested]
     tc = Toolchain(root)
     prefix = Path(tc.dir('ps2dev-binutils')) / 'mips64r5900el-ps2-elf-'
     main = verification.read(build / 'main/tu-manifest.json')
@@ -5571,7 +5874,7 @@ def prepare(root, evidence):
         strip_debug(prefix, target_text, stripped, unit_dir)
         run([str(prefix) + 'ld', '-EL', '-m', 'elf32lr5900', '-r',
              '-o', target, stripped, *data], unit_dir)
-        joint_identities=[]
+        joint_identities=[];current_placement=None
         if unit=='main' and compile_base:
             joint,joint_identities=joint_original(target,target_text,data_assembly,
                 unit_dir/'orig'/originals[unit]['file'],destination/'joint.o',
@@ -5580,6 +5883,32 @@ def prepare(root, evidence):
                 scope=checked['functions'],registry=data_registry.get(obj['id'],{}))
             if joint!=target:
                 strip_debug(prefix,joint,target,unit_dir)
+            comparison=destination/'base.placed.o'
+            current_placement=registered_current_data_layout(root,unit_dir,obj,tu,base,assembly,
+                Path(str(base)+'.i').read_text(),evidence,comparison,prefix,reference=target)
+            if current_placement:
+                original=parsed_elf((unit_dir/'orig'/originals[unit]['file']).read_bytes())
+                body,cleanup=current_layout_reference((destination/'joint.s').read_text(),parsed_elf(target.read_bytes()),
+                    original,parsed_elf(base.read_bytes()),assembly.read_text(),Path(str(base)+'.i').read_text(),
+                    data_registry.get(obj['id'],{}),tu,unit_dir,checked['functions'],current_placement)
+                verification.require(cleanup['identities'],'current DATA placement lacks a source-pool identity witness')
+                source=destination/'current-reference.s';source.write_text(body)
+                run([assembler,'-EL','-m5900','-mabi=eabi',next(f for f in flags if f.startswith('-G')),
+                     '-I.','-Iinclude','-o',target,source],unit_dir)
+                linked_reference=destination/'current-reference.elf'
+                run([str(prefix)+'ld','-EL','-m','elf32lr5900','-T',destination/'joint.ld',
+                     '-o',linked_reference,target],unit_dir)
+                resolved=parsed_elf(linked_reference.read_bytes())
+                for sec in resolved.sections:
+                    if sec.flags&2 and sec.size and sec.type!=8:
+                        verification.require(resolved.section_bytes(sec)==data_carve.va_bytes(original,sec.addr,sec.size),
+                                             'current source-pool reference does not resolve to complete original bytes')
+                for path,digest in current_placement['input_pins'].items():
+                    verification.require(verification.digest(Path(path))==digest,'current DATA view input changed during reference proof')
+                (destination/'current-data-layout.proof.json').write_text(json.dumps(dict(
+                    placement=current_placement,source_pool_reference=cleanup,
+                    normal_link_all_original_allocated_bytes_exact=True),indent=2)+'\n')
+                strip_debug(prefix,target,target,unit_dir)
         unit_config = dict(name=name, target_path=str(target), metadata=dict(
             source_path=obj['source'], progress_categories=[unit], complete=checked['complete']))
         allowed = {f['original_symbol']: f['size'] for f in checked['functions']}
@@ -5594,6 +5923,8 @@ def prepare(root, evidence):
                                  f'{name}: compiler-only emission differs from verified C scope')
             stripped_base = destination / 'base.nodebug.o'
             comparison_base=base
+            if current_placement:
+                comparison_base=destination/'base.placed.o'
             if obj['id']=='main/tu237':
                 comparison_base=destination/'base.allocated.o'
                 common_proof=allocate_registered_layout(base,assembly.read_text(),Path(str(base)+'.i').read_text(),
@@ -5701,7 +6032,7 @@ def prepare(root, evidence):
         verification.require(unit['name'] not in expected, 'duplicate TU name')
         units.append(unit)
         expected[unit['name']] = checked
-    iop = verification.read(root / cov.IOP_OBJECTS)
+    iop = verification.read(root / cov.IOP_OBJECTS) if only_objects is None else {'units':{}}
     for unit, entry in iop['units'].items():
         target = tc.game_dir() / entry['file']
         verification.require(verification.digest(target) == entry['sha256'], f'{unit}: wrong original')
@@ -5744,3 +6075,9 @@ def validate(report, expected):
                                  f'{name}: initialized scaffold data received matching credit')
         verification.require(bool(unit.get('metadata', {}).get('complete', False)) == checked['complete'],
                              f'{name}: unexpected complete metadata')
+        if checked['complete']:
+            measures=unit.get('measures',{})
+            for kind in (('code','data') if name.startswith('main/') else ('code',)):
+                total=int(measures.get('total_'+kind,0));matched=int(measures.get('matched_'+kind,0))
+                verification.require(matched==total and (not total or measures.get('matched_'+kind+'_percent')==100),
+                                     f'{name}: complete TU is not an exact native {kind} match')

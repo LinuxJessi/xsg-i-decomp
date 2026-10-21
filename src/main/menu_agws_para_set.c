@@ -2300,3 +2300,5 @@ void MenuAgws(void) {
     xglFontDebugPrintf(0x40, 0x68, (s8 *) D_004DAFF8, MenuWork.listSelect);
     xglFontDebugPrintf(0x40, 0x78, (s8 *) D_004C72D0, MenuWork.pilotId);
 }
+
+const char D_004DAF28[2] = ".";

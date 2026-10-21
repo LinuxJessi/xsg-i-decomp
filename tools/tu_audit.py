@@ -5656,6 +5656,13 @@ def _audit_body(args, result, checks, unit_dir, tu_c, tu_rel, contract, source_c
     admission_items.update(packet_items)
     if packet_alignment:
         checks.add('verified_original_packet_alignment', True, evidence=packet_alignment)
+    storage_items, storage_alignment = verified_current_storage_placement_alignment(
+        args, tu, rel(tu_c), obj, elf, validated_alignment_data_row,
+        tu_s.read_text(encoding='utf-8', errors='surrogateescape'),
+        tu_i.read_text(encoding='utf-8', errors='replace'))
+    admission_items.update(storage_items)
+    if storage_alignment:
+        checks.add('verified_current_storage_placement_alignment', True, evidence=storage_alignment)
     if deferred_attributes:
         result['data_audit'].update(pending=True, grants_data_recovery=False,
                                     deferred_source_attributes=deferred_attributes)
@@ -6037,6 +6044,85 @@ def verified_original_packet_alignment(args, tu, tu_rel, obj, elf, data_row,
                     no_general_attribute_or_hardware_exception=True)
     item = items[0]
     return {item.start: item.text(tu.text).replace(attribute, ' ')}, [evidence]
+
+
+def verified_current_storage_placement_alignment(args, tu, tu_rel, obj, elf, data_row,
+                                                 assembly, preprocessed):
+    """Two literal variable-placement attributes after normal full DATA proof.
+
+    Partial provider TUs retain every ordinary C/ASM function check. This
+    admits neither a function/header attribute nor a TU132 fallback, and does
+    not assert original alignment, spelling or hardware requirements.
+    """
+    identities={('main/tu179','src/main/ether_tree.c'):('D_004C9AB0',0x4c9ab0),
+                ('main/tu204','src/main/wind_test.c'):('D_004CBB60',0x4cbb60)}
+    identity=identities.get((getattr(args,'tu_id',None),tu_rel))
+    if args.unit!='main' or identity is None or not data_row:
+        return {},[]
+    context=verified_data_attribute_context(args,tu,tu_rel,obj,elf,data_row,
+                Path(args.obj) if getattr(args,'obj',None) else None,assembly,preprocessed)
+    if context is None:
+        return {},[]
+    try:
+        from tools.tu import data_gate
+        name,address=identity
+        original_path=context['unit_dir']/'orig'/json.loads(
+            (ROOT/'config/originals.json').read_text())['units']['main']['file']
+        proof=data_gate.current_storage_placement_alignment(ROOT,context['unit_dir'],args.tu_id,name,
+            context['source'],context['preprocessed_path'],context['assembly_path'],context['raw_path'],
+            context['selected_path'],context['linked_path'],original_path)
+        if elf.data!=original_path.read_bytes():
+            return {},[]
+        spans=[s for s in context['row'].get('verified_location_spans',[])
+               if name in s.get('names',[]) or name in s.get('object_symbols',[])]
+        if len(spans)!=1:
+            return {},[]
+        span=spans[0];input_=span.get('compiler_input_span') or {}
+        if (span.get('names')!=[name] or span.get('object_symbols')!=[name] or
+                span.get('section')!='.rodata' or span.get('range')!=[address,address+16] or
+                span.get('split_range')!=[address,address+16] or span.get('length')!=16 or
+                int(span.get('address','0'),16)!=address or span.get('original_identities')!=[] or
+                span.get('storage_owner') is not None or
+                span.get('support_only') or span.get('storage_only') or span.get('credited') is False or
+                span.get('object_sha256')!=context['hashes']['linked_data_object_sha256'] or
+                input_.get('section')!='.rodata' or input_.get('offset')!=0 or
+                input_.get('section_size')!=proof['raw']['section_size'] or
+                span.get('c_object_section')!='.rodata' or span.get('c_object_offset')!=0 or
+                span.get('c_object_section_size')!=16 or span.get('c_object_section_alignment')!=16):
+            return {},[]
+        for locations in (context['row'].get('verified_locations',[]),
+                          context['candidate'].get('recovered_location_candidates',[]),
+                          context['control'].get('identities',[])):
+            matching=[x for x in locations if x.get('unit')=='main' and x.get('tu')==args.tu_id and
+                      x.get('section')=='.rodata' and int(x.get('address','0'),16)==address and
+                      x.get('names')==[name] and not x.get('support_only') and
+                      not x.get('storage_only') and x.get('credited') is not False]
+            if len(matching)!=1:
+                return {},[]
+        if [address,address+16] not in context['row'].get('compiler_owned_ranges',{}).get('.rodata',[]):
+            return {},[]
+        fresh=[s for s in obj.symbols if s['name']==name]
+        raw_section=obj.section('.rodata')
+        if (len(fresh)!=1 or not raw_section or raw_section['align']!=16 or
+                any(fresh[0].get(k)!=v for k,v in dict(value=0,size=16,type=STT_OBJECT,
+                    binding=1,section='.rodata').items()) or
+                hashlib.sha256(obj.bytes_of(raw_section)[:16]).hexdigest()!=proof['payload_sha256']):
+            return {},[]
+        declarations=[i for i in tu.free_items() if i.kind=='decl' and not i.conditional and
+                      tu_edit.c_tokens(i.text(tu.text))==tu_edit.c_tokens(proof['declaration'])]
+        if len(declarations)!=1:
+            return {},[]
+        item=declarations[0];attribute='__attribute__((aligned(16)))'
+        # The full declaration is exact before this literal occurrence is
+        # removed. No typedef, nearby item, function or header is normalized.
+        if item.text(tu.text).count(attribute)!=1:
+            return {},[]
+        evidence=dict(proof,normal_linked_DATA_hashes=context['hashes'],
+            eligibility_scope='exact two current C DATA variable declarations only',
+            no_inherited_or_TU132_fallback=True,grants_provider_or_function_completion=False)
+        return {item.start:item.text(tu.text).replace(attribute,' ',1)},[evidence]
+    except (AuditError,OSError,ValueError,KeyError,TypeError,tu_edit.ParseError):
+        return {},[]
 
 
 def verified_data_attribute_context(args, tu, tu_rel, obj, elf, row, build_object,

@@ -44,6 +44,12 @@ const OpenCloseCallbacks D_004C2FD0 = {
     { OpenSubType00, OpenSubType01, CloseSubType00, CloseSubType00 }
 };
 
+const char D_004C31B0[24] = "data\\endou\\menu02.xtx";
+
+const char D_004C31C8[24] = "data\\endou\\menu01.xtx";
+
+const char D_004C31E0[32] = "data\\endou\\cfwin.xtx";
+
 /*
  * Partial view of the object eWindowSet initialises. eWindowMain (still
  * INCLUDE_ASM in this TU) reads x/y/width/height back as the low 16 bits of
@@ -587,9 +593,3 @@ void eCursolSet(ECursol *cursol, int width)
 }
 
 
-
-const char D_004C31B0[24] = "data\\endou\\menu02.xtx";
-
-const char D_004C31C8[24] = "data\\endou\\menu01.xtx";
-
-const char D_004C31E0[32] = "data\\endou\\cfwin.xtx";

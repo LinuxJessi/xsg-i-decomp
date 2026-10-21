@@ -2,6 +2,9 @@
 
 #include "shared.h"
 
+const Vector4 D_004CBB60 __attribute__((aligned(16))) = { 0.0f, 1.5707963705062866f, 0.0f, 1.0f };
+const Vector4 D_004CBB70 = { 1.0f, 1.0f, 1.0f, 1.0f };
+
 static signed char wtype;
 
 static StudioCamera *pCamera;

@@ -191,21 +191,7 @@ extern void nmlModelDirectSendXtx(int mode, void *texture);
 extern float xglRotTransPers(int *result, float matrix[4][4],
                              float *position, int camera);
 
-extern const char D_004D2170[24];
-
-/* JP: fm%04d を読み込みます\n
- * EN: Loading fm%04d\n */
-static const char D_004D2188[24] =
-    "fm%04d \244\362\306\311\244\337\271\376\244\337\244\336\244\271\n";
-
-/* JP: mvs%04d を読み込みます\n
- * EN: Loading mvs%04d\n */
-static const char D_004D21A0[24] =
-    "mvs%04d \244\362\306\311\244\337\271\376\244\337\244\336\244\271\n";
-
-static const char D_004D21B8[24] = "movie work broken!\n";
-
-static const char D_004D21D0[16] = "%08x->%08x\n";
+#define D_004D2170 "frame_type error(%d)\n"
 
 static Unit6003DrawEnvironment TestEnv_0_00490520 = {
     {
@@ -368,6 +354,20 @@ static void unit6003_draw(void *object)
     }
     nmlModelDirectSend(draw_mode, (unsigned char *)&TestEnv_0_00490520, 0x15);
 }
+
+/* JP: fm%04d を読み込みます\n
+ * EN: Loading fm%04d\n */
+#define D_004D2188 \
+    "fm%04d \244\362\306\311\244\337\271\376\244\337\244\336\244\271\n"
+
+/* JP: mvs%04d を読み込みます\n
+ * EN: Loading mvs%04d\n */
+#define D_004D21A0 \
+    "mvs%04d \244\362\306\311\244\337\271\376\244\337\244\336\244\271\n"
+
+#define D_004D21B8 "movie work broken!\n"
+
+#define D_004D21D0 "%08x->%08x\n"
 
 static MoviePlaybackWork *movie_work_setup(void *source_data, int source_size)
 {

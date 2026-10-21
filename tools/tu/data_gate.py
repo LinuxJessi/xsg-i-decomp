@@ -57,6 +57,166 @@ def require(value,message):
     if not value:raise ValueError(message)
 
 
+def current_storage_placement_alignment(root, unit_dir, tu_id, name, source_path,
+                                        preprocessed_path, assembly_path, raw_path,
+                                        selected_path, linked_path, original_path):
+    """Mechanical placement facts for two closed current C storage hypotheses.
+
+    This is not source admission. The auditor additionally requires its fresh
+    complete linked DATA context before removing the one literal variable
+    attribute from admission text. Original spelling, required alignment and
+    hardware semantics remain unknown; no original OBJECT is invented.
+    """
+    import tu_edit
+    cases = {
+        ('main/tu179', 'D_004C9AB0'): dict(
+            source='src/main/ether_tree.c', address=0x4c9ab0, raw_size=32,
+            source_sha256='75251883b8d1bdfe75f431e2e67ded8fe93cd21ecae05a703fc63e416fa39271',
+            type='struct EtherTreeColorTable { unsigned char colors[4][4]; };',
+            declaration='const struct EtherTreeColorTable D_004C9AB0 __attribute__((aligned(16))) = '
+                '{ { { 0x00, 0x00, 0x00, 0x00 }, { 0x40, 0x40, 0x40, 0x60 }, '
+                '{ 0x80, 0x80, 0x80, 0x80 }, { 0xa0, 0xa0, 0x40, 0x80 } } };',
+            payload='000000004040406080808080a0a04080'),
+        ('main/tu204', 'D_004CBB60'): dict(
+            source='src/main/wind_test.c', address=0x4cbb60, raw_size=122,
+            source_sha256='57f106eabaf5427c34b59bb3bbe53a74fe21f2af0009ccbea93150d68daf8fac',
+            type='typedef struct Vector4 { float x; float y; float z; float w; } Vector4;',
+            declaration='const Vector4 D_004CBB60 __attribute__((aligned(16))) = '
+                '{ 0.0f, 1.5707963705062866f, 0.0f, 1.0f };',
+            payload='00000000db0fc93f000000000000803f'),
+    }
+    spec = cases.get((tu_id, name))
+    require(spec is not None, 'current storage placement: outside the two variable identities')
+    root, unit_dir = Path(root).resolve(), Path(unit_dir).resolve()
+    paths = dict(source=Path(source_path).resolve(), preprocessed=Path(preprocessed_path).resolve(),
+                 assembly=Path(assembly_path).resolve(), raw=Path(raw_path).resolve(),
+                 selected=Path(selected_path).resolve(), linked=Path(linked_path).resolve(),
+                 original=Path(original_path).resolve(), registry=data_carve.registry_input_path(root).resolve(),
+                 originals=root/'config/originals.json', implementation=Path(__file__).resolve(),
+                 splitter=Path(data_carve.__file__).resolve(),
+                 compile_contract=root/('config/tu-build.json' if (root/'config/tu-build.json').is_file()
+                                       else 'config/objects/main.compile.json'),
+                 toolchain_recipe=root/'config/toolchain-identity.json')
+    require(all(p.is_file() for p in paths.values()), 'current storage placement: missing actual input')
+    pins = {key:dict(path=str(path), sha256=sha(path)) for key,path in paths.items()}
+    text = paths['source'].read_text(errors='surrogateescape')
+    require(sha(paths['source']) == spec['source_sha256'], 'current storage placement: source postimage differs')
+    tokens = tu_edit.c_tokens
+    tu, pp = tu_edit.parse(text), tu_audit.Preprocessed(paths['preprocessed'].read_text(errors='surrogateescape'))
+    pre_tu = tu_edit.parse(pp.text)
+    wanted = tokens(spec['declaration'])
+    def declarations(parsed, source):
+        return [item for item in parsed.free_items() if item.kind=='decl' and not item.conditional
+                and tokens(item.text(source)) == wanted]
+    definitions, expanded = declarations(tu,text), declarations(pre_tu,pp.text)
+    require(len(definitions)==len(expanded)==1, 'current storage placement: exact variable declaration/CPP differs')
+    origin,line = pp.attribute(expanded[0].start)
+    origin_path = Path(origin or '')
+    if not origin_path.is_absolute():origin_path=unit_dir/origin_path
+    require(origin_path.resolve()==paths['source'] and
+            tu_edit.line_of(text,definitions[0].start)<=line<=tu_edit.line_of(text,definitions[0].end),
+            'current storage placement: CPP declaration owner differs')
+    types = [item for item in pre_tu.free_items() if item.kind=='decl' and not item.conditional
+             and tokens(item.text(pp.text)) == tokens(spec['type'])]
+    require(len(types)==1, 'current storage placement: exact complete current type differs')
+    if tu_id=='main/tu179':
+        require(sum(item.kind=='decl' and tokens(item.text(text))==tokens(spec['type'])
+                    for item in tu.free_items())==1,
+                'current storage placement: source-owned palette type differs')
+    type_origin,type_line = pp.attribute(types[0].start)
+    type_path=Path(type_origin or '')
+    if not type_path.is_absolute():type_path=unit_dir/type_path
+    require(type_path.is_file(), 'current storage placement: missing actual type dependency')
+    pins['type_dependency']=dict(path=str(type_path.resolve()),sha256=sha(type_path))
+    assembly=paths['assembly'].read_text(errors='surrogateescape')
+    compiler_only_section(assembly,pp.text,unit_dir,'.rodata')
+    outside=re.sub(r'^\s*#APP\s*$.*?^\s*#NO_APP\s*$', '', assembly, flags=re.M|re.S)
+    emission=(r'^\s*\.align\s+4\s+\.type\s+'+re.escape(name)+r'\s*,\s*@object\s+'
+              r'\.size\s+'+re.escape(name)+r'\s*,\s*16\s+'+re.escape(name)+r':')
+    require(len(re.findall(emission,outside,re.M))==1 and
+            len(re.findall(r'^\s*\.globl\s+'+re.escape(name)+r'\s*$',outside,re.M))==1,
+            'current storage placement: missing ordinary non-APP ALIGN4/GLOBAL OBJECT16')
+    require(not any(re.search(r'\b'+re.escape(name)+r'\b',line)
+                    for source in (text,pp.text) for line in tu_audit.asm_statement_lines(source)),
+            'current storage placement: authored ASM names the storage')
+    registry=data_carve.load_registry(root)
+    contract=data_carve._character_tu_record(root,tu_id)
+    require(contract.get('path')==spec['source'] and
+            contract.get('contract',{}).get('flags')==['-O2','-G8'],
+            'current storage placement: current source route/contract differs')
+    address,size=spec['address'],16
+    runs=registry.get('tus',{}).get(tu_id,{}).get('.rodata',[])
+    matching=[]
+    for run in runs:
+        for part in run.get('c_input_spans',[]):
+            if part.get('symbols')==[name]:matching.append((run,part))
+    require(len(matching)==1, 'current storage placement: registered owner is missing/ambiguous')
+    run,part=matching[0]
+    require(list(map(data_carve.hx,run['range']))==[address,address+size] and
+            list(map(data_carve.hx,part['range']))==[address,address+size] and
+            part.get('object_range')==[0,size] and part.get('section')=='.rodata' and
+            run.get('c_owned_symbols')==[name] and not any(run.get(k) or part.get(k)
+                for k in ('support_only','storage_only','storage_owner','zero_padding_tail',
+                          'typed_character_prefix_proof','anonymous_emission')) and
+            part.get('credit','verified')=='verified',
+            'current storage placement: exact registered finite owner/span differs')
+    require(address%16==0, 'current storage placement: original address incompatible with16')
+    images={key:Elf(paths[key].read_bytes()) for key in ('raw','selected','linked','original')}
+    payload=bytes.fromhex(spec['payload'])
+    original_hash=json.loads(paths['originals'].read_text())['units']['main']['sha256']
+    require(original_hash=='412d448de31505c03ad474cc63d500b3b4f8c48d49d32bd24c89fe5b21af0fb2'
+            and sha(paths['original'])==original_hash, 'current storage placement: original revision differs')
+    identities={}
+    for key in ('raw','selected'):
+        image=images[key]
+        symbols=[s for s in image.symbols if s.name==name]
+        require(len(symbols)==1, 'current storage placement: ambiguous current '+key+' owner')
+        symbol=symbols[0]
+        require(image.e_type==1 and 0<symbol.shndx<len(image.sections) and
+                (symbol.value,symbol.size,symbol.type,symbol.bind)==(0,size,1,1),
+                'current storage placement: '+key+' GLOBAL OBJECT16 identity differs')
+        section=image.sections[symbol.shndx]
+        require((section.name,section.type,section.flags,section.align)==('.rodata',1,2,16) and
+                section.size==(spec['raw_size'] if key=='raw' else size),
+                'current storage placement: '+key+' section/input geometry differs')
+        require(image.section_bytes(section)[:size]==payload,
+                'current storage placement: '+key+' finite payload differs')
+        require(not any(s is not symbol and s.type==1 and s.size and s.shndx==section.index and
+                        s.value<size and 0<s.value+s.size for s in image.symbols),
+                'current storage placement: overlapping current OBJECT')
+        for rel in image.sections:
+            if rel.type not in (4,9) or rel.info!=section.index:continue
+            for offset,_kind,_target,_addend in data_carve._rel_entries(image,rel):
+                require(not(offset<size and 0<offset+4), 'current storage placement: payload relocation')
+        identities[key]=dict(name=name,type='OBJECT',binding='GLOBAL',size=size,
+                             section=section.name,offset=0,section_size=section.size,alignment=section.align)
+    original=images['original']
+    original_symbols=[s for s in original.symbols if s.type not in (3,4) and
+                      0<s.shndx<len(original.sections) and original.sections[s.shndx].name=='.rodata' and
+                      s.value<address+size and address<s.value+max(s.size,1)]
+    require(not original_symbols, 'current storage placement: conflicting original symbol/OBJECT')
+    require(data_carve.va_bytes(original,address,size)==payload and
+            data_carve.va_bytes(images['linked'],address,size)==payload,
+            'current storage placement: original/actual linked bytes differ')
+    linked=[s for s in images['linked'].symbols if s.name==name]
+    require(len(linked)==1 and (linked[0].value,linked[0].size,linked[0].type,linked[0].bind)==
+            (address,size,1,1) and 0<linked[0].shndx<len(images['linked'].sections) and
+            images['linked'].sections[linked[0].shndx].name=='.rodata',
+            'current storage placement: actual linked current storage identity differs')
+    require(all(sha(Path(p['path']))==p['sha256'] for p in pins.values()),
+            'current storage placement: input changed during proof')
+    return dict(schema='closed-current-storage-placement/1',tu=tu_id,name=name,
+        source_relative=spec['source'],declaration=definitions[0].text(text),
+        declaration_tokens_sha256=hashlib.sha256(json.dumps(wanted,separators=(',',':')).encode()).hexdigest(),
+        current_type=spec['type'],type_dependency_line=type_line,
+        original_identity=None,original_observed_symbols=[],registered_range=[address,address+size],
+        raw=identities['raw'],selected=identities['selected'],payload_sha256=hashlib.sha256(payload).hexdigest(),
+        requested_alignment=16,actual_current_storage_alignment=16,
+        original_required_alignment='unknown',original_source_spelling='unknown',
+        original_hardware_or_type_alignment_requirement='unknown',
+        grants_source_eligibility=False,grants_function_acceptance=False,new_storage_or_fill_credit=0,pins=pins)
+
+
 def native_main_carve_mapping(entry, record, owner_name, owner_va, size, raw_section,
                               carved_object_path, carved_section, carved_symbol,
                               source_path, raw_object_path, assembly_path):
