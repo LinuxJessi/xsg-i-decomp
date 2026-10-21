@@ -213906,6 +213906,51 @@
           ],
           "also_referenced_by_c": []
         }
+      ],
+      ".rodata": [
+        {
+          "range": [
+            "0x00a4da50",
+            "0x00a4da68"
+          ],
+          "generated": [
+            "0x00a4da50",
+            "0x00a4da68"
+          ],
+          "generated_by": [
+            "CardMakeDeckProc"
+          ],
+          "c_owned_symbols": [
+            "jtbl_00A4DA50"
+          ],
+          "also_referenced_by_c": []
+        },
+        {
+          "range": [
+            "0x00a4da68",
+            "0x00a4db30"
+          ],
+          "generated": [
+            "0x00a4da68",
+            "0x00a4db2a"
+          ],
+          "generated_by": [
+            "CardLoadDeckProc",
+            "CardLoadDeckProc2",
+            "CardSaveDeckProc"
+          ],
+          "c_owned_symbols": [
+            "D_00A4DA68",
+            "D_00A4DA70",
+            "D_00A4DA78",
+            "D_00A4DAA0",
+            "D_00A4DAD0",
+            "D_00A4DAD8",
+            "D_00A4DAF0",
+            "D_00A4DB10"
+          ],
+          "also_referenced_by_c": []
+        }
       ]
     },
     "ov10/tu005": {
