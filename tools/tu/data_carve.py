@@ -123,6 +123,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from elfinfo import Elf  # noqa: E402
+from toolchain import Toolchain  # noqa: E402
 
 REGISTRY = 'config/tu/data-carves.json'
 CANONICAL_ROOT = Path('/home/pc/xenosaga1-port/xenosaga-i-decomp')
@@ -504,7 +505,7 @@ def split_space_items(items, cuts, tu_name):
 
 def _character_definition(text, name, allow_initializer_references=False):
     """One actual unconditional global narrow literal definition, never text in quotes."""
-    sys.path.insert(0, str(CANONICAL_ROOT / 'tools'))
+    sys.path.insert(0, str(HERE.parent))
     import tu_edit
     tu = tu_edit.TU(text)
     definitions = []
@@ -635,6 +636,53 @@ def _character_process(argv, unit_dir, data=None):
     return output
 
 
+def _character_tu_record(root, tu_id):
+    """Read one character-proof TU in private stages or a public checkout."""
+    root = Path(root)
+    private = root / 'config/tu-build.json'
+    if private.is_file():
+        rows = json.loads(private.read_bytes())['tus']
+    else:
+        manifest = json.loads((root / 'config/objects/main.compile.json').read_bytes())
+        rows = list(manifest['tus'].values())
+    matches = [row for row in rows if row['id'] == tu_id]
+    if len(matches) != 1:
+        raise CarveError('typed character TU contract is missing/ambiguous')
+    tu = matches[0]
+    if private.is_file():
+        return tu
+    flags = tu.get('flags')
+    if (tu.get('category') != 'game' or tu.get('in_scope') is not True or
+            tu.get('kind') != 'gcc' or
+            tu.get('compiler_profile') != 'ee-gcc2_96-realconv-lp7' or
+            flags not in (['-O2', '-G0'], ['-O2', '-G8'])):
+        raise CarveError('unsupported public typed character TU contract')
+    tc = Toolchain(root)
+    contract_id = 'ee-tu-c296-' + flags[1][1:]
+    recipe = tc.contract(contract_id)
+    compiler = tc.entry(recipe['compiler'])
+    assembler = tc.entry(recipe['assembler'])
+    profile = manifest['toolchains'][tu['compiler_profile']]
+    if (recipe['flags'] != flags or recipe.get('driver') != 'ee-gcc' or
+            recipe.get('driver_flags') != ['-nostdinc', '-fno-builtin'] or
+            recipe.get('assembler_argv') != ['-EL', '-m5900', '-mabi=eabi', flags[1], '-I', '.'] or
+            profile.get('cc_dir') != 'tool:' + recipe['compiler'] or
+            profile.get('cc1_sha256') != compiler['files']['cc1']):
+        raise CarveError('public typed character compile identities differ')
+    # Retain the registration's original contract serialization and digest.
+    # These default relative names identify that record; execution uses the
+    # independently resolved and hash-checked Toolchain paths below.
+    default = Path(tc.identity['layout']['default_root'])
+    contract = dict(id=contract_id, compiler_profile='ee-gcc2_96-realconv',
+                    cc1=str(default / compiler['dir'] / 'cc1'),
+                    cc1_sha256=compiler['files']['cc1'], cc1_status='released',
+                    flags=flags, assembler=str(default / assembler['path']),
+                    assembler_sha256=assembler['sha256'],
+                    assembler_flags=recipe['assembler_argv'][:-2],
+                    assembler_status='released', source_class='game_c')
+    return dict(tu, contract=contract)
+
+
 def _materialize_character_context(item, cut, context):
     """Fresh source-only configure proof; ordinary raw/link gates remain mandatory."""
     if 'inputs' in context:
@@ -649,11 +697,7 @@ def _materialize_character_context(item, cut, context):
     registration = runs[0].get('typed_character_prefix_proof') or {}
     if registration.get('schema') != 'typed-character-prefix-proof/1':
         raise CarveError(item['name'] + ': missing registered typed character proof')
-    config = json.loads((root/'config/tu-build.json').read_bytes())
-    tus = [t for t in config['tus'] if t['id'] == context['tu_id']]
-    if len(tus) != 1:
-        raise CarveError('typed character TU contract is missing/ambiguous')
-    tu = tus[0]
+    tu = _character_tu_record(root, context['tu_id'])
     contract = tu['contract']
     digest = hashlib.sha256(json.dumps(contract, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
     source = Path(context.get('source_override') or root/tu['path'])
@@ -670,9 +714,13 @@ def _materialize_character_context(item, cut, context):
         if registration.get(kind+'_sha256') != pin['sha256']:
             raise CarveError('typed character stale '+kind)
         inputs[kind] = pin
-    compiler_root = root if (root/contract['cc1']).is_file() else CANONICAL_ROOT
-    cc1 = compiler_root/contract['cc1']
-    directory = cc1.parent
+    tc = Toolchain(root)
+    compilers = [name for name, entry in tc.identity['tools'].items()
+                 if entry.get('files', {}).get('cc1') == contract.get('cc1_sha256')]
+    if len(compilers) != 1:
+        raise CarveError('typed character compiler identity is missing/ambiguous')
+    directory = tc.dir(compilers[0])
+    cc1 = directory / 'cc1'
     if (contract.get('flags') not in (['-O2', '-G8'], ['-O2', '-G0']) or
             hashlib.sha256(cc1.read_bytes()).hexdigest() != contract.get('cc1_sha256')):
         raise CarveError('typed character compiler contract/pin differs')
@@ -720,7 +768,7 @@ def typed_character_prefix_projection(item, cut, context):
     if len(item.get('labels') or []) != 1 or item['name'] != item['labels'][0] or not item['start'] < cut < item['end']:
         raise CarveError('typed character cut lacks one original item prefix')
     name = item['name']
-    sys.path.insert(0, str(CANONICAL_ROOT / 'tools'))
+    sys.path.insert(0, str(HERE.parent))
     import tu_edit
     import tu_audit
     from tu import data_gate as provenance
@@ -5347,9 +5395,8 @@ def _retain_typed_character_prefix_proofs(root, unit, unit_dir, tu_id, source, o
     if unit != 'main':
         raise CarveError('typed character registration is supported only for MAIN')
     ctx = tu_context(root, unit, unit_dir, tu_id)
-    config = json.loads((Path(root)/'config/tu-build.json').read_bytes())
-    tus = [tu for tu in config['tus'] if tu['id'] == tu_id]
-    if len(tus) != 1 or Path(source).resolve() != (Path(root)/tus[0]['path']).resolve():
+    tu = _character_tu_record(root, tu_id)
+    if Path(source).resolve() != (Path(root)/tu['path']).resolve():
         raise CarveError('typed character derivation source/TU identity differs')
     receipts = []
     for sec, request in registered:
