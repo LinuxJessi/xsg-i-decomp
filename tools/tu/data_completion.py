@@ -389,7 +389,7 @@ def _compiler_pool_lines(assembly, preprocessed, unit_dir, native, audit):
         # cc1 may defer NO_APP across a literal pool after an actual TEXT-only
         # INCLUDE_ASM wrapper. Authenticate that exact authored prefix rather
         # than treating an unrelated include as compiler DATA provenance.
-        parsed = audit.AsmFile(assembly)
+        parsed = native.compiler_assembly(assembly)
         _require(not parsed.errors and parsed.pool_lines, 'unsupported deferred compiler pool')
         lines = assembly.splitlines()
         authored = native.actual_source_asm_lines(preprocessed)
@@ -423,7 +423,7 @@ def _compiler_pool_lines(assembly, preprocessed, unit_dir, native, audit):
 
 
 def _ordinary_lines(assembly, preprocessed, unit_dir, native, audit):
-    parsed = audit.AsmFile(assembly)
+    parsed = native.compiler_assembly(assembly)
     _require(not parsed.errors, 'cc1 parser errors')
     pool = _compiler_pool_lines(assembly, preprocessed, unit_dir, native, audit)
     app, out, app_text = False, [], False
@@ -1162,6 +1162,7 @@ def _original_index_sites(original, lo, hi, native):
              'bef0f448ed692e5de9d232261f4ce21ff51f6d7b4f439277e1226496e9703703',
              'unsupported original-reference index implementation')
     addresses, sites = set(), []
+    gp = original.gp
     def add(value, kind, section, offset, **facts):
         addresses.add(value)
         if lo <= value < hi:
@@ -1197,8 +1198,8 @@ def _original_index_sites(original, lo, hi, native):
                 if rs in upper and offset-upper[rs][1] <= 128:
                     value = upper[rs][0] | immediate if opcode == 13 else upper[rs][0]+signed
                     add(value, 'upper_low', section, offset, high_offset=upper[rs][1], word=word)
-                if rs == 28 and original.gp:
-                    add(original.gp+signed, 'GP', section, offset, word=word)
+                if rs == 28 and gp:
+                    add(gp+signed, 'GP', section, offset, word=word)
     _require(tuple(sorted(addresses)) == native.original_reference_addresses(original.data),
              'original reference witness enumeration differs')
     return sites

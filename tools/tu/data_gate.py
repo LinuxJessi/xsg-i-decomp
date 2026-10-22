@@ -7,6 +7,7 @@ and the existing TU source/function audit remain required alongside it.
 import argparse
 import ast
 import bisect
+from functools import lru_cache
 import hashlib
 import importlib
 import json
@@ -530,6 +531,11 @@ def storage_relocations(elf, symbol_index, emitted_functions=None):
 
 def cc1_functions(text):
     """Names of C function definitions, excluding included scaffold blocks."""
+    return set(_cc1_functions(text))
+
+
+@lru_cache(maxsize=16)
+def _cc1_functions(text):
     app = False
     out = set()
     for line in text.splitlines():
@@ -543,7 +549,7 @@ def cc1_functions(text):
             match = re.match(r'\s*\.ent\s+(\S+)', line)
             if match:
                 out.add(match[1])
-    return out
+    return frozenset(out)
 
 
 def source_storage_array_extent(text, owner_name, owner_size):
@@ -1893,6 +1899,12 @@ def direct_initialized_symbol_span(entry, location, record, packet_tu, ctx,
                 evidence='direct_named_object_exact_bytes_and_link_identity')
 
 
+@lru_cache(maxsize=8)
+def _compiler_assembly(assembly):
+    """Share read-only syntax by exact text; include files are not cached."""
+    return tu_audit.AsmFile(assembly)
+
+
 def compiler_only_section(assembly, preprocessed, unit_dir, section):
     """Prove anonymous constants using the existing cc1 provenance parser.
 
@@ -1900,7 +1912,7 @@ def compiler_only_section(assembly, preprocessed, unit_dir, section):
     provided its payload is cc1 data and no included scaffold supplies payload
     to the same input section. This does not assign an invented object symbol.
     """
-    parsed=tu_audit.AsmFile(assembly)
+    parsed=_compiler_assembly(assembly)
     require(not parsed.errors,'cc1 provenance parser errors: '+str(parsed.errors))
     # GNU MIPS cc1 spells compiler-generated read-only data as `.rdata`;
     # the selected EE assembler folds that input section into ELF `.rodata`.

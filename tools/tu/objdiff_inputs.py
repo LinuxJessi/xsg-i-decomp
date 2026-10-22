@@ -5,13 +5,14 @@ verified compiler output against declaration-only scaffold includes: neither
 fallback nor standalone assembly earns C credit. IOP originals have no base.
 All binary inputs remain local.
 """
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from collections import Counter
 from bisect import bisect_left
 from functools import lru_cache
 import hashlib
 import ast
 import json
+import multiprocessing
 from pathlib import Path
 import re
 import struct
@@ -30,6 +31,16 @@ from tu.toolchain import Toolchain
 emitted_storage = lru_cache(maxsize=16)(parse_emitted_storage)
 _compiler_only_section = lru_cache(maxsize=32)(data_gate.compiler_only_section)
 _compiler_include_views = {}
+_object_preparer = None
+
+
+def _init_object_preparer(preparer):
+    global _object_preparer
+    _object_preparer = preparer
+
+
+def _prepare_in_process(obj):
+    return _object_preparer(obj)
 
 
 @lru_cache(maxsize=32)
@@ -153,7 +164,24 @@ def actual_source_asm_lines(preprocessed):
     return frozenset(written)
 
 
+def compiler_assembly(assembly):
+    """Read-only compiler syntax shared with DATA provenance checks."""
+    return data_gate._compiler_assembly(assembly)
+
+
 def compiler_pool_line_numbers(assembly, preprocessed, unit_dir):
+    numbers = _compiler_pool_line_numbers(assembly, preprocessed)
+    if numbers:
+        # External inputs stay live even when their surrounding syntax is reused.
+        include = Path(unit_dir) / 'include/labels.inc'
+        if (not include.is_file() or hashlib.sha256(include.read_bytes()).hexdigest() !=
+            '2cff19a41f1917f2acf5516b3e3f06b69195340442afe65fad70fb0fc694de19'):
+            raise RuntimeError('Deferred compiler pool labels include differs')
+    return numbers
+
+
+@lru_cache(maxsize=16)
+def _compiler_pool_line_numbers(assembly, preprocessed):
     """Reuse the audit's exact cc1 pool boundary and authored-line veto.
 
     GCC can defer #NO_APP until after the next function's constant pool. The
@@ -161,7 +189,7 @@ def compiler_pool_line_numbers(assembly, preprocessed, unit_dir):
     top-level asm. This changes only provenance interpretation, never output.
     """
     import tu_audit
-    parsed=tu_audit.AsmFile(assembly)
+    parsed=compiler_assembly(assembly)
     if parsed.errors:raise RuntimeError('cc1 provenance parser errors: '+str(parsed.errors))
     if not parsed.pool_lines:return frozenset()
     lines=assembly.splitlines();first=min(number for number,_ in parsed.pool_lines)
@@ -180,12 +208,6 @@ def compiler_pool_line_numbers(assembly, preprocessed, unit_dir):
     statements=list(source_matches(r'\b(?:__asm__|__asm|asm)\s*\(\s*("(?:\\.|[^"\\])*")\s*\)\s*;',preprocessed))
     exact=[match for match in statements if c_literal_bytes(match[1])==b'.include "include/labels.inc"\n']
     if len(exact)!=1:raise RuntimeError('Missing unique actual source labels include')
-    include=Path(unit_dir)/'include/labels.inc'
-    # This is the pinned macro-only include used by the selected legacy EE
-    # assembler. Re-read it on every proof; basename alone is no provenance.
-    if (not include.is_file() or hashlib.sha256(include.read_bytes()).hexdigest()!=
-        '2cff19a41f1917f2acf5516b3e3f06b69195340442afe65fad70fb0fc694de19'):
-        raise RuntimeError('Deferred compiler pool labels include differs')
     written=actual_source_asm_lines(preprocessed)
     for _,line in parsed.pool_lines:
         if not tu_audit._app_line_allowed(line) and tu_audit._norm_asm_line(line) in written:
@@ -195,8 +217,13 @@ def compiler_pool_line_numbers(assembly, preprocessed, unit_dir):
 
 def outside_app_section_payload(assembly, section, preprocessed='', unit_dir=None):
     """Refuse direct authored payload in the witnessed compiler section."""
-    current=previous=None;app=False
     pool_lines=compiler_pool_line_numbers(assembly,preprocessed,unit_dir) if preprocessed and unit_dir is not None else frozenset()
+    return _outside_app_section_payload(assembly, section, pool_lines)
+
+
+@lru_cache(maxsize=32)
+def _outside_app_section_payload(assembly, section, pool_lines):
+    current=previous=None;app=False
     for number,line in enumerate(assembly.splitlines(),1):
         if line.strip()=='#APP':app=True;continue
         if line.strip()=='#NO_APP':app=False;continue
@@ -6025,8 +6052,19 @@ def prepare(root, evidence, only_objects=None):
         return unit_config, dict(functions=target_functions, allowed=credited,
                                  complete=checked['complete'], data_only=data_only)
 
-    with ThreadPoolExecutor(max_workers=4) as pool:
-        prepared = list(pool.map(prepare_object, objects))
+    if 'fork' in multiprocessing.get_all_start_methods():
+        # These Python-heavy proofs need separate interpreters for parallelism.
+        # Fork inherits the validated, read-only context and the worker closure;
+        # each object still writes only its own destination. Keep the existing
+        # four-worker bound and ordered results, including exception propagation.
+        with ProcessPoolExecutor(max_workers=4,
+                                 mp_context=multiprocessing.get_context('fork'),
+                                 initializer=_init_object_preparer,
+                                 initargs=(prepare_object,)) as pool:
+            prepared = list(pool.map(_prepare_in_process, objects))
+    else:
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            prepared = list(pool.map(prepare_object, objects))
     units = []
     for unit, checked in prepared:
         verification.require(unit['name'] not in expected, 'duplicate TU name')

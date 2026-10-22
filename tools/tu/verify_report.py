@@ -6,8 +6,10 @@ symbol identities and counts go in verification.json; never original bytes.
 This is public CI evidence, not a replacement for the recovery acceptance audit.
 """
 import argparse
+from concurrent.futures import ProcessPoolExecutor
 import hashlib
 import json
+import multiprocessing
 import re
 import subprocess
 import sys
@@ -76,10 +78,24 @@ def compiler_functions(assembly):
     return emitted
 
 
+def function_indexes(elf):
+    """Index the verifier's read-only ELF once, retaining every duplicate."""
+    indexes = getattr(elf, '_verification_function_indexes', None)
+    if indexes is None:
+        names, locations = {}, {}
+        for entry in elf.symbols:
+            if entry.type == 2 and entry.shndx not in (0, 0xfff1):
+                names.setdefault((entry.name, entry.size), []).append(entry)
+                locations.setdefault((entry.value, entry.size), []).append(entry)
+        indexes = names, locations
+        elf._verification_function_indexes = indexes
+    return indexes
+
+
 def symbol(elf, name, size, value=None):
-    found = [s for s in elf.symbols if s.name == name and s.type == 2
-             and s.shndx not in (0, 0xfff1) and s.size == size
-             and (value is None or s.value == value)]
+    found = function_indexes(elf)[0].get((name, size), ())
+    if value is not None:
+        found = [s for s in found if s.value == value]
     require(len(found) == 1, f'{name}: missing/ambiguous FUNC symbol or wrong address/size')
     return found[0]
 
@@ -90,8 +106,7 @@ def original_symbol(elf, label, size, va):
     Splat disambiguates repeated local names with address suffixes. Those
     labels do not rename the original symbol or the compiler's definition.
     """
-    found = [s for s in elf.symbols if s.type == 2 and s.size == size
-             and s.value == va and s.shndx not in (0, 0xfff1)]
+    found = function_indexes(elf)[1].get((va, size), ())
     named = [s for s in found if s.name == label]
     if named:
         found = named
@@ -225,6 +240,36 @@ def linked_object_complete(root, build, obj, placed, derived, fills, original, l
     return True
 
 
+_completion_context = None
+
+
+def _init_completion_context(context):
+    global _completion_context
+    _completion_context = context
+
+
+def _complete_object_with_context(obj, context):
+    root, build, placed, derived, fills, original, linked = context
+    complete = linked_object_complete(root, build, obj, placed, derived, fills, original, linked)
+    return complete, dict(linked_object_complete.last_alignment_artifacts)
+
+
+def _complete_object(obj):
+    return _complete_object_with_context(obj, _completion_context)
+
+
+def complete_objects(root, build, objects, placed, derived, fills, original, linked):
+    """Run the same read-only DATA proofs in at most four isolated processes."""
+    context = root, build, placed, derived, fills, original, linked
+    if len(objects) > 1 and 'fork' in multiprocessing.get_all_start_methods():
+        with ProcessPoolExecutor(max_workers=4,
+                                 mp_context=multiprocessing.get_context('fork'),
+                                 initializer=_init_completion_context,
+                                 initargs=(context,)) as pool:
+            return list(pool.map(_complete_object, objects))
+    return [_complete_object_with_context(obj, context) for obj in objects]
+
+
 def finish(root, build, snapshot):
     same_inputs(root, snapshot)
     started = (build / 'verification-inputs.json').stat().st_mtime_ns
@@ -271,6 +316,7 @@ def finish(root, build, snapshot):
         artifacts[str(original_path.relative_to(root))] = digest(original_path)
         for path in (image_path, linked_path, unit_dir / 'status.json'):
             artifacts[str(path.relative_to(root))] = fresh(path)
+        completion_candidates = []
         for obj in (o for o in objects if o['unit'] == unit):
             claimed = cov.count_object(root, obj, parser, problems)
             verified = []
@@ -302,10 +348,14 @@ def finish(root, build, snapshot):
                     verified.append(dict(name=name, original_symbol=target.name,
                                          va=va, size=size, category=category,
                                          sha256=hashlib.sha256(b).hexdigest()))
-            linked_object_complete.last_alignment_artifacts = {}
-            complete = (bool(obj['functions']) and len(verified) == len(obj['functions'])
-                        and linked_object_complete(root, build, obj, placed, derived, fills, original, linked))
-            for name, expected in linked_object_complete.last_alignment_artifacts.items():
+            if obj['functions'] and len(verified) == len(obj['functions']):
+                completion_candidates.append(obj)
+            results[obj['id']] = dict(functions=verified, complete=False)
+        completed = complete_objects(root, build, completion_candidates, placed, derived,
+                                     fills, original, linked)
+        for obj, (complete, alignment_artifacts) in zip(completion_candidates, completed):
+            results[obj['id']]['complete'] = complete
+            for name, expected in alignment_artifacts.items():
                 path = Path(name)
                 require(path.resolve().is_relative_to(root.resolve()),
                         'ordinary alignment object evidence lies outside the build root')
@@ -322,7 +372,6 @@ def finish(root, build, snapshot):
                 require(actual == expected,
                         'ordinary alignment object evidence changed or lies outside the build root')
                 artifacts[str(path.relative_to(root))] = expected
-            results[obj['id']] = dict(functions=verified, complete=complete)
     require(not problems, f'source/object scope inconsistencies: {problems[:3]}')
     sizes = data_sizes(root, objects)
     for obj in objects:
