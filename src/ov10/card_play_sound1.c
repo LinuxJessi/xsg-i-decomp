@@ -16,6 +16,56 @@
 #define D_00A57744 win15
 #define D_00A57748 pack16
 
+/*
+ * Card master file (CARDDATA, 0x00a007d0): CardFread loads it to 0x01000000.
+ * Layout: u16 card count at +0 (lhu 0x00a00824), 12-character version tag at +4
+ * (ori 0x00a0082c/0x00a0086c), CardDefinition table at +0x10 (ori 0x00a008a0).
+ */
+#define CARD_DATA_BUFFER 0x01000000
+#define CARD_DATA_HEADER ((CardDataHeader *) CARD_DATA_BUFFER)
+#define CARD_DATA_TAG_OFFSET 4        /* ori 0x00a0082c / 0x00a0086c */
+#define CARD_DATA_TAG ((u8 *) (CARD_DATA_BUFFER + CARD_DATA_TAG_OFFSET))
+#define CARD_DATA_TAG_LENGTH 12      /* slti 0x00a00848 / 0x00a00880 */
+#define CARD_DATA_HEADER_SIZE 0x10    /* ori 0x00a008a0: the definitions start after the header */
+#define CARD_DATA_TABLE ((CardDefinition *) (CARD_DATA_BUFFER + CARD_DATA_HEADER_SIZE))
+typedef struct CardDataHeader {
+    u16 count;                      /* +0x00: number of CardDefinition entries */
+    u8 unmodeled_02[2];
+} CardDataHeader;
+
+extern int CardFread(u32 destination, char *filename);
+extern int printf(const char *format, ...);
+/* "CardData1.10": the version tag the file must carry (.data 0x00a42040, 13 bytes). */
+static u8 IDdata[13];
+
+/* Title screen layout (CardTitleInit, 0x00a008e8). */
+#define CARD_MODEL_COUNT 16
+
+/* Slots of CardGameWork.models[] and the resource CardMainInit gives each (address of the model store). */
+enum CardModelSlot {
+    CARD_MODEL_TITLE = 0,        /* title\NewTitle.lex, 0x00a0197c */
+    CARD_MODEL_VIEWER = 1,       /* deckmake\viewer.lex, 0x00a01984 */
+    CARD_MODEL_DECKLIST = 2,     /* deckmake\decklist.lex, 0x00a01978 */
+    CARD_MODEL_DECKMAKE = 3,     /* deckmake\deckmake.lex, 0x00a01988 */
+    CARD_MODEL_MAT_FG = 4,       /* game\mat_fg.lex, 0x00a01990 */
+    CARD_MODEL_MAT_MOJI = 5,     /* game\mat_moji.lex, or mat_mojiJ.lex without CARD_SAVE_LARGE_CARDS, 0x00a019bc / 0x00a019dc */
+    CARD_MODEL_MAT_FG_2 = 6,     /* game\mat_fg.lex again, 0x00a01a00 */
+    CARD_MODEL_MAT_MOJI_2 = 7,   /* the same file as slot 5, 0x00a019b8 / 0x00a019d8 */
+    CARD_MODEL_BACKGROUND = 15   /* <BGFileNameList entry>.lex, 0x00a01a10 */
+};
+
+#define CARD_TITLE_MODEL_SLOT 14             /* the title logo model: matrix addiu 0x00a00960, stores 0x00a0095c..0x00a0096c */
+#define CARD_TITLE_MODEL_ADDR 0x01DA0000     /* lui 0x00a00954, stored 0x00a0095c */
+#define CARD_TITLE_TEXTURE_ADDR 0x01DB5800   /* lui/ori 0x00a00950/0x00a00958, stored 0x00a0096c */
+#define CARD_TITLE_MODEL_Y (-1.37f)          /* 0xBFAF5C29, lui/ori 0x00a00988/0x00a0098c */
+#define CARD_TITLE_MODEL_Z 0.1f              /* 0x3DCCCCCD, lui/ori 0x00a00994/0x00a00998 */
+#define CARD_TITLE_LEX_BASE 0x01900000       /* m_game.lex, m_card.lex, m_help.lex: lui 0x00a009b4, ori 0x00a009c8/0x00a009dc */
+#define CARD_TITLE_LEX_SIZE 0x1000           /* distance between the three layout files */
+#define CARD_TITLE_XTX_GAME 0x01A10050       /* lui/ori 0x00a009e4/0x00a009f0 */
+#define CARD_TITLE_XTX_CARD 0x01A200A0       /* lui/ori 0x00a009f8/0x00a00a04 */
+#define CARD_TITLE_XTX_HELP 0x01A300E0       /* lui/ori 0x00a00a0c/0x00a00a20 */
+extern int CardFread(u32 destination, char *filename);
+
 struct CardSoundPath {
     char name[34];
 };
@@ -107,18 +157,100 @@ void CardPlaySound4(void)
     xglSoundSequenceNormal2(0, 127);
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov10/card_play_sound1", CardDataLoad);
+/*
+ * CardDataLoad (0x00a007d0): loads card.dat and checks its 12-character version tag
+ * (slti 12 at 0x00a00848 and 0x00a00880; IDdata is a 13-byte object, its NUL is not
+ * compared).  The tag compare keeps the original's spelling, the one offset cast in
+ * the claimed code: the readable alternatives all change the code.  Compiled in private
+ * copies and compared with the original (whole-file gate): `*tag++ != IDdata[j]` gives
+ * 5 diff ranges (0x00a00855, 0x00a0085C, 0x00a00860, 0x00a00866, 0x00a0086A);
+ * `u8 *expectedId = IDdata` with `expectedId[j]` gives 2 ranges (0x00a00872 and
+ * 0x00a0089A, one byte each, a7 against e5: register choice); `*expectedId++` gives 17
+ * ranges (0x00a007F6 through 0x00a00896).
+ */
+CardDefinition *CardDataLoad(u16 *cardCount)
+{
+    char loadedId[CARD_DATA_TAG_LENGTH + 1];
+    u8 *tag;
+    u32 expectedId;
+    int i;
+    int j;
+
+    if (CardFread(CARD_DATA_BUFFER, "card.dat") < 0) {
+        printf("Card Data File Not Found!!\n");
+        return 0;
+    }
+
+    *cardCount = CARD_DATA_HEADER->count;
+
+    for (i = 0, tag = CARD_DATA_TAG; i < CARD_DATA_TAG_LENGTH; i++)
+        loadedId[i] = *tag++;
+    expectedId = (u32) IDdata;
+    loadedId[i] = '\0';
+
+    tag = CARD_DATA_TAG;
+    for (j = 0; j < CARD_DATA_TAG_LENGTH; j++) {
+        if (*tag++ != *(u8 *) (j + expectedId)) {
+            printf("ID Not Mutch!!\n");
+            return 0;
+        }
+    }
+
+    return CARD_DATA_TABLE;
+}
 
 typedef signed int s32;
 
-extern s32 CardFread(u32 mode, char *filename);
 extern char D_00A4BD00[];
 
-u32 CardGraphicLoad(void) {
-    return (u32) ~CardFread(0x0100C000, D_00A4BD00) >> 0x1F;
+/* CARDGRAP.BIN (D_00A4BD00) is read right behind the card master file buffer: lui/ori 0x00a008bc/0x00a008d0. */
+#define CARD_GRAPHIC_BUFFER 0x0100C000
+
+/* The result is 1 when CardFread did not fail: nor 0x00a008d4 and srl 31 at 0x00a008dc take the sign bit of ~rc. */
+u32 CardGraphicLoad(CardDefinition *definitions, u16 cardCount) {
+    return (u32) ~CardFread(CARD_GRAPHIC_BUFFER, D_00A4BD00) >> 0x1F;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov10/card_play_sound1", CardTitleInit);
+/*
+ * CardTitleInit (0x00a008e8, 0x144 bytes): hides every card model, resets the
+ * title logo model slot (matrix, position, model and texture addresses and the
+ * rotation state bytes at +0x70F0) and loads the three title layout files and
+ * their textures. Called from CardMainProc when the title screen is entered
+ * (CardMainInit 0x00a01aac, CardMainProc 0x00a03cac).
+ */
+void CardTitleInit(CardGameWork *work)
+{
+    int i;
+
+    for (i = CARD_MODEL_COUNT - 1; i >= 0; i--)
+        work->models[i].visible = 0;
+
+    work->models[CARD_MODEL_TITLE].visible = 1;
+    work->models[CARD_MODEL_BACKGROUND].visible = 1;
+    xglMatrixUnit(work->models[CARD_MODEL_MAT_FG].matrix);
+    xglMatrixUnit(work->models[CARD_MODEL_MAT_MOJI].matrix);
+    xglMatrixUnit(work->models[CARD_MODEL_BACKGROUND].matrix);
+
+    work->rotStageCooldown = 0;
+    work->rotStageVector[1] = work->rotStageVector[2] = work->rotStageVector[0] = 0.0f;
+    work->models[CARD_TITLE_MODEL_SLOT].model = (void *) CARD_TITLE_MODEL_ADDR;
+    work->models[CARD_TITLE_MODEL_SLOT].visible = 1;
+    work->models[CARD_TITLE_MODEL_SLOT].texture = (void *) CARD_TITLE_TEXTURE_ADDR;
+    work->rotStageFlag = 0;
+    work->rotStageId = 0;
+    work->rotStageActive = 0;
+
+    xglMatrixUnit(work->models[CARD_TITLE_MODEL_SLOT].matrix);
+    work->models[CARD_TITLE_MODEL_SLOT].matrix[3][1] = CARD_TITLE_MODEL_Y;
+    work->models[CARD_TITLE_MODEL_SLOT].matrix[3][2] = CARD_TITLE_MODEL_Z;
+
+    CardFread(CARD_TITLE_LEX_BASE, "title\\m_game.lex");
+    CardFread(CARD_TITLE_LEX_BASE + CARD_TITLE_LEX_SIZE, "title\\m_card.lex");
+    CardFread(CARD_TITLE_LEX_BASE + 2 * CARD_TITLE_LEX_SIZE, "title\\m_help.lex");
+    CardFread(CARD_TITLE_XTX_GAME, "title\\m_game.xtx");
+    CardFread(CARD_TITLE_XTX_CARD, "title\\m_card.xtx");
+    CardFread(CARD_TITLE_XTX_HELP, "title\\m_help.xtx");
+}
 
 void CMIBGInit(CardGameWork *work)
 {
@@ -133,7 +265,402 @@ void CMIBGInit(CardGameWork *work)
     CardFread(0x01FB0300, filename);
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov10/card_play_sound1", CardMainInit);
+/* Save data block of the card game inside SaveData (the 0x300 bytes before the thumbnail). */
+#define CARD_SAVE_OFFSET 0x15090     /* SaveData 0x004917B0 + this = 0x004A6840, built at 0x00a00ad4/0x00a00ae0 (lui/addiu) and stored at 0x00a00b00 */
+#define CARD_SAVE_INITIALIZED 0x01   /* CardSaveData.flags: the initial cards and decks were written; andi 0x00a00b08, ori 0x00a00b18 */
+#define CARD_DECK_EMPTY 0xFF         /* li 255 at 0x00a00c30, stored with sh into both deck arrays */
+#define CARD_ID_COUNT 150            /* ownedCount entries, slti at 0x00a00c08 */
+#define CARD_COUNTS_PER_BYTE 4
+#define CARD_COUNT_BITS 2
+#define CARD_COUNT_MASK 3
+#define CARD_BACKGROUND_COUNT 6      /* BGFileNameList entries, sltiu at 0x00a00c20 */
+#define CARD_CURSOR_KINDS 4          /* cursorLex / cursorXtx entries, count-down loop li 3 at 0x00a00cac, bgez at 0x00a00cf4 */
+
+/* Cursor kinds in cursorLex[] / cursorXtx[], named after the files CardMainInit stores (lex 0x00a00f58, 0x00a00f64,
+ * 0x00a00f54; texture 0x00a00f50, 0x00a00f40, 0x00a00f48). Entry 3 stays 0. */
+enum CardCursorKind {
+    CARD_CURSOR_2D_11 = 0,       /* game\cur2D_11.lex frames, game\cur2D.xtx */
+    CARD_CURSOR_2D_01 = 1,       /* game\cur2D_01.lex frames, the same texture */
+    CARD_CURSOR_FRAME_YELLOW = 2 /* game\Cur_WakuY.lex, game\Cur_Waku.xtx */
+};
+#define CARD_LIGHT_COUNT 4           /* ambient light plus three parallel lights, slti at 0x00a01ba8 */
+#define CARD_FADE_LEVEL_FULL 0x80    /* li -128 at 0x00a01af8, stored with sb at 0x00a01b08..0x00a01b2c */
+
+/* Where CardMainInit reads the resources it names again below. The other files are read
+ * to fixed addresses too, in the order of their use: cursors, title windows, deck editor,
+ * card faces, digits, help, battle windows, models and the playing mat. Files that sit at a
+ * constant distance from each other are written as base + n * size; the destinations that
+ * have no further role are plain addresses, each with the address of its jal CardFread. */
+#define CARD_CURSOR_LEX_FIRST 0x01D00000   /* game\cur2D_11.lex */
+#define CARD_CURSOR_LEX_SECOND 0x01D02000  /* game\cur2D_01.lex */
+#define CARD_FRAME_LEX_YELLOW 0x01D08000   /* game\Cur_WakuY.lex */
+#define CARD_CURSOR_LEX_SIZE 0x510         /* distance between the six frames of a cursor set (game\cur2D_11..16.lex, cur2D_01..06.lex) */
+#define CARD_BLACK_LEX 0x01D06000          /* game\black.lex, drawn last by NewCMPGameModeExit */
+#define CARD_CURSOR_XTX 0x01D20000         /* game\cur2D.xtx */
+#define CARD_FRAME_XTX 0x01D60000          /* game\Cur_Waku.xtx */
+#define CARD_MENU_ITEM_LEX 0x0170B600      /* title\menu1.lex: the item plates of the START menu */
+#define CARD_MENU_OPTION_LEX 0x0170D600    /* title\menu2.lex: the option row plates */
+#define CARD_MENU_TEXTURE 0x0170F600       /* title\menu.bin: texture of both */
+#define CARD_TITLE_WINDOW_SIZE 0x2B00      /* distance between title\window1..8.lex and title\window.bin (CARD_TITLE_MODEL_ADDR, CARD_TITLE_TEXTURE_ADDR) */
+#define CARD_SMALL_LEX_BASE 0x01C80000     /* o0..o9, s0..s9, Ftype_*, Btype_*, Atype_*, L0..L9, R0..R9 and field.lex: 0x400 bytes each, in this order */
+#define CARD_SMALL_LEX_SIZE 0x400
+#define CARD_SMALL_LEX(n) (CARD_SMALL_LEX_BASE + (n) * CARD_SMALL_LEX_SIZE)
+#define CARD_LINE_LEX 0x01713600           /* line1..4.lex */
+#define CARD_LINE_LEX_SIZE 0x1000
+#define CARD_BATTLE_WINDOW_LEX 0x01930000  /* six battle window files, 0x1800 bytes each (CardLoadBattleWindows reads the same ones) */
+#define CARD_BATTLE_WINDOW_SIZE 0x1800
+#define CARD_TITLE_LEX 0x01DE0000          /* title\NewTitle.lex */
+#define CARD_TITLE_XTX 0x01EF0000          /* title\NewTitle.xtx */
+#define CARD_VIEWER_LEX 0x01DF0400         /* deckmake\viewer.lex */
+#define CARD_DECKLIST_LEX 0x01DF6000       /* deckmake\decklist.lex */
+#define CARD_DECKMAKE_LEX 0x01E00000       /* deckmake\deckmake.lex */
+#define CARD_DECK_GRA_BIN 0x01F30100       /* deckmake\deck_gra.bin: texture of the three deck screens */
+#define CARD_MAT_FG_LEX 0x01E10000         /* game\mat_fg.lex */
+#define CARD_MAT_FG_XTX 0x01F70200         /* game\mat_fg.xtx */
+#define CARD_MAT_MOJI_LEX 0x01E20000       /* game\mat_moji.lex */
+#define CARD_MAT_MOJI_J_LEX 0x01996000     /* game\mat_mojiJ.lex */
+#define CARD_MAT_MOJI_J_XTX 0x0199A000     /* game\mat_mojiJ.xtx */
+#define CARD_BACKGROUND_LEX 0x01E40000     /* <BGFileNameList entry>.lex */
+#define CARD_BACKGROUND_XTX 0x01FB0300     /* <BGFileNameList entry>.xtx */
+
+extern u16 CardCommandPlay[CARD_ID_COUNT];
+extern u8 CardInitialDataPack[CARD_DECK_SIZE];
+extern float s_asIntensity[4][4];
+extern float s_asDirection[4][4];
+extern unsigned char SaveData[];
+extern void CardHelpFileLoad(void);
+extern void InitCpuDeck(void);
+extern void xglLightIntensityParallel(void *light, int index, void *intensity);
+extern void xglLightAngle(void *light, int index, void *angle);
+
+/*
+ * CardMainInit (0x00a00ad0, 0x110c bytes): one-time setup of the card game, called from
+ * CardGameRoot with its function-static work area. Writes the initial cards and five
+ * stored decks into the save data the first time, unpacks the owned-card counts, clears the
+ * work area, loads the card data and every resource file, places the models and sets the
+ * camera and lights. Returns 1, or 0 after printing an error when the card data or card
+ * graphics cannot be loaded.
+ */
+int CardMainInit(CardGameWork *work)
+{
+    char filename[32];
+    float modelScale[4];
+    float eyePosition[4];
+    StudioLight *light;
+    u8 checksum;
+    int i;
+    int lightNo;
+
+    work->save = (CardSaveData *) (SaveData + CARD_SAVE_OFFSET);
+    if (!(work->save->flags & CARD_SAVE_INITIALIZED)) {
+        work->save->flags |= CARD_SAVE_INITIALIZED;
+        work->save->flags |= CARD_SAVE_LARGE_CARDS;
+        checksum = 0;
+        for (i = 0; i < CARD_DECK_SIZE; i++) {
+            u8 id = CardInitialDataPack[i];
+
+            /* The five stored decks are written one after the other, not in an inner loop. */
+            CARD_STORED_DECK(work, 0).cards[i] = id;
+            checksum += id;
+            CARD_STORED_DECK(work, 1).cards[i] = id;
+            CARD_STORED_DECK(work, 2).cards[i] = id;
+            CARD_STORED_DECK(work, 3).cards[i] = id;
+            CARD_STORED_DECK(work, 4).cards[i] = id;
+            CardAddList(work, id);
+        }
+        checksum = ~checksum;
+        CARD_STORED_DECK(work, 0).checksum = checksum;
+        CARD_STORED_DECK(work, 1).checksum = checksum;
+        CARD_STORED_DECK(work, 2).checksum = checksum;
+        CARD_STORED_DECK(work, 3).checksum = checksum;
+        CARD_STORED_DECK(work, 4).checksum = checksum;
+    }
+    for (i = 0; i < CARD_ID_COUNT; i++) {
+        work->ownedCount[i] = (work->save->cardCounts[i / CARD_COUNTS_PER_BYTE] >>
+                                (i % CARD_COUNTS_PER_BYTE * CARD_COUNT_BITS)) & CARD_COUNT_MASK;
+    }
+    if (work->save->background >= CARD_BACKGROUND_COUNT)
+        work->save->background = 0;
+    for (i = 0; i < CARD_DECK_SIZE; i++) {
+        work->playerDeck[i] = CARD_DECK_EMPTY;
+        work->enemyDeck[i] = CARD_DECK_EMPTY;
+    }
+    {
+        /* Two walking pointers: the original steps the placement matrix separately from the entry. */
+        float (*matrix)[4] = work->models[0].matrix;
+        CardModelEntry *model = work->models;
+
+        for (i = 0; i < CARD_MODEL_COUNT; i++) {
+            model->visible = 0;
+            model->model = 0;
+            model->texture = 0;
+            xglMatrixUnit(matrix);
+            model++;
+            matrix += sizeof(CardModelEntry) / sizeof(matrix[0]);
+        }
+    }
+    work->commandIds = CardCommandPlay;
+    work->cursor.selectionMode = 0;
+    work->cursorZone = 0;
+    work->cursorIndex = 0;
+    work->highlightX = work->highlightY = work->highlightScaleX = work->highlightScaleY = 1.0f;
+    work->cursorPos[0] = work->cursorPos[1] = work->cursorPos[2] = 0.0f;
+    work->cursorPos[3] = 1.0f;
+    for (i = 0; i < CARD_CURSOR_KINDS; i++) {
+        work->cursorLex[i] = 0;
+        work->cursorXtx[i] = 0;
+    }
+    work->fadeOutFlag = 0;
+    work->rotStageFlag = 0;
+    work->rotStageCooldown = 0;
+    work->rotStageActive = 0;
+    work->rotStageId = 0;
+    work->fase = 0;
+    work->definitions = CardDataLoad(&work->cardCount);
+    if (work->definitions == 0) {
+        printf("Card Data Load ERROR!!!\n");
+        return 0;
+    }
+    if (CardGraphicLoad(work->definitions, work->cardCount) == 0) {
+        printf("Card Graphic Load ERROR!!!\n");
+        return 0;
+    }
+    CardFread(CARD_CURSOR_LEX_FIRST, "game\\cur2D_11.lex");
+    CardFread(CARD_CURSOR_LEX_FIRST + 1 * CARD_CURSOR_LEX_SIZE, "game\\cur2D_12.lex");
+    CardFread(CARD_CURSOR_LEX_FIRST + 2 * CARD_CURSOR_LEX_SIZE, "game\\cur2D_13.lex");
+    CardFread(CARD_CURSOR_LEX_FIRST + 3 * CARD_CURSOR_LEX_SIZE, "game\\cur2D_14.lex");
+    CardFread(CARD_CURSOR_LEX_FIRST + 4 * CARD_CURSOR_LEX_SIZE, "game\\cur2D_15.lex");
+    CardFread(CARD_CURSOR_LEX_FIRST + 5 * CARD_CURSOR_LEX_SIZE, "game\\cur2D_16.lex");
+    CardFread(CARD_CURSOR_LEX_SECOND, "game\\cur2D_01.lex");
+    CardFread(CARD_CURSOR_LEX_SECOND + 1 * CARD_CURSOR_LEX_SIZE, "game\\cur2D_02.lex");
+    CardFread(CARD_CURSOR_LEX_SECOND + 2 * CARD_CURSOR_LEX_SIZE, "game\\cur2D_03.lex");
+    CardFread(CARD_CURSOR_LEX_SECOND + 3 * CARD_CURSOR_LEX_SIZE, "game\\cur2D_04.lex");
+    CardFread(CARD_CURSOR_LEX_SECOND + 4 * CARD_CURSOR_LEX_SIZE, "game\\cur2D_05.lex");
+    CardFread(CARD_CURSOR_LEX_SECOND + 5 * CARD_CURSOR_LEX_SIZE, "game\\cur2D_06.lex");
+    CardFread(CARD_BLACK_LEX, "game\\black.lex");
+    CardFread(CARD_FRAME_LEX_YELLOW, "game\\Cur_WakuY.lex");
+    CardFread(0x01D0C000, "game\\Cur_WakuG.lex");  /* 0x00a00e8c */
+    CardFread(0x01D10000, "game\\Cur_WakuR.lex");  /* 0x00a00e9c */
+    CardFread(0x01D12000, "game\\Cur_WakuW.lex");  /* 0x00a00eb0 */
+    CardFread(0x01D14000, "game\\waku6.lex");  /* 0x00a00ec4 */
+    CardFread(0x01D18000, "game\\1p.lex");  /* 0x00a00ed8 */
+    CardFread(0x01D1C000, "game\\2p.lex");  /* 0x00a00eec */
+    CardFread(CARD_CURSOR_XTX, "game\\cur2D.xtx");
+    CardFread(CARD_FRAME_XTX, "game\\Cur_Waku.xtx");
+    CardFread(0x01D80000, "game\\1p2p.xtx");  /* 0x00a00f1c */
+    work->cursorLex[CARD_CURSOR_2D_11] = (void *) CARD_CURSOR_LEX_FIRST;
+    work->cursorLex[CARD_CURSOR_2D_01] = (void *) CARD_CURSOR_LEX_SECOND;
+    work->cursorLex[CARD_CURSOR_FRAME_YELLOW] = (void *) CARD_FRAME_LEX_YELLOW;
+    work->cursorXtx[CARD_CURSOR_2D_11] = (void *) CARD_CURSOR_XTX;
+    work->cursorXtx[CARD_CURSOR_2D_01] = (void *) CARD_CURSOR_XTX;
+    work->cursorXtx[CARD_CURSOR_FRAME_YELLOW] = (void *) CARD_FRAME_XTX;
+    CardFread(CARD_TITLE_MODEL_ADDR, "title\\window1.lex");
+    CardFread(CARD_TITLE_MODEL_ADDR + 1 * CARD_TITLE_WINDOW_SIZE, "title\\window2.lex");
+    CardFread(CARD_TITLE_MODEL_ADDR + 2 * CARD_TITLE_WINDOW_SIZE, "title\\window3.lex");
+    CardFread(CARD_TITLE_MODEL_ADDR + 3 * CARD_TITLE_WINDOW_SIZE, "title\\window4.lex");
+    CardFread(CARD_TITLE_MODEL_ADDR + 4 * CARD_TITLE_WINDOW_SIZE, "title\\window5.lex");
+    CardFread(CARD_TITLE_MODEL_ADDR + 5 * CARD_TITLE_WINDOW_SIZE, "title\\window6.lex");
+    CardFread(CARD_TITLE_MODEL_ADDR + 6 * CARD_TITLE_WINDOW_SIZE, "title\\window7.lex");
+    CardFread(CARD_TITLE_MODEL_ADDR + 7 * CARD_TITLE_WINDOW_SIZE, "title\\window8.lex");
+    CardFread(CARD_TITLE_TEXTURE_ADDR, "title\\window.bin");
+    CardFread(0x01DDF800, "deckmake\\comp.lex");  /* 0x00a01014 */
+    CardFread(0x01DDFC00, "deckmake\\comp.xtx");  /* 0x00a01028 */
+    CardFread(0x016E0000, "NewCardBase.bin");  /* 0x00a01038 */
+    CardFread(0x016F8100, "name.lex");  /* 0x00a0104c */
+    CardFread(0x016F8500, "cardgrap.lex");  /* 0x00a01060 */
+    CardFread(0x016F8900, "NewCard_B.lex");  /* 0x00a01074 */
+    CardFread(0x016FD440, "NewCard_E.lex");  /* 0x00a01088 */
+    CardFread(0x01701F80, "NewCard_S.lex");  /* 0x00a0109c */
+    CardFread(0x01706AC0, "card_kage.lex");  /* 0x00a010b0 */
+    CardFread(CARD_MENU_ITEM_LEX, "title\\menu1.lex");
+    CardFread(CARD_MENU_OPTION_LEX, "title\\menu2.lex");
+    CardFread(CARD_MENU_TEXTURE, "title\\menu.bin");
+    CardFread(CARD_LINE_LEX, "line1.lex");
+    CardFread(CARD_LINE_LEX + 1 * CARD_LINE_LEX_SIZE, "line2.lex");
+    CardFread(CARD_LINE_LEX + 2 * CARD_LINE_LEX_SIZE, "line3.lex");
+    CardFread(CARD_LINE_LEX + 3 * CARD_LINE_LEX_SIZE, "line4.lex");
+    CardFread(0x01717600, "line.xtx");  /* 0x00a01150 */
+    CardFread(0x01C73000, "deckmake\\xg_ura_up.lex");  /* 0x00a01164 */
+    CardFread(0x01C74000, "deckmake\\xg_ura_up.xtx");  /* 0x00a01178 */
+    CardFread(CARD_SMALL_LEX(0), "o0.lex");
+    CardFread(CARD_SMALL_LEX(1), "o1.lex");
+    CardFread(CARD_SMALL_LEX(2), "o2.lex");
+    CardFread(CARD_SMALL_LEX(3), "o3.lex");
+    CardFread(CARD_SMALL_LEX(4), "o4.lex");
+    CardFread(CARD_SMALL_LEX(5), "o5.lex");
+    CardFread(CARD_SMALL_LEX(6), "o6.lex");
+    CardFread(CARD_SMALL_LEX(7), "o7.lex");
+    CardFread(CARD_SMALL_LEX(8), "o8.lex");
+    CardFread(CARD_SMALL_LEX(9), "o9.lex");
+    CardFread(CARD_SMALL_LEX(10), "s0.lex");
+    CardFread(CARD_SMALL_LEX(11), "s1.lex");
+    CardFread(CARD_SMALL_LEX(12), "s2.lex");
+    CardFread(CARD_SMALL_LEX(13), "s3.lex");
+    CardFread(CARD_SMALL_LEX(14), "s4.lex");
+    CardFread(CARD_SMALL_LEX(15), "s5.lex");
+    CardFread(CARD_SMALL_LEX(16), "s6.lex");
+    CardFread(CARD_SMALL_LEX(17), "s7.lex");
+    CardFread(CARD_SMALL_LEX(18), "s8.lex");
+    CardFread(CARD_SMALL_LEX(19), "s9.lex");
+    CardFread(CARD_SMALL_LEX(20), "Ftype_1.lex");
+    CardFread(CARD_SMALL_LEX(21), "Ftype_2.lex");
+    CardFread(CARD_SMALL_LEX(22), "Ftype_3.lex");
+    CardFread(CARD_SMALL_LEX(23), "Ftype_4.lex");
+    CardFread(CARD_SMALL_LEX(24), "Ftype_5.lex");
+    CardFread(CARD_SMALL_LEX(25), "Ftype_6.lex");
+    CardFread(CARD_SMALL_LEX(26), "Ftype_Any1.lex");
+    CardFread(CARD_SMALL_LEX(27), "Ftype_No1.lex");
+    CardFread(CARD_SMALL_LEX(28), "Ftype_Which.lex");
+    CardFread(CARD_SMALL_LEX(29), "Btype_1.lex");
+    CardFread(CARD_SMALL_LEX(30), "Btype_2.lex");
+    CardFread(CARD_SMALL_LEX(31), "Btype_3.lex");
+    CardFread(CARD_SMALL_LEX(32), "Btype_4.lex");
+    CardFread(CARD_SMALL_LEX(33), "Btype_5.lex");
+    CardFread(CARD_SMALL_LEX(34), "Btype_6.lex");
+    CardFread(CARD_SMALL_LEX(35), "Btype_7.lex");
+    CardFread(CARD_SMALL_LEX(36), "Btype_8.lex");
+    CardFread(CARD_SMALL_LEX(37), "Atype_1.lex");
+    CardFread(CARD_SMALL_LEX(38), "Atype_2.lex");
+    CardFread(CARD_SMALL_LEX(39), "Atype_3.lex");
+    CardFread(CARD_SMALL_LEX(40), "Atype_4.lex");
+    CardFread(CARD_SMALL_LEX(41), "L0.lex");
+    CardFread(CARD_SMALL_LEX(42), "L1.lex");
+    CardFread(CARD_SMALL_LEX(43), "L2.lex");
+    CardFread(CARD_SMALL_LEX(44), "L3.lex");
+    CardFread(CARD_SMALL_LEX(45), "L4.lex");
+    CardFread(CARD_SMALL_LEX(46), "L5.lex");
+    CardFread(CARD_SMALL_LEX(47), "L6.lex");
+    CardFread(CARD_SMALL_LEX(48), "L7.lex");
+    CardFread(CARD_SMALL_LEX(49), "L8.lex");
+    CardFread(CARD_SMALL_LEX(50), "L9.lex");
+    CardFread(CARD_SMALL_LEX(51), "R0.lex");
+    CardFread(CARD_SMALL_LEX(52), "R1.lex");
+    CardFread(CARD_SMALL_LEX(53), "R2.lex");
+    CardFread(CARD_SMALL_LEX(54), "R3.lex");
+    CardFread(CARD_SMALL_LEX(55), "R4.lex");
+    CardFread(CARD_SMALL_LEX(56), "R5.lex");
+    CardFread(CARD_SMALL_LEX(57), "R6.lex");
+    CardFread(CARD_SMALL_LEX(58), "R7.lex");
+    CardFread(CARD_SMALL_LEX(59), "R8.lex");
+    CardFread(CARD_SMALL_LEX(60), "R9.lex");
+    CardFread(CARD_SMALL_LEX(61), "game\\field.lex");
+    CardFread(0x01C8F800, "card_m_c.lex");  /* 0x00a01660 */
+    CardFread(0x01C8FD10, "card_m_u.lex");  /* 0x00a01674 */
+    CardFread(0x01C90220, "card_m_r.lex");  /* 0x00a01688 */
+    CardFread(0x01C90730, "card_m_p.lex");  /* 0x00a0169c */
+    CardFread(0x01C91000, "CardInfo0.bin");  /* 0x00a016b0 */
+    CardFread(0x01C94050, "CardInfo1.bin");  /* 0x00a016c4 */
+    CardFread(0x01C990A0, "CardInfo2.bin");  /* 0x00a016d8 */
+    CardFread(0x01C9BB70, "card_Rare.xtx");  /* 0x00a016ec */
+    CardFread(0x01CA1000, "help\\help1.lex");  /* 0x00a01700 */
+    CardFread(0x01CA1C00, "help\\help2.lex");  /* 0x00a01714 */
+    CardFread(0x01CA2B00, "help\\help3.lex");  /* 0x00a01728 */
+    CardFread(0x01CA4000, "help\\Hmenu1.lex");  /* 0x00a0173c */
+    CardFread(0x01CA6000, "help\\Hmenu2.lex");  /* 0x00a01750 */
+    CardFread(0x01CB0000, "help\\help1.xtx");  /* 0x00a01760 */
+    CardFread(0x01CC0050, "help\\help2.xtx");  /* 0x00a01774 */
+    CardFread(CARD_BATTLE_WINDOW_LEX, D_00A4C5A0);
+    CardFread(CARD_BATTLE_WINDOW_LEX + 1 * CARD_BATTLE_WINDOW_SIZE, D_00A4C5B8);
+    CardFread(CARD_BATTLE_WINDOW_LEX + 2 * CARD_BATTLE_WINDOW_SIZE, D_00A4C5D0);
+    CardFread(CARD_BATTLE_WINDOW_LEX + 3 * CARD_BATTLE_WINDOW_SIZE, D_00A4C5E8);
+    CardFread(CARD_BATTLE_WINDOW_LEX + 4 * CARD_BATTLE_WINDOW_SIZE, D_00A4C600);
+    CardFread(CARD_BATTLE_WINDOW_LEX + 5 * CARD_BATTLE_WINDOW_SIZE, D_00A4C618);
+    CardFread(CARD_TITLE_LEX, "title\\NewTitle.lex");
+    CardFread(CARD_VIEWER_LEX, "deckmake\\viewer.lex");
+    CardFread(CARD_DECKLIST_LEX, "deckmake\\decklist.lex");
+    CardFread(CARD_DECKMAKE_LEX, "deckmake\\deckmake.lex");
+    CardFread(CARD_MAT_FG_LEX, "game\\mat_fg.lex");
+    CardFread(CARD_MAT_MOJI_LEX, "game\\mat_moji.lex");
+    CardFread(0x01E30000, "game\\mat_info.lex");  /* 0x00a01860 */
+    CardFread(0x01E38000, "game\\mat_hpatk.lex");  /* 0x00a01874 */
+    strcpy(filename, BGFileNameList[work->save->background]);
+    strcat(filename, D_00A4BDA0);
+    CardFread(CARD_BACKGROUND_LEX, filename);
+    CardFread(CARD_TITLE_XTX, "title\\NewTitle.xtx");
+    CardFread(CARD_DECK_GRA_BIN, "deckmake\\deck_gra.bin");
+    CardFread(CARD_MAT_MOJI_J_LEX, "game\\mat_mojiJ.lex");
+    CardFread(CARD_MAT_MOJI_J_XTX, "game\\mat_mojiJ.xtx");
+    CardFread(CARD_MAT_FG_XTX, "game\\mat_fg.xtx");
+    strcpy(filename, BGFileNameList[work->save->background]);
+    strcat(filename, D_00A4BDA8);
+    CardFread(CARD_BACKGROUND_XTX, filename);
+    work->models[CARD_MODEL_TITLE].model = (void *) CARD_TITLE_LEX;
+    work->models[CARD_MODEL_TITLE].texture = (void *) CARD_TITLE_XTX;
+    work->models[CARD_MODEL_VIEWER].model = (void *) CARD_VIEWER_LEX;
+    work->models[CARD_MODEL_VIEWER].texture = (void *) CARD_DECK_GRA_BIN;
+    work->models[CARD_MODEL_DECKLIST].model = (void *) CARD_DECKLIST_LEX;
+    work->models[CARD_MODEL_DECKLIST].texture = (void *) CARD_DECK_GRA_BIN;
+    work->models[CARD_MODEL_DECKMAKE].model = (void *) CARD_DECKMAKE_LEX;
+    work->models[CARD_MODEL_DECKMAKE].texture = (void *) CARD_DECK_GRA_BIN;
+    work->models[CARD_MODEL_MAT_FG].model = (void *) CARD_MAT_FG_LEX;
+    work->models[CARD_MODEL_MAT_FG].texture = (void *) CARD_MAT_FG_XTX;
+    if (work->save->flags & CARD_SAVE_LARGE_CARDS) {
+        work->models[CARD_MODEL_MAT_MOJI].model = (void *) CARD_MAT_MOJI_LEX;
+        work->models[CARD_MODEL_MAT_MOJI].texture = (void *) CARD_MAT_FG_XTX;
+        work->models[CARD_MODEL_MAT_MOJI_2].model = (void *) CARD_MAT_MOJI_LEX;
+        work->models[CARD_MODEL_MAT_MOJI_2].texture = (void *) CARD_MAT_FG_XTX;
+    } else {
+        work->models[CARD_MODEL_MAT_MOJI].model = (void *) CARD_MAT_MOJI_J_LEX;
+        work->models[CARD_MODEL_MAT_MOJI].texture = (void *) CARD_MAT_MOJI_J_XTX;
+        work->models[CARD_MODEL_MAT_MOJI_2].model = (void *) CARD_MAT_MOJI_J_LEX;
+        work->models[CARD_MODEL_MAT_MOJI_2].texture = (void *) CARD_MAT_MOJI_J_XTX;
+    }
+    work->models[CARD_MODEL_MAT_FG_2].model = (void *) CARD_MAT_FG_LEX;
+    work->models[CARD_MODEL_MAT_FG_2].texture = (void *) CARD_MAT_FG_XTX;
+    work->models[CARD_MODEL_BACKGROUND].model = (void *) CARD_BACKGROUND_LEX;
+    work->models[CARD_MODEL_BACKGROUND].texture = (void *) CARD_BACKGROUND_XTX;
+    for (i = 0; i < CARD_MODEL_COUNT; i++)
+        xglMatrixUnit(work->models[i].matrix);
+    work->models[CARD_MODEL_TITLE].matrix[3][1] = 1.4728f;
+    modelScale[0] = 1.13f;
+    modelScale[1] = modelScale[2] = modelScale[3] = 1.0f;
+    xglMatrixScale(work->models[CARD_MODEL_VIEWER].matrix, work->models[CARD_MODEL_VIEWER].matrix, modelScale);
+    xglMatrixScale(work->models[CARD_MODEL_DECKLIST].matrix, work->models[CARD_MODEL_DECKLIST].matrix, modelScale);
+    xglMatrixScale(work->models[CARD_MODEL_DECKMAKE].matrix, work->models[CARD_MODEL_DECKMAKE].matrix, modelScale);
+    CardHelpFileLoad();
+    InitCpuDeck();
+    CardTitleInit(work);
+    eyePosition[0] = 0.0f;
+    eyePosition[1] = 0.0f;
+    eyePosition[2] = 5.8f;
+    eyePosition[3] = 1.0f;
+    {
+        float *cameraEye = &xglStudioSelectGetActiveCamera(0)->position.x;
+
+        /*
+         * sceVu0CopyVector shape: addiu/addiu, then lq/sq through $2. Plain C compiles this copy
+         * differently: Vector4 assignment gives two ldl/ldr/sdl/sdr pairs, a 16-byte-aligned
+         * struct or a long long union gives ld/sd pairs, and a 128-bit integer type gives lq/sq
+         * with sp-relative loads, the store moved past the following call and no addiu pair.
+         */
+        __asm__ __volatile__(
+            "lq $2, 0(%1)\n"
+            "sq $2, 0(%0)\n"
+            :
+            : "r" (cameraEye), "r" (eyePosition)
+            : "$2", "memory");
+    }
+    xglStudioGetLight(&light);
+    work->fadeOutTimer = 0;
+    work->modelFadeInTimer = 0;
+    work->fadeOutColor[0] = work->fadeBaseColor[0] = CARD_FADE_LEVEL_FULL;
+    work->fadeOutColor[1] = work->fadeBaseColor[1] = CARD_FADE_LEVEL_FULL;
+    work->fadeOutColor[2] = work->fadeBaseColor[2] = CARD_FADE_LEVEL_FULL;
+    work->fadeOutColor[3] = work->fadeBaseColor[3] = CARD_FADE_LEVEL_FULL;
+    for (lightNo = 0; lightNo < CARD_LIGHT_COUNT; lightNo++) {
+        if (lightNo == 0) {
+            work->modelColor[0][0] = work->modelColorTarget[0][0] = s_asIntensity[0][0];
+            work->modelColor[0][1] = work->modelColorTarget[0][1] = s_asIntensity[0][1];
+            work->modelColor[0][2] = work->modelColorTarget[0][2] = s_asIntensity[0][2];
+            work->modelColor[0][3] = work->modelColorTarget[0][3] = s_asIntensity[0][3];
+            xglLightIntensityAmbient(light, s_asIntensity);
+        } else {
+            xglLightIntensityParallel(light, lightNo - 1, s_asIntensity[lightNo]);
+            xglLightAngle(light, lightNo - 1, s_asDirection[lightNo]);
+        }
+    }
+    return 1;
+}
 
 void CardMainItemGetSub(int *prizes, int round)
 {
@@ -159,22 +686,844 @@ void CardMainItemGetSub(int *prizes, int round)
     }
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov10/card_play_sound1", CardMainAddItemSub);
+/* Prizes CardMainItemGetSub stores in item13, and the item box ids they add. */
+#define PRIZE_CARD_PACK_821 0
+#define PRIZE_CARD_PACK_822 1
+#define PRIZE_PROMO_CARD 2
+#define PRIZE_TUNED_CIRCUIT 3
+#define EVENT_ITEM_CARD_PACK_821 54      /* li 0x00a01ca0 */
+#define EVENT_ITEM_CARD_PACK_822 55      /* li 0x00a01ccc */
+#define ACCESSORY_TUNED_CIRCUIT 142      /* li 0x00a01d28 */
+#define PROMO_CARD_FIRST 1               /* li 0x00a01cf0 / 0x00a01d00 */
+#define PROMO_CARD_OTHER 8               /* li 0x00a01d14 */
 
-INCLUDE_ASM("asm/nonmatchings/ov10/card_play_sound1", NewCMPGameModeExit);
+extern int CardAddList(CardGameWork *work, int cardId);
+extern void dataAccBoxInc(int accessory);
 
-INCLUDE_ASM("asm/nonmatchings/ov10/card_play_sound1", CaedGameWinMode);
+/*
+ * Hands the player the prizes of a won game.  prizes[] is the list
+ * CardMainItemGetSub filled in item13: the number of card packs #821 and #822,
+ * the promotional card (1 selects card id 1, any other value card id 8) and
+ * the Tuned Circuit accessory.  Afterwards the owned-card table is rebuilt
+ * from the save data, which packs two bits per card id, four card ids a byte.
+ */
+void CardMainAddItemSub(CardGameWork *work, int *prizes)
+{
+    int i;
+    int shift;
+    int packed;
 
-extern char D_00A4C788[];
+    for (i = 0; i < prizes[PRIZE_CARD_PACK_821]; i++)
+        dataEvtBoxInc(EVENT_ITEM_CARD_PACK_821);
+    for (i = 0; i < prizes[PRIZE_CARD_PACK_822]; i++)
+        dataEvtBoxInc(EVENT_ITEM_CARD_PACK_822);
+
+    if (prizes[PRIZE_PROMO_CARD] != 0) {
+        if (prizes[PRIZE_PROMO_CARD] == PROMO_CARD_FIRST)
+            CardAddList(work, PROMO_CARD_FIRST);
+        else
+            CardAddList(work, PROMO_CARD_OTHER);
+    }
+
+    if (prizes[PRIZE_TUNED_CIRCUIT] != 0)
+        dataAccBoxInc(ACCESSORY_TUNED_CIRCUIT);
+
+    for (i = 0; i < CARD_ID_COUNT; i++) {
+        packed = work->save->cardCounts[i / CARD_COUNTS_PER_BYTE];
+        shift = i % CARD_COUNTS_PER_BYTE * CARD_COUNT_BITS;
+        shift = packed >> shift;
+        packed = shift & CARD_COUNT_MASK;
+        work->ownedCount[i] = packed;
+    }
+}
+
+extern float atColor[4][4];
+extern float auColor[4][4];
+
+/*
+ * START menu of the card game (NewCMPGameModeExit, 0x00a01da0).  CardGameProc
+ * opens it with flowRequest 6 and passes the controller that pressed START.
+ * It moves the cursor with up/down, confirms with Circle, cancels with Cross
+ * and closes with START.
+ *
+ * Returns -1 when the menu is closed, 1 when the "End Phase" entry was chosen
+ * and 0 otherwise.
+ */
+#define EXIT_MENU_ITEM_COUNT 4
+#define EXIT_MENU_SUB_COUNT 4
+
+/* Pad bits of CardCommandInput.repeat. */
+#define EXIT_PAD_START 0x0800   /* andi 0x00a01e74 */
+#define EXIT_PAD_UP 0x1000      /* andi 0x00a01e44 */
+#define EXIT_PAD_DOWN 0x4000    /* andi 0x00a01e4c */
+#define EXIT_PAD_CIRCLE 0x0020  /* andi 0x00a01f08 */
+#define EXIT_PAD_CROSS 0x0040   /* andi 0x00a01f00 */
+
+/* Items of the START menu (switch order of the original: 0, 2, 1, 3). */
+#define EXIT_ITEM_HELP 0
+#define EXIT_ITEM_OPTIONS 1
+#define EXIT_ITEM_END_PHASE 2
+#define EXIT_ITEM_GAME_OVER 3
+
+/* CardSaveData.flags bits toggled by the option rows. */
+#define CARD_SAVE_AUTO_P1 0x08     /* andi 0x00a02074 */
+#define CARD_SAVE_AUTO_P2 0x04     /* andi 0x00a02090 */
+#define CARD_SAVE_HIDE_TURN 0x02   /* andi 0x00a020b0 */
+#define CARD_SAVE_AUTO_SPIN 0x10   /* andi 0x00a020e0 */
+
+#define EXIT_MENU_FADE_ALPHA 0x80
+#define EXIT_MENU_TEXT_FIRST 70   /* CardPlayTMessList: guide text per item, then per option row at +5 */
+#define EXIT_MENU_TEXT_OPTION_OFFSET 5   /* the option row texts follow at +5: lw index x4 at 0x00a02938 / 0x00a02950 differ by 20 */
+
+/* Return values: -1 closes the menu (li s8 0x00a01efc, 0x00a01f28), 1 ends the phase (li s8 0x00a01fc4). */
+#define EXIT_RESULT_CLOSE (-1)
+#define EXIT_RESULT_END_PHASE 1
+
+/* exitMenuSub: -1 while the item list is active (bgez tests at 0x00a01e54, 0x00a01f10, 0x00a01f5c, 0x00a0291c; stored
+ * with li 0x00a01f14 and sh 0x00a01f3c), otherwise the option row, switched on at 0x00a02018..0x00a02048. */
+#define EXIT_SUB_NONE (-1)
+#define EXIT_OPTION_AUTO_P1 0     /* beqz 0x00a0202c, first row, set by 0x00a01fe0 */
+#define EXIT_OPTION_AUTO_P2 1     /* beql 0x00a02018 */
+#define EXIT_OPTION_HIDE_TURN 2   /* beq 0x00a02040 */
+#define EXIT_OPTION_AUTO_SPIN 3   /* beq 0x00a02048 */
+
+/* Sound effect ids passed to xglSoundEffectNormalID: cursor moved (li 0x00a01e7c), menu closed or cancelled
+ * (li 0x00a01ef0), choice confirmed (li 0x00a01fa0). */
+#define CARD_SE_OK 1
+#define CARD_SE_CANCEL 2
+#define CARD_SE_CURSOR 3
+
+/* Help screen entry: CardHelpProc state 0x30 (li 0x00a01fb0, sb 0x00a01fb4); the START menu's Help item opens it. */
+#define CARD_HELP_STATE_OPEN 0x30
+
+/* Game Over fade: fadeOutStep and fadeOutTimer start values (li 0x00a01ffc, 0x00a02000; sb 0x00a02004, sh 0x00a02008). */
+#define CARD_FADE_STEP 16
+#define CARD_FADE_TICKS 10
+
+
+int NewCMPGameModeExit(int player, CardGameWork *work)
+{
+    float matrix[4][4];
+    float placement[4][4];
+    float position[4];
+    float scale[4];
+    u16 repeat;
+    int result = 0;
+
+    repeat = work->command.input[0].repeat;
+    if (player)
+        repeat = work->command.input[1].repeat;
+
+    xglFontDebugPrintf(24, 10, "Build:Nov 24 2002 11:02:50");
+
+    position[0] = position[1] = 0.0f;
+    position[2] = 1.01f;
+    position[3] = 1.0f;
+    scale[0] = scale[1] = 0.8f;
+    scale[2] = scale[3] = 1.0f;
+    xglMatrixUnit(matrix);
+
+    if (repeat & EXIT_PAD_UP) {
+        if (work->command.exitMenuSub < 0) {
+            if (work->command.exitMenuItem > 0) {
+                work->command.exitMenuItem--;
+                xglSoundEffectNormalID(CARD_SE_CURSOR, 0);
+            }
+        } else if (work->command.exitMenuSub > 0) {
+            work->command.exitMenuSub--;
+            xglSoundEffectNormalID(CARD_SE_CURSOR, 0);
+        }
+    } else if (repeat & EXIT_PAD_DOWN) {
+        if (work->command.exitMenuSub < 0) {
+            if (work->command.exitMenuItem < EXIT_MENU_ITEM_COUNT - 1) {
+                work->command.exitMenuItem++;
+                xglSoundEffectNormalID(CARD_SE_CURSOR, 0);
+            }
+        } else if (work->command.exitMenuSub < EXIT_MENU_SUB_COUNT - 1) {
+            work->command.exitMenuSub++;
+            xglSoundEffectNormalID(CARD_SE_CURSOR, 0);
+        }
+    }
+
+    if (repeat & EXIT_PAD_START) {
+        xglSoundEffectNormalID(CARD_SE_CANCEL, 0);
+        result = EXIT_RESULT_CLOSE;
+    }
+
+    if (repeat & EXIT_PAD_CROSS) {
+        if (work->command.exitMenuSub < 0) {
+            work->command.exitMenuItem = 0;
+            xglSoundEffectNormalID(CARD_SE_CANCEL, 0);
+            result = EXIT_RESULT_CLOSE;
+        } else {
+            work->command.exitMenuSub = EXIT_SUB_NONE;
+            xglSoundEffectNormalID(CARD_SE_CANCEL, 0);
+        }
+    } else if (repeat & EXIT_PAD_CIRCLE) {
+        if (work->command.exitMenuSub < 0) {
+            switch (work->command.exitMenuItem) {
+            case EXIT_ITEM_HELP:
+                work->fadeOutColor[3] = EXIT_MENU_FADE_ALPHA;
+                xglSoundEffectNormalID(CARD_SE_OK, 0);
+                work->helpState = CARD_HELP_STATE_OPEN;
+                work->menuPlayer = player;
+                break;
+            case EXIT_ITEM_END_PHASE:
+                work->fadeOutColor[3] = EXIT_MENU_FADE_ALPHA;
+                result = EXIT_RESULT_END_PHASE;
+                break;
+            case EXIT_ITEM_OPTIONS:
+                xglSoundEffectNormalID(CARD_SE_OK, 0);
+                work->command.exitMenuSub = EXIT_OPTION_AUTO_P1;
+                break;
+            case EXIT_ITEM_GAME_OVER:
+                work->fadeOutColor[3] = EXIT_MENU_FADE_ALPHA;
+                xglSoundEffectNormalID(CARD_SE_OK, 0);
+                work->fadeOutStep = CARD_FADE_STEP;
+                work->fadeOutTimer = CARD_FADE_TICKS;
+                work->fase = 0;
+                break;
+            }
+        } else {
+            switch (work->command.exitMenuSub) {
+            case EXIT_OPTION_AUTO_P1:
+                work->save->flags = (work->save->flags & ~CARD_SAVE_AUTO_P1) |
+                                    ((work->save->flags + CARD_SAVE_AUTO_P1) & CARD_SAVE_AUTO_P1);
+                xglSoundEffectNormalID(CARD_SE_OK, 0);
+                break;
+            case EXIT_OPTION_AUTO_P2:
+                work->save->flags = (work->save->flags & ~CARD_SAVE_AUTO_P2) |
+                                    ((work->save->flags + CARD_SAVE_AUTO_P2) & CARD_SAVE_AUTO_P2);
+                xglSoundEffectNormalID(CARD_SE_OK, 0);
+                break;
+            case EXIT_OPTION_HIDE_TURN:
+                work->save->flags = (work->save->flags & ~CARD_SAVE_HIDE_TURN) |
+                                    ((work->save->flags + CARD_SAVE_HIDE_TURN) & CARD_SAVE_HIDE_TURN);
+                xglSoundEffectNormalID(CARD_SE_OK, 0);
+                break;
+            case EXIT_OPTION_AUTO_SPIN:
+                work->save->flags = (work->save->flags & ~CARD_SAVE_AUTO_SPIN) |
+                                    ((work->save->flags + CARD_SAVE_AUTO_SPIN) & CARD_SAVE_AUTO_SPIN);
+                xglSoundEffectNormalID(CARD_SE_OK, 0);
+                break;
+            }
+        }
+    }
+
+    /* Item plates. */
+    xglFontPrint(0, 0, 0xFFF0, "\v\r\0\f\x18\x18\x18");
+    if (work->command.exitMenuItem == 0) {
+        nmlModelSetLight(atColor, asDir);
+        xglFontPrint(0, 0, 0xFFF0, D_00A4C780.code.text);
+    } else {
+        nmlModelSetLight(auColor, asDir);
+    }
+    xglFontPrint(0, 0, 0, "\031\003");
+    xglFontPrint(226, 138, 0xFFF0, D_00A4C790);
+    position[1] = 0.58869994f;
+    xglMatrixTrans(placement, matrix, position);
+    xglMatrixScale(placement, placement, scale);
+    nmlModelSetPlace(placement);
+    nmlModelSetTexture((void *) CARD_MENU_TEXTURE);
+    nmlModelEntryCard((void *) CARD_MENU_ITEM_LEX);
+
+    xglFontPrint(0, 0, 0xFFF0, "\v\r\0\f\x18\x18\x18");
+    if (work->command.exitMenuItem == 2) {
+        xglFontPrint(0, 0, 0xFFF0, D_00A4C780.code.text);
+        nmlModelSetLight(atColor, asDir);
+    } else {
+        nmlModelSetLight(auColor, asDir);
+    }
+    xglFontPrint(0, 0, 0, "\031\003");
+    xglFontPrint(216, 175, 0xFFF0, " Options");
+    position[1] = 0.0098f;
+    xglMatrixTrans(placement, matrix, position);
+    xglMatrixScale(placement, placement, scale);
+    nmlModelSetPlace(placement);
+    nmlModelSetTexture((void *) CARD_MENU_TEXTURE);
+    nmlModelEntryCard((void *) CARD_MENU_ITEM_LEX);
+
+    xglFontPrint(0, 0, 0xFFF0, "\v\r\0\f\x18\x18\x18");
+    if (work->command.exitMenuItem == 1) {
+        nmlModelSetLight(atColor, asDir);
+        xglFontPrint(0, 0, 0xFFF0, D_00A4C780.code.text);
+    } else {
+        nmlModelSetLight(auColor, asDir);
+    }
+    xglFontPrint(0, 0, 0, "\031\003");
+    xglFontPrint(196, 213, 0xFFF0, "   End Phase");
+    position[1] = 0.3f;
+    xglMatrixTrans(placement, matrix, position);
+    xglMatrixScale(placement, placement, scale);
+    nmlModelSetPlace(placement);
+    nmlModelSetTexture((void *) CARD_MENU_TEXTURE);
+    nmlModelEntryCard((void *) CARD_MENU_ITEM_LEX);
+
+    xglFontPrint(0, 0, 0xFFF0, "\v\r\0\f\x18\x18\x18");
+    if (work->command.exitMenuItem == 3) {
+        xglFontPrint(0, 0, 0xFFF0, D_00A4C780.code.text);
+        nmlModelSetLight(atColor, asDir);
+    } else {
+        nmlModelSetLight(auColor, asDir);
+    }
+    xglFontPrint(0, 0, 0, "\031\003");
+    xglFontPrint(206, 251, 0xFFF0, " Game Over");
+    position[1] = -0.2792f;
+    xglMatrixTrans(placement, matrix, position);
+    xglMatrixScale(placement, placement, scale);
+    nmlModelSetPlace(placement);
+    nmlModelSetTexture((void *) CARD_MENU_TEXTURE);
+    nmlModelEntryCard((void *) CARD_MENU_ITEM_LEX);
+
+    if (work->command.exitMenuSub >= 0) {
+        position[0] = 1.4374f;
+
+        xglFontPrint(0, 0, 0xFFF0, D_00A4C7C8.text);
+        if (work->command.exitMenuSub == EXIT_OPTION_AUTO_P1) {
+            xglFontPrint(0, 0, 0xFFF0, D_00A4C7D0.code.text);
+            nmlModelSetLight(asColor, asDir);
+        }
+        xglFontPrint(0, 0, 0, "\031\003");
+        if (work->save->flags & CARD_SAVE_AUTO_P1)
+            xglFontPrint(360, 155, 0xFFF0, "1P: Auto");
+        else
+            xglFontPrint(360, 155, 0xFFF0, "1P: Manual");
+        position[1] = 0.4415f;
+        xglMatrixTrans(placement, matrix, position);
+        xglMatrixScale(placement, placement, scale);
+        nmlModelSetPlace(placement);
+        nmlModelSetTexture((void *) CARD_MENU_TEXTURE);
+        nmlModelEntryCard((void *) CARD_MENU_OPTION_LEX);
+
+        xglFontPrint(0, 0, 0xFFF0, D_00A4C7C8.text);
+        if (work->command.exitMenuSub == EXIT_OPTION_AUTO_P2) {
+            xglFontPrint(0, 0, 0xFFF0, D_00A4C7D0.code.text);
+            nmlModelSetLight(asColor, asDir);
+        }
+        xglFontPrint(0, 0, 0, "\031\003");
+        if (work->save->flags & CARD_SAVE_AUTO_P2)
+            xglFontPrint(360, 193, 0xFFF0, "2P: Auto");
+        else
+            xglFontPrint(360, 193, 0xFFF0, "2P: Manual");
+        position[1] = 0.1509f;
+        xglMatrixTrans(placement, matrix, position);
+        xglMatrixScale(placement, placement, scale);
+        nmlModelSetPlace(placement);
+        nmlModelSetTexture((void *) CARD_MENU_TEXTURE);
+        nmlModelEntryCard((void *) CARD_MENU_OPTION_LEX);
+
+        xglFontPrint(0, 0, 0xFFF0, D_00A4C7C8.text);
+        if (work->command.exitMenuSub == EXIT_OPTION_HIDE_TURN) {
+            xglFontPrint(0, 0, 0xFFF0, D_00A4C7D0.code.text);
+            nmlModelSetLight(asColor, asDir);
+        }
+        xglFontPrint(0, 0, 0, "\031\003");
+        if (!(work->save->flags & CARD_SAVE_HIDE_TURN))
+            xglFontPrint(341, 230, 0xFFF0, " Turn indicator on");
+        else
+            xglFontPrint(341, 230, 0xFFF0, " Turn indicator off");
+        position[1] = -0.1376f;
+        xglMatrixTrans(placement, matrix, position);
+        xglMatrixScale(placement, placement, scale);
+        nmlModelSetPlace(placement);
+        nmlModelSetTexture((void *) CARD_MENU_TEXTURE);
+        nmlModelEntryCard((void *) CARD_MENU_OPTION_LEX);
+
+        xglFontPrint(0, 0, 0xFFF0, D_00A4C7C8.text);
+        if (work->command.exitMenuSub == EXIT_OPTION_AUTO_SPIN) {
+            xglFontPrint(0, 0, 0xFFF0, D_00A4C7D0.code.text);
+            nmlModelSetLight(asColor, asDir);
+        }
+        xglFontPrint(0, 0, 0, "\031\003");
+        if (!(work->save->flags & CARD_SAVE_AUTO_SPIN))
+            xglFontPrint(360, 265, 0xFFF0, "Auto spin off");
+        else
+            xglFontPrint(360, 265, 0xFFF0, "Auto spin on");
+        position[1] = -0.40780002f;
+        xglMatrixTrans(placement, matrix, position);
+        xglMatrixScale(placement, placement, scale);
+        nmlModelSetPlace(placement);
+        nmlModelSetTexture((void *) CARD_MENU_TEXTURE);
+        nmlModelEntryCard((void *) CARD_MENU_OPTION_LEX);
+    }
+
+    /* Title plate behind the menu and the guide text line. */
+    xglMatrixUnit(matrix);
+    position[0] = 0.0f;
+    position[1] = -1.2f;
+    position[2] = 1.01f;
+    scale[0] = scale[1] = 0.85f;
+    xglMatrixUnit(matrix);
+    xglMatrixTrans(matrix, matrix, position);
+    xglMatrixScale(matrix, matrix, scale);
+    nmlModelSetPlace(matrix);
+    nmlModelSetTexture((void *) CARD_TITLE_TEXTURE_ADDR);
+    nmlModelEntryCard((void *) CARD_TITLE_MODEL_ADDR);
+
+    xglFontPrint(0, 0, 0xFFF0, D_00A4C868);
+    {
+        char *guide;
+
+        if (work->command.exitMenuSub < 0)
+            guide = CardPlayTMessList[EXIT_MENU_TEXT_FIRST + work->command.exitMenuItem];
+        else
+            guide = CardPlayTMessList[EXIT_MENU_TEXT_FIRST + EXIT_MENU_TEXT_OPTION_OFFSET + work->command.exitMenuSub];
+        CardDispTxtSub(24, 322, guide, 23);
+    }
+    xglFontPrint(0, 0, 0xFFF0, D_00A4C870);
+
+    position[0] = position[1] = 0.0f;
+    position[2] = position[3] = 1.0f;
+    xglMatrixUnit(matrix);
+    xglMatrixTrans(matrix, matrix, position);
+    nmlModelSetPlace(matrix);
+    nmlModelEntryCard((void *) CARD_BLACK_LEX);
+
+    return result;
+}
+
+
+/*
+ * Game-over display of a card game (CaedGameWinMode, 0x00a029f8).  CardGameProc
+ * calls it once per frame while CardCommandControl.flowRequest is 3..5 with the
+ * outcome (0, 1, 2 or 3; -1 and anything else select the default sequence) and
+ * the round it passes on (CardMainProc's D_00A57728).  The function runs a
+ * state machine on command.step: step 0 arms a 25 frame wait, step 1 refreshes
+ * the field HP and jumps to the banner sequence of the outcome (steps 2..5,
+ * 10..12, 20..22, 30..33, 40..43).  Every later step draws its banner models
+ * and moves on when the shared timer, reloaded with 17, has counted down.
+ * Steps 5, 12, 22 and 33 keep drawing for good; step 43 keeps cycling the timer.
+ */
+/*
+ * Outcomes CardGameProc passes (flowRequest 3..5 select the case through its jump table at 0x00a4f620, index
+ * flowRequest - 1; flowRequest 3 is raised at 0x00a317d0 when CardPlayYamaCnt of the enemy side is 0, flowRequest 4
+ * at 0x00a317f0 for the player side): jal 0x00a31bfc, 0x00a31c14, 0x00a31c3c, 0x00a31c54, 0x00a31c70.
+ */
+#define CARD_WIN_OUTCOME_ENEMY_DECK_OUT_FASE9 1    /* flowRequest 3 while fase is 9 (li a0 0x00a31bf8) */
+#define CARD_WIN_OUTCOME_ENEMY_DECK_OUT 0          /* flowRequest 3 otherwise (move a0 0x00a31c10) */
+#define CARD_WIN_OUTCOME_PLAYER_DECK_OUT_FASE9 2   /* flowRequest 4 while fase is 9 (li a0 0x00a31c38) */
+#define CARD_WIN_OUTCOME_FINAL_ROUND 3             /* flowRequest 5 (li a0 0x00a31c6c) */
+#define CARD_WIN_OUTCOME_PLAYER_DECK_OUT (-1)      /* flowRequest 4 otherwise (li a0 0x00a31c50); the default sequence */
+
+#define CARD_WIN_STEP_BEGIN 0
+#define CARD_WIN_STEP_SELECT 1
+#define CARD_WIN_STEP_OUTCOME_0 2
+#define CARD_WIN_STEP_OUTCOME_1 10
+#define CARD_WIN_STEP_OUTCOME_2 20
+#define CARD_WIN_STEP_OUTCOME_3 30
+#define CARD_WIN_STEP_OTHER 40
+
+/* Frames command.slideTimer runs after the slide is cancelled (li 0x00a02a84, sh 0x00a02a8c). */
+#define CARD_SLIDE_FRAMES 10
+
+#define CARD_WIN_BEGIN_DELAY 25     /* li 0x00a02a58, stored to the timer with sb at 0x00a02a64 */
+#define CARD_WIN_STEP_FRAMES 17     /* 0x00a02abc: frames each step of a sequence lasts */
+#define CARD_WIN_FINAL_ROUND 5      /* 0x00a02b00: outcome 0 plays CardPlaySound4 instead of 3 */
+#define CARD_WIN_ALPHA 72           /* 0x00a02c2c */
+
+/*
+ * The banner models and their texture sit in one resource block at 0x01950000,
+ * 0x510 bytes apart; CardGameInit reads the files there (jal 0x00a25868..0x00a25920).
+ * Slot 9 is the texture (0x00a02c1c).  The sequences draw the first banner (victory7) and then
+ * victory4 (step 4/5), victory2 (11/12) or victory3 (21/22), victory1, victory5, victory6
+ * (31..33) or NewLost2, NewLost1 (40..43).  The lost banners alternate between two
+ * textures that CardGameInit reads to 0x01960000 and 0x01963680 (jal 0x00a2592c, 0x00a25940).
+ */
+enum CardWinResource {
+    CARD_WIN_VICTORY1,      /* game\victory1.lex, slots 0..6 are victory1..7 */
+    CARD_WIN_VICTORY2,
+    CARD_WIN_VICTORY3,
+    CARD_WIN_VICTORY4,
+    CARD_WIN_VICTORY5,
+    CARD_WIN_VICTORY6,
+    CARD_WIN_VICTORY7,
+    CARD_WIN_LOST1,         /* game\NewLost1.lex */
+    CARD_WIN_LOST2,         /* game\NewLost2.lex */
+    CARD_WIN_VICTORY_BIN    /* game\victory.bin: the texture of the victory banners */
+};
+
+#define CARD_WIN_RESOURCE_BASE 0x01950000
+#define CARD_WIN_RESOURCE_SIZE 0x510
+#define CARD_WIN_RESOURCE(slot) ((slot) * CARD_WIN_RESOURCE_SIZE + CARD_WIN_RESOURCE_BASE)
+#define CARD_WIN_TEXTURE CARD_WIN_RESOURCE(CARD_WIN_VICTORY_BIN)
+#define CARD_WIN_LOST_XTX 0x01960000        /* game\NewLost1.xtx, then game\NewLost2.xtx 0x3680 bytes on */
+#define CARD_WIN_LOST_XTX_SIZE 0x3680       /* li 13952 at 0x00a03710 and 0x00a03834, multiplied by the lowest timer bit (andi/mult 0x00a03714/0x00a03718) */
+#define CARD_WIN_ALT_TEXTURE(flip) ((void *) (((flip) & 1) * CARD_WIN_LOST_XTX_SIZE + CARD_WIN_LOST_XTX))
+
+#define CARD_WIN_ZOOM_RATE (4.0f / 9.0f)    /* 0x3EE38E39: scale gained per timer tick */
+#define CARD_WIN_SHRINK_RATE (1.0f / 18.0f) /* 0x3D638E39: step 42's second banner */
+
+/*
+ * The scale of a pulsing banner is read from the timer before xglMatrixUnit
+ * (the multiply sits in that call's delay slot, 0x00a02be4); `grow` and `rest`
+ * are block-scoped so that they stay local pseudos and the 1.0 is kept in a
+ * callee-saved register across the call.
+ */
+
+/* Draw one banner model at the current place matrix. */
+#define CARD_WIN_DRAW(model) \
+    nmlModelSetPlace(place); \
+    nmlModelSetTexture((void *) CARD_WIN_TEXTURE); \
+    nmlModelSetToumei(1); \
+    nmlModelSetAlpha(CARD_WIN_ALPHA); \
+    nmlModelEntry(model)
+
+#define CARD_WIN_DRAW_ALT(model) \
+    nmlModelSetPlace(place); \
+    nmlModelSetTexture(CARD_WIN_ALT_TEXTURE(timer)); \
+    nmlModelSetToumei(1); \
+    nmlModelSetAlpha(CARD_WIN_ALPHA); \
+    nmlModelEntry(model)
+
+void CaedGameWinMode(int outcome, CardGameWork *work, int round)
+{
+    static u8 timer;
+    float place[4][4];
+    float scale[4];
+
+    switch (work->command.step) {
+    case CARD_WIN_STEP_BEGIN:
+        work->command.step++;
+        timer = CARD_WIN_BEGIN_DELAY;
+        break;
+    case CARD_WIN_STEP_SELECT:
+        if (timer == 0) {
+            if (work->command.slideDirection != 0) {
+                work->command.slideDirection = 0;
+                work->command.slideTimer = CARD_SLIDE_FRAMES;
+            }
+            work->mess = 0;
+            work->interruptMess = 0;
+            work->permanentMess = 0;
+            work->player.hand.deckCount = CardPlayYamaCnt(&work->player);
+            work->enemy.hand.deckCount = CardPlayYamaCnt(&work->enemy);
+            CGPRefreshFieldHP(work);
+            timer = CARD_WIN_STEP_FRAMES;
+            switch (outcome) {
+            case CARD_WIN_OUTCOME_ENEMY_DECK_OUT:
+                if (round == CARD_WIN_FINAL_ROUND)
+                    CardPlaySound4();
+                else
+                    CardPlaySound3();
+                work->command.step = CARD_WIN_STEP_OUTCOME_0;
+                break;
+            case CARD_WIN_OUTCOME_ENEMY_DECK_OUT_FASE9:
+                CardPlaySound3();
+                work->command.step = CARD_WIN_STEP_OUTCOME_1;
+                break;
+            case CARD_WIN_OUTCOME_PLAYER_DECK_OUT_FASE9:
+                CardPlaySound3();
+                work->command.step = CARD_WIN_STEP_OUTCOME_2;
+                break;
+            case CARD_WIN_OUTCOME_FINAL_ROUND:
+                work->command.step = CARD_WIN_STEP_OUTCOME_3;
+                break;
+            default:               /* CARD_WIN_OUTCOME_PLAYER_DECK_OUT and anything else */
+                work->command.step = CARD_WIN_STEP_OTHER;
+                break;
+            }
+        } else {
+            timer--;
+        }
+        break;
+    case CARD_WIN_STEP_OUTCOME_0:
+        if (timer != 0) {
+            timer--;
+        } else {
+            timer = CARD_WIN_STEP_FRAMES;
+            work->command.step++;
+        }
+        break;
+    case CARD_WIN_STEP_OUTCOME_0 + 1:
+        {
+            float grow = timer * CARD_WIN_ZOOM_RATE;
+            float rest = 1.0f;
+            xglMatrixUnit(place);
+            scale[3] = scale[2] = rest;
+            scale[0] = scale[1] = grow + rest;
+        }
+        xglMatrixScale(place, place, scale);
+        CARD_WIN_DRAW(CARD_WIN_RESOURCE(CARD_WIN_VICTORY7));
+        if (timer != 0) {
+            timer--;
+        } else {
+            timer = CARD_WIN_STEP_FRAMES;
+            work->command.step++;
+        }
+        break;
+    case CARD_WIN_STEP_OUTCOME_0 + 2:
+        xglMatrixUnit(place);
+        scale[0] = scale[1] = 1.0f;
+        scale[2] = scale[3] = 1.0f;
+        xglMatrixScale(place, place, scale);
+        CARD_WIN_DRAW(CARD_WIN_RESOURCE(CARD_WIN_VICTORY7));
+        {
+            float grow = timer * CARD_WIN_ZOOM_RATE;
+            float rest = 1.0f;
+            xglMatrixUnit(place);
+            scale[3] = scale[2] = rest;
+            scale[0] = scale[1] = grow + rest;
+        }
+        xglMatrixScale(place, place, scale);
+        CARD_WIN_DRAW(CARD_WIN_RESOURCE(CARD_WIN_VICTORY4));
+        if (timer == 0) {
+            timer = CARD_WIN_STEP_FRAMES;
+            work->command.step++;
+        } else {
+            timer--;
+        }
+        break;
+    case CARD_WIN_STEP_OUTCOME_0 + 3:
+        xglMatrixUnit(place);
+        scale[0] = scale[1] = 1.0f;
+        scale[2] = scale[3] = 1.0f;
+        xglMatrixScale(place, place, scale);
+        CARD_WIN_DRAW(CARD_WIN_RESOURCE(CARD_WIN_VICTORY7));
+        CARD_WIN_DRAW(CARD_WIN_RESOURCE(CARD_WIN_VICTORY4));
+        break;
+    case CARD_WIN_STEP_OUTCOME_1:
+        {
+            float grow = timer * CARD_WIN_ZOOM_RATE;
+            float rest = 1.0f;
+            xglMatrixUnit(place);
+            scale[3] = scale[2] = rest;
+            scale[0] = scale[1] = grow + rest;
+        }
+        xglMatrixScale(place, place, scale);
+        CARD_WIN_DRAW(CARD_WIN_RESOURCE(CARD_WIN_VICTORY7));
+        if (timer != 0) {
+            timer--;
+        } else {
+            timer = CARD_WIN_STEP_FRAMES;
+            work->command.step++;
+        }
+        break;
+    case CARD_WIN_STEP_OUTCOME_1 + 1:
+        xglMatrixUnit(place);
+        scale[0] = scale[1] = 0.9f;
+        scale[2] = scale[3] = 1.0f;
+        xglMatrixScale(place, place, scale);
+        CARD_WIN_DRAW(CARD_WIN_RESOURCE(CARD_WIN_VICTORY7));
+        {
+            float grow = timer * CARD_WIN_ZOOM_RATE;
+            float rest = 1.0f;
+            xglMatrixUnit(place);
+            scale[3] = scale[2] = rest;
+            scale[0] = scale[1] = grow + rest;
+        }
+        xglMatrixScale(place, place, scale);
+        CARD_WIN_DRAW(CARD_WIN_RESOURCE(CARD_WIN_VICTORY2));
+        if (timer == 0) {
+            timer = CARD_WIN_STEP_FRAMES;
+            work->command.step++;
+        } else {
+            timer--;
+        }
+        break;
+    case CARD_WIN_STEP_OUTCOME_1 + 2:
+        xglMatrixUnit(place);
+        scale[0] = scale[1] = 0.9f;
+        scale[2] = scale[3] = 1.0f;
+        xglMatrixScale(place, place, scale);
+        CARD_WIN_DRAW(CARD_WIN_RESOURCE(CARD_WIN_VICTORY7));
+        CARD_WIN_DRAW(CARD_WIN_RESOURCE(CARD_WIN_VICTORY2));
+        break;
+    case CARD_WIN_STEP_OUTCOME_2:
+        {
+            float grow = timer * CARD_WIN_ZOOM_RATE;
+            float rest = 1.0f;
+            xglMatrixUnit(place);
+            scale[3] = scale[2] = rest;
+            scale[0] = scale[1] = grow + rest;
+        }
+        xglMatrixScale(place, place, scale);
+        CARD_WIN_DRAW(CARD_WIN_RESOURCE(CARD_WIN_VICTORY7));
+        if (timer != 0) {
+            timer--;
+        } else {
+            timer = CARD_WIN_STEP_FRAMES;
+            work->command.step++;
+        }
+        break;
+    case CARD_WIN_STEP_OUTCOME_2 + 1:
+        xglMatrixUnit(place);
+        scale[0] = scale[1] = 0.9f;
+        scale[2] = scale[3] = 1.0f;
+        xglMatrixScale(place, place, scale);
+        CARD_WIN_DRAW(CARD_WIN_RESOURCE(CARD_WIN_VICTORY7));
+        {
+            float grow = timer * CARD_WIN_ZOOM_RATE;
+            float rest = 1.0f;
+            xglMatrixUnit(place);
+            scale[3] = scale[2] = rest;
+            scale[0] = scale[1] = grow + rest;
+        }
+        xglMatrixScale(place, place, scale);
+        CARD_WIN_DRAW(CARD_WIN_RESOURCE(CARD_WIN_VICTORY3));
+        if (timer == 0) {
+            timer = CARD_WIN_STEP_FRAMES;
+            work->command.step++;
+        } else {
+            timer--;
+        }
+        break;
+    case CARD_WIN_STEP_OUTCOME_2 + 2:
+        xglMatrixUnit(place);
+        scale[0] = scale[1] = 0.9f;
+        scale[2] = scale[3] = 1.0f;
+        xglMatrixScale(place, place, scale);
+        CARD_WIN_DRAW(CARD_WIN_RESOURCE(CARD_WIN_VICTORY7));
+        CARD_WIN_DRAW(CARD_WIN_RESOURCE(CARD_WIN_VICTORY3));
+        break;
+    case CARD_WIN_STEP_OUTCOME_3:
+        {
+            float grow = timer * CARD_WIN_ZOOM_RATE;
+            float rest = 1.0f;
+            xglMatrixUnit(place);
+            scale[3] = scale[2] = rest;
+            scale[0] = scale[1] = grow + rest;
+        }
+        xglMatrixScale(place, place, scale);
+        CARD_WIN_DRAW(CARD_WIN_RESOURCE(CARD_WIN_VICTORY1));
+        if (timer != 0) {
+            timer--;
+        } else {
+            timer = CARD_WIN_STEP_FRAMES;
+            work->command.step++;
+        }
+        break;
+    case CARD_WIN_STEP_OUTCOME_3 + 1:
+        xglMatrixUnit(place);
+        scale[0] = scale[1] = 0.9f;
+        scale[2] = scale[3] = 1.0f;
+        xglMatrixScale(place, place, scale);
+        CARD_WIN_DRAW(CARD_WIN_RESOURCE(CARD_WIN_VICTORY1));
+        {
+            float grow = timer * CARD_WIN_ZOOM_RATE;
+            float rest = 1.0f;
+            xglMatrixUnit(place);
+            scale[3] = scale[2] = rest;
+            scale[0] = scale[1] = grow + rest;
+        }
+        xglMatrixScale(place, place, scale);
+        CARD_WIN_DRAW(CARD_WIN_RESOURCE(CARD_WIN_VICTORY5));
+        if (timer == 0) {
+            timer = CARD_WIN_STEP_FRAMES;
+            work->command.step++;
+        } else {
+            timer--;
+        }
+        break;
+    case CARD_WIN_STEP_OUTCOME_3 + 2:
+        xglMatrixUnit(place);
+        scale[0] = scale[1] = 0.9f;
+        scale[2] = scale[3] = 1.0f;
+        xglMatrixScale(place, place, scale);
+        CARD_WIN_DRAW(CARD_WIN_RESOURCE(CARD_WIN_VICTORY1));
+        CARD_WIN_DRAW(CARD_WIN_RESOURCE(CARD_WIN_VICTORY5));
+        {
+            float grow = timer * CARD_WIN_ZOOM_RATE;
+            float rest = 1.0f;
+            xglMatrixUnit(place);
+            scale[3] = scale[2] = rest;
+            scale[0] = scale[1] = grow + rest;
+        }
+        xglMatrixScale(place, place, scale);
+        CARD_WIN_DRAW(CARD_WIN_RESOURCE(CARD_WIN_VICTORY6));
+        if (timer != 0) {
+            timer--;
+        } else {
+            timer = CARD_WIN_STEP_FRAMES;
+            work->command.step++;
+        }
+        break;
+    case CARD_WIN_STEP_OUTCOME_3 + 3:
+        xglMatrixUnit(place);
+        scale[0] = scale[1] = 0.9f;
+        scale[2] = scale[3] = 1.0f;
+        xglMatrixScale(place, place, scale);
+        CARD_WIN_DRAW(CARD_WIN_RESOURCE(CARD_WIN_VICTORY1));
+        CARD_WIN_DRAW(CARD_WIN_RESOURCE(CARD_WIN_VICTORY5));
+        CARD_WIN_DRAW(CARD_WIN_RESOURCE(CARD_WIN_VICTORY6));
+        break;
+    case CARD_WIN_STEP_OTHER:
+        {
+            float grow = timer * CARD_WIN_ZOOM_RATE;
+            float rest = 1.0f;
+            xglMatrixUnit(place);
+            scale[3] = scale[2] = rest;
+            scale[0] = scale[1] = grow + rest;
+        }
+        xglMatrixScale(place, place, scale);
+        CARD_WIN_DRAW_ALT(CARD_WIN_RESOURCE(CARD_WIN_LOST2));
+        if (timer != 0) {
+            timer--;
+        } else {
+            timer = CARD_WIN_STEP_FRAMES;
+            work->command.step++;
+        }
+        break;
+    case CARD_WIN_STEP_OTHER + 1:
+        xglMatrixUnit(place);
+        scale[0] = scale[1] = 1.0f;
+        scale[2] = scale[3] = 1.0f;
+        xglMatrixScale(place, place, scale);
+        CARD_WIN_DRAW_ALT(CARD_WIN_RESOURCE(CARD_WIN_LOST2));
+        if (timer != 0) {
+            timer--;
+        } else {
+            timer = CARD_WIN_STEP_FRAMES;
+            work->command.step++;
+        }
+        break;
+    case CARD_WIN_STEP_OTHER + 2:
+        {
+            float grow = timer * CARD_WIN_ZOOM_RATE;
+            float rest = 1.0f;
+            xglMatrixUnit(place);
+            scale[2] = scale[3] = rest;
+            scale[0] = scale[1] = grow + rest;
+        }
+        xglMatrixScale(place, place, scale);
+        CARD_WIN_DRAW_ALT(CARD_WIN_RESOURCE(CARD_WIN_LOST1));
+        xglMatrixUnit(place);
+        scale[2] = scale[3] = 1.0f;
+        /* The original adds 0.0f after the multiply (add.s 0x00a038f0). */
+        scale[0] = scale[1] = timer * CARD_WIN_SHRINK_RATE + 0.0f;
+        xglMatrixScale(place, place, scale);
+        CARD_WIN_DRAW_ALT(CARD_WIN_RESOURCE(CARD_WIN_LOST2));
+        if (timer != 0) {
+            timer--;
+        } else {
+            timer = CARD_WIN_STEP_FRAMES;
+            work->command.step++;
+        }
+        break;
+    case CARD_WIN_STEP_OTHER + 3:
+        xglMatrixUnit(place);
+        scale[0] = scale[1] = 1.0f;
+        scale[2] = scale[3] = 1.0f;
+        xglMatrixScale(place, place, scale);
+        CARD_WIN_DRAW_ALT(CARD_WIN_RESOURCE(CARD_WIN_LOST1));
+        if (timer != 0)
+            timer--;
+        else
+            timer = CARD_WIN_STEP_FRAMES;
+        break;
+    default:
+        break;
+    }
+}
+
 
 void CMTSetFontColor(s32 count, s32 player)
 {
     if (count == player) {
-        xglFontPrint(0, 0, 0, D_00A4C788);
+        xglFontPrint(0, 0, 0, "\031\003");
     } else if (count < player) {
-        xglFontPrint(0, 0, 0, D_00A4C788);
+        xglFontPrint(0, 0, 0, "\031\003");
     } else {
-        xglFontPrint(0, 0, 0, D_00A4C788);
+        xglFontPrint(0, 0, 0, "\031\003");
     }
 }
 
@@ -401,7 +1750,7 @@ s32 CardMainProc(CardGameWork *work) {
                         nmlModelSetLight(asColor, asDir);
                         xglFontPrint(0, 0, 0xFFF0, selectColor.text);
                     }
-                    xglFontPrint(0, 0, 0, D_00A4C788);
+                    xglFontPrint(0, 0, 0, "\031\003");
                     xglFontPrint(0xDE, 0x8C, 0xFFF0, " Game");
                     position[1] = 0.6787f;
                     xglMatrixTrans(placement, matrix, position);
@@ -416,7 +1765,7 @@ s32 CardMainProc(CardGameWork *work) {
                         nmlModelSetLight(asColor, asDir);
                         xglFontPrint(0, 0, 0xFFF0, selectColor.text);
                     }
-                    xglFontPrint(0, 0, 0, D_00A4C788);
+                    xglFontPrint(0, 0, 0, "\031\003");
                     xglFontPrint(0xDE, 0xB1, 0xFFF0, " Card");
                     position[1] = 0.33f;
                     xglMatrixTrans(placement, matrix, position);
@@ -431,7 +1780,7 @@ s32 CardMainProc(CardGameWork *work) {
                         xglFontPrint(0, 0, 0xFFF0, selectColor.text);
                         nmlModelSetLight(asColor, asDir);
                     }
-                    xglFontPrint(0, 0, 0, D_00A4C788);
+                    xglFontPrint(0, 0, 0, "\031\003");
                     xglFontPrint(0xDE, 0xD6, 0xFFF0, D_00A4C790);
                     position[1] = -0.0202f;
                     xglMatrixTrans(placement, matrix, position);
@@ -446,7 +1795,7 @@ s32 CardMainProc(CardGameWork *work) {
                         xglFontPrint(0, 0, 0xFFF0, selectColor.text);
                         nmlModelSetLight(asColor, asDir);
                     }
-                    xglFontPrint(0, 0, 0, D_00A4C788);
+                    xglFontPrint(0, 0, 0, "\031\003");
                     xglFontPrint(0xDE, 0xFB, 0xFFF0, " Exit");
                     position[1] = -0.3692f;
                     xglMatrixTrans(placement, matrix, position);
@@ -465,7 +1814,7 @@ s32 CardMainProc(CardGameWork *work) {
                                 xglFontPrint(0, 0, 0xFFF0, itemSelectColor.text);
                                 nmlModelSetLight(asColor, asDir);
                             }
-                            xglFontPrint(0, 0, 0, D_00A4C788);
+                            xglFontPrint(0, 0, 0, "\031\003");
                             xglFontPrint(0x168, 0x7A, 0xFFF0, "Exhibition");
                             position[1] = 0.8521f;
                             xglMatrixTrans(placement, matrix, position);
@@ -478,7 +1827,7 @@ s32 CardMainProc(CardGameWork *work) {
                                 xglFontPrint(0, 0, 0xFFF0, itemSelectColor.text);
                                 nmlModelSetLight(asColor, asDir);
                             }
-                            xglFontPrint(0, 0, 0, D_00A4C788);
+                            xglFontPrint(0, 0, 0, "\031\003");
                             xglFontPrint(0x168, 0x9E, 0xFFF0, "Tournament");
                             position[1] = 0.5015f;
                             xglMatrixTrans(placement, matrix, position);
@@ -491,7 +1840,7 @@ s32 CardMainProc(CardGameWork *work) {
                                 xglFontPrint(0, 0, 0xFFF0, itemSelectColor.text);
                                 nmlModelSetLight(asColor, asDir);
                             }
-                            xglFontPrint(0, 0, 0, D_00A4C788);
+                            xglFontPrint(0, 0, 0, "\031\003");
                             xglFontPrint(0x168, 0xC2, 0xFFF0, "2P Battle");
                             position[1] = 0.1509f;
                             xglMatrixTrans(placement, matrix, position);
@@ -504,7 +1853,7 @@ s32 CardMainProc(CardGameWork *work) {
                                 xglFontPrint(0, 0, 0xFFF0, itemSelectColor.text);
                                 nmlModelSetLight(asColor, asDir);
                             }
-                            xglFontPrint(0, 0, 0, D_00A4C788);
+                            xglFontPrint(0, 0, 0, "\031\003");
                             xglFontPrint(0x168, 0xE8, 0xFFF0, "Change BG");
                             position[1] = -0.1976f;
                             xglMatrixTrans(placement, matrix, position);
@@ -517,7 +1866,7 @@ s32 CardMainProc(CardGameWork *work) {
                                 xglFontPrint(0, 0, 0xFFF0, itemSelectColor.text);
                                 nmlModelSetLight(asColor, asDir);
                             }
-                            xglFontPrint(0, 0, 0, D_00A4C788);
+                            xglFontPrint(0, 0, 0, "\031\003");
                             xglFontPrint(0x168, 0xC2, 0xFFF0, "Create deck");
                             position[1] = 0.1509f;
                             xglMatrixTrans(placement, matrix, position);
@@ -530,7 +1879,7 @@ s32 CardMainProc(CardGameWork *work) {
                                 xglFontPrint(0, 0, 0xFFF0, itemSelectColor.text);
                                 nmlModelSetLight(asColor, asDir);
                             }
-                            xglFontPrint(0, 0, 0, D_00A4C788);
+                            xglFontPrint(0, 0, 0, "\031\003");
                             xglFontPrint(0x168, 0xE8, 0xFFF0, "Open card");
                             position[1] = -0.1976f;
                             xglMatrixTrans(placement, matrix, position);
@@ -543,7 +1892,7 @@ s32 CardMainProc(CardGameWork *work) {
                                 xglFontPrint(0, 0, 0xFFF0, itemSelectColor.text);
                                 nmlModelSetLight(asColor, asDir);
                             }
-                            xglFontPrint(0, 0, 0, D_00A4C788);
+                            xglFontPrint(0, 0, 0, "\031\003");
                             xglFontPrint(0x168, 0x10D, 0xFFF0, "View cards");
                             position[1] = -0.5478f;
                             xglMatrixTrans(placement, matrix, position);
@@ -556,7 +1905,7 @@ s32 CardMainProc(CardGameWork *work) {
                                 xglFontPrint(0, 0, 0xFFF0, itemSelectColor.text);
                                 nmlModelSetLight(asColor, asDir);
                             }
-                            xglFontPrint(0, 0, 0, D_00A4C788);
+                            xglFontPrint(0, 0, 0, "\031\003");
                             xglFontPrint(0x168, 0xE8, 0xFFF0, "Tutorial");
                             position[1] = -0.1976f;
                             xglMatrixTrans(placement, matrix, position);
@@ -569,7 +1918,7 @@ s32 CardMainProc(CardGameWork *work) {
                                 xglFontPrint(0, 0, 0xFFF0, itemSelectColor.text);
                                 nmlModelSetLight(asColor, asDir);
                             }
-                            xglFontPrint(0, 0, 0, D_00A4C788);
+                            xglFontPrint(0, 0, 0, "\031\003");
                             xglFontPrint(0x168, 0x10D, 0xFFF0, "Help");
                             position[1] = -0.5478f;
                             xglMatrixTrans(placement, matrix, position);
@@ -591,7 +1940,7 @@ s32 CardMainProc(CardGameWork *work) {
                     }
                 }
                 xglFontPrint(0, 0, 0xFFF0, D_00A4C868);
-                xglFontPrint(0, 0, 0, D_00A4C788);
+                xglFontPrint(0, 0, 0, "\031\003");
                 {
                     char *guide;
 
@@ -971,24 +2320,24 @@ s32 CardMainProc(CardGameWork *work) {
                     /* fall through */
                 case 4:
                     if (ModeExit_4) {
-                        xglFontPrint(0, 0, 0, D_00A4C788);
+                        xglFontPrint(0, 0, 0, "\031\003");
                         xglFontPrint(0x18, 0x138, 0xFFF0, "\r\0Exit game?");
                         exiting = 1;
                         switch (D_00A57728) {
                         case 1:
-                            xglFontPrint(0, 0, 0, D_00A4C788);
+                            xglFontPrint(0, 0, 0, "\031\003");
                             xglFontPrint(0x18, 0x150, 0xFFF0, "The prize is 1 Card Pack if you stop here.");
                             break;
                         case 2:
-                            xglFontPrint(0, 0, 0, D_00A4C788);
+                            xglFontPrint(0, 0, 0, "\031\003");
                             xglFontPrint(0x18, 0x150, 0xFFF0, "The prize is 2 Card Packs if you stop here.");
                             break;
                         case 3:
-                            xglFontPrint(0, 0, 0, D_00A4C788);
+                            xglFontPrint(0, 0, 0, "\031\003");
                             xglFontPrint(0x18, 0x150, 0xFFF0, "The prize is 3 Card Packs if you stop here.");
                             break;
                         case 4:
-                            xglFontPrint(0, 0, 0, D_00A4C788);
+                            xglFontPrint(0, 0, 0, "\031\003");
                             xglFontPrint(0x18, 0x150, 0xFFF0, "The prize is 4 Card Packs if you stop here.");
                             break;
                         }
@@ -1018,26 +2367,26 @@ s32 CardMainProc(CardGameWork *work) {
                             }
                         }
                         if (D_00A57728 == 0) {
-                            xglFontPrint(0, 0, 0, D_00A4C788);
+                            xglFontPrint(0, 0, 0, "\031\003");
                             xglFontPrint(0x18, 0x138, 0xFFF0, "\v\x19\x03\r\0Select an opponent.");
                             xglFontPrint(0x18, 0x150, 0xFFF0, "\v\x19\x03\r\0Is this ok?");
                             xglFontPrint(0xE0, 0x168, 0xFFF0, ModeContMess1);
                         } else {
                             switch (D_00A57728) {
                             case 1:
-                                xglFontPrint(0, 0, 0, D_00A4C788);
+                                xglFontPrint(0, 0, 0, "\031\003");
                                 xglFontPrint(0x18, 0x138, 0xFFF0, "\v\x19\x03\r\0Entering the second round.");
                                 break;
                             case 2:
-                                xglFontPrint(0, 0, 0, D_00A4C788);
+                                xglFontPrint(0, 0, 0, "\031\003");
                                 xglFontPrint(0x18, 0x138, 0xFFF0, "\v\x19\x03\r\0Entering the third round.");
                                 break;
                             case 3:
-                                xglFontPrint(0, 0, 0, D_00A4C788);
+                                xglFontPrint(0, 0, 0, "\031\003");
                                 xglFontPrint(0x18, 0x138, 0xFFF0, "\v\x19\x03\r\0Entering the fourth round.");
                                 break;
                             case 4:
-                                xglFontPrint(0, 0, 0, D_00A4C788);
+                                xglFontPrint(0, 0, 0, "\031\003");
                                 xglFontPrint(0x18, 0x138, 0xFFF0, "\v\x19\x03\r\0Entering the final round.");
                                 break;
                             }
@@ -1173,10 +2522,10 @@ s32 CardMainProc(CardGameWork *work) {
                     CardGameProc(0, &D_00A573F8, work, D_00A57728);
                     work->models[14].visible = 1;
                     line = 0;
-                    xglFontPrint(0, 0, 0, D_00A4C788);
+                    xglFontPrint(0, 0, 0, "\031\003");
                     xglFontPrint(0x14, 0x138, 0xFFF0, "\v\x19\x03\r\0Congratulations. Your prize is: ");
                     if (D_00A57730[0] != 0) {
-                        xglFontPrint(0, 0, 0, D_00A4C788);
+                        xglFontPrint(0, 0, 0, "\031\003");
                         packCount[0] = ZenkakuListA[D_00A57730[0] * 2];
                         packCount[1] = ZenkakuListA[D_00A57730[0] * 2 + 1];
                         packCount[2] = 0;
@@ -1188,18 +2537,18 @@ s32 CardMainProc(CardGameWork *work) {
                         packCount[0] = ZenkakuListA[D_00A57730[1] * 2];
                         packCount[1] = ZenkakuListA[D_00A57730[1] * 2 + 1];
                         packCount[2] = 0;
-                        xglFontPrint(0, 0, 0, D_00A4C788);
+                        xglFontPrint(0, 0, 0, "\031\003");
                         xglFontPrint(0x14, line * 24 + 0x150, 0xFFF0, "\v\x19\x03\r\0Card Pack #822");
                         xglFontPrint(0xC8, line * 24 + 0x150, 0xFFF0, packCount);
                         line++;
                     }
                     if (D_00A57730[2] != 0) {
-                        xglFontPrint(0, 0, 0, D_00A4C788);
+                        xglFontPrint(0, 0, 0, "\031\003");
                         xglFontPrint(0x14, line * 24 + 0x150, 0xFFF0, "\v\x19\x03\r\0\xA3\xB1 Promotional Card");
                         line++;
                     }
                     if (D_00A57730[3] != 0) {
-                        xglFontPrint(0, 0, 0, D_00A4C788);
+                        xglFontPrint(0, 0, 0, "\031\003");
                         xglFontPrint(0x14, line * 24 + 0x150, 0xFFF0, "\v\x19\x03\r\0Tuned Circuit");
                     }
                     if (work->command.input[0].pressed & 0xF0) {
@@ -1238,7 +2587,7 @@ s32 CardMainProc(CardGameWork *work) {
                     line = 0;
                     CardGameProc(0, &D_00A573F8, work, D_00A57728);
                     work->models[14].visible = 1;
-                    xglFontPrint(0, 0, 0, D_00A4C788);
+                    xglFontPrint(0, 0, 0, "\031\003");
                     xglFontPrint(0x14, 0x138, 0xFFF0, "\v\x19\x03\r\0Sorry, you lost. Your prize is: ");
                     if (D_00A57728 != 0) {
                         if (D_00A57730[0] != 0) {
@@ -1246,12 +2595,12 @@ s32 CardMainProc(CardGameWork *work) {
                             packCount[1] = ZenkakuListA[D_00A57730[0] * 2 + 1];
                             line = 1;
                             packCount[2] = 0;
-                            xglFontPrint(0, 0, 0, D_00A4C788);
+                            xglFontPrint(0, 0, 0, "\031\003");
                             xglFontPrint(0x14, 0x150, 0xFFF0, "\v\x19\x03\r\0Card Pack #821");
                             xglFontPrint(0xC8, 0x150, 0xFFF0, packCount);
                         }
                         if (D_00A57730[1] != 0) {
-                            xglFontPrint(0, 0, 0, D_00A4C788);
+                            xglFontPrint(0, 0, 0, "\031\003");
                             packCount[0] = ZenkakuListA[D_00A57730[1] * 2];
                             packCount[1] = ZenkakuListA[D_00A57730[1] * 2 + 1];
                             packCount[2] = 0;
@@ -1260,7 +2609,7 @@ s32 CardMainProc(CardGameWork *work) {
                             line++;
                         }
                     } else {
-                        xglFontPrint(0, 0, 0, D_00A4C788);
+                        xglFontPrint(0, 0, 0, "\031\003");
                     }
                     xglFontPrint(0x14, line * 24 + 0x150, 0xFFF0, "\v\x19\x03\r\0Nothing.");
                     if (work->command.input[0].pressed & 0xF0) {
@@ -1392,7 +2741,7 @@ s32 CardMainProc(CardGameWork *work) {
                             ModeExit_4 = 0;
                         }
                     } else {
-                        xglFontPrint(0, 0, 0, D_00A4C788);
+                        xglFontPrint(0, 0, 0, "\031\003");
                         xglFontPrint(0x18, 0x138, 0xFFF0, "\v\x19\x03\r\0Select an opponent.");
                         xglFontPrint(0x18, 0x150, 0xFFF0, "\v\x19\x03\r\0Is this ok?");
                         xglFontPrint(0xE0, 0x168, 0xFFF0, ModeContMess1);
@@ -1416,7 +2765,7 @@ s32 CardMainProc(CardGameWork *work) {
                     nmlModelSetTexture((void *) 0x01937800);
                     nmlModelSetPlace(placement);
                     nmlModelEntryCard((void *) 0x01930000);
-                    xglFontPrint(0, 0, 0, D_00A4C788);
+                    xglFontPrint(0, 0, 0, "\031\003");
                     xglFontPrint(0x78, 0x25, 0xFFF0, EnemyDeckListStr[D_00A57740[0]]);
                     work->fadeOutTimer = 10;
                     work->fadeOutStep = 16;
@@ -1475,7 +2824,7 @@ s32 CardMainProc(CardGameWork *work) {
                 case 8:
                     CardGameProc(0, &D_00A573F8, work, 0);
                     work->models[14].visible = 1;
-                    xglFontPrint(0, 0, 0, D_00A4C788);
+                    xglFontPrint(0, 0, 0, "\031\003");
                     xglFontPrint(0x18, 0x138, 0xFFF0, "\v\x19\x03\r\0Congratulations!");
                     if (D_00A57748 == 1)
                         xglFontPrint(0x18, 0x150, 0xFFF0, "\v\x19\x03\r\0Your prize is 1 Card Pack #821.");
@@ -1502,7 +2851,7 @@ s32 CardMainProc(CardGameWork *work) {
             int exiting;
 
                 exiting = 0;
-                xglFontPrint(0, 0, 0, D_00A4C788);
+                xglFontPrint(0, 0, 0, "\031\003");
                 xglFontDebugPrintf(0x54, 0, "\v\x19\x03\r\0Deck building mode");
                 switch (work->faseStep) {
                 case 0:
@@ -1521,7 +2870,7 @@ s32 CardMainProc(CardGameWork *work) {
                     break;
                 }
                 if (ModeExit_4) {
-                    xglFontPrint(0, 0, 0, D_00A4C788);
+                    xglFontPrint(0, 0, 0, "\031\003");
                     xglFontPrint(0x18, 0x138, 0xFFF0, "\v\x19\x03\r\0Exit deck building mode?");
                     xglFontPrint(0xE0, 0x168, 0xFFF0, ModeEndMess1);
                     exiting = 1;
@@ -1539,7 +2888,7 @@ s32 CardMainProc(CardGameWork *work) {
                 } else if (Message_6 != 0) {
                     exiting = 1;
                     xglFontPrint(0x18, 0x138, 0xFFFF, "\v\r\0\f\x80@@");
-                    xglFontPrint(0, 0, 0, D_00A4C788);
+                    xglFontPrint(0, 0, 0, "\031\003");
                     xglFontPrint(0x18, 0x138, 0xFFFF, CardErrorList[Message_6]);
                     if (work->command.input[0].pressed & 0xF0) {
                         xglSoundEffectNormalID(1, 0);
@@ -1629,7 +2978,7 @@ s32 CardMainProc(CardGameWork *work) {
                     break;
                 case 4:
                     if (!exiting) {
-                        xglFontPrint(0, 0, 0, D_00A4C788);
+                        xglFontPrint(0, 0, 0, "\031\003");
                         xglFontPrint(0x18, 0x138, 0xFFF0, "\v\x19\x03\r\0Load deck?");
                         xglFontPrint(0x18, 0x168, 0xFFF0,
                                      "\r\x02\f\x80@@\xA1\xFB \v\x19\x03\r\0Yes\xA1\xA1\r\x02\f@@\x80\xA1\xDF \v\x19\x03\r\0No");
@@ -2231,6 +3580,18 @@ float asColor[4][4] = {
     { 0.0f, 0.0f, 0.0f, 1.0f },
     { 1.5f, 1.5f, 1.5f, 1.0f }
 };
+float atColor[4][4] = {
+    { 0.0f, 0.0f, 0.0f, 1.0f },
+    { 0.0f, 0.0f, 0.0f, 1.0f },
+    { 0.0f, 0.0f, 0.0f, 1.0f },
+    { 2.0f, 2.0f, 2.0f, 1.0f }
+};
+float auColor[4][4] = {
+    { 0.0f, 0.0f, 0.0f, 1.0f },
+    { 0.0f, 0.0f, 0.0f, 1.0f },
+    { 0.0f, 0.0f, 0.0f, 1.0f },
+    { 1.2f, 1.2f, 1.2f, 1.0f }
+};
 float CCColor[4][4] = {
     { 0.0f, 0.0f, 0.0f, 1.0f },
     { 0.0f, 0.0f, 0.0f, 1.0f },
@@ -2325,7 +3686,6 @@ char D_00A4C618[24] = "deckmake\\battlewin.bin";
 const CardFontCodeRecord D_00A4C780 = {
     { "\x0c\x10\x10\x10" }, { 0, 0, 0 }
 };
-char D_00A4C788[8] = "\x19\x03";
 char D_00A4C790[8] = " Help";
 const CardFontCode8 D_00A4C7C8 = { "\x0b\x0d\0\x0c```" };
 const CardFontCodeRecord D_00A4C7D0 = {
@@ -2445,3 +3805,7 @@ static char CardPlayDMessTxt12[40] = "\013\031\003\r\000You can't play in this p
 static char CardPlayDMessTxt13[32] = "\013\031\003\r\000You have no cards to play.";
 
 static char CardPlayDMessTxt14[40] = "\031\003\r\000\014\200@@Too many cards in your hand.";
+
+/* ---- end of TU (data definitions), appended last so no existing .data object offset moves ---- */
+/* Version tag CardDataLoad compares the card file against; the original object is 13 bytes at 0x00a42040. */
+static u8 IDdata[13] = "CardData1.10";

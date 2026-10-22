@@ -70,6 +70,25 @@ typedef struct CardPadEntry {
 
 extern CardPadEntry PadData[2];
 
+/*
+ * The stored decks of the save data: five 42-byte records of a checksum halfword and the
+ * 40 card ids, starting 0x2A bytes into CardSaveData (CardSaveData.deck is the card array
+ * of the first record).
+ */
+#define CARD_DECK_SIZE 40                /* slti 0x00a00ba0 in CardMainInit */
+#define CARD_STORED_DECK_COUNT 5
+typedef struct CardStoredDeck {
+    u16 checksum;                  /* +0x00: one's complement of the sum of the card ids */
+    u8 cards[CARD_DECK_SIZE];      /* +0x02 */
+} CardStoredDeck;
+
+typedef struct CardSaveView {
+    u8 unmodeled_00[0x2A];
+    CardStoredDeck decks[CARD_STORED_DECK_COUNT];
+} CardSaveView;
+
+#define CARD_STORED_DECK(work, n) (((CardSaveView *) (work)->save)->decks[n])
+
 /* CardSaveData.flags bits this TU uses (cgp.h names CARD_SAVE_ROTATE_STAGE). */
 #define CARD_SAVE_LARGE_CARDS 0x20   /* toggled from the title menu */
 #define CARD_SAVE_PROMO_GIVEN 0x40   /* the promotional card was awarded */
@@ -168,7 +187,12 @@ extern void xglSoundLoadRequestSmd(const char *name, void *buffer);
 extern void xglSoundEffectParamDirect(int sound, int volume, int pan);
 extern void xglRenderGlobalFadeSet(float red, float green, float blue, float alpha);
 extern void nmlModelSetLight(float color[4][4], float direction[4][4]);
-extern void dataEvtBoxInc(int event);
+extern int dataEvtBoxInc(int event);
+extern void nmlModelSetToumei(int enabled);
+extern void nmlModelSetAlpha(u64 alpha);
+extern void nmlModelEntry(unsigned int model);
+extern int CardPlayYamaCnt(CardPlaySide *side);
+extern void CGPRefreshFieldHP(CardGameWork *work);
 extern int sprintf(char *buffer, const char *format, ...);
 extern void *memset(void *buffer, int value, unsigned int size);
 
