@@ -14,7 +14,17 @@ typedef struct MenuEtherStatusEntry {
 
 extern const signed char D_00A46AF8[];
 extern const signed char D_00A46BE0[];
-void menuStatSprite(int packet, int x, int y, int width, int height, int srcX, int srcY);
+/*
+ * grGpInit's argument, restated from src/ov01/gr_gp_init.c (the owner keeps
+ * it TU-local; header proposal in the PR): a data pointer and a length. A
+ * local packet must be the whole record, because grGpInit writes both words.
+ */
+typedef struct GrPacket {
+    void *data;
+    int count;
+} GrPacket;
+
+void menuStatSprite(GrPacket *packet, int x, int y, int width, int height, int srcX, int srcY);
 extern int rnd(int max);
 extern float ETRotDist;
 
@@ -59,7 +69,7 @@ typedef struct GrSprite {
 
 #define SPRITE_Z 16777212.0f
 
-extern void grPutSpr(int packet, GrSprite *sprite, int flags);
+extern void grPutSpr(GrPacket *packet, GrSprite *sprite, int flags);
 /* The shared sprite colour, .word 0x80808080 (build/ov01/asm/data/ov01/menu.rodata.s:587;
  * rodata still asm-owned). */
 extern const MenuRGBA D_00A46C10;
@@ -73,8 +83,8 @@ typedef struct MenuEventTimerWork {
     float z; /* +0x98 */
 } MenuEventTimerWork;
 
-void menuATBEnvMake(int packet);
-void menuEventTimerDispSub(ObjectTask *task, int packet);
+void menuATBEnvMake(void *packet);
+void menuEventTimerDispSub(ObjectTask *task, GrPacket *packet);
 
 /* Keep source-owned local BSS objects in their original address order;
  * intervening original-only storage remains scaffold-owned between runs. */
@@ -244,9 +254,9 @@ void menuKeyGuideObj(void) {
  * through include/ov01/battle_init.h. menuKeyGuideDisp null-checks
  * unitTask, then reads a flag (bit 3) from unitTask->work, and compares
  * controlPhase against 0xb and 0x1a. */
-void menuKeyGuideDisp(int packet, ObjectTask *task, int phase);
+void menuKeyGuideDisp(GrPacket *packet, ObjectTask *task, int phase);
 
-void menuKeyGuideObjDraw(int packet) {
+void menuKeyGuideObjDraw(GrPacket *packet) {
     ObjectTask *task;
     int phase;
 
@@ -339,31 +349,55 @@ struct MenuCmdEntryView {
 };
 
 /*
- * The battle actor task->work points at, as far as menuCritObj reads it
- * (0x00a281f4..0x00a28200): `lw $2,0x10($16)` loads task->work, then
- * `lw $6,0x80($2)` reads one word at +0x80. ov01/tu002 unit_cmd.c's own
- * view of the same object (src/ov01/unit_cmd.h Actor) already evidences an
- * ObjectTask *targetUnit at the same offset, set by unitCmdDstSet; this TU
- * cannot redefine that tag, so it names its own bounded view of the same
- * object instead.
+ * The critical-indicator object's work, one record for menuCritObj and
+ * menuCritObjDraw: menuStatDispCreate registers both on the same task
+ * (the addresses of menuCritObj and menuCritObjDraw are formed at
+ * 0x00A26E94..0x00A26EB8 and passed to objEntry2; the result is stored to
+ * pCritObj) and menuCritDispOn writes pCritObj's work.
+ * +0x80 is an int count: menuCritDispOn compares it with its int argument
+ * (0x00A28128 lw $2,0x80($3); beql $2,$16) and stores it (0x00A28174
+ * sw $16,0x80($2)); menuCritObjDraw tests it and draws digit count - 1
+ * (0x00A282E8 lw $2,0x80($3); 0x00A282FC addiu $3,$2,-1); menuCritObj only
+ * tests it against zero (0x00A28200 lw $6,0x80($2); movn $5,$3,$6).
+ * This extends, and does not preserve the size of, the local view master
+ * carried as MenuCritActorView (0x84 bytes: 0x80 unmodeled bytes and a task
+ * pointer at +0x80 that menuCritObj only tested for null): the record is now
+ * 0xA0 bytes, flags at +0x00 and position at +0x90 are new members, and the
+ * +0x80 word is the int count rather than a pointer.
  */
-typedef struct MenuCritActorView MenuCritActorView;
-struct MenuCritActorView {
-    unsigned char unmodeled_00[0x80];
-    ObjectTask *targetUnit; /* +0x80 */
+typedef struct MenuCritWork {
+    u32 flags;                        /* +0x00: bit 2 hides the indicator */
+    unsigned char unmodeled_04[0x7C];
+    int count;                        /* +0x80: 0 draws the plain banner */
+    unsigned char unmodeled_84[0xC];
+    Vector4 position;                 /* +0x90 */
+} MenuCritWork;
+
+/* Bit of MenuCritWork.flags that hides the indicator: menuCritDispOff sets
+ * it (|= 4), menuCritObjDraw skips drawing while it is set (andi $2,$2,0x4).
+ * An enum constant, not a macro (a macro can never be published by
+ * header_harvest.py); it stays TU-local until a declaration needs it. */
+enum MenuCritWorkFlag {
+    MENU_CRIT_HIDDEN = 0x4
 };
+
+/* The work slot holds the address of the indicator's MenuCritWork.
+ * menuCritObj reads the slot once (lw $2,0x10($16) at 0x00A281F4) and so
+ * keeps the record in a local; menuCritObjDraw loads it afresh before each
+ * of its reads (lw 0x10($18) at 0x00A28254, 0x00A2828C and 0x00A282D8), so
+ * every access there casts the slot itself instead of caching it. */
 
 int menuCritObj(ObjectTask *task)
 {
     MenuCmdEntryView *entry;
-    MenuCritActorView *actor;
+    MenuCritWork *work;
     int result;
 
     result = 1;
     entry = objCmdPtrGet(task);
     if (entry->selector == 1) {
-        actor = task->work;
-        objHatoVec(task, (actor->targetUnit == 0) ? 4 : 2);
+        work = task->work;
+        objHatoVec(task, (work->count == 0) ? 4 : 2);
         result = objStdMove(task);
         if (result != 0) {
             result = objCmdNext(task);
@@ -372,7 +406,73 @@ int menuCritObj(ObjectTask *task)
     return result;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuCritObjDraw);
+void menuStatIconEnvMake(void *packet);
+/*
+ * The battle map's height value (bss still scaffold-owned, like ETRotDist;
+ * original ELF symbol name). menuStatDispCreate starts it and mapHDist at
+ * 0x40 (`sw $5,%lo(mapH)` / `sw $5,%lo(mapHDist)` at 0x00a26df0..0x00a26df4),
+ * menuMapHSet below moves mapHDist to 0x14 or 0x40, and menuATBObj (still
+ * asm) steps mapH by 8 per update toward mapHDist (0x00a27320..0x00a2733c).
+ * menuMapDisp offsets the map by 0x40 - mapH (0x00a2848c); menuATBObjDraw
+ * draws the map item and target line only while it is 0x40 (0x00a283d4),
+ * menuCritObjDraw the critical indicator only while it is 0x14
+ * (`bnel` against 0x14). The two rest values are MENU_MAP_H_SET/RESET.
+ */
+extern int mapH;
+
+/* The two values mapH rests at: menuMapHSet(nonzero) sends it to 0x14
+ * (`addiu $2,$0,0x14` at 0x00a28428), menuMapHSet(0) and menuStatDispCreate
+ * to 0x40 (0x00a28438, 0x00a26ddc). */
+enum MenuMapH {
+    MENU_MAP_H_SET = 0x14,
+    MENU_MAP_H_RESET = 0x40
+};
+
+/* Defined by ov01/tu008 (src/ov01/gr_gp_init.c). Declared here because
+ * menuCritObjDraw calls them ahead of the declarations further down; without
+ * them gcc 2.96 reports "type mismatch with previous implicit declaration". */
+extern void grGpInit(GrPacket *packet);
+extern void grOpenSpr(GrPacket *packet);
+extern void grCloseSpr(void);
+extern void grPacketSend(GrPacket *packet);
+
+/*
+ * Draws the critical banner and, for a nonzero count, its digit cell
+ * (0x18 wide, starting at sheet x 0xB1). The digit's sheet offset is its
+ * own statement ahead of the first call: the original keeps (count - 1) * 3
+ * in $16 across that call and finishes *8 and +0xB1 after it; one
+ * (count - 1) * 0x18 + 0xB1 expression folds to count * 0x18 + 0x99.
+ */
+void menuCritObjDraw(ObjectTask *task)
+{
+    GrPacket packet;
+    int x;
+    int z;
+    int count;
+    int digit;
+    int digitX;
+
+    if ((((MenuCritWork *)task->work)->flags & MENU_CRIT_HIDDEN) == 0 && mapH == MENU_MAP_H_SET) {
+        grGpInit(&packet);
+        menuStatIconEnvMake(&packet);
+        x = (int)((MenuCritWork *)task->work)->position.x;
+        z = (int)((MenuCritWork *)task->work)->position.z;
+        grOpenSpr(&packet);
+        menuStatSprite(&packet, x, z, 0x84, 0x18, 0x7C, 0);
+        count = ((MenuCritWork *)task->work)->count;
+        if (count == 0) {
+            menuStatSprite(&packet, x + 0x12, z + 4, 0x61, 0x10, 0x9B, 0x19);
+        } else {
+            digit = count - 1;
+            digitX = digit * 0x18;
+            menuStatSprite(&packet, x + 0x12, z + 4, 0x41, 0x10, 0xB1, 0x2A);
+            menuStatSprite(&packet, x + 0x53, z + 4, 0x18, 0x10,
+                           digitX + 0xB1, 0x3B);
+        }
+        grCloseSpr();
+        grPacketSend(&packet);
+    }
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuATBObjDraw);
 
@@ -383,21 +483,20 @@ INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuATBObjDraw);
 void menuMapHSet(int enable)
 {
     if (enable != 0) {
-        mapHDist = 0x14;
+        mapHDist = MENU_MAP_H_SET;
         return;
     }
-    mapHDist = 0x40;
+    mapHDist = MENU_MAP_H_RESET;
 }
 
 INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuMapDisp);
 
 /* Defined by ov01/tu008 (src/ov01/gr_gp_init.c). */
 extern void grCloseSpr(void);
-extern void grGsRegSet(int packet, int reg, int value);
-extern void grOpenSpr(int packet);
+extern void grGsRegSet(GrPacket *packet, unsigned long long reg, unsigned long long value);
 
-void menuATBEnvPalSet(int packet, int palette);
-void menuMapItemDispSub(ObjectTask *task, int packet, int index, int x, int z);
+void menuATBEnvPalSet(GrPacket *packet, int palette);
+void menuMapItemDispSub(ObjectTask *task, GrPacket *packet, int index, int x, int z);
 
 /*
  * task->work's own float pair at these offsets is the map item's world
@@ -406,7 +505,7 @@ void menuMapItemDispSub(ObjectTask *task, int packet, int index, int x, int z);
 #define MAP_ITEM_POS_X_OFF 0x90
 #define MAP_ITEM_POS_Z_OFF 0x98
 
-void menuMapItemDisp(ObjectTask *task, int packet)
+void menuMapItemDisp(ObjectTask *task, GrPacket *packet)
 {
     void *work;
     int x;
@@ -436,17 +535,113 @@ INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuStockBoost);
 
 INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuStockDead);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuStockObj);
+typedef struct MenuStockWork {
+    u32 flags;                         /* +0x00: bit 0x4 hides the face
+                                        * (menuStockObjDraw, andi 0x4) */
+    unsigned char unmodeled_04[0x6C];
+    int frameCount;                    /* +0x70: menuStockObj adds 1 every
+                                        * update; command 3 moves the face
+                                        * only once it is nonzero */
+    unsigned char unmodeled_74[4];
+    /* A code-shape device, not data: width is only ever read and written as
+     * `value`. `alias` is never accessed; it makes the int store to width
+     * conflict with the void * load of ObjectTask.work in gcc 2.96's alias
+     * analysis, so menuStockObj reloads the slot after storing width
+     * (lw $4,0x10($16) after sw $3,0x78($5)) as the original does. */
+    union {
+        int value;
+        void *alias;
+    } width;                           /* +0x78: menuStockStart seeds 4
+                                        * (sw $22,0x78); menuStockObj adds 4
+                                        * while it is below 0x14 and writes
+                                        * 0x14 otherwise; menuStockObjDraw
+                                        * passes it as the sprite width */
+    unsigned char unmodeled_7c[4];
+    int index;                         /* +0x80: the face's pStockObj slot
+                                        * (sw $18,0x80) */
+    unsigned char unmodeled_84[0xC];
+    Vector4 position;                  /* +0x90: addiu $16,$16,0x90, then
+                                        * swc1 0x0/0x8 and sw $0,0x4 */
+} MenuStockWork;
+
+void menuStockObj(ObjectTask *task)
+{
+    MenuCmdEntryView *entry;
+    MenuStockWork *stock;
+
+    entry = objCmdPtrGet(task);
+    /* Compared as an unsigned equality chain (beq 1, beql 0, beq 2, beq 3);
+     * a signed selector splits it with slti $2,$3,2 / bnel instead. */
+    switch ((unsigned int)entry->selector) {
+    case 0:
+        break;
+    case 1:
+        objHatoVec(task, 2);
+        if (objStdMove(task) != 0) {
+            objCmdNext(task);
+        }
+        break;
+    case 2:
+        break;
+    case 3:
+        if (((MenuStockWork *)task->work)->frameCount != 0) {
+            objHatoVec(task, 2);
+            if (objStdMove(task) != 0) {
+                objCmdNext(task);
+            }
+        }
+        break;
+    }
+    /* Not a clamp: a width below 0x14 grows by 4 (so 0x12 becomes 0x16),
+     * any other value is replaced by 0x14 (slti $2,$2,0x14; movn $3,$4,$2). */
+    stock = ((MenuStockWork *)task->work);
+    stock->width.value = (stock->width.value < 0x14) ? stock->width.value + 4 : 0x14;
+    ((MenuStockWork *)task->work)->frameCount++;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuStockObjDraw);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/menu", faceUVGet);
+/*
+ * The 3x11 face-icon sheet's per-character source cell: chrId<32 indexes a
+ * grid of 21x25 cells (column = chrId%3, row = chrId/3); chrId>=32 (no face
+ * tile) leaves the row at 0 and picks one of three fixed columns from
+ * CalcUnitParam.flags (lhu $3,0x1C($2) at 0x00A29144): bit 0x4000 set
+ * (andi $3,$3,0x4000 at 0x00A2914C) selects sheet x 0xC0 (0x00A2915C),
+ * otherwise bit 0x2000 set (andi $2,$3,0x2000 at 0x00A29148) selects 0xD5
+ * (0x00A29164), otherwise 0xEA (0x00A29168). Neither bit has an established
+ * name (include/ov01/calc.h and src/ov01/calc.h name other bits of this
+ * halfword only), so they stay numeric; which characters carry them is not
+ * evidenced here.
+ */
+void faceUVGet(ObjectTask *task, int *srcX, int *srcY)
+{
+    int chrId;
+    CalcUnitParam *up;
+    u16 flags;
+
+    chrId = menuStatChrIdGet(task);
+    if (chrId < 0x20) {
+        *srcX = (chrId % 3) * 21 + 0x40;
+        *srcY = (chrId / 3) * 25;
+        return;
+    }
+    up = calcUPGet(task);
+    *srcY = 0;
+    flags = up->flags;
+    if (flags & 0x4000) {
+        *srcX = 0xC0;
+    } else if (flags & 0x2000) {
+        *srcX = 0xD5;
+    } else {
+        *srcX = 0xEA;
+    }
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuMapItemDispSub);
 
 INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuSelLine);
 
-void menuEventTimerDisp(ObjectTask *task, int packet)
+void menuEventTimerDisp(ObjectTask *task, GrPacket *packet)
 {
     MenuEventTimerWork *work;
     int x;
@@ -503,9 +698,9 @@ int menuTimeXGet(void) {
 }
 
 extern BattleUnit *actUnitGet(void);
-void grGpInit(int packet);
-void grPacketSend(int packet);
-void menuPlStatPut(ObjectTask *task, int packet, BattleUnit *unit);
+void grGpInit(GrPacket *packet);
+void grPacketSend(GrPacket *packet);
+void menuPlStatPut(ObjectTask *task, GrPacket *packet, BattleUnit *unit);
 void menuStatNamePut(ObjectTask *task);
 
 /*
@@ -526,15 +721,15 @@ struct MenuStatObjWork {
 };
 
 void menuStatObjDraw(ObjectTask *task) {
-    int packet;
+    GrPacket packet;
     MenuStatObjWork *work;
     BattleUnit *unit;
 
-    grGpInit((int)&packet);
+    grGpInit(&packet);
     work = task->work;
     unit = work->unit;
-    menuPlStatPut(task, (int)&packet, unit);
-    grPacketSend((int)&packet);
+    menuPlStatPut(task, &packet, unit);
+    grPacketSend(&packet);
     if (unit == actUnitGet()) {
         menuStatNamePut(task);
     }
@@ -581,7 +776,7 @@ INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuPlStatPut);
 
 INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuNumPut);
 
-void menuApBarPut(int packet, int x, int y, int amount)
+void menuApBarPut(GrPacket *packet, int x, int y, int amount)
 {
     int i;
     int xPosition;
@@ -625,7 +820,7 @@ int menuStatIconChk(int charaId, int statFlags)
 
 int menuStatIconChk(int charaId, int statFlags);
 
-void menuStatIconPut(int packet, int x, int y, int charaId, int statFlags)
+void menuStatIconPut(GrPacket *packet, int x, int y, int charaId, int statFlags)
 {
     StatIconEntry *icons;
     int index;
@@ -690,7 +885,32 @@ INCLUDE_ASM("asm/nonmatchings/ov01/menu", keyGideDisp);
 
 INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuGuideFrameDisp);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/menu", monsNameDisp);
+extern const char **dataEnemyNameGet(int index);
+extern const char **dataPlayerNameGet(int id);
+extern unsigned int strlen(const char *s);
+void menuGuideFrameDisp(void *packet, int x, int y, int width, int height);
+void menuFontEnvMake(void *packet);
+void menuStatEnvMake(void *packet);
+void menuFontPut(GrPacket *packet, int x, int y, const char *text);
+
+void monsNameDisp(void *packet, ObjectTask *unitTask, int x, int y, int isEnemy)
+{
+    const char *name;
+    int len;
+
+    menuStatEnvMake(packet);
+    menuGuideFrameDisp(packet, x, y, 0x50, 2);
+    x = x + 2;
+    y = y + 3;
+    menuFontEnvMake(packet);
+    if (isEnemy == 1) {
+        name = *dataEnemyNameGet(calcUPGet(unitTask)->charaId);
+    } else {
+        name = *dataPlayerNameGet(calcUPGet(unitTask)->charaId);
+    }
+    len = strlen(name);
+    menuFontPut(packet, x + (0x10 - len) * 5, y, name);
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuKeyGuideHelp);
 
@@ -774,7 +994,7 @@ int menuDFontIdxGet(const signed char *text)
 #define FONT_GLYPH_WIDTH 0xA
 #define FONT_GLYPH_HEIGHT 0x12
 
-void menuFontPutSub(int packet, int x, int y, int charCode) {
+void menuFontPutSub(GrPacket *packet, int x, int y, int charCode) {
     int row;
     int col;
 
@@ -784,11 +1004,49 @@ void menuFontPutSub(int packet, int x, int y, int charCode) {
                    col * FONT_GLYPH_WIDTH, row * FONT_GLYPH_HEIGHT);
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuFontPut);
+extern int sscanf(const char *string, const char *format, ...);
+extern const char D_00A46C08[]; /* "%X": menuFontPut parses a '#'-escaped hex glyph code */
+
+/*
+ * Draws text one glyph per FONT_GLYPH_WIDTH: "#XX" is a hex glyph code, a byte
+ * with bit 7 set starts a two-byte glyph, anything else is a single-byte one.
+ * The loop indexes text[consumed] and takes the glyph cursor at the top of
+ * the body: the original tests text[0] through the text register and reloads
+ * the byte through the cursor (a cursor-driven loop shares that load).
+ */
+void menuFontPut(GrPacket *packet, int x, int y, const char *text)
+{
+    char hex[3];
+    u32 glyph; /* sscanf "%X" target; menuFontIdxGet/menuDFontIdxGet store
+                * their index, -1 for none, into the same slot (sw $2,0x10) */
+    int consumed;
+    const char *cursor;
+
+    grOpenSpr(packet);
+    for (consumed = 0; text[consumed] != '\0'; consumed++, x += FONT_GLYPH_WIDTH) {
+        cursor = &text[consumed];
+        if (*cursor == '#') {
+            hex[0] = cursor[1];
+            consumed += 2;
+            hex[1] = cursor[2];
+            hex[2] = '\0';
+            sscanf(hex, D_00A46C08, &glyph);
+        } else if (*cursor & 0x80) {
+            consumed++;
+            glyph = menuDFontIdxGet((const signed char *)cursor);
+        } else {
+            glyph = menuFontIdxGet((const signed char *)cursor);
+        }
+        if ((int)glyph != -1) {
+            menuFontPutSub(packet, x, y, (int)glyph);
+        }
+    }
+    grCloseSpr();
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuActCurPut);
 
-void menuStatSprite(int packet, int x, int y, int width, int height, int srcX, int srcY) {
+void menuStatSprite(GrPacket *packet, int x, int y, int width, int height, int srcX, int srcY) {
     GrSprite sprite;
     MenuColor color;
 
@@ -807,7 +1065,7 @@ void menuStatSprite(int packet, int x, int y, int width, int height, int srcX, i
     grPutSpr(packet, &sprite, 0);
 }
 
-void menuStatSprite2(int packet, int x, int y, int width, int height, int srcLeft, int srcTop, int srcRight, int srcBottom) {
+void menuStatSprite2(GrPacket *packet, int x, int y, int width, int height, int srcLeft, int srcTop, int srcRight, int srcBottom) {
     GrSprite sprite;
     MenuColor color;
 
@@ -826,7 +1084,7 @@ void menuStatSprite2(int packet, int x, int y, int width, int height, int srcLef
     grPutSpr(packet, &sprite, 0);
 }
 
-void menuStatSpriteRGB(int packet, int x, int y, int width, int height, int srcX, int srcY, const MenuRGBA *rgba) {
+void menuStatSpriteRGB(GrPacket *packet, int x, int y, int width, int height, int srcX, int srcY, const MenuRGBA *rgba) {
     GrSprite sprite;
 
     sprite.x0 = x;
@@ -850,34 +1108,127 @@ extern int *dataXtxFileGet(int index);
 extern void xglPacketTextureTrans(int textureId);
 
 void menuTexTrans(void) {
-    int packet;
+    GrPacket packet;
 
     xglPacketTextureTrans(dataXtxFileGet(1)[1]);
-    grGpInit((int)&packet);
-    grGsRegSet((int)&packet, 0x3F, 1);
-    grPacketSend((int)&packet);
+    grGpInit(&packet);
+    grGsRegSet(&packet, 0x3F, 1);
+    grPacketSend(&packet);
 }
 
 void menuStatTexTrans(void) {
-    int packet;
+    GrPacket packet;
 
     xglPacketTextureTrans(dataXtxFileGet(0)[1]);
-    grGpInit((int)&packet);
-    grGsRegSet((int)&packet, 0x3F, 1);
-    grPacketSend((int)&packet);
+    grGpInit(&packet);
+    grGsRegSet(&packet, 0x3F, 1);
+    grPacketSend(&packet);
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuEnvMake);
+/* Defined by ov01/tu008 (src/ov01/gr_gp_init.c). The six *EnvMake callers keep
+ * their packet parameter as void *, which converts here. */
+extern void GS_REG_SET(GrPacket *packet, long long register_id, long long control);
+extern unsigned short dataXtxAdrGet(int index);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuStatEnvMake);
+/*
+ * The six *EnvMake functions below write one GIF packet each. No neighbouring
+ * code names the GS registers or the packed words (menuStatTexTrans above and
+ * encEnvMake pass raw numbers to grGsRegSet/GS_REG_SET), so they stay numeric:
+ * - 0xE is the GIF A+D descriptor; its word is the GIFtag (NLOOP 5 for the five
+ *   register writes that follow, EOP set, NREG 1), the same word
+ *   gr_gp_init.c's grGifAppendRegister(packet, 14, ...) opens its packets with;
+ * - 0x06 TEX0_1: tbp0 is the texture base, tbp1 << 37 the CLUT base (CBP); the
+ *   constant carries the buffer width, pixel formats, size and function bits;
+ * - 0x42 ALPHA_1 (blend equation; menuFontEnvMake's 0x44 differs from the 0 of
+ *   the others), 0x47 TEST_1 (0x3000D: alpha test on, depth test on),
+ *   0x08 CLAMP_1 and 0x14 TEX1_1 both 0.
+ * The dataXtxAdrGet indices select which texture/CLUT pair each environment
+ * binds.
+ */
 
-INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuFaceEnvMake);
+void menuEnvMake(void *packet)
+{
+    unsigned short tbp0 = dataXtxAdrGet(0xD);
+    unsigned short tbp1 = dataXtxAdrGet(0xE);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuATBEnvMake);
+    GS_REG_SET(packet, 0xE, 0x1000000000008005LL);
+    GS_REG_SET(packet, 0x6,
+               tbp0 | ((long long)tbp1 << 37) | 0x2000000629340000LL);
+    GS_REG_SET(packet, 0x42, 0);
+    GS_REG_SET(packet, 0x47, 0x3000D);
+    GS_REG_SET(packet, 0x8, 0);
+    GS_REG_SET(packet, 0x14, 0);
+}
 
-INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuFontEnvMake);
+void menuStatEnvMake(void *packet)
+{
+    unsigned short tbp0 = dataXtxAdrGet(0);
+    unsigned short tbp1 = dataXtxAdrGet(3);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuStatIconEnvMake);
+    GS_REG_SET(packet, 0xE, 0x1000000000008005LL);
+    GS_REG_SET(packet, 0x6,
+               tbp0 | ((long long)tbp1 << 37) | 0x2000000629340000LL);
+    GS_REG_SET(packet, 0x42, 0);
+    GS_REG_SET(packet, 0x47, 0x3000D);
+    GS_REG_SET(packet, 0x8, 0);
+    GS_REG_SET(packet, 0x14, 0);
+}
+
+void menuFaceEnvMake(void *packet)
+{
+    unsigned short tbp0 = dataXtxAdrGet(0x8);
+    unsigned short tbp1 = dataXtxAdrGet(0x9);
+
+    GS_REG_SET(packet, 0xE, 0x1000000000008005LL);
+    GS_REG_SET(packet, 0x6,
+               tbp0 | ((long long)tbp1 << 37) | 0x2000000629340000LL);
+    GS_REG_SET(packet, 0x42, 0);
+    GS_REG_SET(packet, 0x47, 0x3000D);
+    GS_REG_SET(packet, 0x8, 0);
+    GS_REG_SET(packet, 0x14, 0);
+}
+
+void menuATBEnvMake(void *packet)
+{
+    unsigned short tbp0 = dataXtxAdrGet(4);
+    unsigned short tbp1 = dataXtxAdrGet(7);
+
+    GS_REG_SET(packet, 0xE, 0x1000000000008005LL);
+    GS_REG_SET(packet, 0x6,
+               tbp0 | ((long long)tbp1 << 37) | 0x2000000629340000LL);
+    GS_REG_SET(packet, 0x42, 0);
+    GS_REG_SET(packet, 0x47, 0x3000D);
+    GS_REG_SET(packet, 0x8, 0);
+    GS_REG_SET(packet, 0x14, 0);
+}
+
+void menuFontEnvMake(void *packet)
+{
+    unsigned short tbp0 = dataXtxAdrGet(0xB);
+    unsigned short tbp1 = dataXtxAdrGet(0xC);
+
+    GS_REG_SET(packet, 0xE, 0x1000000000008005LL);
+    GS_REG_SET(packet, 0x6,
+               tbp0 | ((long long)tbp1 << 37) | 0x2000000629340000LL);
+    GS_REG_SET(packet, 0x42, 0x44);
+    GS_REG_SET(packet, 0x47, 0x3000D);
+    GS_REG_SET(packet, 0x8, 0);
+    GS_REG_SET(packet, 0x14, 0);
+}
+
+void menuStatIconEnvMake(void *packet)
+{
+    unsigned short tbp0 = dataXtxAdrGet(0);
+    unsigned short tbp1 = dataXtxAdrGet(1);
+
+    GS_REG_SET(packet, 0xE, 0x1000000000008005LL);
+    GS_REG_SET(packet, 0x6,
+               tbp0 | ((long long)tbp1 << 37) | 0x2000000629340000LL);
+    GS_REG_SET(packet, 0x42, 0);
+    GS_REG_SET(packet, 0x47, 0x3000D);
+    GS_REG_SET(packet, 0x8, 0);
+    GS_REG_SET(packet, 0x14, 0);
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuATBEnvPalSet);
 
