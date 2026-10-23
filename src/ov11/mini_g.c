@@ -10,6 +10,7 @@ static struct CasinoResourcePrefix *ResData;
 /* xglCdReadFile is main:0x0021e310 (src/main/xgl_cd.c); every call below
  * passes it an asset path string and a fixed EE main RAM staging address. */
 extern int xglCdReadFile(const char *name, void *buffer, int mode, int flags);
+extern void xglPacketTextureTrans(void *buffer);
 
 typedef char *va_list;
 #define va_start(ap, last) ((ap) = (va_list)__builtin_next_arg(last) - (8 - __builtin_args_info(2)) * 8)
@@ -35,10 +36,6 @@ void dprintf(const char *fmt, ...)
     va_end(args);
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", MakeSprite);
-
-INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", SetDrawStatus);
-
 /* OV11 SetTest and SetRegAD packet tags are original scaffold-owned
  * .rodata at 0x00A0BB80 and 0x00A0BB90. Refer to those symbols rather
  * than introducing new C-emitted constants into the tightly carved TU.
@@ -62,6 +59,56 @@ extern void sceVif1PkCloseDirectCode(XglPacket *packet);
  * must precede Pkt in the source declaration order for this pinned TU. */
 static short BoxRGBA[4];
 static XglPacket *Pkt;
+
+INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", MakeSprite);
+
+extern const Ov11GifTag D_00A0BB50;
+
+/* ov11:0x00a004d0. Builds the GS draw-state packet: it writes registers
+ * 0x47, 0x14 and 0x08 with fixed values, then register 0x42 with a value
+ * chosen by mode (0..6; modes 5 and 6 put the second argument in the upper
+ * word, anything else writes 0). If I have the GS register map right, 0x47
+ * is TEST_1 and 0x42 is ALPHA_1, i.e. this selects the blend mode; not
+ * sure. */
+static void SetDrawStatus(int mode, int arg)
+{
+    Ov11GifTag tag = D_00A0BB50;
+
+    sceVif1PkCnt(Pkt, 0);
+    sceVif1PkOpenDirectCode(Pkt, 0);
+    sceVif1PkOpenGifTag(Pkt, tag.quad);
+    sceVif1PkAddGsAD(Pkt, 0x47, 0x5001D);
+    sceVif1PkAddGsAD(Pkt, 0x14, 0x20);
+    sceVif1PkAddGsAD(Pkt, 0x8, 0);
+    switch (mode) {
+    case 0:
+        sceVif1PkAddGsAD(Pkt, 0x42, 0x48);
+        break;
+    case 2:
+        sceVif1PkAddGsAD(Pkt, 0x42, 0x6000000062ULL);
+        break;
+    case 3:
+        sceVif1PkAddGsAD(Pkt, 0x42, 0);
+        break;
+    case 4:
+        sceVif1PkAddGsAD(Pkt, 0x42, 0x88);
+        break;
+    case 5:
+        sceVif1PkAddGsAD(Pkt, 0x42, ((u64)arg << 32) | 0x29);
+        break;
+    case 6:
+        sceVif1PkAddGsAD(Pkt, 0x42, ((u64)arg << 32) | 0x68);
+        break;
+    case 1:
+        sceVif1PkAddGsAD(Pkt, 0x42, 0x44);
+        break;
+    default:
+        sceVif1PkAddGsAD(Pkt, 0x42, 0);
+        break;
+    }
+    sceVif1PkCloseGifTag(Pkt);
+    sceVif1PkCloseDirectCode(Pkt);
+}
 
 /* Experimental C candidates: matching status must come from the full
  * repository gate and compiler-emission verifier, never from appearance. */
@@ -200,7 +247,42 @@ static void MakeBoxPos(int x, int y, int width, int height)
     BoxPOS[3] = right | (bottom << 16) | depth;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", DrawNonTextureBox);
+extern const Ov11GifTag D_00A0BBA0;
+extern void sceVif1PkAddGsData(XglPacket *packet, u64 value);
+
+/* ov11:0x00a00878. Draws a filled box as a GS packet: MakeBoxPos builds
+ * the corner positions, then four colour+position pairs are written using
+ * the current box colour. */
+static void DrawNonTextureBox(XglPacket *packet, int x, int y, int width, int height)
+{
+    Ov11GifTag tag = D_00A0BBA0;
+    u64 *pos;
+    short *color;
+    int count;
+    u64 value;
+    u64 low;
+    u64 high;
+
+    MakeBoxPos(x, y, width, height);
+    sceVif1PkCnt(packet, 0);
+    sceVif1PkOpenDirectCode(packet, 0);
+    sceVif1PkOpenGifTag(packet, tag.quad);
+    sceVif1PkAddGsData(packet, 0x144);
+    color = BoxRGBA;
+    pos = BoxPOS;
+    count = 3;
+    do {
+        high = ((u64)color[2] << 16) | ((u64)color[1] << 8);
+        low = (u64)color[0] | 0x100000000ULL;
+        value = low | high;
+        value |= (u64)color[3] << 24;
+        sceVif1PkAddGsData(packet, value);
+        sceVif1PkAddGsData(packet, *pos);
+        pos++;
+    } while (--count >= 0);
+    sceVif1PkCloseGifTag(packet);
+    sceVif1PkCloseDirectCode(packet);
+}
 
 /* Casino settings, prize text/costs and coin-purchase offers from CASINO.res.
  * Original RES_* symbols: slus-20469-412d448de315 / ov11:0x00a00998..0x00a00a58.
@@ -355,14 +437,26 @@ static void SlCashPrint(void)
     decprint(D_00A0DDC8, -1, 448, 373);
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", pay_print);
+extern const struct PayLayout { struct { short x; short y; } row[5]; } D_00A0BC20;
+/* ov11:0x00a00fb0. Slot: prints the five per-line pay amounts with
+ * decprint at five fixed screen positions (a 20-byte position table copied
+ * to the stack). */
+static void pay_print(XglPacket *packet)
+{
+    struct PayLayout layout = D_00A0BC20;
+    int i;
+
+    for (i = 0; i < 5; i++) {
+        decprint(Gwork.slot.line_pay[i], 2, layout.row[i].x, layout.row[i].y);
+    }
+}
 
 /* ov11:0x00a01060. Draws the three-digit slot total stake at its fixed
  * screen position through decprint (ov11:0x00a00de0, LOCAL asm sibling). */
 
 extern short D_00A0DD74;
 
-static void total_pay_print(void)
+static void total_pay_print(XglPacket *packet)
 {
     decprint(D_00A0DD74, 3, 0x1DC, 0x1B);
 }
@@ -412,9 +506,70 @@ static int check_spin(void)
     return 2;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", SpinBtnPrint);
+extern unsigned int spinbt[3][7];
+extern unsigned int spinbt_rect_6[4];
+extern int pushcnt_7;
 
-INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", SlStopBtnPrint);
+/* ov11:0x00a011b0. Slot: draws the spin button. The sprite comes from
+ * check_spin()'s result plus a push counter (pushcnt_7); not sure of the
+ * exact meaning of the counter. */
+static void SpinBtnPrint(void)
+{
+    int index;
+
+    switch (check_spin()) {
+    case 0:
+        index = 1;
+        break;
+    case -1:
+        index = 0;
+        break;
+    case 1:
+        index = 2;
+        pushcnt_7 = 0;
+        break;
+    default:
+        if (pushcnt_7 >= 0) {
+            index = 2;
+            pushcnt_7 = pushcnt_7 + 1;
+            if (pushcnt_7 >= 5) {
+                pushcnt_7 = -1;
+            }
+        } else {
+            index = 3;
+        }
+        break;
+    }
+    if (index != 0) {
+        MakeSprite(spinbt[index - 1], spinbt_rect_6);
+    }
+}
+
+extern unsigned int stopbt[3][7];
+extern unsigned int stopbt_rect_8[3][4];
+
+/* ov11:0x00a01278. Slot: draws the three stop-button sprites, choosing
+ * each texture from that reel's state (1, 2 or anything else). */
+static void SlStopBtnPrint(void)
+{
+    int i;
+    int index;
+
+    for (i = 0; i < 3; i++) {
+        switch (Gwork.words[8 + i]) {
+        case 1:
+            index = 0;
+            break;
+        case 2:
+            index = 1;
+            break;
+        default:
+            index = 2;
+            break;
+        }
+        MakeSprite(stopbt[index], stopbt_rect_8[i]);
+    }
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", SlDecPrintSmall);
 
@@ -426,7 +581,38 @@ INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", SlModePrint);
 
 INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", SlGuidPrint);
 
-INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", point_control);
+extern PadPrefix PadData;
+static void SlGuidPrint(int index);
+
+/* ov11:0x00a01d20. Slot pay-line pointer. check_mode() 0 draws the guide
+ * at the stored position (Gwork word 15); 1 draws it at word 14 + 5 and
+ * pad bits 0x2000 / 0x8000 step word 14 forward / back (wrapping within
+ * 0..2) with a sound. Not sure what the pointer is for in game terms. */
+static void point_control(XglPacket *packet)
+{
+    switch (check_mode()) {
+    case 0:
+        SlGuidPrint(Gwork.words[15]);
+        break;
+    case 1:
+        SlGuidPrint(Gwork.words[14] + 5);
+        if (PadData.half_2a & 0x2000) {
+            Gwork.words[14] = Gwork.words[14] + 1;
+            if (Gwork.words[14] >= 3) {
+                Gwork.words[14] = 0;
+            }
+            RES_SoundEffect(0x24);
+        }
+        if (PadData.half_2a & 0x8000) {
+            Gwork.words[14] = Gwork.words[14] - 1;
+            if (Gwork.words[14] < 0) {
+                Gwork.words[14] = 2;
+            }
+            RES_SoundEffect(0x25);
+        }
+        break;
+    }
+}
 
 /* ov11:0x00a01e28. Configures background draw state, then emits the fixed
  * slot background sprite built from BoxRect (ov11:0x00a0a0e0) into BoxSpr
@@ -436,7 +622,7 @@ INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", point_control);
 
 static void SetTest(int value);
 
-static void SlBgDraw(void)
+static void SlBgDraw(XglPacket *packet)
 {
     SetDrawStatus(3, 0);
     SetTest(0x5000D);
@@ -469,7 +655,46 @@ static int check_real(void)
     return D_00A0DDC8 != 0;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", paid_action);
+extern int inter_23;
+static void GameModeChange(int mode);
+
+/* ov11:0x00a02488. Payout handler. When the pay flag (Gwork word 43) is
+ * set it switches mode (GameModeChange(6)) and stops the payout sound;
+ * otherwise pad bit 0x20 pays the pending coins at once, else one coin per
+ * frame while the pending amount counts down. Not sure of the exact game
+ * wording. */
+static int paid_action(void)
+{
+    if (Gwork.words[43] == 1) {
+        GameModeChange(6);
+        Gwork.words[43] = 0;
+        RES_SoundEffectStop(0x27);
+        inter_23 = 0;
+        return 1;
+    }
+    if (PadData.half_2a & 0x20) {
+        AddCoin(Gwork.words[42]);
+        Gwork.words[42] = 0;
+        RES_SoundEffectStop(0x27);
+    }
+    if (Gwork.words[42] == 0) {
+        if (PadData.half_2a & 0x20) {
+            inter_23 = 0;
+            return 1;
+        }
+    } else if (Gwork.words[42] > 0) {
+        Gwork.words[42] = Gwork.words[42] - 1;
+        if (Gwork.words[42] == 0) {
+            RES_SoundEffectStop(0x27);
+        }
+        AddCoin(1);
+        inter_23 = inter_23 + 1;
+        if (inter_23 == 1) {
+            RES_SoundEffect(0x27);
+        }
+    }
+    return 0;
+}
 
 extern const struct W22LineIds {int index[5];} D_00A0BD50;
 static void linepay_check(void)
@@ -503,7 +728,53 @@ INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", SlEvent);
 
 INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", SlHelpMode);
 
-INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", slot_main);
+static void SlRealDraw(void);
+static void SlModePrint(void);
+static void SlRateTableDraw(void);
+static void SlResultDraw(void);
+static int SlEvent(int arg);
+static void slot_key(void);
+static void SlHelpMode(void);
+
+/* ov11:0x00a03380. Slot main loop. Fetches the current packet, then draws
+ * in order: the reels (SlRealDraw), cash, pay amounts and total stake, the
+ * slot_1 background, the spin/stop/mode buttons and the pointer, the pay
+ * window, and either the rate table or the result (Gwork word 20 == 2
+ * picks the result). Then runs SlEvent and, when it returns 0, slot_key,
+ * and shows the help screen when word 17 == 1. 0x01089000 and 0x01008000
+ * are SLOT_BASE_TEX_BUFFER and SLOT_1_TEX_BUFFER, which are defined
+ * further down. Not sure of the exact game wording. */
+static void slot_main(void)
+{
+    Pkt = xglPacketGetCurrent();
+    xglPacketTextureTrans((void *)0x01089000);
+    SetRegAD(Pkt, 0x3F, 0);
+    SlRealDraw();
+    SlCashPrint();
+    pay_print(Pkt);
+    total_pay_print(Pkt);
+    xglPacketTextureTrans((void *)0x01008000);
+    SetRegAD(Pkt, 0x3F, 0);
+    SlBgDraw(Pkt);
+    xglPacketTextureTrans((void *)0x01089000);
+    SetRegAD(Pkt, 0x3F, 0);
+    SpinBtnPrint();
+    SlStopBtnPrint();
+    SlModePrint();
+    point_control(Pkt);
+    SlPayWindowPrint();
+    if (Gwork.words[20] != 2) {
+        SlRateTableDraw();
+    } else {
+        SlResultDraw();
+    }
+    if (SlEvent(Gwork.words[44]) == 0) {
+        slot_key();
+    }
+    if (Gwork.words[17] == 1) {
+        SlHelpMode();
+    }
+}
 
 /* ov11:0x00a034d8. Loads the five slot-machine texture resources into their
  * fixed rendering buffers through the resource loader. */
@@ -563,9 +834,67 @@ static void NgPaidPrint(void)
     decprint(Gwork.words[42] * dptoli(pow(DOUBLE_TWO, litodp(Gwork.words[46]))), 7, 0x1B2, 0x182);
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", NgGetsDownBtnPrint);
+extern unsigned int tex_37[3][7];
+extern unsigned int rect_38[4];
+extern int count_39;
 
-INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", NgSpinBtnPrint);
+/* ov11:0x00a03668. Nine-game: draws the "gets down" button. A non-negative
+ * argument restarts the countdown count_39; the sprite is picked from
+ * three textures by the sign of the countdown, which then counts down and
+ * wraps to -1 at zero. */
+static void NgGetsDownBtnPrint(int button)
+{
+    int index;
+
+    if (button >= 0) {
+        count_39 = button;
+    }
+    index = 0;
+    if (count_39 < 0) {
+        index = 2;
+    }
+    if (count_39 > 0) {
+        index = 1;
+    }
+    SetDrawStatus(3, 0);
+    MakeSprite(tex_37[index], rect_38);
+    if (count_39 != 0) {
+        count_39 = count_39 - 1;
+        if (count_39 == 0) {
+            count_39 = -1;
+        }
+    }
+}
+
+extern unsigned int spinbt[3][7];
+extern unsigned int rect_40[4];
+extern int count_41;
+
+/* ov11:0x00a03710. Nine-game: same shape as NgGetsDownBtnPrint, for the
+ * spin button (spinbt, count_41). */
+static void NgSpinBtnPrint(int button)
+{
+    int index;
+
+    if (button >= 0) {
+        count_41 = button;
+    }
+    index = 0;
+    if (count_41 < 0) {
+        index = 2;
+    }
+    if (count_41 > 0) {
+        index = 1;
+    }
+    SetDrawStatus(3, 0);
+    MakeSprite(spinbt[index], rect_40);
+    if (count_41 != 0) {
+        count_41 = count_41 - 1;
+        if (count_41 == 0) {
+            count_41 = -1;
+        }
+    }
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", NgLamp);
 
@@ -613,7 +942,30 @@ static void NgAllStop(void)
     RES_SoundEffectStop(47);
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", NgCheckReal);
+extern short *ng_realtbl[];
+
+/* ov11:0x00a03be0. Nine-game: looks up the reel's result in ng_realtbl for
+ * its current position; a hit (== 1) bumps the counter, otherwise it stops
+ * all reels and resets the counter, amount and mode (10). */
+static void NgCheckReal(int index)
+{
+    struct NineGameReel *reel = &Gwork.nine.reel[index];
+    short *table = ng_realtbl[reel->number];
+    int position;
+
+    if (reel->position >= 0x3F0) {
+        reel->position = 0;
+    }
+    position = reel->position / 0x30;
+    if (table[position] == 1) {
+        Gwork.nine.counter = Gwork.nine.counter + 1;
+    } else {
+        NgAllStop();
+        Gwork.nine.counter = -1;
+        Gwork.nine.amount = 0;
+        Gwork.nine.mode = 10;
+    }
+}
 
 /* Hypothesis, OV11 0x00A03CA0. Original reads a 28-byte descriptor with
  * three unaligned doubleword pairs and one final word; the struct copy
@@ -636,29 +988,318 @@ static void *get_ngreal_shape(unsigned int *out, int reel, int shape)
 
 INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", DrawNgPanel);
 
-INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", NgReal);
+static void DrawNgPanel(int index, int y, int x);
 
-INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", NgGame_GetsDown);
+/* ov11:0x00a03eb0. Nine-game: draws the nine reel panels, then advances
+ * each reel's state machine (+12 per frame, finishing when the remaining
+ * distance runs out, wrapping at 0x3F0). Not sure of the exact game
+ * wording. */
+static void NgReal(void)
+{
+    int i;
+    struct NineGameReel *reel;
 
-INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", NgGame_Select);
+    for (i = 0; i < 9; i++) {
+        if (Gwork.nine.reel[i].state != 3) {
+            DrawNgPanel(i, Gwork.nine.reel[i].position, Gwork.nine.reel[i].number);
+        }
+    }
+    for (i = 0; i < 9; i++) {
+        reel = &Gwork.nine.reel[i];
+        if (reel->state == 0) {
+            reel->position += 12;
+        }
+        if (reel->state == 2) {
+            if (reel->remaining > 12) {
+                reel->remaining -= 12;
+                reel->position += 12;
+            } else {
+                reel->position += reel->remaining;
+                reel->remaining = 0;
+                reel->state = 1;
+                NgCheckReal(i);
+            }
+        }
+        if (reel->position >= 0x3F0) {
+            reel->position = 0;
+        }
+    }
+}
+
+extern unsigned long long dpmul(unsigned long long a, unsigned long long b);
+static void NgGetsDownBtnPrint(int button);
+
+/* ov11:0x00a03fc0. Nine-game: scales the pending amount by 2^counter with
+ * the double helpers, clears the counter, redraws the gets-down button and
+ * stops all reels. */
+static void NgGame_GetsDown(void)
+{
+    unsigned long long scale;
+
+    Gwork.nine.guide = 2;
+    scale = pow(DOUBLE_TWO, litodp(Gwork.nine.counter));
+    /* Empty loop: GCC 2.96 does not schedule across loop notes, which keeps
+     * the original instruction order here (as in act_2.c). */
+    do { } while (0);
+    Gwork.nine.amount = dptoli(dpmul(litodp(Gwork.nine.amount), scale));
+    Gwork.nine.counter = 0;
+    NgGetsDownBtnPrint(16);
+    NgAllStop();
+}
+
+static void NgFwdGuidPt(void);
+
+/* ov11:0x00a04040. Nine-game select handler: up/down toggles mode 9/10,
+ * confirm (0x20) starts the spin or the gets-down action, and several
+ * buttons toggle the flag. Not sure of the button names. */
+static void NgGame_Select(void)
+{
+    int i;
+
+    if (PadData.half_2a & 0x5000) {
+        Gwork.nine.flag = 0;
+        RES_SoundEffect(0x2E);
+        switch (Gwork.nine.mode) {
+        case 9:
+            Gwork.nine.mode = 10;
+            break;
+        case 10:
+            Gwork.nine.mode = 9;
+            break;
+        }
+    }
+    if (PadData.half_2a & 0x20) {
+        Gwork.nine.flag = 0;
+        switch (Gwork.nine.mode) {
+        case 9:
+            for (i = 8; i >= 0; i--) {
+                Gwork.nine.reel[i].state = 0;
+            }
+            Gwork.nine.guide = 1;
+            NgFwdGuidPt();
+            NgSpinBtnPrint(16);
+            RES_SoundEffect(0x2F);
+            break;
+        case 10:
+            NgGame_GetsDown();
+            RES_SoundEffect(0x30);
+            break;
+        }
+    }
+    if (PadData.half_2a & 0x99F) {
+        if (Gwork.nine.flag == 0) {
+            Gwork.nine.flag = 1;
+        } else {
+            Gwork.nine.flag = 0;
+        }
+    }
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", NgGame_Key);
 
 INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", NgGame_Paid);
 
-INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", NgHelpMode);
+extern const struct NgHelpTex {unsigned int word[7];} D_00A0BEA0, D_00A0BEC0;
+extern const struct NgHelpRect {unsigned int word[4];} D_00A0BEE0, D_00A0BEF0;
 
-INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", NineGameMain);
+/* ov11:0x00a04410. Nine-game help screen: two textured sprites from fixed
+ * tables. */
+static void NgHelpMode(void)
+{
+    struct NgHelpTex tex1 = D_00A0BEA0;
+    struct NgHelpTex tex2 = D_00A0BEC0;
+    struct NgHelpRect rect1 = D_00A0BEE0;
+    struct NgHelpRect rect2 = D_00A0BEF0;
 
-INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", init_ninegame);
+    SetDrawStatus(1, 0);
+    xglPacketTextureTrans((void *)SLOT_HELP_TEX_BUFFER);
+    SetRegAD(Pkt, 0x3F, 0);
+    MakeSprite(&tex1, &rect1);
+    MakeSprite(&tex2, &rect2);
+}
+
+static void NgLamp(void);
+static void NgStopBtnPrint(void);
+static void NgStopGuidPt(void);
+static void NgGame_Key(void);
+static void NgGame_Paid(void);
+
+/* ov11:0x00a04560. Nine-game main loop. Fetches the current packet and
+ * draws the reels, paid amount, background, lamps, the two buttons, the
+ * countdown (time_left), the stop buttons and the guide pointer. Then runs
+ * the handler for the current guide state (0 select, 1 key, 2 paid); in
+ * state 1 it counts time_left down and calls NgGame_GetsDown when it runs
+ * out, and it shows the help screen when the flag is 1. Not sure of the
+ * exact game wording. */
+static void NineGameMain(void)
+{
+    Pkt = xglPacketGetCurrent();
+    xglPacketTextureTrans((void *)0x01089000);
+    NgReal();
+    NgPaidPrint();
+    NineGameBG_Draw();
+    xglPacketTextureTrans((void *)0x01089000);
+    SetRegAD(Pkt, 0x3F, 0);
+    NgLamp();
+    NgSpinBtnPrint(-1);
+    NgGetsDownBtnPrint(-1);
+    NgTimePrint(Gwork.nine.time_left);
+    NgStopBtnPrint();
+    NgStopGuidPt();
+    switch (Gwork.nine.guide) {
+    case 0:
+        NgGame_Select();
+        break;
+    case 1:
+        NgGame_Key();
+        break;
+    case 2:
+        NgGame_Paid();
+        break;
+    }
+    if (Gwork.nine.guide == 1) {
+        Gwork.nine.time_left--;
+        if (Gwork.nine.time_left <= 0) {
+            NgGame_GetsDown();
+        }
+    }
+    if (Gwork.nine.flag == 1) {
+        NgHelpMode();
+    }
+}
+
+/* ov11:0x00a046d0. Nine-game start-up: clears the counter and guide, sets
+ * mode 9, resets all nine reels, then gives each reel a unique random
+ * number in 0..19 (re-rolling on a duplicate) and redraws the two buttons.
+ * Not sure of the exact game wording. */
+static void init_ninegame(void)
+{
+    int i;
+    int j;
+    unsigned short number;
+
+    Gwork.nine.counter = 0;
+    Gwork.nine.guide = 0;
+    Gwork.nine.mode = 9;
+    Gwork.nine.time_left = 0x384;
+    for (i = 0; i < 9; i++) {
+        Gwork.nine.reel[i].number = -1;
+        Gwork.nine.reel[i].position = 0;
+        Gwork.nine.reel[i].state = 1;
+    }
+    for (i = 0; i < 9; i++) {
+        number = xglSRand() % 20;
+        for (j = 0; j < i; j++) {
+            if (number == Gwork.nine.reel[j].number) {
+                number = xglSRand() % 20;
+                j = -1;
+            }
+        }
+        Gwork.nine.reel[i].number = number;
+    }
+    NgGetsDownBtnPrint(0);
+    NgSpinBtnPrint(0);
+    Gwork.nine.flag = 1;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", PoMoneyPrint);
 
 INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", PoCurDraw);
 
-INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", PoWindowMessage);
+extern const struct PoWinRect { int x, y, w, h; } D_00A0BF20;
+extern unsigned int Ltex_56[7];
+extern unsigned int Rtex_57[7];
+extern unsigned int tex_58[7];
+extern const char D_00A0BF30[];
+extern const char D_00A0BF38[];
+extern void xglFontPrint(int x, int y, int color, const char *text);
 
-INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", PoDialog);
+/* ov11:0x00a04ac8. Poker: draws a message window sized by the text length
+ * (left cap, right cap, middle) and prints the message. */
+static void PoWindowMessage(const char *message, int length)
+{
+    struct PoWinRect rect = D_00A0BF20;
+
+    SetDrawStatus(3, 0);
+    SetTest(0x5000D);
+    rect.x = 16;
+    rect.w = 8;
+    MakeSprite(Ltex_56, &rect);
+    rect.x = length * 9 + 28;
+    MakeSprite(Rtex_57, &rect);
+    rect.x = 24;
+    rect.w = length * 9 + 4;
+    MakeSprite(tex_58, &rect);
+    xglFontPrint(0, 0, 0, D_00A0BF30);
+    xglFontPrint(0, 0, 0, D_00A0BF38);
+    xglFontPrint(24, 218, 0xFF00, message);
+}
+
+extern unsigned int tex_59[7];
+extern unsigned int rect_60[2][4];
+extern unsigned int type0_tex_61[7];
+extern unsigned int type0_rect_62[4];
+extern unsigned int type1_tex_63[7];
+extern unsigned int type1_rect_64[4];
+extern short type0_pos_65[2][2];
+extern short type1_pos_66[3][2];
+extern int dialog_cur_67;
+static void PoCurDraw(short *pos);
+
+/* ov11:0x00a04be0. Poker yes/no style dialog. type 0 shows a two-choice
+ * window and any other type a three-choice window. Pad bit 0x1000 moves
+ * the cursor (dialog_cur_67) up with wraparound and 0x4000 moves it down,
+ * both with a sound; 0x20 confirms (plays a sound, resets the cursor and
+ * returns the chosen entry) and 0x40 cancels (returns -1); otherwise it
+ * returns 0. Not sure of the exact game wording. */
+static int PoDialog(int type)
+{
+    int limit;
+    int selected;
+
+    xglPacketTextureTrans((void *)0x013CF800);
+    SetRegAD(Pkt, 0x3F, 0);
+    limit = 2;
+    if (type != 0) {
+        limit = 3;
+    }
+    if (PadData.half_2a & 0x1000) {
+        dialog_cur_67--;
+        RES_SoundEffect(0x3C);
+        if (dialog_cur_67 == 0) {
+            dialog_cur_67 = limit;
+        }
+    }
+    if (PadData.half_2a & 0x4000) {
+        RES_SoundEffect(0x3C);
+        dialog_cur_67++;
+        if (dialog_cur_67 == limit + 1) {
+            dialog_cur_67 = 1;
+        }
+    }
+    SetDrawStatus(3, 0);
+    if (type == 0) {
+        MakeSprite(tex_59, rect_60[0]);
+        MakeSprite(type0_tex_61, type0_rect_62);
+        PoCurDraw(type0_pos_65[dialog_cur_67 - 1]);
+    } else {
+        MakeSprite(tex_59, rect_60[1]);
+        MakeSprite(type1_tex_63, type1_rect_64);
+        PoCurDraw(type1_pos_66[dialog_cur_67 - 1]);
+    }
+    if (PadData.half_2a & 0x20) {
+        RES_SoundEffect(0x3F);
+        selected = dialog_cur_67;
+        dialog_cur_67 = 1;
+        return selected;
+    }
+    if (PadData.half_2a & 0x40) {
+        RES_SoundEffect(0x40);
+        dialog_cur_67 = 1;
+        return -1;
+    }
+    return 0;
+}
 
 /* ov11:0x00a04dc0. Selects the loaded poker table-1 background texture
  * (0x0138f000, the "poker_1.xtx" buffer PokerInit below fills as
@@ -673,11 +1314,148 @@ static void PoBgDraw(void)
     MakeSprite(tex_68, rect_69);
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", PoCardDraw);
+extern void *CardBuf_70[4];
+extern unsigned int CardTex[15][7];
+struct PoCardRect { int x, y, w, h; };
+extern struct PoCardRect CardPos[5];
+extern struct PoCardRange { int lo; int hi; } range_71[4];
 
-INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", PoCardDrawAnime);
+/* ov11:0x00a04e20. Poker: for each of the four suits selects the card
+ * texture buffer and draws the held cards that fall in that suit's number
+ * range. */
+static void PoCardDraw(void)
+{
+    int suit;
+    int slot;
+    int base;
 
-INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", PoBonusCardAnime);
+    base = 0;
+    SetDrawStatus(3, 0);
+    SetTest(0x5000D);
+    for (suit = 0; suit < 4; suit++) {
+        xglPacketTextureTrans(CardBuf_70[suit]);
+        SetRegAD(Pkt, 0x3F, 0);
+        for (slot = 0; slot < 5; slot++) {
+            int card = Gwork.poker_deal.hand_cards[slot];
+            if (card >= range_71[suit].lo && card <= range_71[suit].hi) {
+                MakeSprite(CardTex[card - base], &CardPos[slot]);
+            }
+        }
+        base += 13;
+    }
+}
+
+extern struct PoCardRect D_00A0DCA8[5];
+extern int D_00A0DCF8;
+extern int status_73;
+extern unsigned int tex_72[7];
+
+/* ov11:0x00a04f60. Poker deal animation for all five cards at once, driven
+ * by status_73. State 0 copies each card's slot rect and moves it up and
+ * left by an amount that grows per card; state 1 draws the five card
+ * sprites, moves each down 0x20 per call (a sound plays when a card's y
+ * reaches 5) until all five arrive, then switches to state 2 with a 4-call
+ * hold; state 2 keeps drawing and, when the hold ends, resets to state 0
+ * and returns 1. Otherwise returns 0. Not sure of the exact game wording. */
+static int PoCardDrawAnime(void)
+{
+    int i;
+    int arrived;
+
+    xglPacketTextureTrans((void *)0x0128D000);
+    SetRegAD(Pkt, 0x3F, 0);
+    switch (status_73) {
+    case 0:
+        for (i = 0; i < 5; i++) {
+            D_00A0DCA8[i] = CardPos[i];
+            D_00A0DCA8[i].y = D_00A0DCA8[i].y - i * 128 - 0xA0;
+        }
+        status_73 = 1;
+        /* fall through */
+    case 1:
+        arrived = 0;
+        for (i = 0; i < 5; i++) {
+            MakeSprite(tex_72, &D_00A0DCA8[i]);
+            if (D_00A0DCA8[i].y == 5) {
+                RES_SoundEffect(0x36);
+            }
+            if (D_00A0DCA8[i].y < CardPos[i].y) {
+                D_00A0DCA8[i].y += 0x20;
+            } else {
+                arrived++;
+            }
+        }
+        if (arrived == 5) {
+            status_73 = 2;
+            D_00A0DCF8 = 4;
+        }
+        return 0;
+    case 2:
+        for (i = 0; i < 5; i++) {
+            MakeSprite(tex_72, &D_00A0DCA8[i]);
+        }
+        if (--D_00A0DCF8 == 0) {
+            status_73 = 0;
+            return 1;
+        }
+        return 0;
+    default:
+        return 0;
+    }
+}
+
+extern struct PoCardRect D_00A0DD00;
+extern int D_00A0DD10;
+extern int status_77;
+extern unsigned int tex_76[7];
+
+/* ov11:0x00a05180. Poker bonus card animation, one step per call, driven
+ * by status_77 and the card index in Gwork word 101. State 0 starts a card
+ * sprite at the card's slot position moved up by 0xA0; state 1 draws it,
+ * moves it down 0x20 per call (a sound plays at y == 5) until it reaches
+ * the slot, then switches to state 2 with a 4-call hold; in state 2 it
+ * keeps drawing and, when the hold runs out, sets that hand slot to 0x35
+ * (face-down, not sure) and marks it selected, returning 1. Otherwise
+ * returns 0. Not sure of the exact game wording. */
+static int PoBonusCardAnime(void)
+{
+    int card;
+    int blank;
+
+    xglPacketTextureTrans((void *)0x0128D000);
+    SetRegAD(Pkt, 0x3F, 0);
+    card = Gwork.words[101];
+    switch (status_77) {
+    case 0:
+        status_77 = 1;
+        D_00A0DD00 = CardPos[card];
+        D_00A0DD00.y -= 0xA0;
+        /* fall through */
+    case 1:
+        MakeSprite(tex_76, &D_00A0DD00);
+        D_00A0DD00.y += 0x20;
+        if (D_00A0DD00.y == 5) {
+            RES_SoundEffect(0x3D);
+        }
+        if (D_00A0DD00.y >= CardPos[card].y) {
+            status_77 = 2;
+            D_00A0DD10 = 4;
+        }
+        return 0;
+    case 2:
+        MakeSprite(tex_76, &D_00A0DD00);
+        blank = 0x35;
+        if (--D_00A0DD10 == 0) {
+            status_77 = 0;
+            Gwork.poker_deal.hand_cards[card] = blank;
+            Gwork.poker_deal.replace_selected[card] = 1;
+            return 1;
+        }
+        return 0;
+    default:
+        return 0;
+    }
+}
 
 /* ov11:0x00a05358. Emits the single fixed poker payout table sprite.
  * MakeSprite is a LOCAL asm sibling. */
@@ -707,11 +1485,58 @@ static void PoResetCard(void)
 
 INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", PoShuffleCard);
 
-INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", PoSelectMarkDraw);
+extern unsigned int PoSelecterTex[2][7];
+extern unsigned int PoSelecterPos[6][4];
+
+/* ov11:0x00a05758. Poker: draws the five selection marks, texture picked
+ * from replace_selected[], then one fixed sprite. 0x013CF800 is the buffer
+ * POKER_TABLE2_TEX_BUFFER names below. */
+static void PoSelectMarkDraw(void)
+{
+    int i;
+
+    xglPacketTextureTrans((void *)0x013CF800);
+    SetRegAD(Pkt, 0x3F, 0);
+    SetDrawStatus(1, 0);
+    for (i = 0; i < 5; i++) {
+        MakeSprite(PoSelecterTex[Gwork.poker_deal.replace_selected[i]], PoSelecterPos[i]);
+    }
+    MakeSprite(PoSelecterTex[1], PoSelecterPos[5]);
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", PoKey);
 
-INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", PoCardFlip);
+extern int status_96;
+
+/* ov11:0x00a059b8. Poker: sets cards the player chose to replace to 53
+ * (face-down, not sure); when all five are chosen for 32 frames it sets
+ * the flag at Gwork+0x190 and clears the used-card table. */
+static void PoCardFlip(void)
+{
+    int i;
+    int count;
+
+    count = 0;
+    for (i = 0; i < 5; i++) {
+        if (Gwork.poker_deal.replace_selected[i] == 1) {
+            Gwork.poker_deal.hand_cards[i] = 53;
+            count++;
+        }
+    }
+    if (count == 5) {
+        status_96 = status_96 + 1;
+    } else {
+        status_96 = 0;
+    }
+    if (status_96 >= 32) {
+        Gwork.words[100] = 1;
+        for (i = 0; i < 53; i++) {
+            Gwork.poker_deal.card_used[i] = 0;
+        }
+    } else {
+        Gwork.words[100] = 0;
+    }
+}
 
 /* ov11:0x00a05a78. Maps a 0..0x33 standard 52-card value (13 ranks per
  * suit) to its suit index. Callers (PoChk4 and PokerMain) read cardValue
@@ -811,9 +1636,92 @@ static short PoGetBase(int cardValue)
     return base;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", PoSortCard);
+extern const char D_00A0C030[];
+extern const char D_00A0C038[];
 
-INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", PoMultiChk);
+/* ov11:0x00a05b10. Poker: copies the five hand cards into sorted_hand,
+ * bubble-sorts them and prints each with dprintf (debug output). */
+static void PoSortCard(void)
+{
+    int i;
+    int n;
+
+    for (i = 0; i < 5; i++) {
+        Gwork.poker_deal.sorted_hand[i] = Gwork.poker_deal.hand_cards[i];
+    }
+    for (n = 4; n != 0; n--) {
+        for (i = 0; i < n; i++) {
+            short prev = Gwork.poker_deal.sorted_hand[i];
+            if (Gwork.poker_deal.sorted_hand[i + 1] < prev) {
+                Gwork.poker_deal.sorted_hand[i] = Gwork.poker_deal.sorted_hand[i + 1];
+                Gwork.poker_deal.sorted_hand[i + 1] = prev;
+            }
+        }
+    }
+    for (i = 0; i < 5; i++) {
+        dprintf(D_00A0C030, Gwork.poker_deal.sorted_hand[i]);
+    }
+    dprintf(D_00A0C038);
+}
+
+extern const char D_00A0C040[];
+extern const char D_00A0C048[];
+extern const char D_00A0C050[];
+extern const char D_00A0C058[];
+
+/* ov11:0x00a05bf0. Poker: counts, over all ordered pairs of the five
+ * sorted hand cards, how many differ by exactly 13, 26 or 39 (same rank in
+ * another suit), printing a debug line for each hit. The match count
+ * (1..4, 6) maps to a category 1..5 (pair, two pair, three of a kind, full
+ * house and four of a kind, as far as I can tell); anything else returns
+ * 0. Not sure of the exact category names. */
+static int PoMultiChk(void)
+{
+    int i;
+    int j;
+    int matches;
+    int card;
+    int other;
+
+    matches = 0;
+    for (i = 0; i < 5; i++) {
+        card = Gwork.poker_deal.sorted_hand[i];
+        for (j = 0; j < 5; j++) {
+            if (i == j) {
+                continue;
+            }
+            other = Gwork.poker_deal.sorted_hand[j];
+            if (other == card + 13) {
+                matches++;
+                dprintf(D_00A0C040);
+            }
+            if (other == card + 26) {
+                matches++;
+                dprintf(D_00A0C048);
+            }
+            if (other == card + 39) {
+                matches++;
+                dprintf(D_00A0C050);
+            }
+        }
+        dprintf(D_00A0C058);
+    }
+    dprintf(D_00A0C038);
+    switch (matches) {
+    case 6:
+        return 5;
+    case 4:
+        return 4;
+    case 3:
+        return 3;
+    case 2:
+        return 2;
+    case 1:
+        return 1;
+    default:
+        return 0;
+    }
+}
 
 struct PokerHandWork {
     unsigned char unmodeled_00[0x1A2];
@@ -890,7 +1798,38 @@ static int PoChk3(void)
     return 0;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", PoChk4);
+extern const char D_00A0C0A8[];
+
+/* ov11:0x00a05ea0. Poker: category 4. Sorts the hands' rank offsets and,
+ * when they are consecutive, prints D_00A0C0A8 with dprintf and returns 4
+ * (looks like a straight; not sure of the label). */
+static int PoChk4(void)
+{
+    int diff[5];
+    int count;
+    int i;
+    int n;
+
+    for (count = 0; count < 5; count++) {
+        int value = Gwork.poker_deal.sorted_hand[count];
+        diff[count] = value - PoGetBase(PoGetMark(value));
+    }
+    for (n = 4; n != 0; n--) {
+        for (i = 0; i < n; i++) {
+            int prev = diff[i];
+            if (diff[i + 1] < prev) {
+                diff[i] = diff[i + 1];
+                diff[i + 1] = prev;
+            }
+        }
+    }
+    if (diff[1] == diff[0] + 1 && diff[2] == diff[0] + 2 &&
+        diff[3] == diff[0] + 3 && diff[4] == diff[0] + 4) {
+        dprintf(D_00A0C0A8);
+        return 4;
+    }
+    return 0;
+}
 
 /* ov11:0x00a05fb0. Substitutes category 5 and prints D_00A0C0B8 through
  * dprintf whenever PoFlushChk returns nonzero; PoFlushChk's own nonzero
@@ -1394,9 +2333,85 @@ INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", VW_ViewMode);
 
 INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", VW_SamMode);
 
-INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", VW_Main);
+extern int mode_123;
+extern int D_00A0DD18;
+static int VW_ViewMode(int arg);
+static int VW_SamMode(int arg);
 
-INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", MUSIC_CALL);
+/* ov11:0x00a08ce0. View mode main: switches between VW_ViewMode and
+ * VW_SamMode on mode_123; pad bit 0x10 enters the sam list and 0x40 leaves
+ * it (calls GameModeChange(0)). Not sure of the button names. */
+static void VW_Main(void)
+{
+    int result;
+    XglPacket **slot = &Pkt;
+
+    *slot = xglPacketGetCurrent();
+    if (mode_123 == 1) {
+        if (VW_ViewMode(D_00A0DD18)) {
+            mode_123 = 0;
+        }
+        return;
+    }
+    result = VW_SamMode(1);
+    D_00A0DD18 = result;
+    if (result != -1) {
+        if (PadData.half_2a & 0x10) {
+            RES_SoundEffect(0x1A);
+            mode_123 = 1;
+        }
+    }
+    if (PadData.half_2a & 0x40) {
+        VW_SamMode(0);
+        GameModeChange(0);
+        RES_SoundEffect(0x1B);
+    }
+}
+
+extern void xglSoundSendSmd(void *smd);
+extern void xglSoundSendSwd(void *swd, int bank);
+extern void xglSoundSequenceNormal(int volume);
+extern int SsdSpuDmaCompleted(int wait);
+extern int sprintf(char *buffer, const char *format, ...);
+extern int MUSICLIST_125[];
+extern int oldreq_126;
+extern const char D_00A0C660[], D_00A0C680[], D_00A0C6A0[], D_00A0C6B0[], D_00A0C6C0[];
+
+/* ov11:0x00a08dc0. Starts a background music request. -1 and a repeat of
+ * the previous request (oldreq_126) do nothing. Otherwise it clears the
+ * two sound banks, loads the shared sound data, waits for the SPU DMA,
+ * then loads the sequence (.smd) and wave (.swd) files for the requested
+ * track from MUSICLIST_125 and starts the normal sequence at volume 0x7F.
+ * Note the function never updates oldreq_126 itself. Not sure of the exact
+ * sound API semantics. */
+static void MUSIC_CALL(int musicId)
+{
+    char path[256];
+
+    if (musicId == -1) {
+        return;
+    }
+    if (oldreq_126 == musicId) {
+        return;
+    }
+    xglSoundSendEffect(0, 0, 1);
+    xglSoundSendEffect(0, 0, 2);
+    xglCdReadFile(D_00A0C660, (void *)0x017A7000, 0, 0);
+    xglCdReadFile(D_00A0C680, (void *)0x017B7000, 0, 0);
+    xglSoundSendEffect((void *)0x017B7000, (void *)0x017A7000, 1);
+    while (SsdSpuDmaCompleted(0) != 0) {
+    }
+    xglSoundSendEffect((void *)0x017B7000, (void *)0x017A7000, 2);
+    sprintf(path, D_00A0C6A0, D_00A0C6B0, MUSICLIST_125[musicId]);
+    xglCdReadFile(path, (void *)0x015A3000, 0, 0);
+    xglSoundSendSmd((void *)0x015A3000);
+    sprintf(path, D_00A0C6C0, D_00A0C6B0, MUSICLIST_125[musicId]);
+    xglCdReadFile(path, (void *)0x017A3000, 0, 0);
+    xglSoundSendSwd((void *)0x017A3000, -1);
+    while (SsdSpuDmaCompleted(0) != 0) {
+    }
+    xglSoundSequenceNormal(0x7F);
+}
 
 /* xglFlagsSet1 is main:0x00222938 (src/main/xgl_flags.c, external linkage
  * there). dataMoneyBoxInc is main:0x002BCE40, still INCLUDE_ASM there
@@ -1484,7 +2499,78 @@ void MiniG_Init(void)
     InitWork();
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", MiniG_Main);
+extern void xglFontDebugPrintf(int x, int y, const char *format, ...);
+extern const char D_00A0C6E0[], D_00A0C6F0[];
+static int menu_mode(void);
+static void PokerMain(void);
+static void coin_main(void);
+static void shop_main(void);
+
+/* ov11:0x00a09048. Casino main dispatcher. Gwork word 2 selects the game:
+ * 0 menu (returns 1 when the menu handler asks to leave), 1 slot, 2 poker,
+ * 3 coin exchange, 4 shop, 5 viewer, 6 nine-game, 7 test mode. Each game's
+ * init routine runs once, guarded by a per-game flag. After a game runs it
+ * prints a debug line and returns 0; an unknown mode returns 0 without
+ * printing. Not sure of the exact game wording. */
+int MiniG_Main(void)
+{
+    switch (Gwork.words[2]) {
+    case 0:
+        if (Gwork.modes.initialized[0] == 0) {
+            init_menu_mode();
+            Gwork.modes.initialized[0] = 1;
+        }
+        if (menu_mode()) {
+            return 1;
+        }
+        break;
+    case 1:
+        if (Gwork.modes.initialized[1] == 0) {
+            init_slot();
+            Gwork.modes.initialized[1] = 1;
+        }
+        slot_main();
+        break;
+    case 2:
+        if (Gwork.modes.initialized[2] == 0) {
+            PokerInit();
+            Gwork.modes.initialized[2] = 1;
+        }
+        PokerMain();
+        break;
+    case 3:
+        if (Gwork.modes.initialized[3] == 0) {
+            init_coin();
+            Gwork.modes.initialized[3] = 1;
+        }
+        coin_main();
+        break;
+    case 4:
+        if (Gwork.modes.initialized[4] == 0) {
+            init_shop();
+            Gwork.modes.initialized[4] = 1;
+        }
+        shop_main();
+        break;
+    case 5:
+        if (Gwork.modes.initialized[5] == 0) {
+            VW_Init();
+            Gwork.modes.initialized[5] = 1;
+        }
+        VW_Main();
+        break;
+    case 6:
+        NineGameMain();
+        break;
+    case 7:
+        test_mode();
+        break;
+    default:
+        return 0;
+    }
+    xglFontDebugPrintf(4, 0, D_00A0C6E0, D_00A0C6F0);
+    return 0;
+}
 
 
 

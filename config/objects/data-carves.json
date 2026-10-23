@@ -128720,6 +128720,35 @@
       ".rodata": [
         {
           "range": [
+            "0x00a0bb60",
+            "0x00a0bb7c"
+          ],
+          "c_owned_symbols": [
+            "jtbl_00A0BB60"
+          ],
+          "generated_by": [
+            "SetDrawStatus"
+          ],
+          "also_referenced_by_c": [],
+          "c_input_spans": [
+            {
+              "section": ".rodata",
+              "range": [
+                "0x00a0bb60",
+                "0x00a0bb7c"
+              ],
+              "object_range": [
+                0,
+                28
+              ],
+              "symbols": [],
+              "anonymous_emission": true,
+              "credit": "verified"
+            }
+          ]
+        },
+        {
+          "range": [
             "0x00a0bbb0",
             "0x00a0bc20"
           ],
@@ -128742,8 +128771,8 @@
                 "0x00a0bbd8"
               ],
               "object_range": [
-                0,
-                40
+                32,
+                72
               ],
               "symbols": [
                 "D_00A0BBB0"
@@ -128757,8 +128786,8 @@
                 "0x00a0bc08"
               ],
               "object_range": [
-                40,
-                88
+                72,
+                120
               ],
               "symbols": [
                 "D_00A0BBD8"
@@ -128772,8 +128801,8 @@
                 "0x00a0bc20"
               ],
               "object_range": [
-                88,
-                112
+                120,
+                144
               ],
               "symbols": [
                 "D_00A0BC08"
@@ -128809,8 +128838,8 @@
                 "0x00a0be28"
               ],
               "object_range": [
-                112,
-                136
+                144,
+                168
               ],
               "symbols": [
                 "D_00A0BE10"
@@ -128824,8 +128853,8 @@
                 "0x00a0be40"
               ],
               "object_range": [
-                136,
-                160
+                168,
+                192
               ],
               "symbols": [
                 "D_00A0BE28"
@@ -128839,8 +128868,8 @@
                 "0x00a0be58"
               ],
               "object_range": [
-                160,
-                184
+                192,
+                216
               ],
               "symbols": [
                 "D_00A0BE40"
@@ -128854,8 +128883,8 @@
                 "0x00a0be70"
               ],
               "object_range": [
-                184,
-                208
+                216,
+                240
               ],
               "symbols": [
                 "D_00A0BE58"
@@ -128869,8 +128898,8 @@
                 "0x00a0be90"
               ],
               "object_range": [
-                208,
-                240
+                240,
+                272
               ],
               "symbols": [
                 "D_00A0BE70"
@@ -128899,8 +128928,37 @@
                 "0x00a0c030"
               ],
               "object_range": [
-                240,
-                448
+                272,
+                480
+              ],
+              "symbols": [],
+              "anonymous_emission": true,
+              "credit": "verified"
+            }
+          ]
+        },
+        {
+          "range": [
+            "0x00a0c060",
+            "0x00a0c078"
+          ],
+          "c_owned_symbols": [
+            "jtbl_00A0C060"
+          ],
+          "generated_by": [
+            "PoMultiChk"
+          ],
+          "also_referenced_by_c": [],
+          "c_input_spans": [
+            {
+              "section": ".rodata",
+              "range": [
+                "0x00a0c060",
+                "0x00a0c078"
+              ],
+              "object_range": [
+                480,
+                504
               ],
               "symbols": [],
               "anonymous_emission": true,
@@ -128939,8 +128997,8 @@
                 "0x00a0c088"
               ],
               "object_range": [
-                448,
-                464
+                504,
+                520
               ],
               "symbols": [
                 "D_00A0C078"
@@ -128953,8 +129011,8 @@
                 "0x00a0c098"
               ],
               "object_range": [
-                464,
-                480
+                520,
+                536
               ],
               "symbols": [
                 "D_00A0C088"
@@ -128967,8 +129025,8 @@
                 "0x00a0c0a8"
               ],
               "object_range": [
-                480,
-                496
+                536,
+                552
               ],
               "symbols": [
                 "D_00A0C098"
@@ -129013,8 +129071,8 @@
                 "0x00a0c0c8"
               ],
               "object_range": [
-                496,
-                512
+                552,
+                568
               ],
               "symbols": [
                 "D_00A0C0B8"
@@ -129027,8 +129085,8 @@
                 "0x00a0c0d8"
               ],
               "object_range": [
-                512,
-                528
+                568,
+                584
               ],
               "symbols": [
                 "D_00A0C0C8"
@@ -129041,8 +129099,8 @@
                 "0x00a0c0e8"
               ],
               "object_range": [
-                528,
-                544
+                584,
+                600
               ],
               "symbols": [
                 "D_00A0C0D8"
@@ -129055,8 +129113,8 @@
                 "0x00a0c100"
               ],
               "object_range": [
-                544,
-                568
+                600,
+                624
               ],
               "symbols": [
                 "D_00A0C0E8"
@@ -129069,8 +129127,8 @@
                 "0x00a0c120"
               ],
               "object_range": [
-                568,
-                600
+                624,
+                656
               ],
               "symbols": [
                 "D_00A0C100"
@@ -129083,8 +129141,8 @@
                 "0x00a0c130"
               ],
               "object_range": [
-                600,
-                616
+                656,
+                672
               ],
               "symbols": [
                 "D_00A0C120"
@@ -129111,8 +129169,8 @@
             {
               "section": ".rodata",
               "object_range": [
-                976,
-                1008
+                1072,
+                1104
               ],
               "range": [
                 "0x00a0c130",
@@ -129143,8 +129201,8 @@
             {
               "section": ".rodata",
               "object_range": [
-                1008,
-                1040
+                1104,
+                1136
               ],
               "range": [
                 "0x00a0c150",
@@ -129175,8 +129233,8 @@
             {
               "section": ".rodata",
               "object_range": [
-                1040,
-                1072
+                1136,
+                1168
               ],
               "range": [
                 "0x00a0c170",
@@ -129207,8 +129265,8 @@
             {
               "section": ".rodata",
               "object_range": [
-                1072,
-                1112
+                1168,
+                1208
               ],
               "range": [
                 "0x00a0c190",
@@ -129243,8 +129301,8 @@
                 "0x00a0c1c8"
               ],
               "object_range": [
-                616,
-                632
+                672,
+                688
               ],
               "symbols": [
                 "D_00A0C1B8"
@@ -129274,8 +129332,8 @@
                 "0x00a0c1d8"
               ],
               "object_range": [
-                632,
-                648
+                688,
+                704
               ],
               "symbols": [
                 "D_00A0C1C8"
@@ -129308,8 +129366,8 @@
                 "0x00a0c288"
               ],
               "object_range": [
-                648,
-                672
+                704,
+                728
               ],
               "symbols": [
                 "D_00A0C270"
@@ -129323,8 +129381,8 @@
                 "0x00a0c2a0"
               ],
               "object_range": [
-                672,
-                696
+                728,
+                752
               ],
               "symbols": [
                 "D_00A0C288"
@@ -129338,8 +129396,8 @@
                 "0x00a0c2b8"
               ],
               "object_range": [
-                696,
-                720
+                752,
+                776
               ],
               "symbols": [
                 "D_00A0C2A0"
@@ -129353,8 +129411,8 @@
                 "0x00a0c2d0"
               ],
               "object_range": [
-                720,
-                744
+                776,
+                800
               ],
               "symbols": [
                 "D_00A0C2B8"
@@ -129368,8 +129426,8 @@
                 "0x00a0c2e8"
               ],
               "object_range": [
-                744,
-                768
+                800,
+                824
               ],
               "symbols": [
                 "D_00A0C2D0"
@@ -129382,8 +129440,8 @@
                 "0x00a0c300"
               ],
               "object_range": [
-                768,
-                792
+                824,
+                848
               ],
               "symbols": [
                 "D_00A0C2E8"
@@ -129412,8 +129470,8 @@
                 "0x00a0c338"
               ],
               "object_range": [
-                792,
-                816
+                848,
+                872
               ],
               "symbols": [
                 "D_00A0C320"
@@ -129427,8 +129485,8 @@
                 "0x00a0c350"
               ],
               "object_range": [
-                816,
-                840
+                872,
+                896
               ],
               "symbols": [
                 "D_00A0C338"
@@ -129459,8 +129517,8 @@
                 "0x00a0c3b0"
               ],
               "object_range": [
-                840,
-                872
+                896,
+                928
               ],
               "symbols": [
                 "D_00A0C390"
@@ -129474,8 +129532,8 @@
                 "0x00a0c3d0"
               ],
               "object_range": [
-                872,
-                904
+                928,
+                960
               ],
               "symbols": [
                 "D_00A0C3B0"
@@ -129505,8 +129563,8 @@
                 "0x00a0c5b0"
               ],
               "object_range": [
-                904,
-                936
+                960,
+                992
               ],
               "symbols": [
                 "D_00A0C590"
@@ -129520,8 +129578,8 @@
                 "0x00a0c5c8"
               ],
               "object_range": [
-                936,
-                960
+                992,
+                1016
               ],
               "symbols": [
                 "D_00A0C5B0"
@@ -129550,12 +129608,41 @@
                 "0x00a0c6e0"
               ],
               "object_range": [
-                960,
-                976
+                1016,
+                1032
               ],
               "symbols": [
                 "D_00A0C6D0"
               ]
+            }
+          ]
+        },
+        {
+          "range": [
+            "0x00a0c700",
+            "0x00a0c720"
+          ],
+          "c_owned_symbols": [
+            "jtbl_00A0C700"
+          ],
+          "generated_by": [
+            "MiniG_Main"
+          ],
+          "also_referenced_by_c": [],
+          "c_input_spans": [
+            {
+              "section": ".rodata",
+              "range": [
+                "0x00a0c700",
+                "0x00a0c720"
+              ],
+              "object_range": [
+                1040,
+                1072
+              ],
+              "symbols": [],
+              "anonymous_emission": true,
+              "credit": "verified"
             }
           ]
         }
