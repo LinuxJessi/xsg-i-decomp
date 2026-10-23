@@ -372,6 +372,21 @@ static const char D_00A0BC08[] = "data\\tanaka\\CASINO.res";
 
 #define CASINO_RES_BUFFER 0x01000000
 
+/* Fixed EE RAM buffers the slot and poker loaders (init_slot, PokerInit)
+ * read their textures into; the drawing code uploads from the same
+ * addresses. */
+#define SLOT_1_TEX_BUFFER 0x01008000
+#define SLOT_2_TEX_BUFFER 0x01048800
+#define SLOT_BASE_TEX_BUFFER 0x01089000
+#define SLOT_W1_TEX_BUFFER 0x010C9800
+#define SLOT_HELP_TEX_BUFFER 0x0110A000
+#define POKER_SPADE_TEX_BUFFER  0x0128D000
+#define POKER_CLOVER_TEX_BUFFER 0x012CD800
+#define POKER_HEART_TEX_BUFFER  0x0130E000
+#define POKER_DIA_TEX_BUFFER    0x0134E800
+#define POKER_TABLE1_TEX_BUFFER 0x0138F000
+#define POKER_TABLE2_TEX_BUFFER 0x013CF800
+
 static void RES_Load(void)
 {
     xglCdReadFile(D_00A0BC08, (void *)CASINO_RES_BUFFER, 0, 0);
@@ -466,7 +481,7 @@ static int check_mode(void)
     int index;
 
     for (index = 0; index < 3; index++) {
-        if (Gwork.words[index + 8] == 1) {
+        if (Gwork.slot.reel_state[index] == 1) {
             return 1;
         }
     }
@@ -556,7 +571,7 @@ static void SlStopBtnPrint(void)
     int index;
 
     for (i = 0; i < 3; i++) {
-        switch (Gwork.words[8 + i]) {
+        switch (Gwork.slot.reel_state[i]) {
         case 1:
             index = 0;
             break;
@@ -585,28 +600,28 @@ extern PadPrefix PadData;
 static void SlGuidPrint(int index);
 
 /* ov11:0x00a01d20. Slot pay-line pointer. check_mode() 0 draws the guide
- * at the stored position (Gwork word 15); 1 draws it at word 14 + 5 and
- * pad bits 0x2000 / 0x8000 step word 14 forward / back (wrapping within
- * 0..2) with a sound. Not sure what the pointer is for in game terms. */
+ * at Gwork.slot.guide; 1 draws it at Gwork.slot.pointer + 5 and pad bits
+ * 0x2000 / 0x8000 step the pointer forward / back (wrapping within 0..2)
+ * with a sound. Not sure what the pointer is for in game terms. */
 static void point_control(XglPacket *packet)
 {
     switch (check_mode()) {
     case 0:
-        SlGuidPrint(Gwork.words[15]);
+        SlGuidPrint(Gwork.slot.guide);
         break;
     case 1:
-        SlGuidPrint(Gwork.words[14] + 5);
+        SlGuidPrint(Gwork.slot.pointer + 5);
         if (PadData.half_2a & 0x2000) {
-            Gwork.words[14] = Gwork.words[14] + 1;
-            if (Gwork.words[14] >= 3) {
-                Gwork.words[14] = 0;
+            Gwork.slot.pointer = Gwork.slot.pointer + 1;
+            if (Gwork.slot.pointer >= 3) {
+                Gwork.slot.pointer = 0;
             }
             RES_SoundEffect(0x24);
         }
         if (PadData.half_2a & 0x8000) {
-            Gwork.words[14] = Gwork.words[14] - 1;
-            if (Gwork.words[14] < 0) {
-                Gwork.words[14] = 2;
+            Gwork.slot.pointer = Gwork.slot.pointer - 1;
+            if (Gwork.slot.pointer < 0) {
+                Gwork.slot.pointer = 2;
             }
             RES_SoundEffect(0x25);
         }
@@ -658,33 +673,33 @@ static int check_real(void)
 extern int inter_23;
 static void GameModeChange(int mode);
 
-/* ov11:0x00a02488. Payout handler. When the pay flag (Gwork word 43) is
- * set it switches mode (GameModeChange(6)) and stops the payout sound;
+/* ov11:0x00a02488. Payout handler. When Gwork.slot.start_nine_game is
+ * set it switches to the nine-game and stops the payout sound;
  * otherwise pad bit 0x20 pays the pending coins at once, else one coin per
  * frame while the pending amount counts down. Not sure of the exact game
  * wording. */
 static int paid_action(void)
 {
-    if (Gwork.words[43] == 1) {
-        GameModeChange(6);
-        Gwork.words[43] = 0;
+    if (Gwork.slot.start_nine_game == 1) {
+        GameModeChange(CASINO_NINE_GAME);
+        Gwork.slot.start_nine_game = 0;
         RES_SoundEffectStop(0x27);
         inter_23 = 0;
         return 1;
     }
     if (PadData.half_2a & 0x20) {
-        AddCoin(Gwork.words[42]);
-        Gwork.words[42] = 0;
+        AddCoin(Gwork.slot.payout);
+        Gwork.slot.payout = 0;
         RES_SoundEffectStop(0x27);
     }
-    if (Gwork.words[42] == 0) {
+    if (Gwork.slot.payout == 0) {
         if (PadData.half_2a & 0x20) {
             inter_23 = 0;
             return 1;
         }
-    } else if (Gwork.words[42] > 0) {
-        Gwork.words[42] = Gwork.words[42] - 1;
-        if (Gwork.words[42] == 0) {
+    } else if (Gwork.slot.payout > 0) {
+        Gwork.slot.payout = Gwork.slot.payout - 1;
+        if (Gwork.slot.payout == 0) {
             RES_SoundEffectStop(0x27);
         }
         AddCoin(1);
@@ -739,39 +754,38 @@ static void SlHelpMode(void);
 /* ov11:0x00a03380. Slot main loop. Fetches the current packet, then draws
  * in order: the reels (SlRealDraw), cash, pay amounts and total stake, the
  * slot_1 background, the spin/stop/mode buttons and the pointer, the pay
- * window, and either the rate table or the result (Gwork word 20 == 2
- * picks the result). Then runs SlEvent and, when it returns 0, slot_key,
- * and shows the help screen when word 17 == 1. 0x01089000 and 0x01008000
- * are SLOT_BASE_TEX_BUFFER and SLOT_1_TEX_BUFFER, which are defined
- * further down. Not sure of the exact game wording. */
+ * window, and either the rate table or the result (Gwork.slot.state == 2
+ * picks the result). Then runs SlEvent on Gwork.slot.event and, when it
+ * returns 0, slot_key, and shows the help screen when Gwork.slot.help is
+ * 1. Not sure of the exact game wording. */
 static void slot_main(void)
 {
     Pkt = xglPacketGetCurrent();
-    xglPacketTextureTrans((void *)0x01089000);
+    xglPacketTextureTrans((void *)SLOT_BASE_TEX_BUFFER);
     SetRegAD(Pkt, 0x3F, 0);
     SlRealDraw();
     SlCashPrint();
     pay_print(Pkt);
     total_pay_print(Pkt);
-    xglPacketTextureTrans((void *)0x01008000);
+    xglPacketTextureTrans((void *)SLOT_1_TEX_BUFFER);
     SetRegAD(Pkt, 0x3F, 0);
     SlBgDraw(Pkt);
-    xglPacketTextureTrans((void *)0x01089000);
+    xglPacketTextureTrans((void *)SLOT_BASE_TEX_BUFFER);
     SetRegAD(Pkt, 0x3F, 0);
     SpinBtnPrint();
     SlStopBtnPrint();
     SlModePrint();
     point_control(Pkt);
     SlPayWindowPrint();
-    if (Gwork.words[20] != 2) {
+    if (Gwork.slot.state != 2) {
         SlRateTableDraw();
     } else {
         SlResultDraw();
     }
-    if (SlEvent(Gwork.words[44]) == 0) {
+    if (SlEvent(Gwork.slot.event) == 0) {
         slot_key();
     }
-    if (Gwork.words[17] == 1) {
+    if (Gwork.slot.help == 1) {
         SlHelpMode();
     }
 }
@@ -783,12 +797,6 @@ static const char D_00A0BE28[] = "data\\tanaka\\slot_2.xtx";
 static const char D_00A0BE40[] = "data\\tanaka\\base.xtx";
 static const char D_00A0BE58[] = "data\\tanaka\\w1.xtx";
 static const char D_00A0BE70[] = "data\\tanaka\\help_all.xtx";
-
-#define SLOT_1_TEX_BUFFER 0x01008000
-#define SLOT_2_TEX_BUFFER 0x01048800
-#define SLOT_BASE_TEX_BUFFER 0x01089000
-#define SLOT_W1_TEX_BUFFER 0x010C9800
-#define SLOT_HELP_TEX_BUFFER 0x0110A000
 
 static void init_slot(void)
 {
@@ -827,11 +835,11 @@ static void NgTimePrint(int time)
 
 extern unsigned long long litodp(int value);
 extern int dptoli(unsigned long long value);
-extern int pow(unsigned long long base, unsigned long long exponent);
+extern unsigned long long pow(unsigned long long base, unsigned long long exponent);
 
 static void NgPaidPrint(void)
 {
-    decprint(Gwork.words[42] * dptoli(pow(DOUBLE_TWO, litodp(Gwork.words[46]))), 7, 0x1B2, 0x182);
+    decprint(Gwork.nine.payout * dptoli(pow(DOUBLE_TWO, litodp(Gwork.nine.counter))), 7, 0x1B2, 0x182);
 }
 
 extern unsigned int tex_37[3][7];
@@ -962,7 +970,7 @@ static void NgCheckReal(int index)
     } else {
         NgAllStop();
         Gwork.nine.counter = -1;
-        Gwork.nine.amount = 0;
+        Gwork.nine.payout = 0;
         Gwork.nine.mode = 10;
     }
 }
@@ -1041,7 +1049,7 @@ static void NgGame_GetsDown(void)
     /* Empty loop: GCC 2.96 does not schedule across loop notes, which keeps
      * the original instruction order here (as in act_2.c). */
     do { } while (0);
-    Gwork.nine.amount = dptoli(dpmul(litodp(Gwork.nine.amount), scale));
+    Gwork.nine.payout = dptoli(dpmul(litodp(Gwork.nine.payout), scale));
     Gwork.nine.counter = 0;
     NgGetsDownBtnPrint(16);
     NgAllStop();
@@ -1134,11 +1142,11 @@ static void NgGame_Paid(void);
 static void NineGameMain(void)
 {
     Pkt = xglPacketGetCurrent();
-    xglPacketTextureTrans((void *)0x01089000);
+    xglPacketTextureTrans((void *)SLOT_BASE_TEX_BUFFER);
     NgReal();
     NgPaidPrint();
     NineGameBG_Draw();
-    xglPacketTextureTrans((void *)0x01089000);
+    xglPacketTextureTrans((void *)SLOT_BASE_TEX_BUFFER);
     SetRegAD(Pkt, 0x3F, 0);
     NgLamp();
     NgSpinBtnPrint(-1);
@@ -1245,6 +1253,7 @@ extern short type0_pos_65[2][2];
 extern short type1_pos_66[3][2];
 extern int dialog_cur_67;
 static void PoCurDraw(short *pos);
+static short PoGetBase(int cardValue);
 
 /* ov11:0x00a04be0. Poker yes/no style dialog. type 0 shows a two-choice
  * window and any other type a three-choice window. Pad bit 0x1000 moves
@@ -1257,7 +1266,7 @@ static int PoDialog(int type)
     int limit;
     int selected;
 
-    xglPacketTextureTrans((void *)0x013CF800);
+    xglPacketTextureTrans((void *)POKER_TABLE2_TEX_BUFFER);
     SetRegAD(Pkt, 0x3F, 0);
     limit = 2;
     if (type != 0) {
@@ -1308,7 +1317,7 @@ static int PoDialog(int type)
 static void PoBgDraw(void)
 {
     SetDrawStatus(3, 0);
-    xglPacketTextureTrans((void *)0x0138F000);
+    xglPacketTextureTrans((void *)POKER_TABLE1_TEX_BUFFER);
     SetRegAD(Pkt, 0x3F, 0);
     SetDrawStatus(3, 0);
     MakeSprite(tex_68, rect_69);
@@ -1362,7 +1371,7 @@ static int PoCardDrawAnime(void)
     int i;
     int arrived;
 
-    xglPacketTextureTrans((void *)0x0128D000);
+    xglPacketTextureTrans((void *)POKER_SPADE_TEX_BUFFER);
     SetRegAD(Pkt, 0x3F, 0);
     switch (status_73) {
     case 0:
@@ -1410,7 +1419,7 @@ extern int status_77;
 extern unsigned int tex_76[7];
 
 /* ov11:0x00a05180. Poker bonus card animation, one step per call, driven
- * by status_77 and the card index in Gwork word 101. State 0 starts a card
+ * by status_77 and the card index in Gwork.poker_deal.bonus_round. State 0 starts a card
  * sprite at the card's slot position moved up by 0xA0; state 1 draws it,
  * moves it down 0x20 per call (a sound plays at y == 5) until it reaches
  * the slot, then switches to state 2 with a 4-call hold; in state 2 it
@@ -1422,9 +1431,9 @@ static int PoBonusCardAnime(void)
     int card;
     int blank;
 
-    xglPacketTextureTrans((void *)0x0128D000);
+    xglPacketTextureTrans((void *)POKER_SPADE_TEX_BUFFER);
     SetRegAD(Pkt, 0x3F, 0);
-    card = Gwork.words[101];
+    card = Gwork.poker_deal.bonus_round;
     switch (status_77) {
     case 0:
         status_77 = 1;
@@ -1495,7 +1504,7 @@ static void PoSelectMarkDraw(void)
 {
     int i;
 
-    xglPacketTextureTrans((void *)0x013CF800);
+    xglPacketTextureTrans((void *)POKER_TABLE2_TEX_BUFFER);
     SetRegAD(Pkt, 0x3F, 0);
     SetDrawStatus(1, 0);
     for (i = 0; i < 5; i++) {
@@ -1529,12 +1538,12 @@ static void PoCardFlip(void)
         status_96 = 0;
     }
     if (status_96 >= 32) {
-        Gwork.words[100] = 1;
+        Gwork.poker_deal.bonus_mode = 1;
         for (i = 0; i < 53; i++) {
             Gwork.poker_deal.card_used[i] = 0;
         }
     } else {
-        Gwork.words[100] = 0;
+        Gwork.poker_deal.bonus_mode = 0;
     }
 }
 
@@ -1612,7 +1621,6 @@ static int PoGetMark(int cardValue)
     return mark;
 }
 
-static short PoGetBase(int cardValue);
 
 static short PoGetBase(int cardValue)
 {
@@ -2083,8 +2091,8 @@ static void PoInitWork(void)
 {
     Gwork.words[96] = 0;
     Gwork.words[97] = 0;
-    Gwork.words[100] = 0;
-    Gwork.words[101] = 0;
+    Gwork.poker_deal.bonus_mode = 0;
+    Gwork.poker_deal.bonus_round = 0;
     Gwork.words[98] = 0;
 }
 
@@ -2099,13 +2107,6 @@ static const char D_00A0C2A0[] = "data\\tanaka\\heart.xtx";
 static const char D_00A0C2B8[] = "data\\tanaka\\dia.xtx";
 static const char D_00A0C2D0[] = "data\\tanaka\\poker_1.xtx";
 static const char D_00A0C2E8[] = "data\\tanaka\\poker_2.xtx";
-
-#define POKER_SPADE_TEX_BUFFER  0x0128D000
-#define POKER_CLOVER_TEX_BUFFER 0x012CD800
-#define POKER_HEART_TEX_BUFFER  0x0130E000
-#define POKER_DIA_TEX_BUFFER    0x0134E800
-#define POKER_TABLE1_TEX_BUFFER 0x0138F000
-#define POKER_TABLE2_TEX_BUFFER 0x013CF800
 
 static void PokerInit(void)
 {
@@ -2239,7 +2240,7 @@ static void UtlCurPrint(int x, int y)
 {
     struct W14Rect { int x, y, w, h; } rect;
     int n;
-    xglPacketTextureTrans((void *)0x0118B000);
+    xglPacketTextureTrans((void *)MENU_WINDOW_TEX_BUFFER);
     SetRegAD(Pkt, 0x3F, 0);
     rect.h = 24;
     rect.w = 24;
@@ -2363,19 +2364,23 @@ static void VW_Main(void)
     }
     if (PadData.half_2a & 0x40) {
         VW_SamMode(0);
-        GameModeChange(0);
+        GameModeChange(CASINO_MENU);
         RES_SoundEffect(0x1B);
     }
 }
 
 extern void xglSoundSendSmd(void *smd);
-extern void xglSoundSendSwd(void *swd, int bank);
+extern int xglSoundSendSwd(void *swd, int bank);
 extern void xglSoundSequenceNormal(int volume);
 extern int SsdSpuDmaCompleted(int wait);
 extern int sprintf(char *buffer, const char *format, ...);
 extern int MUSICLIST_125[];
 extern int oldreq_126;
-extern const char D_00A0C660[], D_00A0C680[], D_00A0C6A0[], D_00A0C6B0[], D_00A0C6C0[];
+extern const char D_00A0C660[];
+extern const char D_00A0C680[];
+extern const char D_00A0C6A0[];
+extern const char D_00A0C6B0[];
+extern const char D_00A0C6C0[];
 
 /* ov11:0x00a08dc0. Starts a background music request. -1 and a repeat of
  * the previous request (oldreq_126) do nothing. Otherwise it clears the
@@ -2500,13 +2505,14 @@ void MiniG_Init(void)
 }
 
 extern void xglFontDebugPrintf(int x, int y, const char *format, ...);
-extern const char D_00A0C6E0[], D_00A0C6F0[];
+extern const char D_00A0C6E0[];
+extern const char D_00A0C6F0[];
 static int menu_mode(void);
 static void PokerMain(void);
 static void coin_main(void);
 static void shop_main(void);
 
-/* ov11:0x00a09048. Casino main dispatcher. Gwork word 2 selects the game:
+/* ov11:0x00a09048. Casino main dispatcher. Gwork.modes.game selects the game:
  * 0 menu (returns 1 when the menu handler asks to leave), 1 slot, 2 poker,
  * 3 coin exchange, 4 shop, 5 viewer, 6 nine-game, 7 test mode. Each game's
  * init routine runs once, guarded by a per-game flag. After a game runs it
@@ -2514,8 +2520,8 @@ static void shop_main(void);
  * printing. Not sure of the exact game wording. */
 int MiniG_Main(void)
 {
-    switch (Gwork.words[2]) {
-    case 0:
+    switch (Gwork.modes.game) {
+    case CASINO_MENU:
         if (Gwork.modes.initialized[0] == 0) {
             init_menu_mode();
             Gwork.modes.initialized[0] = 1;
@@ -2524,45 +2530,45 @@ int MiniG_Main(void)
             return 1;
         }
         break;
-    case 1:
+    case CASINO_SLOT:
         if (Gwork.modes.initialized[1] == 0) {
             init_slot();
             Gwork.modes.initialized[1] = 1;
         }
         slot_main();
         break;
-    case 2:
+    case CASINO_POKER:
         if (Gwork.modes.initialized[2] == 0) {
             PokerInit();
             Gwork.modes.initialized[2] = 1;
         }
         PokerMain();
         break;
-    case 3:
+    case CASINO_COIN_EXCHANGE:
         if (Gwork.modes.initialized[3] == 0) {
             init_coin();
             Gwork.modes.initialized[3] = 1;
         }
         coin_main();
         break;
-    case 4:
+    case CASINO_SHOP:
         if (Gwork.modes.initialized[4] == 0) {
             init_shop();
             Gwork.modes.initialized[4] = 1;
         }
         shop_main();
         break;
-    case 5:
+    case CASINO_VIEWER:
         if (Gwork.modes.initialized[5] == 0) {
             VW_Init();
             Gwork.modes.initialized[5] = 1;
         }
         VW_Main();
         break;
-    case 6:
+    case CASINO_NINE_GAME:
         NineGameMain();
         break;
-    case 7:
+    case CASINO_TEST_MODE:
         test_mode();
         break;
     default:
