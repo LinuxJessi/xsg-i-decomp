@@ -71,12 +71,10 @@ extern void sceVif1PkAddGsData(XglPacket *packet, u64 value);
  * corners of rect (x, y, width, height) go out as UV and XYZ pairs with
  * the 0x7000/0x7200 screen offset and z = 0x80. Not sure of the GS
  * register meaning of the four setup words. */
-static void MakeSprite(void *sprite, void *rect)
+static void MakeSprite(const struct SpriteTex *tex, const struct SpriteRect *pos)
 {
     Ov11GifTag tex_tag = D_00A0BB30;
     Ov11GifTag prim_tag = D_00A0BB40;
-    const struct SpriteTex *tex = sprite;
-    const struct SpriteRect *pos = rect;
     int u0 = tex->u + 1;
     int v0 = tex->v + 1;
     int du = tex->w - 1;
@@ -90,20 +88,20 @@ static void MakeSprite(void *sprite, void *rect)
     sceVif1PkCnt(Pkt, 0);
     sceVif1PkOpenDirectCode(Pkt, 0);
     sceVif1PkOpenGifTag(Pkt, tex_tag.quad);
-    switch (tex->mode) {
+    switch (tex->format) {
     case 1:
-        sceVif1PkAddGsData(Pkt, (tex->setup0 + 0x3800) | 0x25440000 | ((u64)(tex->setup1 + 0x3800) << 37) | 0x2000000E40000000ULL);
+        sceVif1PkAddGsData(Pkt, (tex->texture_base + 0x3800) | 0x25440000 | ((u64)(tex->clut_base + 0x3800) << 37) | 0x2000000E40000000ULL);
         v0 = v0 * 2 - 1;
         break;
     case 2:
-        sceVif1PkAddGsData(Pkt, ((u64)(tex->setup1 + 0x3800) << 37) | 0x4000000E21343800ULL);
+        sceVif1PkAddGsData(Pkt, ((u64)(tex->clut_base + 0x3800) << 37) | 0x4000000E21343800ULL);
         break;
     case 3:
-        sceVif1PkAddGsData(Pkt, ((u64)(tex->setup1 + 0x3800) << 37) | 0x4000000EA9443800ULL);
+        sceVif1PkAddGsData(Pkt, ((u64)(tex->clut_base + 0x3800) << 37) | 0x4000000EA9443800ULL);
         v0 = v0 * 2 - 1;
         break;
     default:
-        sceVif1PkAddGsData(Pkt, ((u64)(tex->setup1 + 0x3800) << 37) | 0x4000000E65323800ULL);
+        sceVif1PkAddGsData(Pkt, ((u64)(tex->clut_base + 0x3800) << 37) | 0x4000000E65323800ULL);
         break;
     }
     ul = u0 << 4;
@@ -223,8 +221,6 @@ static void SetRGBA(short red, short green, short blue, short alpha)
 }
 
 /* Candidate-backed OV11/tu001 initialized DATA objects; function bodies are retained. */
-typedef unsigned int CasinoSpriteWords[7];
-typedef unsigned int CasinoRectWords[4];
 static short real11array[21];
 static short real12array[21];
 static short real13array[21];
@@ -250,40 +246,40 @@ static short *realpt[18]  = {
     real21array, real22array, real23array, real31array, real32array, real33array,
     real41array, real42array, real43array, real51array, real52array, real53array
 };
-static CasinoSpriteWords pay_window[2]  = {
+static struct SpriteTex pay_window[2]  = {
     {224, 0, 32, 32, 0, 572, 0},
     {224, 32, 32, 32, 0, 572, 0}
 };
-static CasinoRectWords pay_window_rect_4[5]  = {
+static struct SpriteRect pay_window_rect_4[5]  = {
     {36, 33, 32, 32}, {36, 82, 32, 32}, {36, 131, 32, 32},
     {36, 180, 32, 32}, {36, 229, 32, 32}
 };
 static int status_keep_5  = 0;
-static CasinoSpriteWords BoxSpr  = {0, 0, 511, 447, 0, 1020, 0};
-static CasinoRectWords BoxRect  = {0, 0, 511, 447};
-static CasinoSpriteWords NineGameBG_Tex_43  = {0, 0, 511, 447, 0, 1020, 0};
-static CasinoRectWords NineGameBG_Rect_44  = {0, 0, 512, 448};
-static CasinoSpriteWords tex_68  = {0, 0, 512, 448, 0, 1020, 0};
-static CasinoRectWords rect_69  = {0, 0, 512, 448};
-static CasinoSpriteWords tex_80  = {0, 0, 352, 176, 0, 1020, 0};
-static CasinoRectWords rect_81  = {16, 256, 352, 176};
-static CasinoRectWords result_rect_97[9]  = {
+static struct SpriteTex BoxSpr  = {0, 0, 511, 447, 0, 1020, 0};
+static struct SpriteRect BoxRect  = {0, 0, 511, 447};
+static struct SpriteTex NineGameBG_Tex_43  = {0, 0, 511, 447, 0, 1020, 0};
+static struct SpriteRect NineGameBG_Rect_44  = {0, 0, 512, 448};
+static struct SpriteTex tex_68  = {0, 0, 512, 448, 0, 1020, 0};
+static struct SpriteRect rect_69  = {0, 0, 512, 448};
+static struct SpriteTex tex_80  = {0, 0, 352, 176, 0, 1020, 0};
+static struct SpriteRect rect_81  = {16, 256, 352, 176};
+static struct SpriteRect result_rect_97[9]  = {
     {204, 362, 160, 32}, {204, 330, 160, 32}, {204, 298, 160, 32},
     {204, 266, 160, 32}, {0, 394, 244, 32}, {0, 362, 244, 32},
     {0, 330, 244, 32}, {0, 298, 244, 32}, {0, 266, 244, 32}
 };
-static CasinoSpriteWords tex_98  = {96, 224, 160, 32, 0, 756, 0};
-static CasinoSpriteWords SubWindow_Tex  = {0, 0, 176, 120, 0, 564, 2};
-static CasinoSpriteWords Level_Tex[4]  = {
+static struct SpriteTex tex_98  = {96, 224, 160, 32, 0, 756, 0};
+static struct SpriteTex SubWindow_Tex  = {0, 0, 176, 120, 0, 564, 2};
+static struct SpriteTex Level_Tex[4]  = {
     {176, 0, 72, 16, 0, 564, 2}, {176, 16, 72, 16, 0, 564, 2},
     {176, 32, 72, 16, 0, 564, 2}, {176, 48, 72, 16, 0, 564, 2}
 };
-static CasinoSpriteWords ExChange_Tex[3]  = {
+static struct SpriteTex ExChange_Tex[3]  = {
     {176, 64, 64, 16, 0, 564, 2}, {176, 80, 64, 16, 0, 564, 2},
     {176, 96, 64, 16, 0, 564, 2}
 };
-static CasinoSpriteWords BGTEST_Tex  = {0, 0, 511, 447, 0, 1136, 0};
-static CasinoRectWords BGTEST_Rect  = {0, 0, 512, 448};
+static struct SpriteTex BGTEST_Tex  = {0, 0, 511, 447, 0, 1136, 0};
+static struct SpriteRect BGTEST_Rect  = {0, 0, 512, 448};
 static int flg_104  = 0;
 
 /* Four GS XYZ vertices for an untextured box. Coordinates use 12.4
@@ -502,10 +498,10 @@ static short SlGetPic(int reel, int positionOffset, int row)
     return pictures[pictureIndex];
 }
 
-extern unsigned int Real_2[9][7];
+extern struct SpriteTex Real_2[9];
 extern int xpos_3[3];
-extern unsigned int slot_window_0[7];
-extern unsigned int slot_window_rect_1[3][4];
+extern struct SpriteTex slot_window_0;
+extern struct SpriteRect slot_window_rect_1[3];
 
 /* ov11:0x00a00c10. Draws the three slot reels: wraps each reel position
  * (Gwork.slot.reel_pos) back by 0x540 when it passes 0x540, then for each reel
@@ -532,12 +528,12 @@ static void SlRealDraw(void)
         for (n = 4; n >= -1; n--) {
             j = 2 - n;
             rect.y = Gwork.slot.reel_pos[i] % 64 + j * 64 + 0x32;
-            MakeSprite(Real_2[SlGetPic(i, j, Gwork.slot.row)], &rect);
+            MakeSprite(&Real_2[SlGetPic(i, j, Gwork.slot.row)], &rect);
         }
     }
     SetDrawStatus(2, 0);
     for (n = 0; n < 3; n++) {
-        MakeSprite(slot_window_0, slot_window_rect_1[n]);
+        MakeSprite(&slot_window_0, &slot_window_rect_1[n]);
     }
     SetDrawStatus(3, 0);
     SetTest(0x3000D);
@@ -603,7 +599,7 @@ static void SlPayWindowPrint(void)
     SetDrawStatus(0, 0);
     windowIndex = check_mode() != 1;
     for (rectIndex = 0; rectIndex < 5; rectIndex++) {
-        MakeSprite(pay_window[windowIndex], pay_window_rect_4[rectIndex]);
+        MakeSprite(&pay_window[windowIndex], &pay_window_rect_4[rectIndex]);
     }
 }
 
@@ -625,8 +621,8 @@ static int check_spin(void)
     return 2;
 }
 
-extern unsigned int spinbt[3][7];
-extern unsigned int spinbt_rect_6[4];
+extern struct SpriteTex spinbt[3];
+extern struct SpriteRect spinbt_rect_6;
 extern int pushcnt_7;
 
 /* ov11:0x00a011b0. Slot: draws the spin button. The sprite comes from
@@ -660,12 +656,12 @@ static void SpinBtnPrint(void)
         break;
     }
     if (index != 0) {
-        MakeSprite(spinbt[index - 1], spinbt_rect_6);
+        MakeSprite(&spinbt[index - 1], &spinbt_rect_6);
     }
 }
 
-extern unsigned int stopbt[3][7];
-extern unsigned int stopbt_rect_8[3][4];
+extern struct SpriteTex stopbt[3];
+extern struct SpriteRect stopbt_rect_8[3];
 
 /* ov11:0x00a01278. Slot: draws the three stop-button sprites, choosing
  * each texture from that reel's state (1, 2 or anything else). */
@@ -686,7 +682,7 @@ static void SlStopBtnPrint(void)
             index = 2;
             break;
         }
-        MakeSprite(stopbt[index], stopbt_rect_8[i]);
+        MakeSprite(&stopbt[index], &stopbt_rect_8[i]);
     }
 }
 
@@ -699,8 +695,8 @@ extern const struct SpriteRect D_00A0BC68;
 extern const struct SpriteRect D_00A0BC78;
 extern const struct SpriteRect D_00A0BC88;
 extern int pos_10[7][2];
-extern unsigned int PicTable[7][7];
-extern unsigned int OptionText[5][7];
+extern struct SpriteTex PicTable[7];
+extern struct SpriteTex OptionText[5];
 extern int rate_11[6];
 extern int double_rate_12[6];
 static void SlDecPrintSmall(int x, int y, int w, int value);
@@ -722,24 +718,24 @@ static void SlRateTableDraw(void)
     for (i = 0; i < 6; i++) {
         rect.x = pos_10[i][0];
         rect.y = pos_10[i][1];
-        MakeSprite(PicTable[i], &rect);
+        MakeSprite(&PicTable[i], &rect);
     }
     rect.y = pos_10[i][1];
     rect.x = pos_10[i][0];
     rect.w = 0x1C;
-    MakeSprite(PicTable[i], &rect);
+    MakeSprite(&PicTable[i], &rect);
     rect = D_00A0BC38;
-    MakeSprite(OptionText[1], &rect);
+    MakeSprite(&OptionText[1], &rect);
     rect = D_00A0BC48;
-    MakeSprite(OptionText[1], &rect);
+    MakeSprite(&OptionText[1], &rect);
     rect = D_00A0BC58;
-    MakeSprite(OptionText[1], &rect);
+    MakeSprite(&OptionText[1], &rect);
     rect = D_00A0BC68;
-    MakeSprite(OptionText[2], &rect);
+    MakeSprite(&OptionText[2], &rect);
     rect = D_00A0BC78;
-    MakeSprite(OptionText[3], &rect);
+    MakeSprite(&OptionText[3], &rect);
     rect = D_00A0BC88;
-    MakeSprite(OptionText[4], &rect);
+    MakeSprite(&OptionText[4], &rect);
     for (i = 0; i < 6; i++) {
         if (Gwork.slot.double_pay != 0) {
             SlDecPrintSmall(0xAF, 0x125 + i * 0x14, 0xC, double_rate_12[i]);
@@ -749,9 +745,9 @@ static void SlRateTableDraw(void)
     }
 }
 
-extern unsigned int Pic_13[9][7];
-extern unsigned int Total_14[7];
-extern unsigned int linetex_15[7];
+extern struct SpriteTex Pic_13[9];
+extern struct SpriteTex Total_14;
+extern struct SpriteTex linetex_15;
 extern struct SpriteRect linerect_16[9];
 extern const struct SpriteRect D_00A0BC98;
 
@@ -786,7 +782,7 @@ static void SlResultDraw(void)
             for (k = 0; k < 3; k++) {
                 rect.x = x;
                 rect.y = y;
-                MakeSprite(Pic_13[line->pic[k]], &rect);
+                MakeSprite(&Pic_13[line->pic[k]], &rect);
                 x += 0x1C;
             }
             SlDecPrintSmall(0xAF, y, 0xC, line->prize);
@@ -799,15 +795,15 @@ static void SlResultDraw(void)
                 switch (line->kind) {
                 case 1:
                     rect.w = 0x60;
-                    MakeSprite(OptionText[1], &rect);
+                    MakeSprite(&OptionText[1], &rect);
                     break;
                 case 2:
                     rect.w = 0x68;
-                    MakeSprite(OptionText[2], &rect);
+                    MakeSprite(&OptionText[2], &rect);
                     break;
                 case 3:
                     rect.w = 0x50;
-                    MakeSprite(OptionText[0], &rect);
+                    MakeSprite(&OptionText[0], &rect);
                     break;
                 }
             } else {
@@ -817,7 +813,7 @@ static void SlResultDraw(void)
         }
     }
     rect = D_00A0BC98;
-    MakeSprite(Total_14, &rect);
+    MakeSprite(&Total_14, &rect);
     SlDecPrintSmall(0x119, 0x19D, 0xC, total);
     for (i = 8; i >= 0; i--) {
         lit[i] = 0;
@@ -850,7 +846,7 @@ static void SlResultDraw(void)
     SetDrawStatus(0, 0);
     for (i = 0; i < 9; i++) {
         if (lit[i] != 0) {
-            MakeSprite(linetex_15, &linerect_16[i]);
+            MakeSprite(&linetex_15, &linerect_16[i]);
         }
     }
     SetDrawStatus(3, 0);
@@ -862,23 +858,46 @@ INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", SlGuidPrint);
 
 extern PadPrefix PadData;
 
+/* PadData's button words. xglPadRead (src/main/xgl_pad.c) stores four
+ * halfwords from +0x28: the buttons held (+0x28), newly pressed (+0x2A),
+ * newly pressed with auto-repeat (+0x2C: the newly pressed set, replaced by
+ * the held buttons in xglPadSetRepeat's mask whenever the repeat timer
+ * fires) and released (+0x2E). All four use these bits, the same mapping
+ * src/main/game_debug_menu.h and src/main/menu_ether.c name. */
+#define PAD_L2 0x0001
+#define PAD_R2 0x0002
+#define PAD_L1 0x0004
+#define PAD_R1 0x0008
+#define PAD_TRIANGLE 0x0010
+#define PAD_CIRCLE 0x0020
+#define PAD_CROSS 0x0040
+#define PAD_SQUARE 0x0080
+#define PAD_SELECT 0x0100
+#define PAD_START 0x0800
+#define PAD_UP 0x1000
+#define PAD_RIGHT 0x2000
+#define PAD_DOWN 0x4000
+#define PAD_LEFT 0x8000
+
+/* Bits of the four words read as one doubleword from +0x28. */
+#define PAD_WORDS_PRESSED(bits) ((u64)(bits) << 16)
+#define PAD_WORDS_REPEAT(bits) ((u64)(bits) << 32)
+
 /* PadData as the casino reads it. The shared PadPrefix stops at +0x36; this
- * TU also needs the button word at +0x2C and the four analog stick bytes at
- * +0x64, so it uses a union with the canonical prefix, the same way
- * src/ov02/umn_guno_data_base_get.c widens it. Left/right are read from
- * +0x2C while up/down come from the pressed word at +0x2A; not sure how the
- * two words differ (key repeat would fit). */
+ * TU also needs the auto-repeat word at +0x2C and the four analog stick
+ * bytes at +0x64, so it uses a union with the canonical prefix, the same way
+ * src/ov02/umn_guno_data_base_get.c widens it. */
 typedef union CasinoPadView {
     PadPrefix canonical;
-    /* The four halfwords from +0x28 read as one doubleword; coin_main tests
-     * bits of +0x2A and +0x2C together this way. */
+    /* The four button words from +0x28 read as one doubleword; coin_main
+     * tests a pressed bit and a repeat bit together this way. */
     struct {
         unsigned char unmodeled_00[0x28];
-        u64 buttons;
+        u64 words;
     } dword;
     struct {
         unsigned char unmodeled_00[0x2C];
-        u16 buttons;
+        u16 repeat;
         unsigned char unmodeled_2e[0x36];
         signed char stick[4];
     } wide;
@@ -887,9 +906,9 @@ typedef union CasinoPadView {
 static void SlGuidPrint(int index);
 
 /* ov11:0x00a01d20. Slot pay-line pointer. check_mode() 0 draws the guide
- * at Gwork.slot.guide; 1 draws it at Gwork.slot.pointer + 5 and pad bits
- * 0x2000 / 0x8000 step the pointer forward / back (wrapping within 0..2)
- * with a sound. Not sure what the pointer is for in game terms. */
+ * at Gwork.slot.guide; 1 draws it at Gwork.slot.pointer + 5 and right /
+ * left (newly pressed) step the pointer forward / back (wrapping within
+ * 0..2) with a sound. Not sure what the pointer is for in game terms. */
 static void point_control(XglPacket *packet)
 {
     switch (check_mode()) {
@@ -898,14 +917,14 @@ static void point_control(XglPacket *packet)
         break;
     case 1:
         SlGuidPrint(Gwork.slot.pointer + 5);
-        if (PadData.half_2a & 0x2000) {
+        if (PadData.half_2a & PAD_RIGHT) {
             Gwork.slot.pointer = Gwork.slot.pointer + 1;
             if (Gwork.slot.pointer >= 3) {
                 Gwork.slot.pointer = 0;
             }
             RES_SoundEffect(0x24);
         }
-        if (PadData.half_2a & 0x8000) {
+        if (PadData.half_2a & PAD_LEFT) {
             Gwork.slot.pointer = Gwork.slot.pointer - 1;
             if (Gwork.slot.pointer < 0) {
                 Gwork.slot.pointer = 2;
@@ -934,7 +953,7 @@ static void SlBgDraw(XglPacket *packet)
      * only this call in do{}while(0) defeats the sibcall pass instead
      * (CP-0288, config/compiler-patterns.json). */
     do {
-        MakeSprite(BoxSpr, BoxRect);
+        MakeSprite(&BoxSpr, &BoxRect);
     } while (0);
 }
 
@@ -1119,7 +1138,7 @@ static void GameModeChange(int mode);
 
 /* ov11:0x00a02488. Payout handler. When Gwork.slot.start_nine_game is
  * set it switches to the nine-game and stops the payout sound;
- * otherwise pad bit 0x20 pays the pending coins at once, else one coin per
+ * otherwise pressing circle pays the pending coins at once, else one coin per
  * frame while the pending amount counts down. Not sure of the exact game
  * wording. */
 static int paid_action(void)
@@ -1131,13 +1150,13 @@ static int paid_action(void)
         inter_23 = 0;
         return 1;
     }
-    if (PadData.half_2a & 0x20) {
+    if (PadData.half_2a & PAD_CIRCLE) {
         AddCoin(Gwork.slot.payout);
         Gwork.slot.payout = 0;
         RES_SoundEffectStop(0x27);
     }
     if (Gwork.slot.payout == 0) {
-        if (PadData.half_2a & 0x20) {
+        if (PadData.half_2a & PAD_CIRCLE) {
             inter_23 = 0;
             return 1;
         }
@@ -1179,15 +1198,14 @@ static void linepay_check(void)
 
 static void SlCoinEntry(void);
 
-/* ov11:0x00a02630. Slot input handler, by Gwork.slot.state. Idle (0): pad
- * 0x40 leaves to the menu; otherwise it runs SlCoinEntry, and pad 0x20
+/* ov11:0x00a02630. Slot input handler, by Gwork.slot.state. Idle (0):
+ * cross leaves to the menu; otherwise it runs SlCoinEntry, and circle
  * with a stake starts a spin (help off, pointer and reels reset to
  * spinning, the stake taken from the coin balance, sound 0x22). Spinning
- * (1): pad 0x20 stops the reel under the pointer, a stopped reel slides on
+ * (1): circle stops the reel under the pointer, a stopped reel slides on
  * by 0x10 per frame until it can snap to the next 64-pixel cell, and once
  * all three are still the result is checked (check_real, linepay_check).
- * Result (2): runs paid_action. A stop moves the pointer to the next reel.
- * Not sure of the button names. */
+ * Result (2): runs paid_action. A stop moves the pointer to the next reel. */
 static void slot_key(void)
 {
     int i;
@@ -1199,13 +1217,13 @@ static void slot_key(void)
     pressed = 0;
     switch (Gwork.slot.state) {
     case 0:
-        if (PadData.half_2a & 0x40) {
+        if (PadData.half_2a & PAD_CROSS) {
             RES_SoundEffect(0x17);
             GameModeChange(CASINO_MENU);
             break;
         }
         SlCoinEntry();
-        if ((PadData.half_2a & 0x20) && Gwork.slot.total_bet > 0) {
+        if ((PadData.half_2a & PAD_CIRCLE) && Gwork.slot.total_bet > 0) {
             Gwork.slot.help = 0;
             Gwork.slot.pointer = 0;
             for (i = 0; i < 3; i++) {
@@ -1220,7 +1238,7 @@ static void slot_key(void)
         for (i = 0; i < 3; i++) {
             switch (Gwork.slot.reel_state[i]) {
             case 1:
-                if (Gwork.slot.pointer == i && (PadData.half_2a & 0x20)) {
+                if (Gwork.slot.pointer == i && (PadData.half_2a & PAD_CIRCLE)) {
                     Gwork.slot.reel_state[i] = 2;
                     Gwork.slot.stop_travel[i] = 0;
                     RES_SoundEffect(0x23);
@@ -1241,7 +1259,7 @@ static void slot_key(void)
                 Gwork.slot.reel_pos[i] += 0x10;
                 break;
             case 0:
-                if ((PadData.half_2a & 0x20) && Gwork.slot.pointer == i) {
+                if ((PadData.half_2a & PAD_CIRCLE) && Gwork.slot.pointer == i) {
                     RES_SoundEffect(0x26);
                 }
                 stopped++;
@@ -1638,16 +1656,15 @@ static void init_slot(void)
 
 /* W09 candidate: link to extant OV11 symbol tex_36 at 0x00A0A160;
    no hard-coded address or new static data. */
-extern const unsigned int D_00A0BE90[4];
-extern unsigned int tex_36[7];
-struct Wave09Rect4 { unsigned int words[4]; };
+extern const struct SpriteRect D_00A0BE90;
+extern struct SpriteTex tex_36;
 static void NgTimePrint(int time)
 {
-    struct Wave09Rect4 rect = *(const struct Wave09Rect4 *)D_00A0BE90;
+    struct SpriteRect rect = D_00A0BE90;
     if (time > 900) time = 900;
-    rect.words[2] = (time * 47 * 4) / 900;
+    rect.w = (time * 47 * 4) / 900;
     SetDrawStatus(3, 0);
-    MakeSprite(tex_36, &rect);
+    MakeSprite(&tex_36, &rect);
 }
 
 
@@ -1671,8 +1688,8 @@ static void NgPaidPrint(void)
     decprint(Gwork.nine.payout * dptoli(pow(DOUBLE_TWO, litodp(Gwork.nine.counter))), 7, 0x1B2, 0x182);
 }
 
-extern unsigned int tex_37[3][7];
-extern unsigned int rect_38[4];
+extern struct SpriteTex tex_37[3];
+extern struct SpriteRect rect_38;
 extern int count_39;
 
 /* ov11:0x00a03668. Nine-game: draws the "gets down" button. A non-negative
@@ -1694,7 +1711,7 @@ static void NgGetsDownBtnPrint(int button)
         index = 1;
     }
     SetDrawStatus(3, 0);
-    MakeSprite(tex_37[index], rect_38);
+    MakeSprite(&tex_37[index], &rect_38);
     if (count_39 != 0) {
         count_39 = count_39 - 1;
         if (count_39 == 0) {
@@ -1703,8 +1720,8 @@ static void NgGetsDownBtnPrint(int button)
     }
 }
 
-extern unsigned int spinbt[3][7];
-extern unsigned int rect_40[4];
+extern struct SpriteTex spinbt[3];
+extern struct SpriteRect rect_40;
 extern int count_41;
 
 /* ov11:0x00a03710. Nine-game: same shape as NgGetsDownBtnPrint, for the
@@ -1724,7 +1741,7 @@ static void NgSpinBtnPrint(int button)
         index = 1;
     }
     SetDrawStatus(3, 0);
-    MakeSprite(spinbt[index], rect_40);
+    MakeSprite(&spinbt[index], &rect_40);
     if (count_41 != 0) {
         count_41 = count_41 - 1;
         if (count_41 == 0) {
@@ -1751,7 +1768,7 @@ static void NineGameBG_Draw(void)
     xglPacketTextureTrans((void *)SLOT_2_TEX_BUFFER);
     SetRegAD(Pkt, 0x3F, 0);
     SetDrawStatus(3, 0);
-    MakeSprite(NineGameBG_Tex_43, NineGameBG_Rect_44);
+    MakeSprite(&NineGameBG_Tex_43, &NineGameBG_Rect_44);
 }
 
 static void NgStopGuidPt(void);
@@ -1889,14 +1906,15 @@ static void NgGame_GetsDown(void)
 
 static void NgFwdGuidPt(void);
 
-/* ov11:0x00a04040. Nine-game select handler: up/down toggles mode 9/10,
- * confirm (0x20) starts the spin or the gets-down action, and several
- * buttons toggle the flag. Not sure of the button names. */
+/* ov11:0x00a04040. Nine-game select handler: up/down toggles the cursor
+ * between the spin (9) and gets-down (10) buttons, circle starts the spin
+ * or the gets-down action, and the shoulder, face, select and start buttons
+ * toggle the flag. Not sure what the flag shows. */
 static void NgGame_Select(void)
 {
     int i;
 
-    if (PadData.half_2a & 0x5000) {
+    if (PadData.half_2a & (PAD_DOWN | PAD_UP)) {
         Gwork.nine.flag = 0;
         RES_SoundEffect(0x2E);
         switch (Gwork.nine.mode) {
@@ -1908,7 +1926,7 @@ static void NgGame_Select(void)
             break;
         }
     }
-    if (PadData.half_2a & 0x20) {
+    if (PadData.half_2a & PAD_CIRCLE) {
         Gwork.nine.flag = 0;
         switch (Gwork.nine.mode) {
         case 9:
@@ -1926,7 +1944,7 @@ static void NgGame_Select(void)
             break;
         }
     }
-    if (PadData.half_2a & 0x99F) {
+    if (PadData.half_2a & (PAD_START | PAD_SELECT | PAD_SQUARE | PAD_TRIANGLE | PAD_R1 | PAD_L1 | PAD_R2 | PAD_L2)) {
         if (Gwork.nine.flag == 0) {
             Gwork.nine.flag = 1;
         } else {
@@ -1935,43 +1953,51 @@ static void NgGame_Select(void)
     }
 }
 
-/* Cursor moves of the nine-game: for each cursor position (0-8 the reels,
- * 10 the gets-down button; not sure what 9 is) the position reached with
- * the four direction buttons. Not sure which column is which direction. */
+/* Cursor moves of the nine-game: for each cursor position (0-8 the reels
+ * in a 3x3 grid, 0-2 the top row; 9 the spin button, 10 the gets-down
+ * button) the position reached with each direction button. In the table,
+ * left and right wrap within a row and up/down step a row, so the columns
+ * are, in order, left, up, right and down. */
+enum NgCursorMove {
+    NG_MOVE_LEFT,
+    NG_MOVE_UP,
+    NG_MOVE_RIGHT,
+    NG_MOVE_DOWN
+};
 extern unsigned short ptmove_50[11][4];
 
-/* ov11:0x00a04188. Nine-game input: the four direction buttons move the
- * cursor (Gwork.nine.mode) through ptmove_50, button 0x40 jumps to
- * position 10, and button 0x20 acts on the cursor: on a reel that is still
- * running (state 0) it starts the stop (state 2, remaining = 96 minus
- * position % 48) and moves the cursor on (NgFwdGuidPt); on position 10
- * it takes the winnings (NgGame_GetsDown). The case range is what gives
- * the original's compare order (below 0, below 9, equal to 10). */
+/* ov11:0x00a04188. Nine-game input: the direction buttons (auto-repeat
+ * word) move the cursor (Gwork.nine.mode) through ptmove_50, cross jumps to
+ * the gets-down button (10), and circle acts on the cursor: on a reel that
+ * is still running (state 0) it starts the stop (state 2, remaining = 96
+ * minus position % 48) and moves the cursor on (NgFwdGuidPt); on 10 it
+ * takes the winnings (NgGame_GetsDown). The case range is what gives the
+ * original's compare order (below 0, below 9, equal to 10). */
 static void NgGame_Key(void)
 {
     struct NineGameReel *reel;
 
-    if (CASINO_PAD->wide.buttons & 0x8000) {
-        Gwork.nine.mode = ptmove_50[Gwork.nine.mode][0];
+    if (CASINO_PAD->wide.repeat & PAD_LEFT) {
+        Gwork.nine.mode = ptmove_50[Gwork.nine.mode][NG_MOVE_LEFT];
         RES_SoundEffect(0x2E);
     }
-    if (CASINO_PAD->wide.buttons & 0x1000) {
-        Gwork.nine.mode = ptmove_50[Gwork.nine.mode][1];
+    if (CASINO_PAD->wide.repeat & PAD_UP) {
+        Gwork.nine.mode = ptmove_50[Gwork.nine.mode][NG_MOVE_UP];
         RES_SoundEffect(0x2E);
     }
-    if (CASINO_PAD->wide.buttons & 0x2000) {
-        Gwork.nine.mode = ptmove_50[Gwork.nine.mode][2];
+    if (CASINO_PAD->wide.repeat & PAD_RIGHT) {
+        Gwork.nine.mode = ptmove_50[Gwork.nine.mode][NG_MOVE_RIGHT];
         RES_SoundEffect(0x2E);
     }
-    if (CASINO_PAD->wide.buttons & 0x4000) {
-        Gwork.nine.mode = ptmove_50[Gwork.nine.mode][3];
+    if (CASINO_PAD->wide.repeat & PAD_DOWN) {
+        Gwork.nine.mode = ptmove_50[Gwork.nine.mode][NG_MOVE_DOWN];
         RES_SoundEffect(0x2E);
     }
-    if (PadData.half_2a & 0x40) {
+    if (PadData.half_2a & PAD_CROSS) {
         Gwork.nine.mode = 10;
         RES_SoundEffect(0x31);
     }
-    if (PadData.half_2a & 0x20) {
+    if (PadData.half_2a & PAD_CIRCLE) {
         switch (Gwork.nine.mode) {
         case 0 ... 8:
             reel = &Gwork.nine.reel[Gwork.nine.mode];
@@ -1997,8 +2023,7 @@ extern int se_51;
 /* ov11:0x00a04360. Nine-game payout step: when nothing is left to pay it
  * stops the payout sound, switches back to the slot game and clears
  * se_51; otherwise it starts the payout sound once and pays out coins, all
- * at once if pad button 0x20 is held and one per call otherwise. Not sure
- * of the button name. */
+ * at once if circle is pressed and one per call otherwise. */
 static void NgGame_Paid(void)
 {
     int amount;
@@ -2014,7 +2039,7 @@ static void NgGame_Paid(void)
         se_51 = 1;
     }
     amount = Gwork.nine.payout;
-    if (PadData.half_2a & 0x20) {
+    if (PadData.half_2a & PAD_CIRCLE) {
         AddCoin(amount);
         Gwork.nine.payout = 0;
     } else {
@@ -2023,17 +2048,19 @@ static void NgGame_Paid(void)
     }
 }
 
-extern const struct NgHelpTex {unsigned int word[7];} D_00A0BEA0, D_00A0BEC0;
-extern const struct NgHelpRect {unsigned int word[4];} D_00A0BEE0, D_00A0BEF0;
+extern const struct SpriteTex D_00A0BEA0;
+extern const struct SpriteTex D_00A0BEC0;
+extern const struct SpriteRect D_00A0BEE0;
+extern const struct SpriteRect D_00A0BEF0;
 
 /* ov11:0x00a04410. Nine-game help screen: two textured sprites from fixed
  * tables. */
 static void NgHelpMode(void)
 {
-    struct NgHelpTex tex1 = D_00A0BEA0;
-    struct NgHelpTex tex2 = D_00A0BEC0;
-    struct NgHelpRect rect1 = D_00A0BEE0;
-    struct NgHelpRect rect2 = D_00A0BEF0;
+    struct SpriteTex tex1 = D_00A0BEA0;
+    struct SpriteTex tex2 = D_00A0BEC0;
+    struct SpriteRect rect1 = D_00A0BEE0;
+    struct SpriteRect rect2 = D_00A0BEF0;
 
     SetDrawStatus(1, 0);
     xglPacketTextureTrans((void *)SLOT_HELP_TEX_BUFFER);
@@ -2126,10 +2153,10 @@ INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", PoMoneyPrint);
 
 INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", PoCurDraw);
 
-extern const struct PoWinRect { int x, y, w, h; } D_00A0BF20;
-extern unsigned int Ltex_56[7];
-extern unsigned int Rtex_57[7];
-extern unsigned int tex_58[7];
+extern const struct SpriteRect D_00A0BF20;
+extern struct SpriteTex Ltex_56;
+extern struct SpriteTex Rtex_57;
+extern struct SpriteTex tex_58;
 extern const char D_00A0BF30[];
 extern const char D_00A0BF38[];
 extern void xglFontPrint(int x, int y, int color, const char *text);
@@ -2138,29 +2165,29 @@ extern void xglFontPrint(int x, int y, int color, const char *text);
  * (left cap, right cap, middle) and prints the message. */
 static void PoWindowMessage(const char *message, int length)
 {
-    struct PoWinRect rect = D_00A0BF20;
+    struct SpriteRect rect = D_00A0BF20;
 
     SetDrawStatus(3, 0);
     SetTest(0x5000D);
     rect.x = 16;
     rect.w = 8;
-    MakeSprite(Ltex_56, &rect);
+    MakeSprite(&Ltex_56, &rect);
     rect.x = length * 9 + 28;
-    MakeSprite(Rtex_57, &rect);
+    MakeSprite(&Rtex_57, &rect);
     rect.x = 24;
     rect.w = length * 9 + 4;
-    MakeSprite(tex_58, &rect);
+    MakeSprite(&tex_58, &rect);
     xglFontPrint(0, 0, 0, D_00A0BF30);
     xglFontPrint(0, 0, 0, D_00A0BF38);
     xglFontPrint(24, 218, 0xFF00, message);
 }
 
-extern unsigned int tex_59[7];
-extern unsigned int rect_60[2][4];
-extern unsigned int type0_tex_61[7];
-extern unsigned int type0_rect_62[4];
-extern unsigned int type1_tex_63[7];
-extern unsigned int type1_rect_64[4];
+extern struct SpriteTex tex_59;
+extern struct SpriteRect rect_60[2];
+extern struct SpriteTex type0_tex_61;
+extern struct SpriteRect type0_rect_62;
+extern struct SpriteTex type1_tex_63;
+extern struct SpriteRect type1_rect_64;
 extern short type0_pos_65[2][2];
 extern short type1_pos_66[3][2];
 extern int dialog_cur_67;
@@ -2168,10 +2195,10 @@ static void PoCurDraw(short *pos);
 static short PoGetBase(int cardValue);
 
 /* ov11:0x00a04be0. Poker yes/no style dialog. type 0 shows a two-choice
- * window and any other type a three-choice window. Pad bit 0x1000 moves
- * the cursor (dialog_cur_67) up with wraparound and 0x4000 moves it down,
- * both with a sound; 0x20 confirms (plays a sound, resets the cursor and
- * returns the chosen entry) and 0x40 cancels (returns -1); otherwise it
+ * window and any other type a three-choice window. Up moves the cursor
+ * (dialog_cur_67) up with wraparound and down moves it down, both with a
+ * sound; circle confirms (plays a sound, resets the cursor and returns the
+ * chosen entry) and cross cancels (returns -1); otherwise it
  * returns 0. Not sure of the exact game wording. */
 static int PoDialog(int type)
 {
@@ -2184,14 +2211,14 @@ static int PoDialog(int type)
     if (type != 0) {
         limit = 3;
     }
-    if (PadData.half_2a & 0x1000) {
+    if (PadData.half_2a & PAD_UP) {
         dialog_cur_67--;
         RES_SoundEffect(0x3C);
         if (dialog_cur_67 == 0) {
             dialog_cur_67 = limit;
         }
     }
-    if (PadData.half_2a & 0x4000) {
+    if (PadData.half_2a & PAD_DOWN) {
         RES_SoundEffect(0x3C);
         dialog_cur_67++;
         if (dialog_cur_67 == limit + 1) {
@@ -2200,21 +2227,21 @@ static int PoDialog(int type)
     }
     SetDrawStatus(3, 0);
     if (type == 0) {
-        MakeSprite(tex_59, rect_60[0]);
-        MakeSprite(type0_tex_61, type0_rect_62);
+        MakeSprite(&tex_59, &rect_60[0]);
+        MakeSprite(&type0_tex_61, &type0_rect_62);
         PoCurDraw(type0_pos_65[dialog_cur_67 - 1]);
     } else {
-        MakeSprite(tex_59, rect_60[1]);
-        MakeSprite(type1_tex_63, type1_rect_64);
+        MakeSprite(&tex_59, &rect_60[1]);
+        MakeSprite(&type1_tex_63, &type1_rect_64);
         PoCurDraw(type1_pos_66[dialog_cur_67 - 1]);
     }
-    if (PadData.half_2a & 0x20) {
+    if (PadData.half_2a & PAD_CIRCLE) {
         RES_SoundEffect(0x3F);
         selected = dialog_cur_67;
         dialog_cur_67 = 1;
         return selected;
     }
-    if (PadData.half_2a & 0x40) {
+    if (PadData.half_2a & PAD_CROSS) {
         RES_SoundEffect(0x40);
         dialog_cur_67 = 1;
         return -1;
@@ -2232,11 +2259,11 @@ static void PoBgDraw(void)
     xglPacketTextureTrans((void *)POKER_TABLE1_TEX_BUFFER);
     SetRegAD(Pkt, 0x3F, 0);
     SetDrawStatus(3, 0);
-    MakeSprite(tex_68, rect_69);
+    MakeSprite(&tex_68, &rect_69);
 }
 
 extern void *CardBuf_70[4];
-extern unsigned int CardTex[15][7];
+extern struct SpriteTex CardTex[15];
 extern struct SpriteRect CardPos[5];
 extern struct PoCardRange { int lo; int hi; } range_71[4];
 
@@ -2258,7 +2285,7 @@ static void PoCardDraw(void)
         for (slot = 0; slot < 5; slot++) {
             int card = Gwork.poker_deal.cards.hand[slot];
             if (card >= range_71[suit].lo && card <= range_71[suit].hi) {
-                MakeSprite(CardTex[card - base], &CardPos[slot]);
+                MakeSprite(&CardTex[card - base], &CardPos[slot]);
             }
         }
         base += 13;
@@ -2268,7 +2295,7 @@ static void PoCardDraw(void)
 extern struct SpriteRect D_00A0DCA8[5];
 extern int D_00A0DCF8;
 extern int status_73;
-extern unsigned int tex_72[7];
+extern struct SpriteTex tex_72;
 
 /* ov11:0x00a04f60. Poker deal animation for all five cards at once, driven
  * by status_73. State 0 copies each card's slot rect and moves it up and
@@ -2295,7 +2322,7 @@ static int PoCardDrawAnime(void)
     case 1:
         arrived = 0;
         for (i = 0; i < 5; i++) {
-            MakeSprite(tex_72, &D_00A0DCA8[i]);
+            MakeSprite(&tex_72, &D_00A0DCA8[i]);
             if (D_00A0DCA8[i].y == 5) {
                 RES_SoundEffect(0x36);
             }
@@ -2312,7 +2339,7 @@ static int PoCardDrawAnime(void)
         return 0;
     case 2:
         for (i = 0; i < 5; i++) {
-            MakeSprite(tex_72, &D_00A0DCA8[i]);
+            MakeSprite(&tex_72, &D_00A0DCA8[i]);
         }
         if (--D_00A0DCF8 == 0) {
             status_73 = 0;
@@ -2327,7 +2354,7 @@ static int PoCardDrawAnime(void)
 extern struct SpriteRect D_00A0DD00;
 extern int D_00A0DD10;
 extern int status_77;
-extern unsigned int tex_76[7];
+extern struct SpriteTex tex_76;
 
 /* ov11:0x00a05180. Poker bonus card animation, one step per call, driven
  * by status_77 and the card index in Gwork.poker_deal.bonus_round. State 0 starts a card
@@ -2352,7 +2379,7 @@ static int PoBonusCardAnime(void)
         D_00A0DD00.y -= 0xA0;
         /* fall through */
     case 1:
-        MakeSprite(tex_76, &D_00A0DD00);
+        MakeSprite(&tex_76, &D_00A0DD00);
         D_00A0DD00.y += 0x20;
         if (D_00A0DD00.y == 5) {
             RES_SoundEffect(0x3D);
@@ -2363,7 +2390,7 @@ static int PoBonusCardAnime(void)
         }
         return 0;
     case 2:
-        MakeSprite(tex_76, &D_00A0DD00);
+        MakeSprite(&tex_76, &D_00A0DD00);
         blank = 0x35;
         if (--D_00A0DD10 == 0) {
             status_77 = 0;
@@ -2381,18 +2408,18 @@ static int PoBonusCardAnime(void)
 
 static void PoRateTableDraw(void)
 {
-    MakeSprite(tex_80, rect_81);
+    MakeSprite(&tex_80, &rect_81);
 }
 
 extern int cnt_82;
 extern int add_83;
 extern int rate_84;
-extern unsigned int tex_85[7];
-extern unsigned int rect_86[4];
-extern unsigned int MarkerTex_87[7];
-extern unsigned int MarkerPos_88[5][4];
-extern unsigned int PtrTex_89[7];
-extern unsigned int PtrPos_90[4][4];
+extern struct SpriteTex tex_85;
+extern struct SpriteRect rect_86;
+extern struct SpriteTex MarkerTex_87;
+extern struct SpriteRect MarkerPos_88[5];
+extern struct SpriteTex PtrTex_89;
+extern struct SpriteRect PtrPos_90[4];
 
 /* ov11:0x00a05380. Poker bonus-round background: draws the background
  * sprite, then pulses rate_84 up and down by 8 over a 16-frame cycle
@@ -2406,7 +2433,7 @@ static void PoBonusBGDraw(void)
 
     xglPacketTextureTrans((void *)POKER_TABLE2_TEX_BUFFER);
     SetRegAD(Pkt, 0x3F, 0);
-    MakeSprite(tex_85, rect_86);
+    MakeSprite(&tex_85, &rect_86);
     if (cnt_82 < 8) {
         add_83 = 8;
     } else {
@@ -2419,7 +2446,7 @@ static void PoBonusBGDraw(void)
     rate_84 = rate_84 + add_83;
     SetDrawStatus(6, 0x40);
     for (i = 0; i < Gwork.poker_deal.bonus_round; i++) {
-        MakeSprite(MarkerTex_87, MarkerPos_88[i]);
+        MakeSprite(&MarkerTex_87, &MarkerPos_88[i]);
     }
     for (i = 0; i < Gwork.poker_deal.bonus_round && i != 5; i++) {
         if (i == Gwork.poker_deal.bonus_round - 1) {
@@ -2427,7 +2454,7 @@ static void PoBonusBGDraw(void)
         } else {
             SetDrawStatus(6, 0x30);
         }
-        MakeSprite(PtrTex_89, PtrPos_90[i]);
+        MakeSprite(&PtrTex_89, &PtrPos_90[i]);
     }
 }
 
@@ -2449,8 +2476,8 @@ static void PoResetCard(void)
 static int PoShuffleCard(void);
 INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", PoShuffleCard);
 
-extern unsigned int PoSelecterTex[2][7];
-extern unsigned int PoSelecterPos[6][4];
+extern struct SpriteTex PoSelecterTex[2];
+extern struct SpriteRect PoSelecterPos[6];
 
 /* ov11:0x00a05758. Poker: draws the five selection marks, texture picked
  * from replace_selected[], then one fixed sprite. 0x013CF800 is the buffer
@@ -2463,9 +2490,9 @@ static void PoSelectMarkDraw(void)
     SetRegAD(Pkt, 0x3F, 0);
     SetDrawStatus(1, 0);
     for (i = 0; i < 5; i++) {
-        MakeSprite(PoSelecterTex[Gwork.poker_deal.replace_selected[i]], PoSelecterPos[i]);
+        MakeSprite(&PoSelecterTex[Gwork.poker_deal.replace_selected[i]], &PoSelecterPos[i]);
     }
-    MakeSprite(PoSelecterTex[1], PoSelecterPos[5]);
+    MakeSprite(&PoSelecterTex[1], &PoSelecterPos[5]);
 }
 
 static int PoKey(void);
@@ -2984,28 +3011,25 @@ defaultSound:
 static void PoResultLamp(int category)
 {
     SetDrawStatus(0, 0);
-    MakeSprite(tex_98, result_rect_97[category]);
+    MakeSprite(&tex_98, &result_rect_97[category]);
     SetDrawStatus(3, 0);
 }
 
-/* ov11:0x00a06308. Stores the caller-supplied poker sequence state in the
- * global sequence word. */
-extern int D_00A0DEA8;
-
+/* ov11:0x00a06308. Sets the poker sequence state (an enum PokerSeq
+ * value). */
 static void PoSeqChange(int sequenceState)
 {
-    D_00A0DEA8 = sequenceState;
+    Gwork.poker_deal.seq = sequenceState;
 }
 
 /* ov11:0x00a06318. Looks up the currently selected bet level's ready
  * message and message-box width from two fixed four-entry tables and
- * forwards both to the message window renderer. D_00A0DD2C is the level
- * index level_select stores (0..3); the four strings are the "Play N
+ * forwards both to the message window renderer. Gwork.modes.level is the
+ * level index level_select stores (0..3); the four strings are the "Play N
  * coins" prompts for the four bet levels. The compiled form copies each
  * table onto the stack as a 16-byte aggregate before indexing it, which is
  * why each table is typed as a one-member array struct rather than a bare
- * array (a bare array cannot be copied by value in C). PoWindowMessage is
- * a LOCAL asm sibling. */
+ * array (a bare array cannot be copied by value in C). */
 typedef struct {
     const char *text[4];
 } PokerReadyMessageTable;
@@ -3014,8 +3038,6 @@ typedef struct {
     int width[4];
 } PokerReadyWidthTable;
 
-static void PoWindowMessage(const char *message, int width);
-extern int D_00A0DD2C;
 extern const char D_00A0C130[];
 extern const char D_00A0C150[];
 extern const char D_00A0C170[];
@@ -3028,7 +3050,7 @@ static void PokerReadyMes(void)
     PokerReadyMessageTable readyMessage = D_00A0C1B8;
     PokerReadyWidthTable readyWidth = D_00A0C1C8;
 
-    PoWindowMessage(readyMessage.text[D_00A0DD2C], readyWidth.width[D_00A0DD2C]);
+    PoWindowMessage(readyMessage.text[Gwork.modes.level], readyWidth.width[Gwork.modes.level]);
 }
 
 const PokerReadyMessageTable D_00A0C1B8 = {{
@@ -3044,43 +3066,47 @@ extern const char D_00A0C1F8[];
 extern const char D_00A0C208[];
 
 /* ov11:0x00a063a0. Poker main loop, one call per frame, switching on
- * Gwork.poker_deal.seq (jump table jtbl_00A0C220):
- *   0: if the coin balance is below the level's stake (PokerCoinRate) go to
- *      1, else show the play dialog; play goes to 2, anything else back to
- *      the casino menu. 1: D_00A0C1D8 message, any button leaves.
- *   2: move the stake from the balance into the pot, 1, 5 or 10 coins per
- *      frame. 3-7: deal (PoCardDrawAnime), PoShuffleCard, choose cards
- *      (PoKey), PoCardFlip and PoShuffleCard again, then score the hand
- *      (PoCardCheck; a win multiplies the pot by PokerRate).
- *   8: D_00A0C1F8 dialog. 9/11: D_00A0C208 dialog; yes starts the bonus
- *      game (12), no pays out (18).
- *   12-17: bonus game. Each round deals a card and compares its value with
- *      the previous card against the guess from the dialog in 17 (a tie
- *      also wins). A win doubles the pot and five wins end the game; a
- *      loss clears the pot (16 waits for button 0x20).
- *   18: pay the pot out, a step per frame by level (1, 5, 10, 100) or all
- *      at once with button 0x20.
- * Not sure what sets state 8 or what the dialog texts say. coins is kept
- * apart from step: one shared variable allocates state 18 differently. */
+ * Gwork.poker_deal.seq (enum PokerSeq; jump table jtbl_00A0C220):
+ *   READY: if the coin balance is below the level's stake (PokerCoinRate)
+ *      go to NO_COINS, else show the "Play N coins" dialog; yes goes to
+ *      BET, anything else back to the casino menu. NO_COINS: "There are no
+ *      more coins.", any button leaves.
+ *   BET: move the stake from the balance into the pot, 1, 5 or 10 coins
+ *      per frame. DEAL to SCORE: deal (PoCardDrawAnime), fill the hand
+ *      (PoShuffleCard), choose cards (PoKey), PoCardFlip and PoShuffleCard
+ *      again, then score the hand (PoCardCheck; a win multiplies the pot by
+ *      PokerRate).
+ *   CONTINUE: "Continue game?". WIN/DOUBLE_UP: "Double or nothing?"; yes
+ *      starts the bonus game, no pays out.
+ *   BONUS_*: the bonus game deals five cards one at a time. The first card
+ *      is only revealed; each later one is compared with the card before it
+ *      against the guess from BONUS_GUESS (a tie also wins). Each of the
+ *      four comparisons doubles the pot when the guess is right, and after
+ *      the fifth card the pot is paid out; a wrong guess clears the pot
+ *      (BONUS_LOST waits for circle).
+ *   PAYOUT: pay the pot out, a step per frame by level (1, 5, 10, 100) or
+ *      all at once with circle.
+ * Not sure what enters CONTINUE (nothing in OV11 does). coins is kept apart
+ * from step: one shared variable allocates PAYOUT differently. */
 static void PokerMain(void)
 {
     int sel;
     int step;
     int coins;
     int i;
-    int a;
-    int b;
+    int previous_rank;
+    int current_rank;
 
     Pkt = xglPacketGetCurrent();
     PoBgDraw();
     xglPacketTextureTrans((void *)POKER_TABLE2_TEX_BUFFER);
     SetRegAD(Pkt, 0x3F, 0);
     switch (Gwork.poker_deal.seq) {
-    case 0:
+    case POKER_SEQ_READY:
         Gwork.poker_deal.rates_hidden = 0;
         Gwork.poker_deal.in_round = 0;
         if (((struct CasinoSaveWork *)SaveWork)->coin_balance < PokerCoinRate[Gwork.poker_deal.level]) {
-            PoSeqChange(1);
+            PoSeqChange(POKER_SEQ_NO_COINS);
             break;
         }
         PokerReadyMes();
@@ -3093,7 +3119,7 @@ static void PokerMain(void)
         }
         if (sel == 1) {
             init_99 = sel;
-            PoSeqChange(2);
+            PoSeqChange(POKER_SEQ_BET);
             Gwork.poker_deal.pot = 0;
             PoResetCard();
             break;
@@ -3102,7 +3128,7 @@ static void PokerMain(void)
         init_99 = 0;
         RES_SoundEffect(0x35);
         break;
-    case 1:
+    case POKER_SEQ_NO_COINS:
         if (init_99 != 0) {
             PoCardDraw();
             xglPacketTextureTrans((void *)POKER_TABLE2_TEX_BUFFER);
@@ -3115,10 +3141,10 @@ static void PokerMain(void)
             RES_SoundEffect(0x35);
         }
         break;
-    case 2:
+    case POKER_SEQ_BET:
         if (Gwork.poker_deal.pot == PokerCoinRate[Gwork.poker_deal.level]) {
             Gwork.poker_deal.in_round = 1;
-            PoSeqChange(3);
+            PoSeqChange(POKER_SEQ_DEAL);
             break;
         }
         switch (Gwork.poker_deal.level) {
@@ -3135,52 +3161,52 @@ static void PokerMain(void)
         ((struct CasinoSaveWork *)SaveWork)->coin_balance -= step;
         Gwork.poker_deal.pot += step;
         break;
-    case 3:
+    case POKER_SEQ_DEAL:
         Gwork.poker_deal.rates_hidden = 0;
         if (PoCardDrawAnime() != 0) {
-            PoSeqChange(4);
+            PoSeqChange(POKER_SEQ_DRAW_HAND);
         }
         break;
-    case 4:
+    case POKER_SEQ_DRAW_HAND:
         if (PoShuffleCard() == 1) {
             for (i = 0; i < 5; i++) {
                 Gwork.poker_deal.replace_selected[i] = 1;
             }
-            PoSeqChange(5);
+            PoSeqChange(POKER_SEQ_SELECT);
         }
         PoCardDraw();
         break;
-    case 5:
+    case POKER_SEQ_SELECT:
         PoCardDraw();
         PoSelectMarkDraw();
         if (PoKey() == 1) {
-            PoSeqChange(6);
+            PoSeqChange(POKER_SEQ_REPLACE);
             PoCardFlip();
         }
         break;
-    case 6:
+    case POKER_SEQ_REPLACE:
         if (PoShuffleCard() == 1) {
-            PoSeqChange(7);
+            PoSeqChange(POKER_SEQ_SCORE);
         }
         PoCardDraw();
         break;
-    case 7:
+    case POKER_SEQ_SCORE:
         Gwork.poker_deal.hand_rank = PoCardCheck();
         if (Gwork.poker_deal.hand_rank > 0) {
             Gwork.poker_deal.pot *= PokerRate[Gwork.poker_deal.hand_rank];
-            PoSeqChange(9);
+            PoSeqChange(POKER_SEQ_WIN);
         } else {
-            PoSeqChange(0);
+            PoSeqChange(POKER_SEQ_READY);
         }
         PoCardDraw();
         break;
-    case 8:
+    case POKER_SEQ_CONTINUE:
         Gwork.poker_deal.rates_hidden = 1;
         PoWindowMessage(D_00A0C1F8, 10);
         sel = PoDialog(0);
         if (sel != 0) {
             if (sel == 1) {
-                PoSeqChange(3);
+                PoSeqChange(POKER_SEQ_DEAL);
                 PoResetCard();
                 break;
             }
@@ -3189,9 +3215,10 @@ static void PokerMain(void)
         }
         PoCardDraw();
         break;
-    case 9:
-        PoSeqChange(11);
-    case 11:
+    case POKER_SEQ_WIN:
+        PoSeqChange(POKER_SEQ_DOUBLE_UP);
+        /* fall through */
+    case POKER_SEQ_DOUBLE_UP:
         Gwork.poker_deal.bonus_round = 0;
         Gwork.poker_deal.rates_hidden = 1;
         PoRateTableDraw();
@@ -3200,77 +3227,79 @@ static void PokerMain(void)
         sel = PoDialog(0);
         if (sel != 0) {
             if (sel == 1) {
-                PoSeqChange(12);
+                PoSeqChange(POKER_SEQ_BONUS_START);
                 break;
             }
             RES_SoundEffect(0x3B);
-            PoSeqChange(18);
+            PoSeqChange(POKER_SEQ_PAYOUT);
         }
         PoCardDraw();
         break;
-    case 12:
+    case POKER_SEQ_BONUS_START:
         PoResetCard();
         for (i = 0; i < 5; i++) {
             Gwork.poker_deal.cards.hand[i] = 0x36;
             Gwork.poker_deal.replace_selected[i] = 0;
         }
-        PoSeqChange(13);
-    case 13:
+        PoSeqChange(POKER_SEQ_BONUS_DEAL);
+        /* fall through */
+    case POKER_SEQ_BONUS_DEAL:
         if (PoBonusCardAnime() == 1) {
-            PoSeqChange(14);
+            PoSeqChange(POKER_SEQ_BONUS_DRAW);
         }
         PoCardDraw();
         PoBonusBGDraw();
         break;
-    case 14:
+    case POKER_SEQ_BONUS_DRAW:
         if (PoShuffleCard() == 1) {
-            PoSeqChange(15);
+            PoSeqChange(POKER_SEQ_BONUS_JUDGE);
         }
         PoBonusBGDraw();
         PoCardDraw();
         break;
-    case 15:
+    case POKER_SEQ_BONUS_JUDGE:
         if (Gwork.poker_deal.bonus_round == 0) {
             Gwork.poker_deal.bonus_round = 1;
-            PoSeqChange(17);
+            PoSeqChange(POKER_SEQ_BONUS_GUESS);
         } else {
-            a = Gwork.poker_deal.cards.hand[Gwork.poker_deal.bonus_round - 1];
-            a -= PoGetBase(PoGetMark(a));
-            b = Gwork.poker_deal.cards.hand[Gwork.poker_deal.bonus_round];
-            b -= PoGetBase(PoGetMark(b));
-            if ((b < a) == Gwork.poker_deal.guess || a == b) {
+            previous_rank = Gwork.poker_deal.cards.hand[Gwork.poker_deal.bonus_round - 1];
+            previous_rank -= PoGetBase(PoGetMark(previous_rank));
+            current_rank = Gwork.poker_deal.cards.hand[Gwork.poker_deal.bonus_round];
+            current_rank -= PoGetBase(PoGetMark(current_rank));
+            if ((current_rank < previous_rank) == Gwork.poker_deal.guess
+                || previous_rank == current_rank) {
                 RES_SoundEffect(0x38);
                 Gwork.poker_deal.bonus_round++;
                 Gwork.poker_deal.pot *= 2;
                 if (Gwork.poker_deal.bonus_round != 5) {
-                    PoSeqChange(17);
+                    PoSeqChange(POKER_SEQ_BONUS_GUESS);
                 } else {
-                    PoSeqChange(18);
+                    PoSeqChange(POKER_SEQ_PAYOUT);
                 }
             } else {
                 Gwork.poker_deal.bonus_round = 0;
                 Gwork.poker_deal.pot = 0;
                 RES_SoundEffect(0x3A);
-                PoSeqChange(16);
+                PoSeqChange(POKER_SEQ_BONUS_LOST);
             }
         }
         PoBonusBGDraw();
         PoCardDraw();
         break;
-    case 16:
+    case POKER_SEQ_BONUS_LOST:
         PoBonusBGDraw();
         PoCardDraw();
-        if (PadData.half_2a & 0x20) {
-            PoSeqChange(0);
+        if (PadData.half_2a & PAD_CIRCLE) {
+            PoSeqChange(POKER_SEQ_READY);
         }
         break;
-    case 17:
+    case POKER_SEQ_BONUS_GUESS:
         PoBonusBGDraw();
         PoCardDraw();
         sel = PoDialog(1);
         if (sel != 0) {
             if (sel == 3 || sel == -1) {
-                PoSeqChange(18);
+                PoSeqChange(POKER_SEQ_PAYOUT);
                 RES_SoundEffect(0x3B);
                 break;
             }
@@ -3279,10 +3308,10 @@ static void PokerMain(void)
             } else {
                 Gwork.poker_deal.guess = 1;
             }
-            PoSeqChange(13);
+            PoSeqChange(POKER_SEQ_BONUS_DEAL);
         }
         break;
-    case 18:
+    case POKER_SEQ_PAYOUT:
         if (Gwork.poker_deal.bonus_round != 0) {
             PoBonusBGDraw();
         } else {
@@ -3290,9 +3319,9 @@ static void PokerMain(void)
             PoResultLamp(Gwork.poker_deal.hand_rank - 1);
         }
         PoCardDraw();
-        if (PadData.half_2a & 0x20) {
+        if (PadData.half_2a & PAD_CIRCLE) {
             AddCoin(Gwork.poker_deal.pot);
-            PoSeqChange(0);
+            PoSeqChange(POKER_SEQ_READY);
             Gwork.poker_deal.in_round = 0;
             RES_SoundEffectStop(0x3B);
             break;
@@ -3322,7 +3351,7 @@ static void PokerMain(void)
         if (Gwork.poker_deal.pot == 0) {
             Gwork.poker_deal.in_round = 0;
             RES_SoundEffectStop(0x3B);
-            PoSeqChange(0);
+            PoSeqChange(POKER_SEQ_READY);
         }
         break;
     }
@@ -3339,18 +3368,17 @@ static void PokerMain(void)
     }
 }
 
-/* ov11:0x00a06c08. Resets five Gwork work-state words used by the poker
- * minigame: its only caller, GameModeChange, uses it to clear the main
- * sequence, display flags, bonus mode and bonus round index before a
- * poker session starts. Field identities beyond their byte offsets are
- * not separately evidenced. */
+/* ov11:0x00a06c08. Resets five poker words before a session (its only
+ * caller is GameModeChange): the sequence state, rates_hidden, bonus_mode,
+ * bonus_round, and the word at 0x180, which nothing else in the TU reads
+ * or writes. */
 static void PoInitWork(void)
 {
-    Gwork.words[96] = 0;
-    Gwork.words[97] = 0;
+    Gwork.words[0x180 / 4] = 0; /* poker word 0x180, role not sure */
+    Gwork.poker_deal.rates_hidden = 0;
     Gwork.poker_deal.bonus_mode = 0;
     Gwork.poker_deal.bonus_round = 0;
-    Gwork.words[98] = 0;
+    Gwork.poker_deal.seq = POKER_SEQ_READY;
 }
 
 /* ov11:0x00a06c28. Loads the six poker minigame textures (four suits plus
@@ -3424,68 +3452,66 @@ static void GameModeChange(int mode)
     Gwork.modes.game = mode;
 }
 
-/* ov11:0x00a06df0. Builds a fixed 0xB8x0x70 rect at the caller-supplied
- * (y, x) origin on the stack and draws the submenu window sprite into it;
- * this is the same {y, x, width, height} rect layout MakeSprite's other
- * (data-supplied) rect arguments use elsewhere in this TU. windowId itself
- * is not read here; level_select and exchange_select forward it on to
- * submenu_select right after calling sub_window. */
+/* ov11:0x00a06df0. Draws the submenu window sprite as a fixed 0xB8 x 0x70
+ * rectangle with its top-left corner at (x, y). windowId itself is not read
+ * here; level_select and exchange_select forward it on to submenu_select
+ * right after calling sub_window. */
 
-static void sub_window(int windowId, int y, int x)
+static void sub_window(int windowId, int x, int y)
 {
-    SubWindowRect rect;
+    struct SpriteRect rect;
 
     SetDrawStatus(1, 0);
-    rect.y = y;
     rect.x = x;
-    rect.width = 0xB8;
-    rect.height = 0x70;
-    MakeSprite(SubWindow_Tex, &rect);
+    rect.y = y;
+    rect.w = 0xB8;
+    rect.h = 0x70;
+    MakeSprite(&SubWindow_Tex, &rect);
 }
 
 extern int anm_100;
-extern unsigned int Cursor_Tex[8][7];
+extern struct SpriteTex Cursor_Tex[8];
 
 /* ov11:0x00a06e50. Draws a submenu and handles its input: the window
- * (sub_window), one icon per choice in a row starting at (y + 0x34, x +
- * 0xC), and an animated cursor (Cursor_Tex, 8 frames by anm_100) above the
- * selected icon. Up/down on the +0x2C pad word move *selected with
- * wraparound (sounds 5 and 6). Returns 1 when button 0x20 is pressed, else
- * 0. Not sure of the button names. */
-static int submenu_select(int windowId, int y, int x, int iconCount,
-                          void *icons, int *selected)
+ * (sub_window), one 0x48 x 0x10 icon per choice in a column at x + 0x34,
+ * starting at y + 0xC and 0x18 apart, and an animated 0x10 x 0x10 cursor
+ * (Cursor_Tex, 8 frames by anm_100) just left of the selected icon. Up and
+ * down on the auto-repeat pad word move *selected with wraparound (sounds 5
+ * and 6). Returns 1 when circle is pressed, else 0. */
+static int submenu_select(int windowId, int x, int y, int iconCount,
+                          const struct SpriteTex *icons, int *selected)
 {
-    SubWindowRect rect;
-    SubWindowRect cursor;
-    unsigned int (*icon)[7];
-    int cursor_x;
+    struct SpriteRect rect;
+    struct SpriteRect cursor;
+    const struct SpriteTex *icon;
+    int cursor_y;
     int i;
 
-    sub_window(windowId, y, x);
+    sub_window(windowId, x, y);
     SetDrawStatus(1, 0);
-    cursor_x = 0;
-    rect.y = y + 0x34;
-    rect.width = 0x48;
-    rect.height = 0x10;
+    cursor_y = 0;
+    rect.x = x + 0x34;
+    rect.w = 0x48;
+    rect.h = 0x10;
     icon = icons;
     for (i = 0; i < iconCount; i++) {
-        rect.x = x + 0xC + i * 0x18;
+        rect.y = y + 0xC + i * 0x18;
         if (i == *selected) {
-            cursor_x = rect.x;
+            cursor_y = rect.y;
         }
-        MakeSprite(icon[i], &rect);
+        MakeSprite(&icon[i], &rect);
     }
-    cursor.y = rect.y - 0x10;
-    cursor.x = cursor_x;
-    cursor.height = 0x10;
-    cursor.width = 0x10;
-    MakeSprite(Cursor_Tex[anm_100 % 8], &cursor);
+    cursor.x = rect.x - 0x10;
+    cursor.y = cursor_y;
+    cursor.h = 0x10;
+    cursor.w = 0x10;
+    MakeSprite(&Cursor_Tex[anm_100 % 8], &cursor);
     anm_100++;
-    if (CASINO_PAD->wide.buttons & 0x1000) {
+    if (CASINO_PAD->wide.repeat & PAD_UP) {
         (*selected)--;
         RES_SoundEffect(5);
     }
-    if (CASINO_PAD->wide.buttons & 0x4000) {
+    if (CASINO_PAD->wide.repeat & PAD_DOWN) {
         (*selected)++;
         RES_SoundEffect(6);
     }
@@ -3495,42 +3521,32 @@ static int submenu_select(int windowId, int y, int x, int iconCount,
     if (*selected < 0) {
         *selected = iconCount - 1;
     }
-    if (PadData.half_2a & 0x20) {
+    if (PadData.half_2a & PAD_CIRCLE) {
         return 1;
     }
     return 0;
 }
 
 /* ov11:0x00a07000. Draws a four-choice submenu bound to the shared game
- * level selection. sub_window's own body (asm/nonmatchings/ov11/mini_g/
- * sub_window.s) overwrites its first argument before using it, so windowId
- * only reaches submenu_select; y and x are the row/column submenu_select
- * stores for the first icon (offset there by 0x34 and 0xC before laying the
- * remaining icons out, per its and exchange_select's own disassembly).
- * level_select's own tail call (`j submenu_select`) is why its return value
- * is submenu_select's, and menu_mode branches on it (`beqz $2` right after
+ * level selection, with the window's top-left corner at (x, y). sub_window
+ * does not read windowId, so it only reaches submenu_select. level_select's
+ * own tail call (`j submenu_select`) is why its return value is
+ * submenu_select's, and menu_mode branches on it (`beqz $2` right after
  * `jal level_select`). */
-static void sub_window(int windowId, int y, int x);
-static int submenu_select(int windowId, int y, int x, int iconCount,
-                          void *icons, int *selected);
-extern int D_00A0DD2C;
-
-static int level_select(int windowId, int y, int x)
+static int level_select(int windowId, int x, int y)
 {
-    sub_window(windowId, y, x);
-    return submenu_select(windowId, y, x, 4, Level_Tex, &D_00A0DD2C);
+    sub_window(windowId, x, y);
+    return submenu_select(windowId, x, y, 4, Level_Tex, &Gwork.modes.level);
 }
 
 /* ov11:0x00a07060. Draws a three-choice submenu bound to the shared exchange
  * mode selection, the same sub_window()+submenu_select() shape level_select
  * uses above; exchange_select's own tail call (`j submenu_select`) is why its
  * return value is submenu_select's. */
-extern int D_00A0DD24;
-
-static int exchange_select(int windowId, int y, int x)
+static int exchange_select(int windowId, int x, int y)
 {
-    sub_window(windowId, y, x);
-    return submenu_select(windowId, y, x, 3, ExChange_Tex, &D_00A0DD24);
+    sub_window(windowId, x, y);
+    return submenu_select(windowId, x, y, 3, ExChange_Tex, &Gwork.modes.exchange_choice);
 }
 
 INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", menu_mode);
@@ -3581,17 +3597,17 @@ static void test_mode(void)
     xglPacketTextureTrans((void *)TEST_MODE_BASE_TEX_BUFFER);
     SetRegAD(Pkt, 0x3F, 0);
     SetDrawStatus(3, 0);
-    MakeSprite(BGTEST_Tex, BGTEST_Rect);
+    MakeSprite(&BGTEST_Tex, &BGTEST_Rect);
 }
 
 INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", DecPrint2);
 
 /* Wave 14: new C order hwxy; unverified, no inline assembly. */
-extern unsigned int Tex_106[56];
+extern struct SpriteTex Tex_106[8];
 extern int anm_107;
 static void UtlCurPrint(int x, int y)
 {
-    struct W14Rect { int x, y, w, h; } rect;
+    struct SpriteRect rect;
     int n;
     xglPacketTextureTrans((void *)MENU_WINDOW_TEX_BUFFER);
     SetRegAD(Pkt, 0x3F, 0);
@@ -3600,15 +3616,15 @@ static void UtlCurPrint(int x, int y)
     rect.x = x;
     rect.y = y;
     n = anm_107;
-    MakeSprite(Tex_106 + 7 * (n % 8), &rect);
+    MakeSprite(&Tex_106[n % 8], &rect);
     anm_107 = anm_107 + 1;
 }
 
 
 #define COIN_EXCHANGE_TEX_BUFFER 0x011CB800
 
-extern unsigned int BG_Tex[7];
-extern unsigned int BG_Rect[4];
+extern struct SpriteTex BG_Tex;
+extern struct SpriteRect BG_Rect;
 extern int cur_108;
 extern const struct CoinCursorPos { short x; short y; } curpt_109[5];
 extern int dataMoneyBoxChk(void);
@@ -3624,12 +3640,12 @@ extern const char D_00A0C388[];
 
 /* ov11:0x00a077a0. Coin-exchange screen, one frame per call. Draws the
  * background, the price list (RES_Coin_Info) and labels, moves the cursor
- * (cur_108, five rows) with up/down on the +0x2C pad word, and on confirm
- * (pad bits tested together as one doubleword) trades one money box for
- * 10, 100, 500 or 1000 coins on rows 0-3. If the balance is already
- * 9999999 or more, the box is put back. The last row, or button 0x40,
+ * (cur_108, five rows) with up/down on the auto-repeat word, and when
+ * circle is pressed or R1 repeats (one doubleword test) it trades one money
+ * box for 10, 100, 500 or 1000 coins on rows 0-3. If the balance is already
+ * 9999999 or more, the box is put back. Circle on the last row, or cross,
  * leaves to the menu. Then it draws the cursor and the money-box and coin
- * totals. Not sure of the button names. */
+ * totals. */
 static void coin_main(void)
 {
     int leave;
@@ -3638,7 +3654,7 @@ static void coin_main(void)
     xglPacketTextureTrans((void *)COIN_EXCHANGE_TEX_BUFFER);
     SetRegAD(Pkt, 0x3F, 0);
     SetDrawStatus(3, 0);
-    MakeSprite(BG_Tex, BG_Rect);
+    MakeSprite(&BG_Tex, &BG_Rect);
     xglFontPrint(0, 0, 0xFF00, D_00A0C350);
     xglFontPrint(0xD2, 0x20, 0xFF00, D_00A0C358);
     xglFontPrint(0, 0, 0xFF00, D_00A0C368);
@@ -3650,11 +3666,11 @@ static void coin_main(void)
     xglFontPrint(0, 0, 0, D_00A0C378);
     xglFontPrint(0x19A, 0xD0, 0xFF00, D_00A0C380);
     xglFontPrint(0, 0, 0xFF00, D_00A0C388);
-    if (CASINO_PAD->wide.buttons & 0x1000) {
+    if (CASINO_PAD->wide.repeat & PAD_UP) {
         RES_SoundEffect(0xE);
         cur_108--;
     }
-    if (CASINO_PAD->wide.buttons & 0x4000) {
+    if (CASINO_PAD->wide.repeat & PAD_DOWN) {
         RES_SoundEffect(0xF);
         cur_108++;
     }
@@ -3665,10 +3681,10 @@ static void coin_main(void)
         cur_108 = 0;
     }
     leave = 0;
-    if (PadData.half_2a & 0x40) {
+    if (PadData.half_2a & PAD_CROSS) {
         leave = 1;
     }
-    if (CASINO_PAD->dword.buttons & 0x800200000ULL) {
+    if (CASINO_PAD->dword.words & (PAD_WORDS_PRESSED(PAD_CIRCLE) | PAD_WORDS_REPEAT(PAD_R1))) {
         switch (cur_108) {
         case 0:
             if (dataMoneyBoxDec(RES_Coin_Rate(0)) == 1) {
@@ -3715,7 +3731,7 @@ static void coin_main(void)
             RES_SoundEffect(0x11);
             break;
         default:
-            if (PadData.half_2a & 0x20) {
+            if (PadData.half_2a & PAD_CIRCLE) {
                 leave = 1;
             }
             break;
@@ -3812,8 +3828,6 @@ extern int xglSoundSendSwd(void *swd, int bank);
 extern void xglSoundSequenceNormal(int volume);
 extern int SsdSpuDmaCompleted(int wait);
 extern int sprintf(char *buffer, const char *format, ...);
-extern char fileinfo[30];
-extern int old_113;
 extern const char D_00A0C5C8[];
 extern const char D_00A0C5D8[];
 extern const char D_00A0C5E8[];
@@ -3821,6 +3835,8 @@ extern const char D_00A0C5F8[];
 extern const char D_00A0C608[];
 extern const char D_00A0C618[];
 extern const char D_00A0C628[];
+extern char fileinfo[30];
+extern int old_113;
 
 /* Viewer image pages: VW_ViewModeInit loads NN_Y1/Y2.xtx into the first
  * two and NN_W1..W4.xtx into all four. */
@@ -3867,9 +3883,9 @@ INCLUDE_ASM("asm/nonmatchings/ov11/mini_g", VW_ViewMode);
 
 extern const char *Cajino_GetTitle(int sample);
 extern const char *Cajino_GetInfo(int sample);
-extern unsigned int back_tex_118[7];
-extern unsigned int ViewSamTex[30][7];
-extern unsigned int sam_rect_117[4];
+extern struct SpriteTex back_tex_118;
+extern struct SpriteTex ViewSamTex[30];
+extern struct SpriteRect sam_rect_117;
 extern int cur_119;
 extern int ofs_120;
 extern int init_121;
@@ -3884,7 +3900,8 @@ extern const char D_00A0C650[];
  * scroll offset and returns 0. Otherwise it builds the list of enabled
  * samples once (VW_SamlistInit), draws the background and up to eight
  * titles from the scroll offset, the cursor, and moves the cursor or
- * scroll offset with up/down (sounds 0x18 and 0x19). If the list is not
+ * scroll offset with up/down on the auto-repeat word (sounds 0x18 and
+ * 0x19). If the list is not
  * empty it prints the selected sample's title and info and draws its
  * picture, returning the sample id; otherwise it returns -1. Not sure what
  * the font control strings select. */
@@ -3905,7 +3922,7 @@ static int VW_SamMode(int arg)
     xglPacketTextureTrans((void *)VW_DATAVIEWER_TEX_BUFFER);
     SetRegAD(Pkt, 0x3F, 0);
     SetDrawStatus(3, 0);
-    MakeSprite(back_tex_118, BG_Rect);
+    MakeSprite(&back_tex_118, &BG_Rect);
     y = 0x14;
     for (i = 0; i < D_00A0DD14; i++) {
         if (i >= ofs_120 && i <= ofs_120 + 7) {
@@ -3918,7 +3935,7 @@ static int VW_SamMode(int arg)
     if (D_00A0DD14 > 0) {
         xglFontPrint(0x140, cur_119 * 24 + 0x2E, 0xFF00, D_00A0C638);
     }
-    if (CASINO_PAD->wide.buttons & 0x1000) {
+    if (CASINO_PAD->wide.repeat & PAD_UP) {
         RES_SoundEffect(0x18);
         if (cur_119 != 0) {
             cur_119--;
@@ -3926,7 +3943,7 @@ static int VW_SamMode(int arg)
             ofs_120--;
         }
     }
-    if (CASINO_PAD->wide.buttons & 0x4000) {
+    if (CASINO_PAD->wide.repeat & PAD_DOWN) {
         RES_SoundEffect(0x19);
         if (cur_119 == 7) {
             if (ofs_120 + cur_119 < D_00A0DD14 - 1) {
@@ -3946,7 +3963,7 @@ static int VW_SamMode(int arg)
         xglFontPrint(0x46, 0x118, 0xFF00, Cajino_GetInfo(sample));
         xglPacketTextureTrans((void *)VW_SAM_TEX_BUFFER);
         SetRegAD(Pkt, 0x3F, 0);
-        MakeSprite(ViewSamTex[sample], sam_rect_117);
+        MakeSprite(&ViewSamTex[sample], &sam_rect_117);
     }
     return sample;
 }
@@ -3956,8 +3973,8 @@ extern int D_00A0DD18;
 static int VW_ViewMode(int arg);
 
 /* ov11:0x00a08ce0. View mode main: switches between VW_ViewMode and
- * VW_SamMode on mode_123; pad bit 0x10 enters the sam list and 0x40 leaves
- * it (calls GameModeChange(CASINO_MENU)). Not sure of the button names. */
+ * VW_SamMode on mode_123; triangle enters the sample list and cross leaves
+ * it (calls GameModeChange(CASINO_MENU)). */
 static void VW_Main(void)
 {
     int result;
@@ -3973,12 +3990,12 @@ static void VW_Main(void)
     result = VW_SamMode(1);
     D_00A0DD18 = result;
     if (result != -1) {
-        if (PadData.half_2a & 0x10) {
+        if (PadData.half_2a & PAD_TRIANGLE) {
             RES_SoundEffect(0x1A);
             mode_123 = 1;
         }
     }
-    if (PadData.half_2a & 0x40) {
+    if (PadData.half_2a & PAD_CROSS) {
         VW_SamMode(0);
         GameModeChange(CASINO_MENU);
         RES_SoundEffect(0x1B);

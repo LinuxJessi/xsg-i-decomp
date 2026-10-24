@@ -19,22 +19,54 @@ struct SpriteRect {
     int h;
 };
 
-/* Sprite descriptor read by MakeSprite: texture position and size, two
- * texture-setup words and a mode. */
+/* Texture descriptor read by MakeSprite (28 bytes, the casino's sprite
+ * tables): the source rectangle in the texture, two GS buffer addresses and
+ * the texture format. Both addresses are in GS 64-word blocks, relative to
+ * block 0x3800: MakeSprite adds 0x3800 before placing them in TEX0. */
 struct SpriteTex {
     int u;
     int v;
     int w;
     int h;
-    int setup0;
-    int setup1;
-    int mode;
+    /* TBP0 (texture base) for format 1. The other formats ignore it and use
+     * block 0x3800 itself. */
+    int texture_base;
+    /* CBP (CLUT base), placed at bit 37 of TEX0 for every format. */
+    int clut_base;
+    /* Picks the rest of the TEX0 word. Decoded from MakeSprite's constants
+     * (if I have the GS register layout right): 1 = 4-bit 512x512 at
+     * texture_base, 2 = 8-bit 256x256, 3 = 4-bit 1024x1024, anything else =
+     * 8-bit 512x512. Formats 1 and 3 also double v. */
+    int format;
 };
 
 /* 0x10C in PokerDealWork: the deck (one flag per card) and the hand. */
 struct PokerCards {
     short used[53];
     short hand[5];
+};
+
+/* Poker sequence states (Gwork.poker_deal.seq), as PokerMain handles them.
+ * Nothing in OV11 sets 8 or 10. */
+enum PokerSeq {
+    POKER_SEQ_READY = 0,         /* stake check, "Play N coins" dialog */
+    POKER_SEQ_NO_COINS = 1,      /* "There are no more coins." */
+    POKER_SEQ_BET = 2,           /* move the stake into the pot */
+    POKER_SEQ_DEAL = 3,          /* deal animation (PoCardDrawAnime) */
+    POKER_SEQ_DRAW_HAND = 4,     /* fill the hand (PoShuffleCard) */
+    POKER_SEQ_SELECT = 5,        /* choose the cards to replace (PoKey) */
+    POKER_SEQ_REPLACE = 6,       /* replace them (PoShuffleCard) */
+    POKER_SEQ_SCORE = 7,         /* score the hand (PoCardCheck) */
+    POKER_SEQ_CONTINUE = 8,      /* "Continue game?" */
+    POKER_SEQ_WIN = 9,           /* goes straight on to 11 */
+    POKER_SEQ_DOUBLE_UP = 11,    /* "Double or nothing?" */
+    POKER_SEQ_BONUS_START = 12,  /* reset the hand (every card set to 0x36) */
+    POKER_SEQ_BONUS_DEAL = 13,   /* slide in the next card (PoBonusCardAnime) */
+    POKER_SEQ_BONUS_DRAW = 14,   /* give it a value (PoShuffleCard) */
+    POKER_SEQ_BONUS_JUDGE = 15,  /* compare it with the previous card */
+    POKER_SEQ_BONUS_LOST = 16,   /* wrong guess: wait for circle */
+    POKER_SEQ_BONUS_GUESS = 17,  /* three-choice dialog: guess or collect */
+    POKER_SEQ_PAYOUT = 18        /* pay the pot out */
 };
 
 struct PokerDealWork {
@@ -46,8 +78,8 @@ struct PokerDealWork {
     unsigned char unmodeled_180[0x4];
     /* 0x184: nonzero hides the rate table PokerMain draws every frame. */
     int rates_hidden;
-    /* 0x188: PokerMain's sequence state (PoSeqChange stores it; upstream
-     * code reaches it as D_00A0DEA8). */
+    /* 0x188: PokerMain's sequence state, an enum PokerSeq value (stored by
+     * PoSeqChange). */
     int seq;
     unsigned char unmodeled_18c[0x4];
     /* 0x190: set by PoCardFlip once all five cards have stayed selected
@@ -61,7 +93,8 @@ struct PokerDealWork {
     unsigned char unmodeled_1ac[0x4];
     /* 0x1B0: hand category from PoCardCheck (0 = no win). */
     int hand_rank;
-    /* 0x1B4: the bonus game's high/low guess (0 or 1). */
+    /* 0x1B4: the bonus game's guess: 0 = the next card is not lower than
+     * the previous one, 1 = it is lower (a tie wins either way). */
     int guess;
     /* 0x1B8: coins at stake: the bet, then the winnings. */
     int pot;
@@ -172,11 +205,14 @@ enum CasinoGame {
 
 /* Game selector and per-game "initialised" flags used by MiniG_Main. */
 struct MiniGModeWork {
-    unsigned char unmodeled_000[0x8];
+    unsigned char unmodeled_000[0x4];
+    /* 0x04: the row (0..2) exchange_select's three-choice submenu stores.
+     * Not sure what the three choices are. */
+    int exchange_choice;
     /* 0x08: the current game, an enum CasinoGame value. */
     int game;
-    /* 0x0C: the bet level level_select stores (0..3; upstream code reaches
-     * it as D_00A0DD2C). init_menu_mode and GameModeChange reset it. */
+    /* 0x0C: the bet level level_select stores (0..3). init_menu_mode and
+     * GameModeChange reset it. */
     int level;
     unsigned char unmodeled_010[0x230];
     short initialized[6];
@@ -199,15 +235,6 @@ struct SlReelPanel {
     int delay;
     int size;
 };
-
-/* Window rectangle of sub_window and submenu_select ({y, x, width,
- * height}). */
-typedef struct {
-    int y;
-    int x;
-    int width;
-    int height;
-} SubWindowRect;
 
 union CasinoWork {
     int words[148];
