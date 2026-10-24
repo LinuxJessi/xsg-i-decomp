@@ -866,6 +866,12 @@ def admission(cls, tu_class=None, *, unit=None, tu_id=None, function=None):
     if cls == 'ordinary':
         return match.ordinary_c
     if cls == 'hardware':
+        # User decision 2026-10-22: one COP1 load inside the original particle
+        # scale block, for this identity only. All other COP1 spelling and FPR
+        # clobbers keep the ordinary hardware refusal.
+        if (unit, tu_id, function) == ('main', 'main/tu211', 'sefCreateParticle'):
+            return (match.sef_particle_scale_native_ti_c if tu_class == 'native-ti'
+                    else match.sef_particle_scale_c)
         # User decision 2026-10-18: compose the existing MMI and COP2 guards
         # only for these two original NML identities, not for hardware generally.
         if (unit, tu_id, function) in {
@@ -1756,6 +1762,49 @@ def lookup_tu(tu_id, unit):
                 funcs = [f['name'] if isinstance(f, dict) else f for f in t.get('functions', [])]
                 return (int(text['start'], 16), int(text['end'], 16), funcs or None, 'config/tu-build.json', t)
         tried.append('config/tu-build.json')
+        # MAIN carries the original OV02 image as an embedded section.  Its
+        # link manifest names these aliases separately, while the canonical
+        # recovery map counts each OV02 TU only once.  Resolve the alias only
+        # when its complete original extent and compiler contract agree.
+        embedded = re.fullmatch(r'main/ov02-embedded/tu(\d+)', tu_id)
+        main_objects = ROOT / 'config/objects/main.objects.json'
+        if unit == 'main' and embedded and main_objects.is_file():
+            ordinal = int(embedded.group(1))
+            canonical_id = f'ov02/tu{ordinal:03d}'
+            records = objs if isinstance(objs, list) else objs.values()
+            canonical = next((t for t in records if t.get('id') == canonical_id), None)
+            aliases = json.loads(main_objects.read_text()).get('tus', [])
+            alias = next((t for t in aliases if t.get('id') == tu_id), None)
+            if canonical is None or alias is None:
+                raise AuditError(f'embedded TU {tu_id} lacks its canonical OV02 mapping')
+            if (alias.get('map_class') != 'ov02-embedded'
+                    or not alias.get('alias_of', '').startswith(f'ov02/tu{ordinal:02d} ')):
+                raise AuditError(f'embedded TU {tu_id} is not the declared OV02 alias')
+            for bound in ('start', 'end'):
+                if int(alias['text'][bound], 16) != int(canonical['text'][bound], 16):
+                    raise AuditError(f'embedded TU {tu_id} differs at text {bound}')
+            for field in ('flags', 'cc1_sha256', 'assembler_sha256'):
+                if alias['contract'].get(field) != canonical['contract'].get(field):
+                    raise AuditError(f'embedded TU {tu_id} has a different {field} contract')
+            original_spans = []
+            for target in ('main', 'ov02'):
+                pin = data['units'][target]
+                original = (ROOT / pin['file']).read_bytes()
+                if hashlib.sha256(original).hexdigest() != pin['sha256']:
+                    raise AuditError(f'embedded TU {tu_id}: {target} original pin differs')
+                spans = [f for f in canonical['files'] if f['target'] == target]
+                if len(spans) != 1:
+                    raise AuditError(f'embedded TU {tu_id} has no unique {target} extent')
+                span = spans[0]
+                original_spans.append(original[span['offset_start']:span['offset_end']])
+            extent = int(canonical['text']['end'], 16) - int(canonical['text']['start'], 16)
+            if len(original_spans[0]) != extent or original_spans[0] != original_spans[1]:
+                raise AuditError(f'embedded TU {tu_id} original images differ')
+            record = dict(canonical, id=tu_id, unit=unit, path=alias['path'],
+                          alias_of=canonical_id)
+            names = [f['name'] for f in alias['functions']]
+            return (int(alias['text']['start'], 16), int(alias['text']['end'], 16), names,
+                    f'config/objects/main.objects.json (alias of {canonical_id})', record)
     for path in TU_MAPS:
         p = ROOT / path
         if not p.is_file():

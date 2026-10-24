@@ -3511,7 +3511,7 @@
         "-O2",
         "-G8"
       ],
-      "assembler": "LA29-vsqrt-nolabel-laimm (ee-legacy-binutils-la29-vsqrt-nolabel-laimm-v1, user-approved 2026-09-11, 2026-09-24, 2026-09-25)",
+      "assembler": "The source-built swap-mask correction reproduces the original Script TU scheduling; unchanged GCC, flags and accepted function bytes were causally verified in the pinned qualification.",
       "owners": {
         ".text": "c",
         ".data": "asm",
@@ -9809,11 +9809,11 @@
     "ov02/05_tsk_umn_object_task_main": {
       "id": "main/ov02-embedded/tu05",
       "ordinal": 1005,
-      "path": "src/main/ov02/05_tsk_umn_object_task_main.c",
+      "path": "src/main/tsk_umn_object_task_main.c",
       "kind": "gcc",
       "category": "game",
       "in_scope": false,
-      "mode": "asm",
+      "mode": "c",
       "language": "c",
       "compiler_profile": "ee-gcc2_96-realconv-lp7",
       "flags": [
@@ -9822,20 +9822,20 @@
       ],
       "assembler": "LA29-vsqrt-nolabel-laimm (ee-legacy-binutils-la29-vsqrt-nolabel-laimm-v1, user-approved 2026-09-11, 2026-09-24, 2026-09-25)",
       "owners": {
-        ".text": "asm"
+        ".text": "c"
       },
       "evidence": "toolchain-per-object.json ov02#5",
       "all_functions_accepted": false,
-      "accepted_functions": "0/7"
+      "accepted_functions": "1/7"
     },
     "ov02/06_umn_interface2": {
       "id": "main/ov02-embedded/tu06",
       "ordinal": 1006,
-      "path": "src/main/ov02/06_umn_interface2.c",
+      "path": "src/main/umn_interface2.c",
       "kind": "gcc",
       "category": "game",
       "in_scope": false,
-      "mode": "asm",
+      "mode": "c",
       "language": "c",
       "compiler_profile": "ee-gcc2_96-realconv-lp7",
       "flags": [
@@ -9844,11 +9844,11 @@
       ],
       "assembler": "LA29-vsqrt-nolabel-laimm (ee-legacy-binutils-la29-vsqrt-nolabel-laimm-v1, user-approved 2026-09-11, 2026-09-24, 2026-09-25)",
       "owners": {
-        ".text": "asm"
+        ".text": "c"
       },
       "evidence": "toolchain-per-object.json ov02#6",
       "all_functions_accepted": false,
-      "accepted_functions": "0/5"
+      "accepted_functions": "2/5"
     },
     "ov02/07_task_umn_top_win": {
       "id": "main/ov02-embedded/tu07",
@@ -9875,11 +9875,11 @@
     "ov02/08_umn_procurator": {
       "id": "main/ov02-embedded/tu08",
       "ordinal": 1008,
-      "path": "src/main/ov02/08_umn_procurator.c",
+      "path": "src/main/umn_procurator.c",
       "kind": "gcc",
       "category": "game",
       "in_scope": false,
-      "mode": "asm",
+      "mode": "c",
       "language": "c",
       "compiler_profile": "ee-gcc2_96-realconv-lp7",
       "flags": [
@@ -9888,11 +9888,11 @@
       ],
       "assembler": "LA29-vsqrt-nolabel-laimm (ee-legacy-binutils-la29-vsqrt-nolabel-laimm-v1, user-approved 2026-09-11, 2026-09-24, 2026-09-25)",
       "owners": {
-        ".text": "asm"
+        ".text": "c"
       },
       "evidence": "toolchain-per-object.json ov02#8",
       "all_functions_accepted": false,
-      "accepted_functions": "0/11"
+      "accepted_functions": "6/11"
     },
     "ov02/09_tsk_umn_mail_pas": {
       "id": "main/ov02-embedded/tu09",
@@ -9963,11 +9963,11 @@
     "ov02/12_tya_uml": {
       "id": "main/ov02-embedded/tu12",
       "ordinal": 1012,
-      "path": "src/main/ov02/12_tya_uml.c",
+      "path": "src/main/tya_uml.c",
       "kind": "gcc",
       "category": "game",
       "in_scope": false,
-      "mode": "asm",
+      "mode": "c",
       "language": "c",
       "compiler_profile": "ee-gcc2_96-realconv-lp7",
       "flags": [
@@ -9976,11 +9976,11 @@
       ],
       "assembler": "LA29-vsqrt-nolabel-laimm (ee-legacy-binutils-la29-vsqrt-nolabel-laimm-v1, user-approved 2026-09-11, 2026-09-24, 2026-09-25)",
       "owners": {
-        ".text": "asm"
+        ".text": "c"
       },
       "evidence": "toolchain-per-object.json ov02#12",
       "all_functions_accepted": false,
-      "accepted_functions": "0/19"
+      "accepted_functions": "3/19"
     },
     "ov02/13_tsk_umn_plugin_pas": {
       "id": "main/ov02-embedded/tu13",

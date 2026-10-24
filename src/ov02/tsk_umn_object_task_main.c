@@ -93,24 +93,18 @@ void UmnObjectTaskCreate(UmnObjectTaskWorker worker, void *data) {
         task->zeroedOnCreate[i] = 0;
 }
 
-/* The loop zeroes UmnWork+0x10..0x7f as seven 128-bit stores (sq with a
- * por-cleared register); the ascending pointer with a descending counter is
- * what GCC 2.96 makes of an ascending index. UmnProcuratorSet is still
- * assembly (ov02:0x00a05670). */
-typedef unsigned int UmnWorkQuadword __attribute__((mode(TI)));
 extern void UmnProcuratorSet(void);
 
 void UmnChangeTopLevel(int level) {
-    unsigned char *work = (unsigned char *)&UmnWork;
-    UmnWorkQuadword *clear = (UmnWorkQuadword *)(work + 0x10);
     UmnWorkQuadword zero = 0;
-    int i;
+    int index = 0;
+    int remaining;
 
-    for (i = 0; i < 7; i++)
-        *clear++ = zero;
+    for (remaining = 6; remaining >= 0; remaining--)
+        UmnWork.section_state[index++] = zero;
 
     UmnWork.mode = level;
-    UmnWork.unmodeled_02[1] = 0;
+    UmnWork.stateOrCategory = 0;
     UmnProcuratorSet();
 }
 

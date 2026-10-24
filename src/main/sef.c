@@ -508,11 +508,58 @@ static void sefFreeLineData(int line_index);
 /* One line-data record (SEF_LINE_DATA_RECORD_SIZE bytes): the particle-allocator
  * handle table sefFreeLocalData walks and the cursor sefAllocLocalData scans from. */
 typedef struct SefLocalData {
-    unsigned char unmodeled_000[SEF_LOCAL_DATA_PT_TABLE];
+    unsigned char *position_keys;                    /* +0x000 */
+    unsigned char *spread_rotation_keys;             /* +0x004 */
+    unsigned char *size_keys;                        /* +0x008 */
+    unsigned char *signal_keys;                      /* +0x00c */
+    unsigned char unmodeled_010[0x14 - 0x10];
+    unsigned char *rotation_keys;                    /* +0x014 */
+    unsigned char unmodeled_018[0x20 - 0x18];
+    unsigned short initial_frame;                    /* +0x020 */
+    short frame_count;                               /* +0x022 */
+    unsigned char unmodeled_024[0x1e0 - 0x24];
+    unsigned char *color_keys;                       /* +0x1e0 */
+    unsigned char *uniform_scale_keys;               /* +0x1e4 */
+    unsigned char unmodeled_1e8[SEF_LOCAL_DATA_PT_TABLE - 0x1e8];
     short pointHandles[0x100];                         /* +0x600 */
     unsigned char unmodeled_800[0x80e - 0x800];
     short cursor;                                      /* +0x80e */
 } SefLocalData;
+
+/* Only fields read or written by sefCreateParticle are named here. */
+typedef struct SefParticle {
+    unsigned char unmodeled_000[0x040];
+    Matrix4 transform;                               /* +0x040 */
+    unsigned char unmodeled_080[0x0c0 - 0x080];
+    Vector4 start_position;                           /* +0x0c0 */
+    Vector4 target_position;                           /* +0x0d0 */
+    Vector4 random_rotation;                           /* +0x0e0 */
+    Vector4 rotated_position;                          /* +0x0f0 */
+    unsigned char unmodeled_100[0x10c - 0x100];
+    float one_initialized_scalar;                     /* +0x10c */
+    unsigned char unmodeled_110[0x130 - 0x110];
+    Vector4 random_translation;                        /* +0x130 */
+    unsigned char unmodeled_140[0x150 - 0x140];
+    float random_scale;                               /* +0x150 */
+    float battle_scale;                               /* +0x154 */
+    int kind;                                         /* +0x158 */
+    short frame;                                      /* +0x15c */
+    short state;                                      /* +0x15e */
+    unsigned char unmodeled_160[0x162 - 0x160];
+    unsigned char signal;                             /* +0x162 */
+    unsigned char unmodeled_163[0x188 - 0x163];
+    short rotation_state;                             /* +0x188 */
+    unsigned char unmodeled_18a[0x1a0 - 0x18a];
+    int color[4];                                     /* +0x1a0 */
+    unsigned char unmodeled_1b0[0x1c0 - 0x1b0];
+    Vector4 rotation;                                 /* +0x1c0 */
+    unsigned char unmodeled_1d0[0x1e0 - 0x1d0];
+    Vector4 color_scale;                              /* +0x1e0 */
+    unsigned char unmodeled_1f0[0x200 - 0x1f0];
+    Vector4 color_offset;                             /* +0x200 */
+    unsigned char unmodeled_210[0x240 - 0x210];
+    Vector4 size;                                     /* +0x240 */
+} SefParticle;
 
 
 
@@ -2555,7 +2602,202 @@ static int sefAnimate(unsigned char *object, unsigned char *state, int advance)
     return result;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/sef", sefCreateParticle);
+int sefCreateParticle(SefLocalData *data, int kind)
+{
+    unsigned char *battle;
+    unsigned char *params;
+    SefParticle *particle;
+    unsigned char *rotation_source_keys;
+    int key_flag;
+    Vector4 spread;
+    Vector4 jitter;
+    int count;
+    int index;
+    int result;
+    int update;
+    short angle;
+    short handle;
+    unsigned int seed_1;
+    unsigned int seed_2;
+    unsigned int seed_3;
+    float random_x;
+    float random_y;
+    float random_z;
+    float uniform_jitter;
+
+    index = sefAllocLocalData(data);
+    params = (unsigned char *)data;
+    result = -1;
+    if (index >= 0) {
+        handle = data->pointHandles[index];
+        particle = (SefParticle *)(_ptAlloc + handle * 640);
+        if (particle != 0) {
+            sefMemZero(particle, 640);
+            sefGetStartPos(&particle->start_position, (SefParticleOffset *)data);
+            sefGetTargetPos(&particle->target_position, (SefParticleOffset *)data);
+            particle->state = 0;
+            particle->frame = data->initial_frame;
+            count = data->frame_count;
+            if (count > 0) {
+                sefRandSeed = sefRandSeed * 0x41C64E6Du + 0x3039u;
+                particle->frame += (short)((int)((sefRandSeed >> 16) & 0x7FFF) % count);
+            }
+            sefAnimate(params, (unsigned char *)particle, -1);
+
+            if (data->spread_rotation_keys != 0) {
+                spread.x = (float)*(short *)(data->spread_rotation_keys + 2);
+                spread.y = (float)*(short *)(data->spread_rotation_keys + 4);
+                spread.z = (float)*(short *)(data->spread_rotation_keys + 6);
+                jitter.x = sefRandf();
+                jitter.y = sefRandf();
+                jitter.z = sefRandf();
+                jitter.w = 0.0f;
+                __asm__ __volatile__(
+                    "lqc2 vf1, 0(%0)\n\t"
+                    "lqc2 vf2, 0(%1)\n\t"
+                    "vmul.xyz vf1, vf1, vf2\n\t"
+                    "sqc2 vf1, 0(%0)"
+                    : : "r"(&jitter), "r"(&spread) : "memory");
+                __asm__ __volatile__(
+                    "lqc2 vf1, 0(%0)\n\t"
+                    "mfc1 $8, %1\n\t"
+                    "qmtc2 $8, vf2\n\t"
+                    "vmulx.xyz vf1, vf1, vf2x\n\t"
+                    "sqc2 vf1, 0(%0)"
+                    : : "r"(&spread), "f"(0.5f) : "$8", "memory");
+                __asm__ __volatile__(
+                    "lqc2 vf1, 0(%0)\n\t"
+                    "lqc2 vf2, 0(%1)\n\t"
+                    "vsub.xyz vf1, vf1, vf2\n\t"
+                    "sqc2 vf1, 0(%2)"
+                    : : "r"(&jitter), "r"(&spread), "r"(&particle->random_rotation) : "memory");
+                __asm__ __volatile__(
+                    "lqc2 vf2, 0(%0)\n\t"
+                    "lwc1 $f8, %1\n\t"
+                    "mfc1 $8, $f8\n\t"
+                    "qmtc2 $8, vf1\n\t"
+                    "vmulx.xyz vf2, vf2, vf1x\n\t"
+                    "sqc2 vf2, 0(%0)"
+                    : : "r"(&particle->random_rotation), "m"(D_004D8338) : "$8", "$f8", "memory");
+                battle = _battleData;
+                if (*(int *)(battle + 0x22C) != 0) {
+                    __asm__ __volatile__(
+                        "lq $8, 0(%1)\n\t"
+                        "lq $9, 16(%1)\n\t"
+                        "lq $10, 32(%1)\n\t"
+                        "lq $11, 48(%1)\n\t"
+                        "sq $8, 0(%0)\n\t"
+                        "sq $9, 16(%0)\n\t"
+                        "sq $10, 32(%0)\n\t"
+                        "sq $11, 48(%0)"
+                        : : "r"(&particle->transform), "r"(battle + 0x180) : "$8", "$9", "$10", "$11", "memory");
+                    particle->battle_scale = *(float *)(battle + 0x220);
+                } else if (*(short *)data->spread_rotation_keys == 1) {
+                    MMathRotateMatrixYXZ(&particle->transform, 0, &particle->random_rotation);
+                }
+            }
+
+            particle->random_scale = sefRandf() * (float)*(short *)data->uniform_scale_keys * D_004D833C;
+            particle->kind = kind;
+
+            if (data->position_keys == 0) {
+                particle->color[2] = 64;
+                particle->color[1] = 64;
+                particle->color[0] = 64;
+            } else if (*(short *)(data->position_keys + 18) == 1024) {
+                sefLerpIVectorA(data->position_keys + 10, (Vector4 *)particle->color);
+            }
+
+            if (data->size_keys != 0 && *(short *)(data->size_keys + 10) == 1024) {
+                sefLerpIVectorA(data->size_keys + 2, &particle->color_scale);
+            }
+
+            if (data->color_keys != 0 && *(short *)(data->color_keys + 18) == 1024) {
+                sefLerpVectorA(data->color_keys + 8, &particle->color_offset);
+                if (_revDirZ != 0) {
+                    particle->color_offset.z = -particle->color_offset.z;
+                }
+            }
+
+            if (data->rotation_keys != 0 && *(short *)(data->rotation_keys + 10) == 1024) {
+                sefLerpVectorA(data->rotation_keys, &particle->size);
+                if (*(short *)data->color_keys != 3) {
+                    __asm__ __volatile__(
+                        "lqc2 vf1, 0(%3)\n\t"
+                        "mfc1 $8, %2\n\t"
+                        "qmtc2 $8, vf2\n\t"
+                        "vmulx.xyz vf1, vf1, vf2x\n\t"
+                        "sqc2 vf1, 0(%3)"
+                        : "=m"(particle->size)
+                        : "m"(particle->size), "f"(D_004D8340), "r"(&particle->size)
+                        : "$8", "memory");
+                }
+            }
+
+            if (data->spread_rotation_keys != 0 && *(short *)(data->spread_rotation_keys + 18) == 1024) {
+                sefLerpVectorA(data->spread_rotation_keys + 8, &particle->rotation);
+                rotation_source_keys = data->spread_rotation_keys;
+                update = 0;
+                key_flag = *(short *)(rotation_source_keys - 2);
+                angle = *(short *)rotation_source_keys;
+                if (particle->rotation_state != 4 || key_flag != 0) {
+                    update = 1;
+                }
+                sefCalcRotChange((unsigned char *)particle, angle, update);
+            }
+            __asm__ __volatile__(
+                "lqc2 vf1, 0(%0)\n\t"
+                "lqc2 vf2, 0(%1)\n\t"
+                "vadd.xyz vf1, vf1, vf2\n\t"
+                "sqc2 vf1, 0(%2)"
+                : : "r"(&particle->random_rotation), "r"(&particle->rotation), "r"(&particle->rotated_position) : "memory");
+
+            if (data->signal_keys != 0) {
+                particle->signal = *data->signal_keys;
+            }
+
+            particle->one_initialized_scalar = 1.0f;
+            particle->random_translation.w = 1.0f;
+            if (data->position_keys != 0) {
+                if (*(short *)(data->position_keys + 6) == 0) {
+                    short range_x;
+                    short range_y;
+                    short range_z;
+                    float scale_k;
+                    range_x = *(short *)(data->position_keys + 0);
+                    range_y = *(short *)(data->position_keys + 2);
+                    range_z = *(short *)(data->position_keys + 4);
+                    scale_k = D_004D8344;
+                    seed_1 = sefRandSeed * 0x41C64E6Du + 0x3039u;
+                    random_x = (float)(int)((seed_1 >> 16) & 0x7FFFu);
+                    seed_2 = seed_1 * 0x41C64E6Du + 0x3039u;
+                    random_y = (float)(int)((seed_2 >> 16) & 0x7FFFu);
+                    seed_3 = seed_2 * 0x41C64E6Du + 0x3039u;
+                    random_z = (float)(int)((seed_3 >> 16) & 0x7FFFu);
+                    sefRandSeed = seed_3;
+                    particle->random_translation.x = random_x * (float)range_x * scale_k * 0.015625f;
+                    particle->random_translation.y = random_y * (float)range_y * scale_k * 0.015625f;
+                    particle->random_translation.z = random_z * (float)range_z * scale_k * 0.015625f;
+                } else {
+                    short range;
+                    float rand_value;
+                    unsigned int seed;
+
+                    range = *(short *)(data->position_keys + 0);
+                    seed = sefRandSeed * 0x41C64E6Du + 0x3039u;
+                    sefRandSeed = seed;
+                    rand_value = (float)(int)((seed >> 16) & 0x7FFFu);
+                    uniform_jitter = rand_value * (float)range * D_004D8348 * 0.015625f;
+                    particle->random_translation.x = uniform_jitter;
+                    particle->random_translation.y = uniform_jitter;
+                    particle->random_translation.z = uniform_jitter;
+                }
+            }
+        }
+        result = index;
+    }
+    return result;
+}
 
 INCLUDE_ASM("asm/main/nonmatchings/sef", sefExecLineGlobalData);
 

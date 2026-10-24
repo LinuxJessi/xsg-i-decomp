@@ -7,7 +7,9 @@
 #include "main/xgl_2.h"
 #include "main/xgl_task.h"
 
-extern unsigned char UmnWork[];
+#include "ov02/tsk_umn_object_task_main.h"
+
+extern UmnWorkData UmnWork;
 extern float xglFRand(void);
 extern void xglLightIntensityParallel(void *light, int index, const Vector4 *intensity);
 extern void xglLightIntensityAmbient(void *light, const Vector4 *intensity);
@@ -18,16 +20,16 @@ extern void nmlModelSetTexture(const char *texture);
 extern void nmlModelSetPlace(const Vector4 *place);
 extern void nmlModelEntry(int entry);
 
-/* A 16-byte vector that can be read as x/y/z/w (Vector4) or as a component
- * array; aligned(8) because the original copies it with ld/sd pairs. */
+/* The original vector has component and doubleword-copy views. */
 typedef union UmnBgCubeVec {
     Vector4 v;
     float f[4];
-} UmnBgCubeVec __attribute__((aligned(8)));
+    u64 words[2];
+} UmnBgCubeVec;
 
 typedef struct UmnBgCubeLights {
     UmnBgCubeVec v[7];
-} UmnBgCubeLights __attribute__((aligned(8)));
+} UmnBgCubeLights;
 
 extern UmnBgCubeVec D_00A11E60;
 extern const UmnBgCubeLights D_00A11E70;
@@ -43,11 +45,13 @@ typedef struct UmnBgCubeData {
 /* One contiguous 0xF0-byte light workspace: the light object proper (0x00-0x6F)
  * followed by the two matrices xglLightCalcMatrix fills in (0x70 and 0xB0),
  * which are what nmlModelSetLight receives. */
+typedef unsigned int UmnLightQuadword __attribute__((mode(TI)));
+
 typedef struct UmnBgCubeLightWork {
-    unsigned char light[0x70];
+    UmnLightQuadword light[7];
     Matrix4 model_set;
     Matrix4 model_light;
-} UmnBgCubeLightWork __attribute__((aligned(16)));
+} UmnBgCubeLightWork;
 
 typedef struct UmnBgCubeMainTask {
     XglTaskPrefix base;
@@ -75,7 +79,7 @@ void tskUmnBgCubeMain(XglTaskPrefix *task_opaque)
     StudioCamera *camera;
     int i;
 
-    if (UmnWork[1] == 0xFF)
+    if (UmnWork.mode == 0xFF)
         task->state = 99;
 
     switch (task->state) {
@@ -135,83 +139,132 @@ void tskUmnBgCubeMain(XglTaskPrefix *task_opaque)
 INCLUDE_ASM("asm/nonmatchings/ov02/umn_interface2", UmnBgCubeInit);
 
 #include "main/xgl_packet.h"
+#include "main/xgl_render.h"
 
-extern const char D_00A11EE0[];
-extern const char D_00A11EF8[];
 extern void sceVif1PkAddDirectDataN(XglPacket *packet, const void *data, int count);
 
-typedef struct UmnIf2Render {
-    unsigned char unmodeled_00[0x14];
-    unsigned short height;
-} UmnIf2Render;
+typedef struct UmnIf2Coordinates {
+    int values[6];
+} UmnIf2Coordinates;
 
-extern UmnIf2Render sRender;
+extern const UmnIf2Coordinates D_00A11EE0;
+extern const UmnIf2Coordinates D_00A11EF8;
 
-typedef struct UmnIf2Words {
-    int w[6];
-} UmnIf2Words;
+typedef struct UmnIf2Rgba {
+    unsigned char red;
+    unsigned char green;
+    unsigned char blue;
+    unsigned char alpha;
+} UmnIf2Rgba;
+
+/* UmnInterface2Init allocates these twelve bytes. UmnInterface2Main fades
+ * the two alpha bytes, then queues this record as the callback argument. */
+typedef struct UmnIf2Parameters {
+    unsigned int depth;
+    UmnIf2Rgba first_vertex;
+    UmnIf2Rgba remaining_vertices;
+} UmnIf2Parameters;
+
+typedef struct UmnIf2AdCommand {
+    u64 value;
+    u64 register_address;
+} UmnIf2AdCommand;
+
+typedef struct UmnIf2SetupPacket {
+    u64 tag;
+    u64 registers;
+    UmnIf2AdCommand texture_flush;
+    UmnIf2AdCommand alpha;
+    UmnIf2AdCommand texture;
+    UmnIf2AdCommand test;
+} UmnIf2SetupPacket;
+
+/* GIF PACKED mode expands each register into four 32-bit lanes. The tag's
+ * 0x531 list repeats RGBAQ, UV and XYZ2 for each of the six vertices. */
+typedef struct UmnIf2PackedRegister {
+    u32 lane[4];
+} UmnIf2PackedRegister;
+
+typedef struct UmnIf2GeometryPacket {
+    u32 tag_low;
+    u32 tag_high;
+    u32 registers_low;
+    u32 registers_high;
+    UmnIf2PackedRegister payload[18];
+} UmnIf2GeometryPacket;
+
+/* Both direct-data submissions use the same scratchpad address. The setup
+ * packet is copied out before the geometry packet overwrites that storage. */
+typedef union UmnIf2PacketWorkspace {
+    UmnIf2SetupPacket setup;
+    UmnIf2GeometryPacket geometry;
+} UmnIf2PacketWorkspace;
 
 typedef struct UmnIf2Context {
     XglPacket *packet;
+    unsigned char unmodeled_04[0x2C];
+    UmnIf2PacketWorkspace workspace;
 } UmnIf2Context;
 
 static void DrawUmnInterface2(void *context_arg, void *arg)
 {
     UmnIf2Context *context = (UmnIf2Context *)context_arg;
-    unsigned char *color = (unsigned char *)arg;
-    unsigned long long *gif = (unsigned long long *)((unsigned char *)context + 0x30);
-    unsigned int *words = (unsigned int *)gif;
-    unsigned int *out;
-    UmnIf2Words a;
-    UmnIf2Words b;
+    UmnIf2Parameters *parameters = (UmnIf2Parameters *)arg;
+    UmnIf2SetupPacket *setup = &context->workspace.setup;
+    UmnIf2GeometryPacket *geometry = &context->workspace.geometry;
+    UmnIf2PackedRegister *out;
+    UmnIf2Coordinates x_coordinates;
+    UmnIf2Coordinates y_coordinates;
     int i;
 
-    gif[0] = 0x1000000000000004ULL;
-    gif[1] = 0xE;
-    gif[2] = 0;
-    gif[3] = 0x3F;
-    gif[4] = 0x44;
-    gif[5] = 0x42;
-    gif[6] = (0x24120000 | (sRender.height << 5)) | 0x2000000640000000ULL;
-    gif[7] = 6;
-    gif[8] = 0x5000D;
-    gif[9] = 0x47;
-    sceVif1PkAddDirectDataN(context->packet, gif, 5);
+    setup->tag = 0x1000000000000004ULL;
+    setup->registers = 0xE;
+    setup->texture_flush.value = 0;
+    setup->texture_flush.register_address = 0x3F;
+    setup->alpha.value = 0x44;
+    setup->alpha.register_address = 0x42;
+    setup->texture.value = (0x24120000 | (sRender.flip_base << 5)) | 0x2000000640000000ULL;
+    setup->texture.register_address = 6;
+    setup->test.value = 0x5000D;
+    setup->test.register_address = 0x47;
+    sceVif1PkAddDirectDataN(context->packet, setup, 5);
 
-    a = *(const UmnIf2Words *)D_00A11EE0;
-    b = *(const UmnIf2Words *)D_00A11EF8;
+    x_coordinates = D_00A11EE0;
+    y_coordinates = D_00A11EF8;
 
-    words[0] = 0x8006;
-    words[1] = 0x30AEC000;
-    words[2] = 0x531;
-    words[3] = 0;
-    out = (unsigned int *)((unsigned char *)context + 0x40);
+    geometry->tag_low = 0x8006;
+    geometry->tag_high = 0x30AEC000;
+    geometry->registers_low = 0x531;
+    geometry->registers_high = 0;
+    out = geometry->payload;
 
     for (i = 0; i < 6; i++) {
         if (i == 0) {
-            out[0] = color[4];
-            out[1] = color[5];
-            out[2] = color[6];
-            out[3] = color[7];
+            out->lane[0] = parameters->first_vertex.red;
+            out->lane[1] = parameters->first_vertex.green;
+            out->lane[2] = parameters->first_vertex.blue;
+            out->lane[3] = parameters->first_vertex.alpha;
         } else {
-            out[0] = color[8];
-            out[1] = color[9];
-            out[2] = color[10];
-            out[3] = color[11];
+            out->lane[0] = parameters->remaining_vertices.red;
+            out->lane[1] = parameters->remaining_vertices.green;
+            out->lane[2] = parameters->remaining_vertices.blue;
+            out->lane[3] = parameters->remaining_vertices.alpha;
         }
-        out += 4;
-        out[0] = a.w[i] << 4;
-        out[1] = b.w[i] << 4;
-        out[3] = 0;
-        out[2] = 0;
-        out += 4;
-        out[0] = (a.w[i] << 4) + 0x6FF8;
-        out[1] = (b.w[i] << 4) + 0x71F8;
-        out[2] = *(unsigned int *)color;
-        out[3] = 0;
-        out += 4;
+        out++;
+        /* UV: U, V, and the two unused upper lanes. */
+        out->lane[0] = x_coordinates.values[i] << 4;
+        out->lane[1] = y_coordinates.values[i] << 4;
+        out->lane[3] = 0;
+        out->lane[2] = 0;
+        out++;
+        /* XYZ2: X, Y, depth, and the ADC lane. */
+        out->lane[0] = (x_coordinates.values[i] << 4) + 0x6FF8;
+        out->lane[1] = (y_coordinates.values[i] << 4) + 0x71F8;
+        out->lane[2] = parameters->depth;
+        out->lane[3] = 0;
+        out++;
     }
-    sceVif1PkAddDirectDataN(context->packet, gif, 0x13);
+    sceVif1PkAddDirectDataN(context->packet, geometry, 0x13);
 }
 
 /*

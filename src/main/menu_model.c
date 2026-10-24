@@ -324,7 +324,7 @@ typedef struct MenuModelMotionTarget {
 
 
 
-void MenuModelResourceRequest(int *result, unsigned short resourceId, void *loadParam);
+void MenuModelResourceRequest(void *result, unsigned short resourceId, void *loadParam);
 void MenuModelUnitActorSet(MenuModelUnit *unit);
 
 void nmlModelUseSubWindow(unsigned int studioId, int enabled);
@@ -420,7 +420,7 @@ MenuModelMemoryStateBuffer MenuModelMemoryState = {0};
  */
 typedef struct MenuModelResourceRequestRecord {
     unsigned short resourceId;
-    int *result;
+    unsigned char *result; /* Output object representation for the resource pointer. */
     void *loadParam;
 } MenuModelResourceRequestRecord;
 
@@ -776,7 +776,7 @@ int MenuModelMenuMotionGet(void) {
 void MenuModelResourceCancel(void)
 {
     MenuModelResourceAccess *resource;
-    int *handle;
+    void *result;
 
     if (MenuLoadSync()) {
         MenuLoadCancel();
@@ -784,10 +784,12 @@ void MenuModelResourceCancel(void)
         if (resource != 0) {
             resource->status = 0;
         }
-        handle = MenuModelResourceState.requests[0].result;
+        result = MenuModelResourceState.requests[0].result;
         MenuModelResourceState.resource = 0;
-        if (handle != 0) {
-            *handle = -1;
+        if (result != 0) {
+            int failure = -1;
+            unsigned int *outputWord = result;
+            __builtin_memcpy(outputWord, &failure, sizeof(failure));
         }
         MenuModelResourceState.requests[0].result = 0;
         MenuModelResourceState.requests[0].resourceId = 0;
@@ -817,10 +819,12 @@ void MenuModelResourceCancel3(MenuModelUnit *unit)
         int resourceId = resourceIds[j];
         for (i = 1; i < 16; i++) {
             if (MenuModelResourceState.requests[i].resourceId == resourceId) {
-                int *result = MenuModelResourceState.requests[i].result;
+                void *result = MenuModelResourceState.requests[i].result;
                 MenuModelResourceState.requests[i].resourceId = 0;
                 if (result != 0) {
-                    *result = -1;
+                    int failure = -1;
+                    unsigned int *outputWord = result;
+                    __builtin_memcpy(outputWord, &failure, sizeof(failure));
                 }
                 MenuModelResourceState.requests[i].result = 0;
                 MenuModelResourceState.requests[i].loadParam = 0;
@@ -924,9 +928,83 @@ void MenuModelResourceLoad(int resourceId, MenuModelResourceAccess *buffers,
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_model", MenuModelResourceMain);
+void MenuModelResourceMain(void)
+{
+    int memoryTypes[5] = {1, 1, 2, 3, 2};
+    MenuModelResourceStateBuffer *activeState;
+    unsigned int resourceClass = 0;
+    unsigned short resourceId;
+    int i;
 
-void MenuModelResourceRequest(int *result, unsigned short resourceId, void *loadParam)
+    if (MenuModelFlag & 1) {
+        MenuModelResourceCancel();
+        MenuModelResourceInit();
+        return;
+    }
+    if (MenuLoadSync() != 0) {
+        return;
+    }
+    if (MenuModelResourceState.resource != 0) {
+        MenuModelResourceAccess *resource;
+        unsigned int *result;
+        unsigned short completedResourceId;
+        MenuModelResourceState.resource->status = 1;
+        resource = MenuModelResourceState.resource;
+        completedResourceId = MenuModelResourceState.requests[0].resourceId;
+        resource->resourceId = completedResourceId;
+        if (completedResourceId & 0x8000) {
+            MenuModelFlag |= 2;
+        }
+        result = (void *)MenuModelResourceState.requests[0].result;
+        MenuModelResourceState.requests[0].result = 0;
+        __builtin_memcpy(result, &resource, sizeof(resource));
+        MenuModelResourceState.resource = 0;
+    }
+    if (MenuModelResourceState.requests[0].result == 0) {
+        for (i = 1; i < 16; i++) {
+            if (MenuModelResourceState.requests[i].result != 0) {
+                MenuModelResourceState.requests[0].result = MenuModelResourceState.requests[i].result;
+                MenuModelResourceState.requests[0].loadParam = MenuModelResourceState.requests[i].loadParam;
+                MenuModelResourceState.requests[0].resourceId = MenuModelResourceState.requests[i].resourceId;
+                MenuModelResourceState.requests[i].loadParam = 0;
+                MenuModelResourceState.requests[i].result = 0;
+                MenuModelResourceState.requests[i].resourceId = 0;
+                break;
+            }
+        }
+    }
+    if (MenuModelResourceState.requests[0].result == 0) {
+        return;
+    }
+    activeState = &MenuModelResourceState;
+    resourceId = MenuModelResourceState.requests[0].resourceId;
+    if (resourceId & 0x8000) {
+        activeState->resource = MenuModelMemoryGet(resourceId, 4);
+    } else {
+        resourceClass = resourceId >> 12;
+        activeState->resource = MenuModelMemoryGet(resourceId, memoryTypes[resourceClass]);
+    }
+    if (MenuModelResourceState.resource == 0) {
+        int failure = -1;
+        unsigned short *requestId = &MenuModelResourceState.requests[0].resourceId;
+        unsigned int *result = (void *)MenuModelResourceState.requests[0].result;
+        unsigned char **resultSlot = &MenuModelResourceState.requests[0].result;
+        *requestId = 0;
+        __builtin_memcpy(result, &failure, sizeof(failure));
+        *resultSlot = 0;
+        MenuModelResourceState.requests[0].loadParam = 0;
+        return;
+    }
+    if (MenuModelResourceState.resource->status == 1 &&
+        MenuModelResourceState.resource->resourceId == resourceId) {
+        return;
+    }
+    MenuModelResourceState.resource->status = 0;
+    MenuModelResourceLoad(resourceId, MenuModelResourceState.resource,
+                          memoryTypes[resourceClass], MenuModelResourceState.requests[0].loadParam);
+}
+
+void MenuModelResourceRequest(void *result, unsigned short resourceId, void *loadParam)
 {
     int i;
 
@@ -1825,7 +1903,7 @@ XglTaskPrefix *MenuModelWeaponCreate(MenuModelTaskWork *unit,
     if (unit->objectId == 7 && weapon->weaponIndex == 1) {
         return (XglTaskPrefix *)weapon;
     }
-    MenuModelResourceRequest((int *)&weapon->resource,
+    MenuModelResourceRequest(&weapon->resource,
                              weapon->resourceId, weapon);
     if (unit->objectId == 7 && weapon->weaponIndex == 0) {
         short savedWeaponResource;
@@ -1888,7 +1966,7 @@ void MenuModelCreate(int *result, int modelId)
         unit->unusedByCreateInit4 = result;
         *result = (int)unit;
     }
-    MenuModelResourceRequest((int *)&unit->resource, unit->resourceId, 0);
+    MenuModelResourceRequest(&unit->resource, unit->resourceId, 0);
 }
 
 void MenuModelExtFuncSet(MenuModelUnit *unit, void *extFunc1, void *extFunc2)

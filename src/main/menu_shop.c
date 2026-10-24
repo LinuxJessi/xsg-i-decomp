@@ -915,7 +915,29 @@ struct MenuShopSelectDisplay {
 
 
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_shop", MenuShopAgwsListChange);
+void MenuShopAgwsListChange(void)
+{
+    int i;
+    int next;
+
+    for (i = 0; i < 4; i++) {
+        if (ShopData.tail.agwsSlots[i] != 0 &&
+            PartyTakeAgwsCheck(ShopData.tail.agwsSlots[i]) != 0)
+            ShopData.tail.agwsSlots[i] = 0;
+    }
+
+    for (i = 0; i < 3; i++) {
+        if (!ShopData.tail.agwsSlots[i]) {
+            for (next = i + 1; next < 4; next++) {
+                if (ShopData.tail.agwsSlots[next] != 0) {
+                    ShopData.tail.agwsSlots[i] = ShopData.tail.agwsSlots[next];
+                    ShopData.tail.agwsSlots[next] = 0;
+                    break;
+                }
+            }
+        }
+    }
+}
 
 static void TskObjectSet3(TskObject *task, TskObjectWorker worker, void *data)
 {

@@ -6,6 +6,7 @@
 #define SRC_MAIN_SCRIPT_H
 
 #include "shared.h"
+#include "main/jni.h"
 
 /*
  * MINIMAL PARTIAL VIEW (explicit limitation, per review 16064):
@@ -280,7 +281,7 @@ struct ScriptObserverTask {
 typedef struct ScriptSceneTask {
     XglTaskPrefix task;              /* +0x00 */
     u32 state_flags;                 /* +0x10: bit 0 set once the task has initialised itself */
-    SceneThread *thread; /* +0x14: the script thread being watched */
+    SceneVm *thread;     /* +0x14: the JNI-created thread being watched */
     unsigned char unmodeled_18[4];
     struct ScriptGameLoopState *owner;      /* +0x1c */
     int fade_started;                /* +0x20: set once the fade-out has begun */

@@ -2637,7 +2637,105 @@ static void set_circle_shadow_ratio(int scale)
 
 INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", nmlModelLexDataCheck);
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", nmlModelLexBlockDoit);
+static void nmlModelLexBlockDoit(NmlModel *model)
+{
+    int blockIndex;
+    int *blockOffsets;
+
+    blockIndex = 0;
+    if (model->blockCount > 0) {
+      blockOffsets = model->blockOffsets;
+      do {
+        NmlModelBlock *block;
+        block = (NmlModelBlock *)((char *)model + blockOffsets[blockIndex]);
+
+        if (s_nPause == 0 &&
+            (block->translationStepX != 0.0f || block->translationStepY != 0.0f)) {
+            float wrapX = 0.5f;
+            float wrapY = 1.0f;
+            block->translationX += block->translationStepX;
+            block->translationY += block->translationStepY;
+
+            if (block->translationX >= wrapX) {
+                block->translationX -= wrapX;
+            } else if (block->translationX <= -wrapX) {
+                block->translationX += wrapX;
+            }
+            if (block->translationY >= wrapY) {
+                block->translationY -= wrapY;
+            } else if (block->translationY <= -wrapY) {
+                block->translationY += wrapY;
+            }
+        }
+
+        if (s_aMatName.text[0] != '\0') {
+            if (strcmp(s_aMatName.text, block->materialName) == 0) {
+                __asm__ __volatile__(
+                    "lq $2, 0(%1)\n\t"
+                    "sq $2, 0(%0)"
+                    :
+                    : "r"(&block->multiplyColor), "r"(&s_inMulColor)
+                    : "$2", "memory"
+                );
+            }
+        } else {
+            __asm__ __volatile__(
+                "lq $2, 0(%1)\n\t"
+                "sq $2, 0(%0)"
+                :
+                : "r"(&block->multiplyColor),
+                  "r"(&s_inLayout.fields.multiplyColor)
+                : "$2", "memory"
+            );
+        }
+
+        if ((u32)(block->shapeFlags - 2) < 2) {
+            int partId = block->partId;
+            int index;
+            int divisor;
+            int phase;
+
+            for (index = 0; index < s_nShapeNum; ++index) {
+                if (s_aShapeId[index] == partId) {
+                    partId = -1;
+                    break;
+                }
+            }
+
+            if (partId >= 0 && s_nShapeNum < 32) {
+                divisor = s_aShapeMathPara[(int)block->shapeMathParameter];
+                phase = s_nCount & (divisor - 1);
+                switch (block->shapeMode) {
+                case 0: {
+                    int halfDivisor = divisor >> 1;
+                    float *weightEntry;
+
+                    s_aShapeId[s_nShapeNum] = partId;
+                    weightEntry = &s_aShapeWeight[s_nShapeNum];
+                    *weightEntry = (float)(phase >= halfDivisor ?
+                        divisor - phase : phase) / (float)halfDivisor *
+                        (float)block->shapeWeight;
+                    break;
+                }
+                case 1: {
+                    float phaseFraction = (float)phase / (float)divisor;
+
+                    s_aShapeId[s_nShapeNum] = partId;
+                    s_aShapeWeight[s_nShapeNum] =
+                        phaseFraction * (float)block->shapeWeight;
+                    break;
+                }
+                }
+                if ((float)block->shapeWeight <= s_aShapeWeight[s_nShapeNum]) {
+                    s_aShapeWeight[s_nShapeNum] =
+                        (float)block->shapeWeight - D_004D88E0;
+                }
+                ++s_nShapeNum;
+            }
+        }
+      } while (++blockIndex < model->blockCount);
+    }
+}
 
 static void nmlModelStealthEntry(void *arg0, void *arg1)
 {
