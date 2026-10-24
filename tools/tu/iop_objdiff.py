@@ -13,6 +13,7 @@ import subprocess
 import sys
 
 from tu import verify_report as verification
+from tu.toolchain import Toolchain
 
 
 def run(command, root):
@@ -236,7 +237,7 @@ def assemble_reference(root, destination, group, original, rows, contract, tools
 def prepare(root, project, report_path):
     from tu import objdiff_inputs
     groups, contract, tools, report = load_evidence(root, report_path)
-    prefix = tools['objdump'].with_name(tools['objdump'].name.removesuffix('objdump'))
+    prefix = Toolchain(root).dir('ps2dev-binutils') / 'mips64r5900el-ps2-elf-'
     units, expected, assigned = [], {}, {}
     originals = {unit: original for unit, _, _, original in groups}
     rows = {unit: instruction_rows(original, tools, root) for unit, original in originals.items()}

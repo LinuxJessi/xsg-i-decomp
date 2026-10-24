@@ -20,13 +20,18 @@ jobs:
     if: github.repository == 'OpokXeno/xsg-i-decomp' && github.ref == 'refs/heads/master'
     runs-on: [self-hosted, linux, xenosaga-ee]
     timeout-minutes: 30
+    defaults:
+      run:
+        # Legacy GCC allocation can change codegen with Linux's mmap layout.
+        # Use the same execution personality as the verified local builds,
+        # including the compiles performed while generating objdiff pairs.
+        shell: setarch linux32 -L bash --noprofile --norc -e -o pipefail {0}
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
 
       - name: Check private inputs and clean public checkout
-        shell: bash
         run: |
           set -euo pipefail
           : "${XENO_GAME_DIR:?Set this in the runner service environment}"
