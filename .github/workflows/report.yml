@@ -20,13 +20,18 @@ jobs:
     if: github.repository == 'OpokXeno/xsg-i-decomp' && github.ref == 'refs/heads/master'
     runs-on: [self-hosted, linux, xenosaga-ee]
     timeout-minutes: 30
+    defaults:
+      run:
+        # Legacy GCC allocation can change codegen with Linux's mmap layout.
+        # Use the same execution personality as the verified local builds,
+        # including the compiles performed while generating objdiff pairs.
+        shell: setarch linux32 -L bash --noprofile --norc -e -o pipefail {0}
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
 
       - name: Check private inputs and clean public checkout
-        shell: bash
         run: |
           set -euo pipefail
           : "${XENO_GAME_DIR:?Set this in the runner service environment}"
@@ -38,6 +43,8 @@ jobs:
           test ! -e config/tu-build.json
           test ! -d config/units
           python3 -B tools/tu/toolchain.py --check
+          python3 -B tools/iop_ci_stage.py
+          python3 -B tools/iop_inventory.py --verify-only
 
       - name: Compile, link and compare all six EE files
         run: |
@@ -45,8 +52,17 @@ jobs:
           python3 -B configure.py
           ninja -j4 gate
 
+      - name: Compile, link and compare both IOP modules from 24 original objects
+        run: |
+          python3 -B tools/iop_build.py \
+            --build-dir ".work/ci-iop-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --report ".work/ci-iop-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/report.json" \
+            --jobs 4
+
       - name: Verify compiler emission and linked function bytes
-        run: timeout -k 5 600 python3 -B tools/tu/verify_report.py --finish
+        run: |
+          timeout -k 5 600 python3 -B tools/tu/verify_report.py --finish \
+            --iop-report ".work/ci-iop-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/report.json"
 
       - name: Download pinned objdiff-cli
         run: |

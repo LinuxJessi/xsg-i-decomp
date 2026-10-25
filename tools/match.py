@@ -1691,7 +1691,45 @@ def _mmi_block_shape(body):
             'register the MMI lines wrote')
 
 
-def _cop2_parse_construct(text, start, *, mmi_transpose=False):
+def _sef_particle_scale_block(lines, outputs, inputs, input_section, clobber_section):
+    """The one user-authorized COP1 load in main/tu211:sefCreateParticle.
+
+    Keep `lwc1` and FPR clobbers outside the general COP2 grammar. The exact
+    producer/consumer chain below loads one float, transfers it through $8 to
+    VF1.x, scales VF2.xyz and stores the same vector. No other scalar operation
+    or hardware state effect is admitted by this exception (2026-10-22).
+    """
+    expected = (
+        r'lqc2' + _WS + r'vf2' + _SEP + r'0' + _WS + r'\(' + _WS + r'%0' + _WS + r'\)',
+        r'lwc1' + _WS + r'\$f8' + _SEP + r'%1',
+        r'mfc1' + _WS + r'\$8' + _SEP + r'\$f8',
+        r'qmtc2' + _WS + r'\$8' + _SEP + r'vf1',
+        r'vmulx\.xyz' + _WS + r'vf2' + _SEP + r'vf2' + _SEP + r'vf1x',
+        r'sqc2' + _WS + r'vf2' + _SEP + r'0' + _WS + r'\(' + _WS + r'%0' + _WS + r'\)',
+    )
+    require(len(lines) == len(expected) and all(re.fullmatch(pattern, line)
+            for pattern, line in zip(expected, lines)),
+            'sefCreateParticle scale exception requires its exact six-line producer/consumer block')
+    require(outputs == [] and inputs == ['r', 'm'],
+            'sefCreateParticle scale exception has no outputs and exactly r(pointer), m(scale) inputs')
+    items = [item for item in _split_top(input_section, ',') if item.strip()]
+    require(len(items) == 2 and re.fullmatch(r'\(\s*D_004D8338\s*\)',
+            _literal_prefix(items[1])[1].strip()),
+            'sefCreateParticle scale exception loads only D_004D8338')
+    clobbers = []
+    for item in _split_top(clobber_section, ','):
+        stripped = item.strip(' \t\r\n')
+        require(_COP2_CLOBBER_LIT.fullmatch(stripped),
+                'sefCreateParticle scale clobbers must be single string literals')
+        clobbers.append(_literal_prefix(stripped)[0])
+    require(len(clobbers) == 3 and set(clobbers) == {'$8', '$f8', 'memory'},
+            'sefCreateParticle scale exception clobbers exactly $8, $f8 and memory')
+    for index, line in enumerate(lines):
+        if index != 1:
+            _cop2_check_line(line)
+
+
+def _cop2_parse_construct(text, start, *, mmi_transpose=False, sef_particle_scale=False):
     # Advance by the keyword actually written, not by a fixed len('__asm__').
     # The permuter's vendored pycparser reprints `__asm__ __volatile__(...)` as
     # `asm __volatile__(...)`, and skipping seven characters past a three-letter
@@ -1742,6 +1780,10 @@ def _cop2_parse_construct(text, start, *, mmi_transpose=False):
     inputs = _cop2_check_operands(sections[2], 'input') if len(sections) >= 3 else []
     operands = len(outputs) + len(inputs)
     require(len(sections) >= 4, 'COP2 inline must declare a memory clobber')
+    if sef_particle_scale and any(re.match(r'lwc1(?:\s|$)', line) for line in lines):
+        _sef_particle_scale_block(lines, outputs, inputs, sections[2], sections[3])
+        _COP2_SPANS.append(dict(kind='cop2', sef_particle_scale=True, start=start))
+        return i + 1
     clobbers = _cop2_check_clobbers(sections[3])
     if mmi_transpose:
         _mmi_cop2_transpose_block(body, outputs, inputs, clobbers)
@@ -1771,7 +1813,7 @@ def _cop2_parse_construct(text, start, *, mmi_transpose=False):
 _COP2_SPANS = []
 
 
-def _cop2_inline_spans(text, *, mmi_transpose=False):
+def _cop2_inline_spans(text, *, mmi_transpose=False, sef_particle_scale=False):
     """Locate calibrated COP2 inline statements; raise with exact errors."""
     del _COP2_SPANS[:]
     found = []
@@ -1786,7 +1828,8 @@ def _cop2_inline_spans(text, *, mmi_transpose=False):
         # _cop2_parse_construct returns None for it.
         if m.group(0) not in ('__asm__', '__asm', 'asm'):
             continue
-        end = _cop2_parse_construct(text, m.start(), mmi_transpose=mmi_transpose)
+        end = _cop2_parse_construct(text, m.start(), mmi_transpose=mmi_transpose,
+                                    sef_particle_scale=sef_particle_scale)
         if end is not None:
             found.append((m.start(), end))
     return found
@@ -1951,7 +1994,8 @@ def _hardware_line_continuations_ok(text):
     return True
 
 
-def hardware_c(text, staged=None, headers=(), inner=None, *, mmi_transpose=False):
+def hardware_c(text, staged=None, headers=(), inner=None, *, mmi_transpose=False,
+               sef_particle_scale=False):
     """Only calibrated barriers/interrupt operations and an allowlisted
     COP2/VU0-macro spelling set are admitted inline (EE caller side).
 
@@ -2016,9 +2060,13 @@ def hardware_c(text, staged=None, headers=(), inner=None, *, mmi_transpose=False
         return ' ' if match[0].startswith(('/*', '//')) else match[0]
 
     masked = re.sub(tokens, replace, text, flags=re.S)
-    spans = _cop2_inline_spans(masked, mmi_transpose=mmi_transpose)
+    spans = _cop2_inline_spans(masked, mmi_transpose=mmi_transpose,
+                               sef_particle_scale=sef_particle_scale)
     if mmi_transpose:
         require(count == 0 and len(spans) == 1, 'the bounded MMI/COP2 transpose is one inline block')
+    if sef_particle_scale:
+        require(sum(span.get('sef_particle_scale', False) for span in _COP2_SPANS) <= 1,
+                'sefCreateParticle admits at most one bounded COP1 scale block per function')
     # The scheduling barrier emits nothing, so on its own it is not a hardware
     # operation and cannot make a candidate hardware-eligible. docs/ps2-
     # capabilities.md makes actual COP2/VU instructions in the pinned original
@@ -2546,6 +2594,20 @@ def mmi_cop2_c(text, staged=None, headers=(), inner=None):
 def mmi_cop2_native_ti_c(text, staged=None, headers=()):
     from tools import native_ti
     return mmi_cop2_c(text, staged, headers, inner=native_ti.hardware_source)
+
+
+def sef_particle_scale_c(text, staged=None, headers=(), inner=None):
+    """Identity-scoped COP1 load exception, selected only by TU audit admission."""
+    tokens = re.sub(r'"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'|/\*.*?\*/|//[^\n]*',
+                    ' ', text, flags=re.S)
+    require(not re.search(r'\bregister\b', tokens),
+            'sefCreateParticle scale exception does not admit register declarations or bindings')
+    return hardware_c(text, staged, headers, inner=inner, sef_particle_scale=True)
+
+
+def sef_particle_scale_native_ti_c(text, staged=None, headers=()):
+    from tools import native_ti
+    return sef_particle_scale_c(text, staged, headers, inner=native_ti.hardware_source)
 
 
 # ---------------------------------------------------------------------------

@@ -15,10 +15,15 @@ struct UmnObjectTask {
     int zeroedOnCreate[0x19];
 };
 
+typedef unsigned int UmnWorkQuadword __attribute__((mode(TI)));
+
 typedef struct UmnWorkData {
     unsigned char unmodeled_00;
     unsigned char mode;
-    unsigned char unmodeled_02[0x7e];
+    unsigned char unmodeled_02;
+    unsigned char stateOrCategory;
+    unsigned char unmodeled_04[0x0C];
+    UmnWorkQuadword section_state[7];
 } UmnWorkData;
 
 extern UmnWorkData UmnWork;

@@ -270,7 +270,7 @@ def complete_objects(root, build, objects, placed, derived, fills, original, lin
     return [_complete_object_with_context(obj, context) for obj in objects]
 
 
-def finish(root, build, snapshot):
+def finish(root, build, snapshot, iop_report=None):
     same_inputs(root, snapshot)
     started = (build / 'verification-inputs.json').stat().st_mtime_ns
     def fresh(path):
@@ -377,10 +377,41 @@ def finish(root, build, snapshot):
     for obj in objects:
         entry = results[obj['id']]
         entry['total_data'] = sizes[obj['id']]
+    require(iop_report is not None, 'IOP source build evidence is required; pass --iop-report PATH')
+    from tu import iop_objdiff
+    iop_report = Path(iop_report).resolve()
+    require(iop_report.is_relative_to(root), 'IOP build report must belong to this checkout')
+    artifacts[str(iop_report.relative_to(root))] = fresh(iop_report)
+    groups, _, _, iop_build = iop_objdiff.load_evidence(root, iop_report)
+    for unit, group, candidate, original in groups:
+        object_id = f'{unit}/debug-file-{group["fdr_index"]:03d}'
+        verified = []
+        for function in group['functions']:
+            target = original.named_symbol(function['name'])
+            section = original.sections[target['section_index']]
+            at = target['value']-section['address']
+            verified.append(dict(name=target['name'], original_symbol=target['name'],
+                                 va=target['value'], size=target['size'], category='exact_c',
+                                 sha256=hashlib.sha256(original.payload(section)[at:at+target['size']]).hexdigest()))
+        results[object_id] = dict(functions=verified, complete=False, source=group['source'],
+                                 review_state='user_authorized_review_waiver', data_credit=0,
+                                 storage_ownership_complete=False)
+        for key in ('object', 'assembly'):
+            path = Path(candidate[key]).resolve()
+            require(path.is_relative_to(root), 'IOP compiler artifact lies outside this checkout')
+            artifacts[str(path.relative_to(root))] = fresh(path)
+    for unit, proof in iop_build['whole_irx'].items():
+        path = Path(proof['path']).resolve()
+        require(path.is_relative_to(root), 'IOP complete-module output lies outside this checkout')
+        artifacts[str(path.relative_to(root))] = fresh(path)
     same_inputs(root, snapshot)
     artifacts[str((build / 'gate.json').relative_to(root))] = digest(build / 'gate.json')
     return dict(schema='verified-progress/1', inputs=snapshot, artifacts=artifacts,
-                objects=results, note='IOP has no build and earns zero credit. Complete means '
+                objects=results, iop=dict(build_report=str(iop_report.relative_to(root)),
+                    build_report_sha256=digest(iop_report), functions=495, original_objects=24,
+                    review_state='user_authorized_review_waiver', data_credit=0),
+                note='IOP C credit follows fresh compiler emission and complete raw IRX equality; '
+                'review waiver is recorded separately. Complete means '
                 'all original TU code and storage are recompiled and linked from C; '
                 'assembly scaffolding never completes a TU.')
 
@@ -397,6 +428,8 @@ def load_verified(root, build):
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--root', type=Path, default=ROOT)
+    ap.add_argument('--iop-report', type=Path,
+                    help='fresh tools/iop_build.py report for all 24 original SSD/RSSD objects')
     mode = ap.add_mutually_exclusive_group(required=True)
     mode.add_argument('--begin', action='store_true')
     mode.add_argument('--finish', action='store_true')
@@ -411,7 +444,10 @@ def main():
             result = inputs(root)
             output = build / 'verification-inputs.json'
         else:
-            result = finish(root, build, read(build / 'verification-inputs.json'))
+            report = a.iop_report
+            if report is not None and not report.is_absolute():
+                report = root / report
+            result = finish(root, build, read(build / 'verification-inputs.json'), report)
             output = build / 'verification.json'
         output.write_text(json.dumps(result, indent=1) + '\n')
         print(f'verify_report: {output}')

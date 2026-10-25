@@ -64,6 +64,7 @@ TOOL_TOKENS = {
     # Tool id unchanged; since 2026-09-24 it is the nolabel release (reports/as-la29-vsqrt-nolabel.md),
     # since 2026-09-25 its laimm rebuild (reports/as-la-imm16.md).
     ".work/toolchains/ee-legacy-binutils-la29-vsqrt-nolabel-laimm-v1/bin/ee-as": "tool:ee-as-la29-vsqrt",
+    ".work/toolchains/ee-legacy-binutils-la29-vsqrt-nolabel-laimm-swap-v1/bin/ee-as": "tool:ee-as-la29-vsqrt-swap",
     ".work/toolchains/ee-legacy-binutils/bin/ee-as": "tool:ee-as-2.9-plain",
     ".work/toolchains/ee-binutils/bin/mips64r5900el-ps2-elf-as":
         "tool:ps2dev-binutils/mips64r5900el-ps2-elf-as",

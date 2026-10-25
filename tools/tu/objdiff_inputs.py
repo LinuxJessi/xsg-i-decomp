@@ -2,7 +2,8 @@
 
 Targets contain original disassembly and original TU data. Bases assemble the
 verified compiler output against declaration-only scaffold includes: neither
-fallback nor standalone assembly earns C credit. IOP originals have no base.
+fallback nor standalone assembly earns C credit. IOP pairs use their own pinned
+MIPS-I compiler objects and independently assembled original-object references.
 All binary inputs remain local.
 """
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
@@ -5793,23 +5794,29 @@ def current_layout_reference(body, reference, original, compiled, assembly, prep
     return body,dict(identities=identity_proofs,literal_words=word_proofs)
 
 
-def prepare(root, evidence, only_objects=None):
-    build, project = root / 'build', root / 'build/objdiff'
-    project.mkdir(exist_ok=True)
+def prepare(root, evidence, only_objects=None, *, iop_only=False, project_dir=None):
+    build = root / 'build'
+    project = Path(project_dir) if project_dir is not None else build / 'objdiff'
+    verification.require(project.resolve().is_relative_to(root / 'build') or
+                         project.resolve().is_relative_to(root / '.work'), 'report project must be private')
+    project.mkdir(parents=True, exist_ok=True)
     objects, targets, _, _, _ = cov.tracked_scope(root)
+    if iop_only:
+        verification.require(only_objects is None, 'IOP-only and scoped EE object preparation are exclusive')
+        objects = []
     if only_objects is not None:
         requested=set(only_objects)
         verification.require(requested and requested<={o['id'] for o in objects},'unknown scoped native object')
         objects=[o for o in objects if o['id'] in requested]
-    tc = Toolchain(root)
-    prefix = Path(tc.dir('ps2dev-binutils')) / 'mips64r5900el-ps2-elf-'
-    main = verification.read(build / 'main/tu-manifest.json')
-    main_tus = {t['name']: t for t in main['tus']}
-    data_registry=verification.read(data_carve.registry_input_path(root)).get('tus',{})
+    tc = Toolchain(root) if objects else None
+    prefix = Path(tc.dir('ps2dev-binutils')) / 'mips64r5900el-ps2-elf-' if tc else None
+    main = verification.read(build / 'main/tu-manifest.json') if objects else {}
+    main_tus = {t['name']: t for t in main.get('tus', [])}
+    data_registry=verification.read(data_carve.registry_input_path(root)).get('tus',{}) if objects else {}
     mapcheck_path=build/'main/build/main.mapcheck.json'
-    mapcheck=verification.read(mapcheck_path) if mapcheck_path.is_file() else {}
+    mapcheck=verification.read(mapcheck_path) if objects and mapcheck_path.is_file() else {}
     overlays = {unit: verification.read(build / unit / 'compile-manifest.json')
-                for unit in cov.OVERLAY_UNITS}
+                for unit in cov.OVERLAY_UNITS} if objects else {}
     originals = verification.read(root / cov.ORIGINALS)['units']
     expected = {}
 
@@ -6070,19 +6077,19 @@ def prepare(root, evidence, only_objects=None):
         verification.require(unit['name'] not in expected, 'duplicate TU name')
         units.append(unit)
         expected[unit['name']] = checked
-    iop = verification.read(root / cov.IOP_OBJECTS) if only_objects is None else {'units':{}}
-    for unit, entry in iop['units'].items():
-        target = tc.game_dir() / entry['file']
-        verification.require(verification.digest(target) == entry['sha256'], f'{unit}: wrong original')
-        original_functions = functions(target)
-        verification.require(len(original_functions) == entry['functions'], f'{unit}: original scope differs')
-        destination = project / unit
-        destination.mkdir(exist_ok=True)
-        stripped = destination / 'target.o'
-        strip_debug(prefix, target, stripped, root, iop_reference=True)
-        units.append(dict(name=unit, target_path=str(stripped),
-                          metadata=dict(complete=False, progress_categories=[unit])))
-        expected[unit] = dict(functions=original_functions, allowed={}, complete=False)
+    if only_objects is None:
+        from tu import iop_objdiff
+        iop = evidence.get('iop') or {}
+        verification.require(iop.get('build_report'),
+                             'verified IOP build missing; run verify_report --finish --iop-report PATH')
+        report_path = root / iop['build_report']
+        verification.require(verification.digest(report_path) == iop.get('build_report_sha256'),
+                             'verified IOP build report changed')
+        iop_units, iop_expected, iop_proof = iop_objdiff.prepare(root, project, report_path)
+        verification.require(not set(iop_expected).intersection(expected), 'duplicate IOP object name')
+        units.extend(iop_units)
+        expected.update(iop_expected)
+        (project / 'iop-proof.json').write_text(json.dumps(iop_proof, indent=2) + '\n')
     config = dict(build_target=False, build_base=False, units=units,
                   progress_categories=[dict(id=u, name=targets.get(u, u)) for u in cov.UNITS])
     (project / 'objdiff.json').write_text(json.dumps(config, indent=1) + '\n')

@@ -10,7 +10,7 @@ only when three independent checks agree:
      `functions` list), `config/objects/overlays.compile.json` plus
      `config/symbols/<ovl>.txt` for the five overlays (the symbols whose address
      falls in the object's text range), `config/objects/iop.json` for the two
-     IOP modules, which have no build yet and therefore no numerator;
+     IOP modules;
   2. the published source of that object really carries the block -- a C
      definition, or an `ACCEPTED_ASM(...)` line, read with the TU parser of
      `tools/tu_edit.py` and bound to the tracked function list, so a renamed
@@ -19,6 +19,10 @@ only when three independent checks agree:
   3. the whole-file gate of the unit passes: `build/<unit>/status.json`, written
      by `ninja gate`. A gate that says "not identical" withdraws the unit's
      functions; a gate that was never run is reported as such, never as a pass.
+     IOP uses the complete IRX build report, rechecking current source hashes,
+     compiler emission, original identities and complete module bytes through
+     the same evidence validator as native objdiff. Its recorded review waiver
+     remains distinct from independent review.
 
 Anything the three do not agree on is reported by name and never counted, and
 `--check` exits 1 on any such disagreement as well as on a stale README.
@@ -141,9 +145,6 @@ SYMBOL_LINE = re.compile(
 # Gate states. "not run" is deliberately distinct from "failing": a build that
 # was never run proves nothing either way and must not read as a failure.
 GATE_PASSING, GATE_FAILING, GATE_NOT_RUN = 'passing', 'failing', 'not run'
-# The two IOP modules have no build at all yet, which is a different statement
-# from a gate that was not run: there is nothing here to run.
-GATE_NO_BUILD = 'not built'
 
 
 class MissingInput(Exception):
@@ -454,7 +455,7 @@ def tracked_scope(root):
                                 functions=functions, stubs=overlay_stubs(tu),
                                 declared=tu.get('functions')))
 
-    # IOP: in the recovery scope, but no build exists, so no numerator.
+    # IOP scope; its separate complete-IRX evidence supplies the numerator.
     iop = load_required(root, IOP_OBJECTS, 'the IOP module scope')
     iop_functions, iop_bytes = {}, {}
     for unit, record in iop.get('units', {}).items():
@@ -873,6 +874,67 @@ def out_of_scope_source(root, claims, counted):
 # --------------------------------------------------------------------------
 # the report
 # --------------------------------------------------------------------------
+def iop_coverage(root, build_dir):
+    """Revalidate retained IOP build evidence; never infer credit from a total."""
+    from tu import iop_objdiff
+    from tu.verify_report import VerificationError
+
+    root = Path(root).resolve()
+    states = {unit: dict(unit=unit, state=GATE_NOT_RUN, passing=False,
+                        source=None, from_status=False,
+                        reason='no verified IOP build report is available')
+              for unit in IOP_UNITS}
+    try:
+        verification = Path(build_dir) / 'verification.json'
+        evidence = {}
+        if verification.is_file():
+            verified = json.loads(verification.read_text())
+            if not isinstance(verified, dict):
+                raise ValueError('verification report must be a JSON object')
+            evidence = verified.get('iop')
+            if evidence is None:
+                evidence = {}
+            if not isinstance(evidence, dict):
+                raise ValueError('IOP verification evidence must be a JSON object')
+        if evidence:
+            report = dict(path=evidence['build_report'],
+                          sha256=evidence['build_report_sha256'])
+        else:
+            publication = root / 'config/iop-publication.json'
+            if not publication.is_file():
+                return [], states
+            published = json.loads(publication.read_text())
+            if not isinstance(published, dict):
+                raise ValueError('IOP publication must be a JSON object')
+            report = published.get('build_report')
+            if report is None:
+                report = {}
+        if not isinstance(report, dict):
+            raise ValueError('IOP build report reference must be a JSON object')
+        if not report:
+            return [], states
+        path = (root / report['path']).resolve()
+        if not path.is_relative_to(root):
+            raise ValueError('IOP build evidence belongs to another checkout')
+        for state in states.values():
+            state['source'] = relative_to(root, path)
+        if not path.is_file():
+            for state in states.values():
+                state['reason'] = 'retained IOP build report is missing'
+            return [], states
+        if hashlib.sha256(path.read_bytes()).hexdigest() != report['sha256']:
+            raise ValueError('IOP build report hash changed')
+        groups, _, _, _ = iop_objdiff.load_evidence(root, path)
+    except (OSError, ValueError, KeyError, TypeError, AttributeError, VerificationError) as exc:
+        for state in states.values():
+            state.update(state=GATE_FAILING, reason=str(exc))
+        return [], states
+    for state in states.values():
+        state.update(state=GATE_PASSING, passing=True, reason=None,
+                     review_state='user_authorized_review_waiver')
+    return groups, states
+
+
 def evaluate(root, build_dir, ledger_dir, records_dir, tu_edit):
     """Tier A always, tier B when the maintainer files are there.
 
@@ -940,6 +1002,20 @@ def evaluate(root, build_dir, ledger_dir, records_dir, tu_edit):
         counted = {key: value for key, value in counted.items()
                    if key in claims and claims[key]['category'] == value[1]}
 
+    # IOP publication evidence is separate from the EE acceptance ledger.
+    # The shared validator rechecks every source, emitted identity and IRX.
+    iop_groups, iop_gates = iop_coverage(root, build_dir)
+    gate_state.update(iop_gates)
+    for unit, gate in iop_gates.items():
+        if gate['state'] == GATE_FAILING:
+            problems.append(dict(unit=unit, reason=gate['reason']))
+    for unit, group, _, _ in iop_groups:
+        object_total[unit] += 1
+        for function in group['functions']:
+            key = unit, function['offset']
+            counted[key] = function['name'], 'exact_c'
+            sizes[key] = function['size']
+
     # Aggregate.
     done_functions = dict.fromkeys(UNITS, 0)
     done_bytes = dict.fromkeys(UNITS, 0)
@@ -994,7 +1070,7 @@ def evaluate(root, build_dir, ledger_dir, records_dir, tu_edit):
             functions=done_functions.get(unit, 0), functions_total=total,
             bytes=done_bytes.get(unit, 0), bytes_total=byte_total.get(unit, 0),
             objects=object_total.get(unit, 0),
-            gate=gate_state.get(unit, {}).get('state', GATE_NO_BUILD),
+            gate=gate_state.get(unit, {}).get('state', GATE_NOT_RUN),
             gate_verified=verified_functions.get(unit, 0),
             # `percent` is the headline the README shows: functions over
             # in-scope functions. `percent_bytes` stays as a diagnostic.
@@ -1319,7 +1395,7 @@ def report_problems(result):
 
 
 def gate_failure(result, require_gate):
-    """With --require-gate, every EE unit needs a passing build/<unit>/status.json."""
+    """Require EE status gates and revalidated complete IOP build evidence."""
     if not require_gate:
         return []
     missing = []
@@ -1328,6 +1404,10 @@ def gate_failure(result, require_gate):
         if not (gate.get('from_status') and gate.get('state') == GATE_PASSING):
             missing.append(f'{unit}: {gate.get("state", GATE_NOT_RUN)}'
                            f'{"" if gate.get("from_status") else " (no build/%s/status.json)" % unit}')
+    for unit in IOP_UNITS:
+        gate = result['gates'].get(unit) or {}
+        if gate.get('state') != GATE_PASSING:
+            missing.append(f'{unit}: {gate.get("state", GATE_NOT_RUN)}')
     return missing
 
 

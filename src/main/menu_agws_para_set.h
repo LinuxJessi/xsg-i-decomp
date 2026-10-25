@@ -96,6 +96,137 @@ typedef struct AgwsMenuWork {
     unsigned char unmodeled_71[0x80 - 0x71];
 } AgwsMenuWork;
 
+typedef struct CharacterMenuWorkData {
+    unsigned char unmodeled_00[0x03];
+    unsigned char state;            /* +0x03 */
+    unsigned char unmodeled_04[0x12 - 0x04];
+    unsigned short weaponId;        /* +0x12 */
+    unsigned short bulletId;        /* +0x14 */
+    unsigned short accessoryId;     /* +0x16 */
+    unsigned char bulletFits;       /* +0x18 */
+    signed char leaderLocked;       /* +0x19 */
+    unsigned char guestDenied;      /* +0x1A */
+    unsigned char unmodeled_1b[0x20 - 0x1B];
+    unsigned char swapOutId;        /* +0x20 */
+    signed char swapInId;           /* +0x21 */
+    signed char modelSlot;          /* +0x22 */
+    signed char weaponChanged;      /* +0x23 */
+    unsigned char unmodeled_24[0x30 - 0x24];
+    signed char partyCount;         /* +0x30 */
+    signed char partyMode;          /* +0x31 */
+    signed char menuCount;          /* +0x32 */
+    unsigned char unmodeled_33[0x35 - 0x33];
+    signed char equipSlot;          /* +0x35 */
+    unsigned char unmodeled_36[0x40 - 0x36];
+    signed char partyCursor;        /* +0x40 */
+    signed char commandCursor;      /* +0x41 */
+    unsigned char unmodeled_42;
+    signed char listSelect;         /* +0x43 */
+    signed char formationColumn;    /* +0x44 */
+    signed char formationRow;       /* +0x45 */
+    signed char formationSlot;      /* +0x46 */
+    signed char unknown_47;
+    unsigned char wait;             /* +0x48 */
+    signed char menuCursor;         /* +0x49 */
+    signed char equipKind;          /* +0x4A */
+    signed char unknown_4b[2];
+    unsigned char unmodeled_4d[0x4F - 0x4D];
+    signed char accessoryList;      /* +0x4F */
+    signed char reserveCount;       /* +0x50 */
+    signed char reserveCursor;      /* +0x51 */
+    signed char unknown_52[4];
+    unsigned char unmodeled_56[0x60 - 0x56];
+    short chrNo; /* +0x60: one-based character id */
+    unsigned char unmodeled_62[0x79 - 0x62];
+    unsigned char flags;            /* +0x79 */
+    signed char paraIndex;          /* +0x7A */
+    signed char paraUpCount;        /* +0x7B */
+    signed char confirmCursor;      /* +0x7C */
+    unsigned char unmodeled_7d;
+    unsigned short paraCost;        /* +0x7E */
+} CharacterMenuWorkData;
+
+typedef struct MenuItemWorkData {
+    u8 unmodeled_00[3];
+    u8 mode;
+    u8 unmodeled_04[0x20 - 0x04];
+    u8 flags;
+    u8 nextMode;
+    u8 busy;
+    u8 partyCount;
+    signed char selectionMode;
+    u8 unmodeled_25[0x2E - 0x25];
+    short selectedItem;
+    signed char listTab;
+    signed char sortChoices[8]; /* +0x31 */
+    u8 unmodeled_39[0x40 - 0x39];
+    signed char tabChangeDirection;
+    signed char scrollDir;
+    u8 unmodeled_42[0x50 - 0x42];
+    int selectDir;
+    u8 unmodeled_54[0x62 - 0x54];
+    signed char agwsMode;
+    signed char selectedAgws;
+    signed char agwsCount;
+    u8 unmodeled_65[0x70 - 0x65];
+    signed char selectedParty;
+    u8 unmodeled_71; /* +0x65 */
+    signed char sortSelection; /* +0x72 */
+    u8 unmodeled_73;
+    u8 segmentSelection; /* +0x74 */
+} MenuItemWorkData;
+
+typedef struct MenuEtherWork {
+    unsigned char unmodeled_00[0x03];
+    unsigned char state;            /* +0x03 */
+    unsigned char unmodeled_04[0x10 - 0x04];
+    signed char charDenied;         /* +0x10 */
+    unsigned char unmodeled_11[0x20 - 0x11];
+    unsigned char flags;             /* +0x20; bit 0 rebuilds ether windows */
+    unsigned char nextState;         /* +0x21 */
+    unsigned char unmodeled_22[0x2A - 0x22];
+    unsigned char wait;              /* +0x2A */
+    unsigned char unmodeled_2b[0x30 - 0x2B];
+    signed char commandCursor;       /* +0x30 */
+    signed char menuCursor;          /* +0x31 */
+    signed char slotCursor;          /* +0x32 */
+    signed char slotCount;           /* +0x33 */
+    signed char confirmCursor;       /* +0x34 */
+    unsigned char unmodeled_35[0x40 - 0x35];
+    signed char chrNo;               /* +0x40 */
+    signed char partyCount;          /* +0x41 */
+    signed char partyCursor;         /* +0x42 */
+    signed char targetCursor;        /* +0x43 */
+    signed char etherId;             /* +0x44 */
+    signed char slotEther;           /* +0x45 */
+    signed char targetChrNo;         /* +0x46 */
+    signed char useType;             /* +0x47 */
+    signed char targetCount;         /* +0x48 */
+    unsigned char unmodeled_49[0x50 - 0x49];
+    union {
+        int listSelect;              /* +0x50 */
+        unsigned char listSelectBytes[4];
+    };
+    unsigned char unmodeled_54[0x60 - 0x54];
+    unsigned char targetList[8];     /* +0x60 */
+} MenuEtherWork;
+
+/* Mutually exclusive screen views of the original 0x80-byte MenuWork object. */
+typedef union MenuWorkData {
+    CharacterMenuWorkData character;
+    MenuItemWorkData item;
+    MenuEtherWork ether;
+    AgwsMenuWork agws;
+} MenuWorkData;
+
+/* Private diagnostic layout checks; these do not define storage. */
+typedef char MenuWorkCharacterExtent[(sizeof(CharacterMenuWorkData) == 0x80) ? 1 : -1];
+typedef char MenuWorkItemExtent[(sizeof(MenuItemWorkData) == 0x78) ? 1 : -1];
+typedef char MenuWorkEtherExtent[(sizeof(MenuEtherWork) == 0x68) ? 1 : -1];
+typedef char MenuWorkAgwsExtent[(sizeof(AgwsMenuWork) == 0x80) ? 1 : -1];
+typedef char MenuWorkOwnerExtent[(sizeof(MenuWorkData) == 0x80) ? 1 : -1];
+typedef char MenuWorkOwnerAlignment[(__alignof__(MenuWorkData) == 4) ? 1 : -1];
+
 typedef struct WeaponWaglData {
     unsigned char unmodeled_00[0x12];
     short wagl;
@@ -390,7 +521,7 @@ typedef struct AgwsPasWork {
     unsigned char callbackWork[0x770 - 0x700];
 } AgwsPasWork;
 
-extern AgwsMenuWork MenuWork;
+extern MenuWorkData MenuWork;
 extern AgwsParaDisplay MenuAgwsPara;
 extern AgwsParaDisplay MenuAgwsPara2;
 extern AgwsListWork *AgwsList;

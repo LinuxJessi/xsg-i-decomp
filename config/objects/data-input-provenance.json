@@ -1,75 +1,75 @@
 {
-  "inputs": [
-    {
-      "assembler_argv": [
-        "-EL",
-        "-march=r5900",
-        "-mabi=eabi",
-        "-mgp64",
-        "-G0",
-        "-no-pad-sections",
-        "-mno-fix-r5900"
-      ],
-      "assembler_sha256": "6c4ee9ee347c647b2e034ba77009901bd04b6ba20c26cfd0d833a1c86e08d037",
-      "credited_bytes": 0,
-      "current_owner_sha256": "2e0a2f869f1e2eacb77a9d3e0c91d785f304dd715f55ac1fbaf848a33a604f86",
-      "generator_inputs": {
-        "root:config/objects/data-carves.json": "efacc6e4435501d2dc137b1a5aba6b5e487e04db8b32d7fa462e3a0c1d5b8c7a",
-        "root:config/objects/main.compile.json": "b3c4e0e28cb11e468dba18a156c989ea5ad747e1fcc8fed96386d553e335e075",
-        "root:config/objects/main.objects.json": "f7e0c2d5d7b1797d8f475a08e5f72c54988c8424656088f4aff60b51b836dcd9",
-        "root:config/originals.json": "c1a3491583a5384e3d398a10d7265774a7d7c39d41289324681a7759954dd41f",
-        "root:config/split/main.data-splits.json": "9af91b84465a3e1b756bc9e950c18ecc1e19fa1dc7141b4621f763954fe40b82",
-        "root:config/split/main.yaml": "a3292b29b8eacef1149a0bec1c63d1dbf085cfb6990033dd8dcb45c176d274a7",
-        "root:config/symbols/main.txt": "bc1d1fa4f2d89c30d91af78fa3fa026f7acbbaba5a85552f59dd02e07fd603a7",
-        "root:config/toolchain-identity.json": "d271e8d550a2b56d22543466cb3091fd919351c979837f99f1b6f04378662fd6",
-        "root:configure.py": "02d2dad14e3f2ca74c6c90cfc9175a1ae3f8a2a4951daf79f357749f4ee2623b",
-        "root:include/macro.inc": "86f9b2d691200ef10179e1d9b4f63186da07285c28f2945de940e97d6e8f7e12",
-        "root:requirements.txt": "e3f7f2dd662c218657c25f46234f965b2687d4265f26029c767bcbf527bc4c2f",
-        "root:tools/configure.py": "b02abcb0f64d3dd9919bd3cbcc3b6771b1bfaeead8d2935c672a5b86b59bbc5b",
-        "root:tools/tu/data_carve.py": "00b6899bd5913da439e869383ead7d494af83c75ad4a7f8a63c9b4a3c4db5e02",
-        "root:tools/tu/elfinfo.py": "a6385e9748bb85181af274136e9c75596af3a21fa0d20cae1a82ed1ccbb2097f",
-        "root:tools/tu/legacy_dialect.py": "8fe8cec8eb7ba2048d796d6bf276a53dad017da2b9fcb84aafe9ef365af94464",
-        "root:tools/tu/ninja_main.py": "f1c544ef816f6025bd2c8a6256521787bbe2373d00fbc68e5ea198681271f22b",
-        "root:tools/tu/post_split.py": "bb063e2a0812b3a5eefd3bcabd9a2fceef3cc9cb9ddc57fc69f79514a8514553",
-        "root:tools/tu/run_splat.py": "8ea5d8ef69dc92b72c17a25be0e4bf558216bf360c5dc57caa118782dfe0ba2c",
-        "root:tools/tu/tail_align.py": "7954bb4c15b3e59e7abab601145f9549d486c8869eb84e19c185751832576952",
-        "root:tools/tu/toolchain.py": "2afdd016dd6d8f7b1ddf58bd5f50cebf0924a12834885f54fce511823a7ed1e1",
-        "root:tools/tu/tracked_inputs.py": "ff245836d5c135fd8cb80350a8f562221e1347837a8cdc0dca1578c4e107f212",
-        "unit:auto-splits.json": "9af91b84465a3e1b756bc9e950c18ecc1e19fa1dc7141b4621f763954fe40b82",
-        "unit:splat.yaml": "a3292b29b8eacef1149a0bec1c63d1dbf085cfb6990033dd8dcb45c176d274a7",
-        "unit:symbol_addrs.txt": "bc1d1fa4f2d89c30d91af78fa3fa026f7acbbaba5a85552f59dd02e07fd603a7",
-        "unit:tu-manifest.json": "d4c845396bad1099766909d78f5c50e9d14e67789c95c8d93bbfe3ee2c9bac77"
-      },
-      "grants_source_eligibility": false,
-      "items_sha256": "5516b972dc976c2ef21d1cf0bdc45101a4185fc537c7bf4f2db1f6e230e53923",
-      "local_order_sha256": "ee0fbc05f4aeb3ac2911b1ff4f9efc8a18342bc200f3025eaeab62a415661c04",
-      "macro_sha256": "86f9b2d691200ef10179e1d9b4f63186da07285c28f2945de940e97d6e8f7e12",
-      "manifest_identity": "official-staged-tool-paths/1",
-      "object_sha256": "2e4550f487764eb6658e09faa142cbd2673e5d7a8b2a9097ecc6904827134d40",
-      "origin_source_sha256": "1f9c1337a98d53d0bc5be8a5cf0f8e3a3f3eb89972913b035e0c53de60bbead1",
-      "original_alignment_proved": false,
-      "original_capacity_proved": false,
-      "original_sha256": "412d448de31505c03ad474cc63d500b3b4f8c48d49d32bd24c89fe5b21af0fb2",
-      "owner_sha256": "dfb70cdf26741bf1f1df6ae184fe3b667fea17e437ec1908e329b27052b20a64",
-      "payload_sha256": "e605b66b8f991369673e5a196d721763b472d9840034aaa114b2e37c967f934e",
-      "piece": "carve/endou_test",
-      "range": [
-        4990016,
-        4991720
-      ],
-      "schema": "unchanged-external-input/1",
-      "section": ".rodata",
-      "section_header": [
-        1,
-        2,
-        1704,
-        8
-      ],
-      "source": "carve/main/endou_test.rodata.s",
-      "source_sha256": "3423814718746390fd5b68c80c804abb77cb5858e467c740d423c21df01a4da0",
-      "tu": "main/tu158"
-    }
-  ],
-  "note": "Reviewed current reconstruction input; original alignment/capacity remain unknown and ASM provider data earns zero C credit. The unit manifest identity uses canonical tracked public metadata and exact official host-tool staging; current raw file bytes remain per-receipt pinned.",
-  "schema": "unchanged-data-input-provenance/1"
+ "inputs": [
+  {
+   "assembler_argv": [
+    "-EL",
+    "-march=r5900",
+    "-mabi=eabi",
+    "-mgp64",
+    "-G0",
+    "-no-pad-sections",
+    "-mno-fix-r5900"
+   ],
+   "assembler_sha256": "6c4ee9ee347c647b2e034ba77009901bd04b6ba20c26cfd0d833a1c86e08d037",
+   "credited_bytes": 0,
+   "current_owner_sha256": "2e0a2f869f1e2eacb77a9d3e0c91d785f304dd715f55ac1fbaf848a33a604f86",
+   "generator_inputs": {
+    "root:config/objects/data-carves.json": "efacc6e4435501d2dc137b1a5aba6b5e487e04db8b32d7fa462e3a0c1d5b8c7a",
+    "root:config/objects/main.compile.json": "29cc1d3d816aae516cfb4a85f0ec01f90ca782aa2081721d55626f0298c7cd6b",
+    "root:config/objects/main.objects.json": "079d2ec34f7f8ff130c7fd09aa9af66c059b22bc1e995d24333b1888ceffa7c4",
+    "root:config/originals.json": "c1a3491583a5384e3d398a10d7265774a7d7c39d41289324681a7759954dd41f",
+    "root:config/split/main.data-splits.json": "9af91b84465a3e1b756bc9e950c18ecc1e19fa1dc7141b4621f763954fe40b82",
+    "root:config/split/main.yaml": "a3292b29b8eacef1149a0bec1c63d1dbf085cfb6990033dd8dcb45c176d274a7",
+    "root:config/symbols/main.txt": "bc1d1fa4f2d89c30d91af78fa3fa026f7acbbaba5a85552f59dd02e07fd603a7",
+    "root:config/toolchain-identity.json": "197e3970902dfda495f949b89d3b63971df693872f8b283e984dccd385bdb63f",
+    "root:configure.py": "02d2dad14e3f2ca74c6c90cfc9175a1ae3f8a2a4951daf79f357749f4ee2623b",
+    "root:include/macro.inc": "86f9b2d691200ef10179e1d9b4f63186da07285c28f2945de940e97d6e8f7e12",
+    "root:requirements.txt": "e3f7f2dd662c218657c25f46234f965b2687d4265f26029c767bcbf527bc4c2f",
+    "root:tools/configure.py": "b02abcb0f64d3dd9919bd3cbcc3b6771b1bfaeead8d2935c672a5b86b59bbc5b",
+    "root:tools/tu/data_carve.py": "00b6899bd5913da439e869383ead7d494af83c75ad4a7f8a63c9b4a3c4db5e02",
+    "root:tools/tu/elfinfo.py": "a6385e9748bb85181af274136e9c75596af3a21fa0d20cae1a82ed1ccbb2097f",
+    "root:tools/tu/legacy_dialect.py": "8fe8cec8eb7ba2048d796d6bf276a53dad017da2b9fcb84aafe9ef365af94464",
+    "root:tools/tu/ninja_main.py": "f1c544ef816f6025bd2c8a6256521787bbe2373d00fbc68e5ea198681271f22b",
+    "root:tools/tu/post_split.py": "bb063e2a0812b3a5eefd3bcabd9a2fceef3cc9cb9ddc57fc69f79514a8514553",
+    "root:tools/tu/run_splat.py": "8ea5d8ef69dc92b72c17a25be0e4bf558216bf360c5dc57caa118782dfe0ba2c",
+    "root:tools/tu/tail_align.py": "7954bb4c15b3e59e7abab601145f9549d486c8869eb84e19c185751832576952",
+    "root:tools/tu/toolchain.py": "2afdd016dd6d8f7b1ddf58bd5f50cebf0924a12834885f54fce511823a7ed1e1",
+    "root:tools/tu/tracked_inputs.py": "64b665b010ccf2424473ef5aafeeb3dd4b2bd49c34e90aab707a02ef73db2dcc",
+    "unit:auto-splits.json": "9af91b84465a3e1b756bc9e950c18ecc1e19fa1dc7141b4621f763954fe40b82",
+    "unit:splat.yaml": "a3292b29b8eacef1149a0bec1c63d1dbf085cfb6990033dd8dcb45c176d274a7",
+    "unit:symbol_addrs.txt": "bc1d1fa4f2d89c30d91af78fa3fa026f7acbbaba5a85552f59dd02e07fd603a7",
+    "unit:tu-manifest.json": "849c20dbd06a0c6784ec8d8b25400f69b5c64073711ab91795c6feccc68693c2"
+   },
+   "grants_source_eligibility": false,
+   "items_sha256": "5516b972dc976c2ef21d1cf0bdc45101a4185fc537c7bf4f2db1f6e230e53923",
+   "local_order_sha256": "ee0fbc05f4aeb3ac2911b1ff4f9efc8a18342bc200f3025eaeab62a415661c04",
+   "macro_sha256": "86f9b2d691200ef10179e1d9b4f63186da07285c28f2945de940e97d6e8f7e12",
+   "manifest_identity": "official-staged-tool-paths/1",
+   "object_sha256": "2e4550f487764eb6658e09faa142cbd2673e5d7a8b2a9097ecc6904827134d40",
+   "origin_source_sha256": "1f9c1337a98d53d0bc5be8a5cf0f8e3a3f3eb89972913b035e0c53de60bbead1",
+   "original_alignment_proved": false,
+   "original_capacity_proved": false,
+   "original_sha256": "412d448de31505c03ad474cc63d500b3b4f8c48d49d32bd24c89fe5b21af0fb2",
+   "owner_sha256": "dfb70cdf26741bf1f1df6ae184fe3b667fea17e437ec1908e329b27052b20a64",
+   "payload_sha256": "e605b66b8f991369673e5a196d721763b472d9840034aaa114b2e37c967f934e",
+   "piece": "carve/endou_test",
+   "range": [
+    4990016,
+    4991720
+   ],
+   "schema": "unchanged-external-input/1",
+   "section": ".rodata",
+   "section_header": [
+    1,
+    2,
+    1704,
+    8
+   ],
+   "source": "carve/main/endou_test.rodata.s",
+   "source_sha256": "3423814718746390fd5b68c80c804abb77cb5858e467c740d423c21df01a4da0",
+   "tu": "main/tu158"
+  }
+ ],
+ "note": "Reviewed current reconstruction input; original alignment/capacity remain unknown and ASM provider data earns zero C credit. The unit manifest identity uses canonical tracked public metadata and exact official host-tool staging; current raw file bytes remain per-receipt pinned.",
+ "schema": "unchanged-data-input-provenance/1"
 }

@@ -648,16 +648,19 @@ void MAP_updateUnitKoware(void *argument);
 
 void CreateUwamonoCommon(UwamonoMapUnit *unit);
 
+typedef union UwamonoCollisionPosition {
+    Vector4 value;
+    XglQuadword quadword;
+} UwamonoCollisionPosition;
+
 typedef struct UwamonoCollisionUnit {
     unsigned char unmodeled_00[0x10];
-    Vector4 position;
+    UwamonoCollisionPosition position;
     unsigned char unmodeled_20[0x60];
     struct UwamonoCrossBasis *basis;
     unsigned char unmodeled_84[0x2c];
-    float radius;
-    float height;
-    float boxDepth;
-    unsigned char unmodeled_bc[0xe4];
+    UwamonoAlignedVector dimensions;
+    unsigned char unmodeled_c0[0xe0];
     UwamonoMapUnitState state;
     unsigned char unmodeled_1e8[0x118];
 } UwamonoCollisionUnit;
@@ -974,7 +977,7 @@ extern void xglSoundEffectNormalID(int soundId, int channel);
 
 #define D_004D7F44 0.1f
 
-int HitCheckBoxUwamono(UwamonoBoxUnit *actor, UwamonoBoxUnit *unit);
+int HitCheckBoxUwamono(UwamonoBoxUnit *actor, UwamonoMapSlot *unit);
 
 #define D_004D7F1C 0.6f
 
@@ -1457,7 +1460,7 @@ typedef struct NativeUnitPeer NativeUnitPeer;
 void DrawSprite(const UwamonoAlignedScreenPoint *position,
                 const UwamonoScreenPoint *color, int width, int height);
 
-static void NyuruCorner(UwamonoNyuruActor *actor, UwamonoCollisionCopy *unit);
+static void NyuruCorner(UwamonoNyuruActor *actor, UwamonoCollisionUnit *unit);
 
 void CrossPointUwamonoAt(const Vector4 *first, const Vector4 *second,
                          UwamonoMapUnit *unit, void *result);
@@ -2488,19 +2491,19 @@ int HitCheckMapUnitAt(UwamonoCollisionActor *actor, UwamonoCollisionUnit *unit)
 {
     UwamonoMapUnitState *state;
 
-    if (unit->position.y + unit->height * D_004D7ED0 < actor->position.y) {
+    if (unit->position.value.y + unit->dimensions.value.y * D_004D7ED0 < actor->position.y) {
         return 0;
     }
 
     state = &unit->state;
-    if (actor->position.y < unit->position.y - D_004D7ED4) {
+    if (actor->position.y < unit->position.value.y - D_004D7ED4) {
         return 0;
     }
 
     switch (state->state) {
     case 1: {
-        float distance = CheckDist2D(&actor->position, &unit->position);
-        float collisionRadius = actor->radius + unit->radius;
+        float distance = CheckDist2D(&actor->position, &unit->position.value);
+        float collisionRadius = actor->radius + unit->dimensions.value.x;
         if (!(distance < collisionRadius)) {
             return 0;
         }
@@ -2515,11 +2518,11 @@ int HitCheckMapUnitAt(UwamonoCollisionActor *actor, UwamonoCollisionUnit *unit)
 unsigned int HitCheckMapUnitPosAt(UwamonoCollisionActor *actor, UwamonoCollisionUnit *unit)
 {
     UwamonoMapUnitState *state = &unit->state;
-    float unitY = unit->position.y;
+    float unitY = unit->position.value.y;
     float actorY = actor->position.y;
     signed char shape;
 
-    if (unitY + unit->height * D_004D7ED8 < actorY) {
+    if (unitY + unit->dimensions.value.y * D_004D7ED8 < actorY) {
         return 0;
     }
     if (actorY < unitY - D_004D7EDC) {
@@ -2528,8 +2531,8 @@ unsigned int HitCheckMapUnitPosAt(UwamonoCollisionActor *actor, UwamonoCollision
     shape = state->state;
     switch (shape) {
     case 1:
-        if (CheckDist2D(&actor->position, &unit->position) <
-            actor->radius + unit->radius) {
+        if (CheckDist2D(&actor->position, &unit->position.value) <
+            actor->radius + unit->dimensions.value.x) {
             return 1;
         }
         return 0;
@@ -2590,7 +2593,57 @@ int HitCheckBox(UwamonoCollisionActor *actor, struct UwamonoBoxUnit *boxUnit)
     return testDistance < depthSquared;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", HitCheckBoxCorner);
+int HitCheckBoxCorner(UwamonoCollisionActor *actor, UwamonoCollisionUnit *unit)
+{
+    UwamonoMapSlot *box = (UwamonoMapSlot *)unit;
+    int outsideWidth = 0;
+    UwamonoAlignedVector dimensions = box->dimensions;
+    UwamonoAlignedVector position;
+    struct UwamonoBoxBasis *basis;
+    struct UwamonoBoxBasis **basisSlot;
+    float basisX;
+    float basisZ;
+    float actorX;
+    float actorZ;
+    float testDistance;
+    float offsetX;
+    float offsetZ;
+    float differenceX;
+    float differenceZ;
+    float depth;
+
+    position.words[1] = box->position.words[1];
+    position.words[0] = box->position.words[0];
+    actorX = actor->position.x;
+    actorZ = actor->position.z;
+    basisSlot = &box->basis;
+    basis = *basisSlot;
+    basisX = basis->x;
+    basisZ = basis->z;
+    offsetX = actorX - position.value.x;
+    offsetZ = actorZ - position.value.z;
+    testDistance = offsetX * basisX + offsetZ * basisZ;
+    if (dimensions.value.x + actor->radius * 1.5f < __builtin_fabsf(testDistance)) {
+        return 0;
+    }
+    if (dimensions.value.x < __builtin_fabsf(testDistance)) {
+        outsideWidth = 1;
+    }
+    offsetX = testDistance * basisX + position.value.x;
+    differenceX = actorX - offsetX;
+    offsetZ = testDistance * basisZ + position.value.z;
+    differenceZ = actorZ - offsetZ;
+    depth = dimensions.value.z + actor->radius * 1.5f;
+    testDistance = differenceX * differenceX + differenceZ * differenceZ;
+    if (testDistance < depth * depth) {
+        if (dimensions.value.z * dimensions.value.z < testDistance &&
+            outsideWidth == 1) {
+            return HitCheckCorner(actor, unit) != 0;
+        }
+        return 1;
+    }
+    return 0;
+}
 
 int HitCheckCorner(UwamonoCollisionActor *actor, UwamonoCollisionUnit *unit)
 {
@@ -2681,29 +2734,29 @@ static int NyuruCircle(UwamonoNyuruActor *actor, UwamonoCollisionUnit *unit)
     direction.x = actor->displacement.x / scale;
     direction.z = actor->displacement.z / scale;
 
-    displacementAngle = Get_Angle(&actor->position, &unit->position);
+    displacementAngle = Get_Angle(&actor->position, &unit->position.value);
     (void)atan2f(actor->displacement.x, actor->displacement.z);
-    combinedRadius = actor->radius + unit->radius;
+    combinedRadius = actor->radius + unit->dimensions.value.x;
     actor->position.x -= actor->displacement.x;
     actor->position.z -= actor->displacement.z;
-    movedAngle = Get_Angle(&actor->position, &unit->position);
+    movedAngle = Get_Angle(&actor->position, &unit->position.value);
 
-    target.x = unit->position.x - combinedRadius * xglSin(displacementAngle);
-    target.z = unit->position.z - combinedRadius * xglCos(displacementAngle);
+    target.x = unit->position.value.x - combinedRadius * xglSin(displacementAngle);
+    target.z = unit->position.value.z - combinedRadius * xglCos(displacementAngle);
     gapX = actor->position.x - target.x;
     gapZ = actor->position.z - target.z;
     distance = __builtin_sqrtf(gapX * gapX + gapZ * gapZ);
     scale = (displacementLength - distance) * 0.25f;
-    angleCorrection = scale / (unit->radius * 2.0f);
+    angleCorrection = scale / (unit->dimensions.value.x * 2.0f);
     if (0.0f < movedAngle - displacementAngle) {
         displacementAngle -= angleCorrection;
     } else {
         displacementAngle += angleCorrection;
     }
 
-    combinedRadius = actor->radius + unit->radius + D_004D7EE8;
-    target.x = unit->position.x - combinedRadius * xglSin(displacementAngle);
-    target.z = unit->position.z - combinedRadius * xglCos(displacementAngle);
+    combinedRadius = actor->radius + unit->dimensions.value.x + D_004D7EE8;
+    target.x = unit->position.value.x - combinedRadius * xglSin(displacementAngle);
+    target.z = unit->position.value.z - combinedRadius * xglCos(displacementAngle);
     actor->displacement.x = target.x - actor->position.x;
     actor->displacement.z = target.z - actor->position.z;
     height = UnduCheck(&actor->position, &actor->displacement,
@@ -2720,7 +2773,7 @@ static int NyuruCircle(UwamonoNyuruActor *actor, UwamonoCollisionUnit *unit)
 static int NyuruMatrix(UwamonoNyuruActor *actor, UwamonoCollisionUnit *unit, int mode)
 {
     UwamonoCrossBasis *basis;
-    UwamonoAlignedBoxDims dims;
+    UwamonoAlignedVector dims;
     float dx = actor->displacement.x;
     float dz = actor->displacement.z;
     float remainingX = actor->position.x - dx;
@@ -2734,13 +2787,13 @@ static int NyuruMatrix(UwamonoNyuruActor *actor, UwamonoCollisionUnit *unit, int
     float projection;
     UwamonoCrossBasis basisCopy;
 
-    dims = *(UwamonoAlignedBoxDims *)&unit->radius;
+    dims = unit->dimensions;
     basis = unit->basis;
     basisCopy = *basis;
     actor->position.x = remainingX;
     actor->position.z = remainingZ;
-    relativeX = remainingX - unit->position.x;
-    relativeZ = remainingZ - unit->position.z;
+    relativeX = remainingX - unit->position.value.x;
+    relativeZ = remainingZ - unit->position.value.z;
     alongX = relativeX * basis->xAxisX + relativeZ * basis->xAxisZ;
     distance = __builtin_sqrtf(distanceSquared);
     if (distance == 0.0f) {
@@ -2750,16 +2803,16 @@ static int NyuruMatrix(UwamonoNyuruActor *actor, UwamonoCollisionUnit *unit, int
     direction.z = actor->displacement.z / distance;
     direction.y = 0.0f;
 
-    if (__builtin_fabsf(alongX) < dims.value.radius + actor->radius * 1.5f) {
+        if (__builtin_fabsf(alongX) < dims.value.x + actor->radius * 1.5f) {
         projection = direction.x * basis->xAxisX + direction.z * basis->xAxisZ;
         actor->displacement.x = projection * basis->xAxisX * distance;
         actor->displacement.z = projection * basis->xAxisZ * distance;
         if (__builtin_fabsf(actor->displacement.x) < D_004D7EEC &&
             __builtin_fabsf(actor->displacement.z) < D_004D7EEC && mode == 0) {
-            if (alongX > dims.value.radius) {
+            if (alongX > dims.value.x) {
                 actor->displacement.x = basis->xAxisX * distance * 0.5f;
                 actor->displacement.z = basis->xAxisZ * distance * 0.5f;
-            } else if (alongX < -dims.value.radius) {
+            } else if (alongX < -dims.value.x) {
                 actor->displacement.x = -basis->xAxisX * distance * 0.5f;
                 actor->displacement.z = -basis->xAxisZ * distance * 0.5f;
             }
@@ -2771,10 +2824,10 @@ static int NyuruMatrix(UwamonoNyuruActor *actor, UwamonoCollisionUnit *unit, int
         if (__builtin_fabsf(actor->displacement.x) < D_004D7EF0 &&
             __builtin_fabsf(actor->displacement.z) < D_004D7EF0 && mode == 0) {
             alongX = relativeX * basis->zAxisX + relativeZ * basis->zAxisZ;
-            if (alongX > dims.value.boxDepth) {
+            if (alongX > dims.value.z) {
                 actor->displacement.x = basis->zAxisX * distance * 0.5f;
                 actor->displacement.z = basis->zAxisZ * distance * 0.5f;
-            } else if (alongX < -dims.value.boxDepth) {
+            } else if (alongX < -dims.value.z) {
                 actor->displacement.x = -basis->zAxisX * distance * 0.5f;
                 actor->displacement.z = -basis->zAxisZ * distance * 0.5f;
             }
@@ -2798,7 +2851,7 @@ static int NyuruMatrix(UwamonoNyuruActor *actor, UwamonoCollisionUnit *unit, int
 int NyuruBox(UwamonoCollisionActor *actor, UwamonoCollisionUnit *unit, int mode)
 {
     UwamonoCrossBasis *basis;
-    UwamonoAlignedBoxDims dims;
+    UwamonoAlignedVector dims;
     Vector4 normal;
     UwamonoCrossBasis basisCopy;
     float dx;
@@ -2811,19 +2864,18 @@ int NyuruBox(UwamonoCollisionActor *actor, UwamonoCollisionUnit *unit, int mode)
 
     basis = unit->basis;
     basisCopy = *basis;
-    dims = *(UwamonoAlignedBoxDims *)&unit->radius;
+    dims = unit->dimensions;
 
     if (mode == 0 && HitCheckCorner(actor, unit)) {
-        NyuruCorner((UwamonoNyuruActor *)actor,
-                    (UwamonoCollisionCopy *)(void *)unit);
+        NyuruCorner((UwamonoNyuruActor *)actor, unit);
         return 1;
     }
     dx = actor->displacement.x;
     dz = actor->displacement.z;
     actor->position.x -= dx;
     actor->position.z -= dz;
-    relativeX = actor->position.x - unit->position.x;
-    relativeZ = actor->position.z - unit->position.z;
+    relativeX = actor->position.x - unit->position.value.x;
+    relativeZ = actor->position.z - unit->position.value.z;
     alongX = relativeX * basis->xAxisX + relativeZ * basis->xAxisZ;
     distance = __builtin_sqrtf(actor->displacement.x * actor->displacement.x + actor->displacement.z * actor->displacement.z);
     if (distance == 0.0f) {
@@ -2833,7 +2885,7 @@ int NyuruBox(UwamonoCollisionActor *actor, UwamonoCollisionUnit *unit, int mode)
     normal.x = actor->displacement.x / distance;
     normal.y = 0.0f;
     normal.z = actor->displacement.z / distance;
-    if (__builtin_fabsf(alongX) < dims.value.radius + actor->radius * 1.5f) {
+    if (__builtin_fabsf(alongX) < dims.value.x + actor->radius * 1.5f) {
         projection = normal.x * basis->xAxisX + normal.z * basis->xAxisZ;
         actor->displacement.x = projection * basis->xAxisX * distance;
         actor->displacement.z = projection * basis->xAxisZ * distance;
@@ -2857,7 +2909,78 @@ int NyuruBox(UwamonoCollisionActor *actor, UwamonoCollisionUnit *unit, int mode)
     return 1;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", NyuruCorner);
+static void NyuruCorner(UwamonoNyuruActor *actor, UwamonoCollisionUnit *unit)
+{
+    UwamonoCrossBasis *basis;
+    UwamonoCollisionPosition nearest;
+    UwamonoCollisionPosition candidate;
+    UwamonoCollisionPosition center;
+    UwamonoAlignedVector dimensions;
+    UwamonoCollisionUnit adjustedUnit;
+    float nearestDistance;
+    float distance;
+    float actorRadius;
+    float adjustedRadius;
+
+    basis = unit->basis;
+    center = unit->position;
+    dimensions = unit->dimensions;
+    nearest.value.x = center.value.x +
+                      (dimensions.value.x * basis->xAxisX +
+                       dimensions.value.z * basis->zAxisX);
+    nearest.value.y = center.value.y;
+    nearest.value.z = center.value.z +
+                      (dimensions.value.x * basis->xAxisZ +
+                       dimensions.value.z * basis->zAxisZ);
+    candidate.value.x = center.value.x -
+                        (dimensions.value.z * basis->xAxisZ +
+                         dimensions.value.x * basis->zAxisZ);
+    candidate.value.y = center.value.y;
+    candidate.value.z = center.value.z +
+                        (dimensions.value.z * basis->xAxisX +
+                         dimensions.value.x * basis->zAxisX);
+    nearestDistance = CheckDist2D(&actor->position, &nearest.value);
+    distance = CheckDist2D(&actor->position, &candidate.value);
+    if (nearestDistance > distance) {
+        nearest = candidate;
+    }
+
+    candidate.value.x = center.value.x -
+                        (dimensions.value.x * basis->xAxisX +
+                         dimensions.value.z * basis->zAxisX);
+    candidate.value.y = center.value.y;
+    candidate.value.z = center.value.z -
+                        (dimensions.value.x * basis->xAxisZ +
+                         dimensions.value.z * basis->zAxisZ);
+    nearestDistance = CheckDist2D(&actor->position, &nearest.value);
+    distance = CheckDist2D(&actor->position, &candidate.value);
+    if (nearestDistance > distance) {
+        nearest = candidate;
+    }
+
+    candidate.value.x = center.value.x +
+                        (dimensions.value.z * basis->xAxisZ +
+                         dimensions.value.x * basis->zAxisZ);
+    candidate.value.y = center.value.y;
+    candidate.value.z = center.value.z -
+                        (dimensions.value.z * basis->xAxisX +
+                         dimensions.value.x * basis->zAxisX);
+    nearestDistance = CheckDist2D(&actor->position, &nearest.value);
+    distance = CheckDist2D(&actor->position, &candidate.value);
+    if (nearestDistance > distance) {
+        nearest = candidate;
+    }
+
+    adjustedUnit = *unit;
+    adjustedUnit.position = nearest;
+    actorRadius = actor->radius;
+    adjustedRadius = actorRadius * 1.5f;
+    adjustedUnit.dimensions.value.z = adjustedRadius;
+    adjustedUnit.dimensions.value.x = adjustedRadius;
+    actor->radius = D_004D7EF4;
+    NyuruCircle(actor, &adjustedUnit);
+    actor->radius = actorRadius;
+}
 
 void ShootMapUnit(void)
 {
@@ -3062,18 +3185,18 @@ void CalcNearCrossPointCircle(const Vector4 *from, const Vector4 *to,
     float distance;
     if (CrossCheckMapUnitCircle(from, to, unit)) {
         delta = *from;
-        delta.y = unit->position.y;
+        delta.y = unit->position.value.y;
         __asm__ __volatile__(
             "lqc2 vf3,0(%0)\n\t"
             "lqc2 vf2,0(%1)\n\t"
             "vsub.xyz vf2xyz,vf2xyz,vf3xyz\n\t"
             "sqc2 vf2,0(%2)"
             :
-            : "r"(from), "r"(&unit->position), "r"(&delta)
+            : "r"(from), "r"(&unit->position.value), "r"(&delta)
             : "memory");
         xglVectorLength(&distance, &delta);
         xglVectorNormal(&direction, &delta);
-        distance -= unit->radius;
+        distance -= unit->dimensions.value.x;
         if (distance < 0.0f) {
             *out = *from;
         } else {
@@ -3214,7 +3337,47 @@ static inline float UwamonoProjectBoxAxisXZ(float x, float z,
     return x * (*matrix)[0][0] + z * (*matrix)[0][2];
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", AreaCheckBox);
+int AreaCheckBox(const Vector4 *position, UwamonoMapSlot *unit, float radius)
+{
+    UwamonoAlignedVector dimensionsSnapshot;
+    float pointX = position->x;
+    float pointZ = position->z;
+    float unitZ;
+    float unitX;
+    float offsetX;
+    float offsetZ;
+    float differenceZ;
+    Matrix4 *matrix;
+    Matrix4 **matrixReference;
+    float basisZ;
+    float basisX;
+    float projection;
+    float depth;
+
+    unitX = unit->position.value.x;
+    unitZ = unit->position.value.z;
+    /* The routine snapshots dimensions here but reads live bounds below. */
+    dimensionsSnapshot = unit->dimensions;
+    offsetX = pointX - unitX;
+    offsetZ = pointZ - unitZ;
+    /* Keep an addressed reference to the real matrixView member. */
+    matrixReference = &unit->matrixView;
+    matrix = *matrixReference;
+    projection = UwamonoProjectBoxAxisXZ(offsetX, offsetZ, (const Matrix4 *)matrix);
+    if (unit->dimensions.value.x + radius < __builtin_fabsf(projection)) {
+        return 0;
+    }
+    depth = unit->dimensions.value.z + radius;
+    basisZ = (*matrix)[0][2];
+    basisX = (*matrix)[0][0];
+    offsetX = pointX - (projection * basisX + unitX);
+    differenceZ = pointZ - (projection * basisZ + unitZ);
+    offsetZ = differenceZ * differenceZ;
+    if (offsetX * offsetX + offsetZ < depth * depth) {
+        return 1;
+    }
+    return 0;
+}
 
 int CrossCheckMapUnitAim(Vector4 *from, UwamonoScanUnit *aim)
 {
@@ -3308,7 +3471,7 @@ int CrossCheckMapUnitCircle(const Vector4 *from, const Vector4 *to,
     direction.x = to->x - from->x;
     direction.y = 0.0f;
     direction.z = to->z - from->z;
-    radius = unit->radius;
+    radius = unit->dimensions.value.x;
     halfLength = __builtin_sqrtf(direction.x * direction.x +
                                  direction.z * direction.z) * 0.5f;
     /* The normalizer's vector ABI uses w as storage, not an xyz input. */
@@ -3317,13 +3480,13 @@ int CrossCheckMapUnitCircle(const Vector4 *from, const Vector4 *to,
     hit = 0;
     middle.x = from->x + (to->x - from->x) * 0.5f;
     middle.z = from->z + (to->z - from->z) * 0.5f;
-    offsetX = unit->position.x - middle.x;
-    offsetZ = unit->position.z - middle.z;
+    offsetX = unit->position.value.x - middle.x;
+    offsetZ = unit->position.value.z - middle.z;
     projection = offsetX * direction.x + offsetZ * direction.z;
     if (!(halfLength < __builtin_fabsf(projection))) {
         projectedX = projection * direction.x;
-        offsetX = unit->position.x - (projectedX + middle.x);
-        offsetZ = unit->position.z - (projection * direction.z + middle.z);
+        offsetX = unit->position.value.x - (projectedX + middle.x);
+        offsetZ = unit->position.value.z - (projection * direction.z + middle.z);
         hit = 1;
         if (!(offsetX * offsetX + offsetZ * offsetZ < radius * radius)) {
             hit = 0;
@@ -3631,28 +3794,28 @@ static float CheckCornerDist(const Vector4 *position, UwamonoCollisionUnit *unit
 
     switch (unit->state.state) {
     case 1:
-        distance = CheckDist2D(position, &unit->position) - unit->radius;
+        distance = CheckDist2D(position, &unit->position.value) - unit->dimensions.value.x;
         break;
     case 2:
         corner = ((UwamonoMapSlot *)unit)->dimensions;
         {
-            float offsetX = __builtin_fabsf(position->x - unit->position.x);
+            float offsetX = __builtin_fabsf(position->x - unit->position.value.x);
             float offsetZ;
 
             if (offsetX < corner.value.x) {
                 corner.value.x = offsetX;
             }
-            offsetZ = __builtin_fabsf(position->z - unit->position.z);
+            offsetZ = __builtin_fabsf(position->z - unit->position.value.z);
             if (offsetZ < corner.value.z) {
                 corner.value.z = offsetZ;
             }
         }
-        distance = CheckDist2D(position, &unit->position);
+        distance = CheckDist2D(position, &unit->position.value);
         distance -= __builtin_sqrtf(corner.value.x * corner.value.x +
                                     corner.value.z * corner.value.z);
         break;
     default:
-        distance = CheckDist2D(position, &unit->position);
+        distance = CheckDist2D(position, &unit->position.value);
         break;
     }
     return distance;
@@ -3822,7 +3985,7 @@ int HitCheckUwamonoAt(UwamonoBoxUnit *actor, UwamonoBoxUnit *unit)
                 return 1;
             return 0;
         case 2:
-            return HitCheckBoxUwamono(actor, unit);
+            return HitCheckBoxUwamono(actor, (UwamonoMapSlot *)unit);
         default:
             return 0;
         }
@@ -3830,9 +3993,105 @@ int HitCheckUwamonoAt(UwamonoBoxUnit *actor, UwamonoBoxUnit *unit)
     return 0;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", HitCheckBoxUwamono);
+int HitCheckBoxUwamono(UwamonoBoxUnit *actor, UwamonoMapSlot *unit)
+{
+    UwamonoAlignedVector dimensionsSnapshot;
+    UwamonoAlignedVector position;
+    Matrix4 *matrix;
+    Matrix4 **matrixReference;
+    float margin;
+    float actorX;
+    float actorZ;
+    float offsetZ;
+    float offsetX;
+    float testDistance;
+    float depth;
+    float differenceX;
+    float differenceZ;
+    float depthSquared;
 
-INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", DrawRadar);
+    actorX = actor->position.x;
+    actorZ = actor->position.z;
+    position = unit->position;
+    /* The routine snapshots dimensions here but reads live bounds below. */
+    dimensionsSnapshot = unit->dimensions;
+    offsetZ = actorZ - position.value.z;
+    /* Keep an addressed reference to the real matrixView member. */
+    matrixReference = &unit->matrixView;
+    matrix = *matrixReference;
+    offsetX = actorX - position.value.x;
+    testDistance = UwamonoProjectBoxAxisXZ(offsetX, offsetZ, (const Matrix4 *)matrix);
+    margin = 0.15f;
+    if (__builtin_fabsf(testDistance) > unit->dimensions.value.x + margin) {
+        return 0;
+    }
+    offsetX = testDistance * (*matrix)[0][0] + position.value.x;
+    differenceX = actorX - offsetX;
+    offsetZ = testDistance * (*matrix)[0][2] + position.value.z;
+    differenceZ = actorZ - offsetZ;
+    testDistance = differenceX * differenceX + differenceZ * differenceZ;
+    depth = unit->dimensions.value.z + margin;
+    depthSquared = depth * depth;
+    return testDistance < depthSquared;
+}
+
+void DrawRadar(void)
+{
+    UwamonoScreenPoint color;
+    UwamonoAlignedScreenPoint position;
+    const UwamonoSoundActor *listener = GameLoopState.actor;
+    const UwamonoCrossActor *candidate;
+    int index;
+    float diffX;
+    float diffZ;
+    float listenerZ;
+    const Vector4 *candidatePosition;
+    int z;
+    int x;
+    int absX;
+    int absZ;
+
+    color.x = 0xFF;
+    color.y = 0;
+    color.z = 0;
+    color.w = 0x80;
+    position.value.x = 0x8B00;
+    position.value.y = 0x8900;
+    position.value.z = 0xFFFFFF;
+    position.value.w = 0;
+    DrawSprite(&position, &color, 0x20, 0x20);
+
+    color.x = 0xFF;
+    color.y = 0xFF;
+    color.z = 0;
+    color.w = 0x80;
+    for (index = 0; index < 64; index++) {
+        candidate = actor + index;
+        if (candidate->resourceId < 0 || (candidate->flags & 8) != 0 ||
+            !candidate->collisionObject ||
+            index == listener->actorIndex) {
+            continue;
+        }
+
+        {
+            candidatePosition = &candidate->position;
+            listenerZ = listener->position.z;
+            diffZ = candidatePosition->z - listenerZ;
+            diffX = candidatePosition->x - listener->position.x;
+            (&position.value)->x = 0x8B00;
+            (&position.value)->y = 0x8900;
+            z = (int)(diffZ * 64.0f);
+            x = (int)(diffX * 64.0f);
+            absX = x < 0 ? -x : x;
+            absZ = z < 0 ? -z : z;
+            if (absX < 0x3E1 && absZ < 0x3E1) {
+                (&position.value)->x = x + 0x8B00;
+                (&position.value)->y = z + 0x8900;
+                DrawSprite(&position, &color, 0x20, 0x20);
+            }
+        }
+    }
+}
 
 void DrawSprite(const UwamonoAlignedScreenPoint *position,
                 const UwamonoScreenPoint *color, int width, int height)

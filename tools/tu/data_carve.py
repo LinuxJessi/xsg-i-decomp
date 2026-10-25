@@ -2623,16 +2623,15 @@ def tu_context(root, unit, unit_dir, tu_id):
             text = ovl_restore(raw_text)
             obj = re.search(r'(build/(?:scaffold/)?src/' + re.escape(unit) + '/' + re.escape(name)
                             + r'\.o)\(\.text\);', text)
-            allocated_carved = re.search(r'(build/c/' + re.escape(unit) + '/' + re.escape(name)
-                                         + r'\.allocated\.carved\.o)\(\.text\);', raw_text)
+            # Restore carve directives before deciding whether a whole section
+            # belongs to C. A split object's first slice keeps the base section
+            # name; its presence in the generated linker is not whole ownership.
             allocated = re.search(r'(build/c/' + re.escape(unit) + '/' + re.escape(name)
-                                  + r'\.allocated\.o)\(\.text\);', raw_text)
+                                  + r'\.allocated\.o)\(\.text\);', text)
             for sec in OVERLAY_SECTIONS:
                 allocated_sections = (sec, '.scommon') if sec == '.sbss' else (sec,)
                 if ((obj and f'{obj.group(1)}({sec});' in text) or
-                        (allocated_carved and any(f'{allocated_carved.group(1)}({s});' in raw_text
-                                                  for s in allocated_sections)) or
-                        (allocated and any(f'{allocated.group(1)}({s});' in raw_text
+                        (allocated and any(f'{allocated.group(1)}({s});' in text
                                            for s in allocated_sections))):
                     placed.add(sec)            # splat already links this C section
         fdirs = [unit_dir / f'asm/{d}/{unit}/{name}' for d in ('nonmatchings', 'matchings')]

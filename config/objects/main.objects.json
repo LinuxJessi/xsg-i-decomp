@@ -41185,29 +41185,60 @@
       "boundary_kind": "gcc_marker",
       "category": "game",
       "contract": {
-        "assembler": "LA29-vsqrt-nolabel-laimm (ee-legacy-binutils-la29-vsqrt-nolabel-laimm-v1, user-approved 2026-09-11, 2026-09-24, 2026-09-25)",
-        "assembler_path": "tool:ee-as-la29-vsqrt",
-        "assembler_sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
-        "cc1_sha256": "d7602f6561123f078353b7a8d771ba046830a80f810e3fa33fe617ee7288456d",
-        "cc_dir": "tool:ee-gcc2.96-realconv-lp7",
-        "cc_dir_note": "pinned release ee-gcc2.96-realconv-lp7 (cc1 sha d7602f65...)",
+        "language": "c",
         "compiler_profile": "ee-gcc2_96-realconv-lp7",
+        "cc_dir": "tool:ee-gcc2.96-realconv-lp7",
+        "cc1_sha256": "d7602f6561123f078353b7a8d771ba046830a80f810e3fa33fe617ee7288456d",
+        "cc_dir_note": "pinned release ee-gcc2.96-realconv-lp7 (cc1 sha d7602f65...)",
         "flags": [
           "-O2",
           "-G8"
         ],
-        "language": "c",
+        "assembler": "The source-built swap-mask correction reproduces the original Script TU scheduling; unchanged GCC, flags and accepted function bytes were causally verified in the pinned qualification.",
+        "assembler_path": "tool:ee-as-la29-vsqrt-swap",
+        "assembler_sha256": "448143a3f1f7ecd4fffb79ea3e641afa36863895366873f93462028535f95494",
         "source_class": "c"
       },
       "contract_evidence": {
-        "assembler_class": "LA29",
-        "assembler_confidence": "medium",
+        "source": "toolchain-per-object.json main#148",
         "compiler": "2.96",
         "compiler_confidence": "high",
-        "g_basis": "206 gp-relative insns, 21 local objects in .sdata/.sbss",
-        "g_confidence": "high",
+        "assembler_class": "LA29",
+        "assembler_confidence": "medium",
         "g_flag": "-G8",
-        "source": "toolchain-per-object.json main#148"
+        "g_confidence": "high",
+        "g_basis": "206 gp-relative insns, 21 local objects in .sdata/.sbss",
+        "assignment": {
+          "kind": "whole_tu_assembler_assignment",
+          "previous_contract": "ee-tu-c296-G8",
+          "contract": "ee-tu-c296-G8-script-swap",
+          "compiler_profile": "ee-gcc2_96-realconv",
+          "assembler_id": "ee-as-la29-vsqrt-swap",
+          "assembler": {
+            "path": "tool:ee-as-la29-vsqrt-swap",
+            "sha256": "448143a3f1f7ecd4fffb79ea3e641afa36863895366873f93462028535f95494",
+            "release": "ee-legacy-binutils-la29-vsqrt-nolabel-laimm-swap-v1"
+          },
+          "lock": {
+            "path": "config/tu148-toolchains.json",
+            "sha256": "f247330809724dfa1fdc36e8fd12edc2523eaa72412e256a1f04cb5f2fa260a8"
+          },
+          "qualification": {
+            "path": ".work/toolchains/ee-legacy-binutils-la29-vsqrt-nolabel-laimm-swap-v1/qualification.json",
+            "sha256": "d0ba840c530fef4ccd6c5fa9745047565adef213bc05307ad4a503fe3b6720d1"
+          },
+          "evidence": [
+            {
+              "path": ".work/toolchains/ee-legacy-binutils-la29-vsqrt-nolabel-laimm-swap-v1/reproduction.json",
+              "sha256": "d93fd7f373c82a434c89e583ddda95c229272366bf120e3d5cc0dd5614ed63cf"
+            }
+          ],
+          "original": {
+            "text_sha256": "103b45257c808513a27fb9c3cf919848c45b4995a628efe77ab4a24315723ca7",
+            "functions_sha256": "623dd425ec24dc187db1fb682656b5302e8d2da68009251e4ee92c93efef1af2"
+          },
+          "reason": "The source-built swap-mask correction reproduces the original Script TU scheduling; unchanged GCC, flags and accepted function bytes were causally verified in the pinned qualification."
+        }
       },
       "domain": "script",
       "functions": [
@@ -41839,12 +41870,12 @@
         }
       },
       "shared_contract": {
+        "present": true,
+        "id": "ee-tu-c296-G8-script-swap",
+        "path": "src/main/script.c",
         "cc1": "tool:ee-gcc2.96-realconv-lp7/cc1",
         "cc1_sha256": "d7602f6561123f078353b7a8d771ba046830a80f810e3fa33fe617ee7288456d",
-        "differences": {},
-        "id": "ee-tu-c296-G8",
-        "path": "src/main/script.c",
-        "present": true
+        "differences": {}
       },
       "text": {
         "end": "0x00265150",
@@ -97061,7 +97092,7 @@
     {
       "accepted": {
         "all_functions_accepted": false,
-        "functions": 0,
+        "functions": 1,
         "migration_hints": [],
         "note": "accepted ov02 records are imported by the overlay importers",
         "of": 7,
@@ -97156,15 +97187,15 @@
       "in_scope": false,
       "kind": "gcc",
       "map_class": "ov02-embedded",
-      "mode": "asm",
+      "mode": "c",
       "name": "ov02/05_tsk_umn_object_task_main",
       "name_basis": "tu-map-ovl suggested_name",
       "name_confidence": "map",
       "ordinal": 1005,
       "owners": {
-        ".text": "asm"
+        ".text": "c"
       },
-      "path": "src/main/ov02/05_tsk_umn_object_task_main.c",
+      "path": "src/main/tsk_umn_object_task_main.c",
       "scaffold_path": "scaffold/src/main/ov02/05_tsk_umn_object_task_main.c",
       "sections": {},
       "shared_contract": {
@@ -97187,12 +97218,23 @@
         "start": "0x00A023A8"
       },
       "toolchain_classification": "game",
-      "unit": "main"
+      "unit": "main",
+      "import": {
+        "mode": "c",
+        "note": "Use the reviewed PR30 C subset in MAIN embedded OV02; other functions and all data remain original scaffolding. Alias coverage is not counted twice.",
+        "source": {
+          "kind": "file",
+          "path": "src/main/tsk_umn_object_task_main.c",
+          "include_dirs": [
+            "include"
+          ]
+        }
+      }
     },
     {
       "accepted": {
         "all_functions_accepted": false,
-        "functions": 0,
+        "functions": 2,
         "migration_hints": [],
         "note": "accepted ov02 records are imported by the overlay importers",
         "of": 5,
@@ -97273,15 +97315,15 @@
       "in_scope": false,
       "kind": "gcc",
       "map_class": "ov02-embedded",
-      "mode": "asm",
+      "mode": "c",
       "name": "ov02/06_umn_interface2",
       "name_basis": "tu-map-ovl suggested_name",
       "name_confidence": "map",
       "ordinal": 1006,
       "owners": {
-        ".text": "asm"
+        ".text": "c"
       },
-      "path": "src/main/ov02/06_umn_interface2.c",
+      "path": "src/main/umn_interface2.c",
       "scaffold_path": "scaffold/src/main/ov02/06_umn_interface2.c",
       "sections": {},
       "shared_contract": {
@@ -97304,7 +97346,18 @@
         "start": "0x00A02D68"
       },
       "toolchain_classification": "game",
-      "unit": "main"
+      "unit": "main",
+      "import": {
+        "mode": "c",
+        "note": "Use the reviewed PR30 C subset in MAIN embedded OV02; other functions and all data remain original scaffolding. Alias coverage is not counted twice.",
+        "source": {
+          "kind": "file",
+          "path": "src/main/umn_interface2.c",
+          "include_dirs": [
+            "include"
+          ]
+        }
+      }
     },
     {
       "accepted": {
@@ -97405,7 +97458,7 @@
     {
       "accepted": {
         "all_functions_accepted": false,
-        "functions": 0,
+        "functions": 6,
         "migration_hints": [],
         "note": "accepted ov02 records are imported by the overlay importers",
         "of": 11,
@@ -97528,15 +97581,15 @@
       "in_scope": false,
       "kind": "gcc",
       "map_class": "ov02-embedded",
-      "mode": "asm",
+      "mode": "c",
       "name": "ov02/08_umn_procurator",
       "name_basis": "tu-map-ovl suggested_name",
       "name_confidence": "map",
       "ordinal": 1008,
       "owners": {
-        ".text": "asm"
+        ".text": "c"
       },
-      "path": "src/main/ov02/08_umn_procurator.c",
+      "path": "src/main/umn_procurator.c",
       "scaffold_path": "scaffold/src/main/ov02/08_umn_procurator.c",
       "sections": {},
       "shared_contract": {
@@ -97559,7 +97612,18 @@
         "start": "0x00A04170"
       },
       "toolchain_classification": "game",
-      "unit": "main"
+      "unit": "main",
+      "import": {
+        "mode": "c",
+        "note": "Use the reviewed PR30 C subset in MAIN embedded OV02; other functions and all data remain original scaffolding. Alias coverage is not counted twice.",
+        "source": {
+          "kind": "file",
+          "path": "src/main/umn_procurator.c",
+          "include_dirs": [
+            "include"
+          ]
+        }
+      }
     },
     {
       "accepted": {
@@ -97978,7 +98042,7 @@
     {
       "accepted": {
         "all_functions_accepted": false,
-        "functions": 0,
+        "functions": 3,
         "migration_hints": [],
         "note": "accepted ov02 records are imported by the overlay importers",
         "of": 19,
@@ -98157,15 +98221,15 @@
       "in_scope": false,
       "kind": "gcc",
       "map_class": "ov02-embedded",
-      "mode": "asm",
+      "mode": "c",
       "name": "ov02/12_tya_uml",
       "name_basis": "tu-map-ovl suggested_name",
       "name_confidence": "map",
       "ordinal": 1012,
       "owners": {
-        ".text": "asm"
+        ".text": "c"
       },
-      "path": "src/main/ov02/12_tya_uml.c",
+      "path": "src/main/tya_uml.c",
       "scaffold_path": "scaffold/src/main/ov02/12_tya_uml.c",
       "sections": {},
       "shared_contract": {
@@ -98188,7 +98252,18 @@
         "start": "0x00A0C488"
       },
       "toolchain_classification": "game",
-      "unit": "main"
+      "unit": "main",
+      "import": {
+        "mode": "c",
+        "note": "Use the reviewed PR30 C subset in MAIN embedded OV02; other functions and all data remain original scaffolding. Alias coverage is not counted twice.",
+        "source": {
+          "kind": "file",
+          "path": "src/main/tya_uml.c",
+          "include_dirs": [
+            "include"
+          ]
+        }
+      }
     },
     {
       "accepted": {
