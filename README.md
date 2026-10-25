@@ -15,8 +15,6 @@ The Sony SDK and public libraries do not need to be recovered.
 
 Published source coverage: 6,783 of 7,645 in-scope game functions (88.725%).
 
-By source form: 6,391 C, 387 C with inline assembly, and 5 standalone assembly functions.
-
 | Version | Target | Functions | Progress |
 | --- | --- | ---: | ---: |
 | NTSC-U | `SLUS_204.69` | 3,591 / 3,671 | 97.821% |
@@ -27,12 +25,6 @@ By source form: 6,391 C, 387 C with inline assembly, and 5 standalone assembly f
 | NTSC-U | `OV12.OVL` | 1,527 / 1,788 | 85.403% |
 | NTSC-U | `SSD.IRX` | 442 / 442 | 100.000% |
 | NTSC-U | `RSSD.IRX` | 53 / 53 | 100.000% |
-
-These counts describe published non-provisional source definitions, not exactness
-or independent-review acceptance totals. `JNT_getVal2` (99.112% instruction match)
-is provisional support and excluded. MAIN's counted function bodies match, with
-17 whole-file differing bytes confined to that excluded function. All five
-overlays and both IOP modules have whole-file or whole-module proof.
 
 [![Progress map](https://decomp.dev/OpokXeno/xsg-i-decomp.svg?w=950&h=475)](https://decomp.dev/OpokXeno/xsg-i-decomp)
 
