@@ -19,36 +19,70 @@ typedef union {
 
 /* nmlFilterStealthMake allocates 31 sixteen-byte records. Its draw consumer
  * witnesses fourteen XYZ records at +0x30 and fourteen UV records at +0x110.
- * Unused vector components retain an explicitly partial representation. */
-struct NmlStealthXYZ {
-    int x;
-    int y;
-    int z;
-    unsigned char unmodeled_0c[4];
+ * Each record is one vector slot: the projection helper writes its integer
+ * screen coordinates into the same storage it would hold a float vector in. */
+union NmlStealthXYZ {
+    Vector4 vector;
+    struct {
+        int x;
+        int y;
+        int z;
+        int w;
+    };
 };
 
-struct NmlStealthUV {
-    int u;
-    int v;
-    int clipFlags;
-    unsigned char unmodeled_0c[4];
+union NmlStealthUV {
+    Vector4 vector;
+    struct {
+        int u;
+        int v;
+        int clipFlags;
+        unsigned char unmodeled_0c[4];
+    };
 };
 
 struct NmlStealthGeometry {
     Vector4 endpoints[2];
     float sortClass;
     unsigned char unmodeled_24[0x0c];
-    struct NmlStealthXYZ xyz[14];
-    struct NmlStealthUV uv[14];
+    union NmlStealthXYZ xyz[14];
+    union NmlStealthUV uv[14];
+};
+
+/* One stealth part: two joints, outline widths, end extensions and the
+ * longitudinal stretch applied to each of the four cross-section rings. */
+struct NmlStealthDescriptor {
+    int firstJoint;
+    int secondJoint;
+    unsigned char unmodeled_08[4];
+    int sortClass;
+    float firstWidth;
+    float secondWidth;
+    float firstExtension;
+    float secondExtension;
+    float longitudinalStretch[4];
+};
+
+/* Relative offsets address two arrays of 64-byte joint matrices. */
+struct NmlStealthJointData {
+    unsigned char unmodeled_00[0x48];
+    int jointCount;
+    unsigned char unmodeled_4c[12];
+    unsigned int jointMatrixOffset;
+    unsigned int jointAuxMatrixOffset;
 };
 
 typedef union {
     LayoutSlot slots[200];
     struct {
-        unsigned char unmodeled_000[0x1e0];
+        unsigned char unmodeled_000[0x80];
+        Matrix4 modelToWorld;
+        unsigned char unmodeled_0c0[0x1e0 - 0xc0];
         float filterAlpha;
         float filterAmplitude;
-        unsigned char unmodeled_1e8[0x234 - 0x1e8];
+        unsigned char unmodeled_1e8[8];
+        Vector4 fallbackSphere;
+        unsigned char unmodeled_200[0x234 - 0x200];
         u32 filterFlags;
         int pixelAlpha;
         unsigned char unmodeled_23c[4];
@@ -56,7 +90,8 @@ typedef union {
         int texfunc;
         u64 alpha;
         u32 render_status;
-        unsigned char unmodeled_254[0x26c - 0x254];
+        struct NmlStealthJointData *jointData;
+        unsigned char unmodeled_258[0x26c - 0x258];
         float textureFillWeight;
         int textureMapAlpha;
         unsigned char unmodeled_274[0x280 - 0x274];

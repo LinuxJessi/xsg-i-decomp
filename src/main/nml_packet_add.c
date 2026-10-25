@@ -318,6 +318,234 @@ static inline void nmlPacketSelectLighting(NmlModelRenderState *model,
 }
 
 
+void nmlPacketAddPixelTestPacket(int first_address, u64 first_value,
+                               u64 first_test, int second_address,
+                               u64 second_value, u64 second_test);
+
+static inline void nmlPacketAppendGsWords(u32 address, u32 high, u32 low)
+{
+    g_aGsTag[g_nGsEntry * 2 + 2].words[0] = low;
+    g_aGsTag[g_nGsEntry * 2 + 2].words[1] = high;
+    g_aGsTag[g_nGsEntry++ * 2 + 3].value = address;
+}
+
+static inline void nmlPacketAppendGsValue(u32 address, const u64 *value)
+{
+    g_aGsTag[g_nGsEntry * 2 + 2].value = *value;
+    g_aGsTag[g_nGsEntry++ * 2 + 3].value = address;
+}
+
+static inline void nmlPacketAppendGsFields(u32 address, u32 high,
+                                           const u32 *low)
+{
+    u32 low_word = *low;
+
+    nmlPacketAppendGsWords(address, high, low_word);
+}
+
+extern float D_004D8970;
+
+extern const float D_004D8974;
+
+typedef union NmlCircleVector {
+    Vector4 vector;
+    int words[4];
+    u32 unsigned_words[4];
+} NmlCircleVector;
+
+typedef union NmlCircleOffsetTable {
+    float values[4];
+    u64 pairs[2];
+} NmlCircleOffsetTable;
+
+typedef struct NmlCircleScratchpad {
+    NmlCircleVector position[4];
+    NmlCircleVector transform[4];
+    NmlCircleVector projected[4];
+    NmlCircleVector perspective[4];
+} NmlCircleScratchpad;
+
+typedef struct NmlCircleGsRecord {
+    GsTag value;
+    GsTag address;
+} NmlCircleGsRecord;
+
+extern const NmlCircleOffsetTable D_004D3090;
+
+extern const NmlCircleOffsetTable D_004D30A0;
+
+static inline NmlCircleGsRecord *nmlCircleGsRecord(unsigned int index)
+{
+    return (NmlCircleGsRecord *)(0x70001000u +
+                                 index * sizeof(NmlCircleGsRecord));
+}
+
+static inline void nmlCircleSetGsRecord(NmlCircleGsRecord *record,
+                                        int address, u64 value)
+{
+    record->value.value = value;
+    record->address.value = address;
+}
+
+static inline int nmlCircleSetPositionRecord(NmlCircleGsRecord *record,
+                                              u64 packed_position,
+                                              const int *clip_flags,
+                                              int previous_flags,
+                                              int earlier_flags)
+{
+    int flags;
+
+    record->value.value = packed_position;
+    flags = *clip_flags;
+    record->address.value = (flags | previous_flags) | earlier_flags;
+    return flags;
+}
+
+static inline u64 nmlCircleMakeTextureParameter(u32 texture_base)
+{
+    int low = 0x19304000;
+    u64 parameter;
+
+    low |= texture_base;
+    parameter = low;
+    parameter |= (u64)(texture_base + 0x80u) << 37;
+    parameter |= 0x2000000580000000ULL;
+    return parameter;
+}
+
+static inline u32 nmlPacketInvalidatePixelModel(
+    NmlModelResource *const *resource, const u32 *material_flags)
+{
+    s_nPixelTestType = -1;
+    s_pModelCache = *resource;
+    return *material_flags;
+}
+
+static inline u64 nmlPacketMakeGsTest(int alpha_test_enabled, int alpha_test,
+                                      int alpha_reference, int alpha_failure,
+                                      int destination_alpha_enabled,
+                                      int destination_alpha, int depth_enabled,
+                                      int depth_test)
+{
+    u64 test = (u64)alpha_reference << 4;
+
+    test |= (u64)depth_test << 17;
+    test |= (u64)depth_enabled << 16;
+    test |= (u64)alpha_failure << 12;
+    test |= (u64)destination_alpha_enabled << 14;
+    test |= (u64)destination_alpha << 15;
+    test |= (u64)(alpha_test_enabled | (alpha_test << 1));
+    return test;
+}
+
+static inline u64 nmlPacketMakeGsFixedAlpha(int alpha_value)
+{
+    return ((u64)alpha_value << 32) | 0x68;
+}
+
+static inline void nmlPacketSetPixelBlend(NmlModelRenderState *model,
+                                          int pixel_type, float alpha,
+                                          float reflect_alpha,
+                                          int alpha_reference,
+                                          int use_alpha_reference)
+{
+    if (s_nPixelTestType != pixel_type) {
+        int alpha_value =
+            (int)(model->material_alpha_scale * 128.0f * alpha);
+        u64 test_value = 0x50000;
+        u64 blend_value;
+
+        if (reflect_alpha < 2.0f)
+            alpha_value = (int)(reflect_alpha * 128.0f * alpha);
+        if (use_alpha_reference)
+            test_value = nmlPacketMakeGsTest(1, 3, alpha_reference,
+                                             0, 0, 0, 1, 2);
+        blend_value = nmlPacketMakeGsFixedAlpha(alpha_value);
+        s_nPixelTestType = pixel_type;
+        nmlPacketAppendGsWords(0x47, 0, (u32)test_value);
+        nmlPacketAppendGsValue(0x43, &blend_value);
+        nmlPacketAddPixelTestPacket(0x47, test_value, 0x50000,
+                                    0x42, *(u64 *)&model->pixel_test_parameters,
+                                    blend_value);
+    }
+}
+
+typedef union NmlPartsScratchMatrix {
+    Matrix4 values;
+    Matrix xgl_matrix;
+    NmlScreenQuadword quadwords[4];
+    Vector4 rows[4];
+    float elements[16];
+} NmlPartsScratchMatrix;
+
+typedef struct NmlPartsLightPayload {
+    Vector4 rows[3];
+    Vector4 current_point;
+} NmlPartsLightPayload;
+
+typedef struct NmlPartsWorkingScratch {
+    NmlPartsScratchMatrix part;
+    NmlPartsScratchMatrix normal;
+    NmlPartsReferenceScratch reference_point;
+    NmlPartsLightPayload light_payload;
+    NmlPartsScratchMatrix inverse_part;
+    NmlPartsScratchMatrix projected_placement;
+    NmlPartsScratchMatrix clip;
+} NmlPartsWorkingScratch;
+
+static inline void nmlPartsCopyGeometryMatrix(NmlPartsScratchMatrix *destination,
+                                              const NmlBlockVectorBlock *source)
+{
+    __asm__ __volatile__(
+        "lq $2,0(%1)\n\t"
+        "sq $2,0(%0)\n\t"
+        "lq $2,16(%1)\n\t"
+        "sq $2,16(%0)\n\t"
+        "lq $2,32(%1)\n\t"
+        "sq $2,32(%0)\n\t"
+        "lq $2,48(%1)\n\t"
+        "sq $2,48(%0)"
+        :
+        : "r"(destination->values), "r"(source)
+        : "$2", "memory");
+}
+
+static inline void nmlPartsCopyLayoutMatrix(NmlPartsScratchMatrix *destination,
+                                             const NmlBlockVectorBlock *source)
+{
+    __asm__ __volatile__(
+        "lq $2,0(%1)\n\t"
+        "sq $2,0(%0)\n\t"
+        "lq $2,16(%1)\n\t"
+        "sq $2,16(%0)\n\t"
+        "lq $2,32(%1)\n\t"
+        "sq $2,32(%0)\n\t"
+        "lq $2,48(%1)\n\t"
+        "sq $2,48(%0)"
+        :
+        : "r"(destination->values), "r"(source)
+        : "$2", "memory");
+}
+
+static inline float nmlPartsSetRowW(NmlPartsScratchMatrix *matrix, float row_w)
+{
+    matrix->rows[0].w = row_w;
+    matrix->rows[1].w = row_w;
+    matrix->rows[2].w = row_w;
+    return row_w;
+}
+
+static inline void nmlPartsSetNormalTranslation(NmlPartsScratchMatrix *normal,
+    const NmlPartsReferenceScratch *point, int components)
+{
+    int component;
+
+    for (component = 0; component < components; component++) {
+        normal->values[component][3] = point->components[component];
+        normal->values[3][component] = point->components[component];
+    }
+}
+
 static void _CurMatrixSet(const Matrix4 matrix)
 {
     __asm__ __volatile__(
@@ -1040,7 +1268,139 @@ void nmlPacketAddBlockMaterial(NmlMaterialRenderState *material,
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_packet_add", nmlPacketMakeCircleTexture);
+void nmlPacketMakeCircleTexture(NmlModelRenderState *model,
+                                const StudioCamera *camera)
+{
+    NmlCircleScratchpad *scratch = (NmlCircleScratchpad *)0x70000000;
+    NmlCircleVector *transform = (NmlCircleVector *)0x70000040;
+    float radius_scale;
+    float height_offset;
+    float *matrix;
+    NmlCircleOffsetTable x_offsets;
+    NmlCircleOffsetTable z_offsets;
+    u32 texture_base;
+    int i;
+    int first_clip_flags;
+    int second_clip_flags;
+    int third_clip_flags;
+
+    x_offsets = D_004D3090;
+    z_offsets = D_004D30A0;
+
+    matrix = (float *)transform;
+
+    matrix[14] = 1.0f;
+    matrix[0] = 0.0f;
+    matrix[1] = 0.0f;
+    matrix[2] = 1.0f;
+    matrix[4] = 1.0f;
+    matrix[5] = 0.0f;
+    matrix[6] = 1.0f;
+    matrix[8] = 0.0f;
+    matrix[9] = 1.0f;
+    matrix[10] = 1.0f;
+    matrix[12] = 1.0f;
+    radius_scale = D_004D8970;
+    matrix[13] = 1.0f;
+
+    _CurSetViewScaleTrans(&camera->screenScale, &camera->screenOffset);
+    _CurSetMatrix(camera->viewMatrix);
+    height_offset = D_004D8974;
+
+    for (i = 0; i < 4;) {
+        int clip_flags;
+        NmlCircleVector *position = &scratch->position[i];
+        NmlCircleVector *projected = &scratch->projected[i];
+        NmlCircleVector *perspective = &scratch->perspective[i];
+        NmlCircleVector *vertex_transform = &transform[i];
+
+        position->vector.x =
+            model->circle_center_x +
+            x_offsets.values[i] * model->circle_scale * radius_scale;
+        position->vector.z =
+            model->circle_center_z +
+            z_offsets.values[i] * model->circle_scale * radius_scale;
+        position->vector.y =
+            model->projection_matrix.elements[13] + height_offset;
+        i++;
+        if (model->shadow_height_enabled != 0)
+            position->vector.y =
+                model->shadow_height + height_offset;
+
+        clip_flags = _CurRotTransPersClip(&projected->vector,
+            &perspective->vector, &position->vector, &vertex_transform->vector);
+        if (clip_flags != 0)
+            projected->words[3] = 12;
+        else
+            projected->words[3] = 4;
+    }
+
+    nmlCircleSetGsRecord(nmlCircleGsRecord(0), 0x3f, 0);
+    texture_base = sRender.texture_buffer_base << 5;
+    nmlCircleSetGsRecord(nmlCircleGsRecord(1), 6,
+                         nmlCircleMakeTextureParameter(texture_base));
+    nmlCircleSetGsRecord(nmlCircleGsRecord(2), 0x14, 0x60);
+    nmlCircleSetGsRecord(nmlCircleGsRecord(3), 0x47, 0x71001);
+    nmlCircleSetGsRecord(nmlCircleGsRecord(4), 8, 0);
+    nmlCircleSetGsRecord(nmlCircleGsRecord(5), 0x42, 0x89);
+    nmlCircleSetGsRecord(nmlCircleGsRecord(6), 0, 0x54);
+    nmlCircleSetGsRecord(nmlCircleGsRecord(7), 1,
+        ((u64)scratch->perspective[0].unsigned_words[2] << 32) | 0x80808080);
+    nmlCircleSetGsRecord(nmlCircleGsRecord(8), 2,
+        scratch->perspective[0].unsigned_words[0] |
+        ((u64)scratch->perspective[0].unsigned_words[1] << 32));
+    first_clip_flags = nmlCircleSetPositionRecord(nmlCircleGsRecord(9),
+        scratch->projected[0].words[0] |
+        ((u64)scratch->projected[0].words[1] << 16) |
+        ((u64)scratch->projected[0].words[2] << 32),
+        &scratch->projected[0].words[3], 0, 0);
+
+    nmlCircleSetGsRecord(nmlCircleGsRecord(10), 1,
+        ((u64)scratch->perspective[1].unsigned_words[2] << 32) | 0x80808080);
+    nmlCircleSetGsRecord(nmlCircleGsRecord(11), 2,
+        scratch->perspective[1].unsigned_words[0] |
+        ((u64)scratch->perspective[1].unsigned_words[1] << 32));
+    second_clip_flags = nmlCircleSetPositionRecord(nmlCircleGsRecord(12),
+        scratch->projected[1].words[0] |
+        ((u64)scratch->projected[1].words[1] << 16) |
+        ((u64)scratch->projected[1].words[2] << 32),
+        &scratch->projected[1].words[3], first_clip_flags, 0);
+
+    nmlCircleSetGsRecord(nmlCircleGsRecord(13), 1,
+        ((u64)scratch->perspective[2].unsigned_words[2] << 32) | 0x80808080);
+    nmlCircleSetGsRecord(nmlCircleGsRecord(14), 2,
+        scratch->perspective[2].unsigned_words[0] |
+        ((u64)scratch->perspective[2].unsigned_words[1] << 32));
+    third_clip_flags = nmlCircleSetPositionRecord(nmlCircleGsRecord(15),
+        scratch->projected[2].words[0] |
+        ((u64)scratch->projected[2].words[1] << 16) |
+        ((u64)scratch->projected[2].words[2] << 32),
+        &scratch->projected[2].words[3], second_clip_flags, first_clip_flags);
+
+    nmlCircleSetGsRecord(nmlCircleGsRecord(16), 1,
+        ((u64)scratch->perspective[3].unsigned_words[2] << 32) | 0x80808080);
+    nmlCircleSetGsRecord(nmlCircleGsRecord(17), 2,
+        scratch->perspective[3].unsigned_words[0] |
+        ((u64)scratch->perspective[3].unsigned_words[1] << 32));
+    nmlCircleSetPositionRecord(nmlCircleGsRecord(18),
+        scratch->projected[3].words[0] |
+        ((u64)scratch->projected[3].words[1] << 16) |
+        ((u64)scratch->projected[3].words[2] << 32),
+        &scratch->projected[3].words[3], third_clip_flags, second_clip_flags);
+
+    g_nGsEntry = 0;
+    {
+        int remaining;
+        NmlCircleGsRecord *cursor = (NmlCircleGsRecord *)0x70001000;
+
+        for (remaining = 18; remaining >= 0; remaining--) {
+            nmlPacketAppendGsValue(cursor->address.words[0],
+                                   &cursor->value.value);
+            cursor++;
+        }
+    }
+    nmlPacketAddGsFlushWide();
+}
 
 extern void sceGsSetDefLoadImage(XglLoadImage *image, short address,
                                short width, short psm, short x, short y,
@@ -1218,9 +1578,261 @@ int nmlPacketAddTexture(NmlModelRenderState *model)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_packet_add", nmlPacketAddParts);
+int nmlPacketAddParts(const NmlPartsBlockView *block,
+                      const NmlModelRenderState *model,
+                      const StudioCamera *camera)
+{
+    NmlCurrentPacket selected;
+    NmlCurrentPacket current;
+    XglPacket *packet;
+    NmlPartsWorkingScratch matrices;
+    NmlModelResource *resource;
+    NmlProRealParam *proreal;
+    const u16 *vertex_indices;
+    const u16 *bone_indices = block->bone_indices;
+    const int *geometry_offsets;
+    const Vector4 *block_vectors;
+    const NmlBlockVectorBlock *geometry_block;
+    int i;
+    int matrix_changed;
+    int code;
+    int size;
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_packet_add", nmlPacketAddTextureParam);
+    proreal = model->proreal;
+    if (model->proreal_override != 0)
+        proreal = model->proreal_override;
+    resource = model->resource;
+    packet = xglPacketGetCurrent();
+    current.sdk = packet;
+    s_pPacket = current;
+    sceVif1PkCnt(packet, 0);
+    size = sceVif1PkSize(s_pPacket.sdk);
+    if (size * 0x10u + (s_pPacket.sdk->limit - (u32)s_pPacket.sdk->cursor) +
+        0x10000u > 0x200000u)
+        return 1;
+    {
+        if (block->render_flags & 0x10) {
+            geometry_offsets = (const int *)((const u8 *)resource +
+                              resource->geometry_block_table_offset);
+            block_vectors = (const Vector4 *)((const u8 *)resource +
+                            geometry_offsets[block->geometry_index] + 0x30);
+            vertex_indices = (const u16 *)((const u8 *)block +
+                              block->vertex_index_offset);
+            for (i = 0; i < block->vertex_index_count; i++) {
+                u16 code_index = block->vertex_index_base + i * 2;
+                selected = s_pPacket;
+                sceVif1PkOpenUpkCode(selected.sdk, code_index, 0x6c, 1, 1);
+                selected = s_pPacket;
+                sceVif1PkAddUpkData128N(
+                    selected.sdk,
+                    &block_vectors[vertex_indices[i] * 2], 2);
+                selected = s_pPacket;
+                sceVif1PkCloseUpkCode(selected.sdk);
+            }
+        }
+
+        if (s_pModelLayout != model) {
+            s_pModelLayout = model;
+            s_pMatrixCache = 0;
+        }
+        if (s_nModelParts != block->part_id) {
+            s_nModelParts = block->part_id;
+            s_pMatrixCache = 0;
+        }
+        if (s_pMatrixCache != 0 &&
+            memcmp(s_pMatrixCache, bone_indices, 0x3e) != 0)
+            s_pMatrixCache = 0;
+        matrix_changed = s_pMatrixCache == 0;
+        s_pMatrixCache = bone_indices;
+
+        {
+            geometry_block = model->geometry_blocks;
+            if (*bone_indices != 0) {
+                code = 0x2dc;
+                do {
+                    u16 bone_index = *bone_indices++;
+
+                    geometry_block = (const NmlBlockVectorBlock *)((const u8 *)geometry_block + (bone_index - 1) * sizeof(NmlBlockVectorBlock));
+
+                    selected = s_pPacket;
+                    sceVif1PkOpenUpkCode(selected.sdk, code & 0xffff,
+                                         0x6c, 1, 1);
+                    selected = s_pPacket;
+                    sceVif1PkAddUpkData128N(selected.sdk,
+                                            geometry_block->vectors, 4);
+                    selected = s_pPacket;
+                    sceVif1PkCloseUpkCode(selected.sdk);
+                    code += 4;
+                    geometry_block = model->geometry_blocks;
+                } while (*bone_indices != 0);
+            }
+        }
+
+        if (matrix_changed) {
+            const u16 *cached_bones = s_pMatrixCache;
+            const NmlBlockVectorBlock *base_block =
+                &geometry_block[cached_bones[0] - 1];
+            float homogeneous_w;
+
+            nmlPartsCopyGeometryMatrix(&matrices.part, base_block);
+            homogeneous_w = 0.0f;
+            nmlPartsSetRowW(&matrices.part, homogeneous_w);
+
+            if (!(block->render_flags & 1) &&
+                !(block->material_flags & 0x10)) {
+                xglMatrixInverse(matrices.inverse_part.values,
+                                 matrices.part.values);
+            } else {
+                const NmlBlockVectorBlock *layout_block =
+                    (const NmlBlockVectorBlock *)(resource->matrix_base_index * sizeof(NmlBlockVectorBlock) + (u32)base_block);
+
+                nmlPartsCopyLayoutMatrix(&matrices.inverse_part, layout_block);
+            }
+
+            _CurMatrixSet(matrices.inverse_part.values);
+            _CurMatrixMul(model->reference_transform);
+            if (model->render_status & 0x800) {
+                _CurMatrixMul33norm(matrices.normal.rows,
+                    (const Vector4 *)proreal->normal_transform);
+            } else {
+                _CurMatrixMul33norm(matrices.normal.rows,
+                                    model->normal_vectors);
+            }
+            _CurApplyMatrix(&matrices.reference_point.vector,
+                            &camera->position);
+
+            if (model->render_status & 0x02001000) {
+                NmlPartsLightPayload *light_payload = &matrices.light_payload;
+                const Vector4 *source_points = model->light_points;
+                _CurApplyMatrix(&matrices.light_payload.current_point,
+                                source_points);
+                matrices.light_payload.rows[0].x = matrices.light_payload.current_point.x;
+                matrices.light_payload.rows[1].x = matrices.light_payload.current_point.y;
+                matrices.light_payload.rows[2].x = matrices.light_payload.current_point.z;
+                _CurApplyMatrix(&matrices.light_payload.current_point,
+                                &source_points[1]);
+                matrices.light_payload.rows[0].y = matrices.light_payload.current_point.x;
+                matrices.light_payload.rows[1].y = matrices.light_payload.current_point.y;
+                matrices.light_payload.rows[2].y = matrices.light_payload.current_point.z;
+                _CurApplyMatrix(&matrices.light_payload.current_point,
+                                &source_points[2]);
+                matrices.light_payload.rows[0].z = matrices.light_payload.current_point.x;
+                matrices.light_payload.rows[1].z = matrices.light_payload.current_point.y;
+                matrices.light_payload.rows[2].z = matrices.light_payload.current_point.z;
+                selected = s_pPacket;
+                sceVif1PkOpenUpkCode(selected.sdk, 0x3f5, 0x6c, 1, 1);
+                selected = s_pPacket;
+                sceVif1PkAddUpkData128N(selected.sdk,
+                                        light_payload, 4);
+                selected = s_pPacket;
+                sceVif1PkCloseUpkCode(selected.sdk);
+                selected = s_pPacket;
+                sceVif1PkOpenUpkCode(selected.sdk, 0x3e9, 0x6c, 1, 1);
+                selected = s_pPacket;
+                sceVif1PkAddUpkData128N(selected.sdk,
+                                        model->light_parameters, 3);
+                selected = s_pPacket;
+                sceVif1PkCloseUpkCode(selected.sdk);
+            }
+
+            if (model->render_status & 0x800) {
+                xglMatrixMul(&matrices.projected_placement.xgl_matrix,
+                    &proreal->projection_transform,
+                    (Matrix *)&model->projection_matrix);
+                selected = s_pPacket;
+                sceVif1PkOpenUpkCode(selected.sdk, 0x3ec, 0x6c, 1, 1);
+                selected = s_pPacket;
+                sceVif1PkAddUpkData128N(selected.sdk,
+                                        matrices.projected_placement.values, 4);
+                selected = s_pPacket;
+                sceVif1PkCloseUpkCode(selected.sdk);
+                matrices.reference_point = proreal->reference_point;
+            }
+            matrices.normal.rows[3].w = 0.0f;
+
+            nmlPartsSetNormalTranslation(&matrices.normal,
+                                         &matrices.reference_point, 3);
+            if (model->render_status & 0x800) {
+                const NmlScreenQuadword *source_row = &proreal->final_normal_row;
+                NmlScreenQuadword *destination_row = &matrices.normal.quadwords[3];
+
+                __asm__ __volatile__(
+                    "lq $2,0(%1)\n\t"
+                    "sq $2,0(%0)"
+                    :
+                    : "r"(destination_row), "r"(source_row)
+                    : "$2", "memory");
+            }
+
+            selected = s_pPacket;
+            sceVif1PkOpenUpkCode(selected.sdk, 0x3cd, 0x6c, 1, 1);
+            selected = s_pPacket;
+            sceVif1PkAddUpkData128N(selected.sdk,
+                                    matrices.normal.values, 4);
+            selected = s_pPacket;
+            sceVif1PkCloseUpkCode(selected.sdk);
+
+        }
+        if (matrix_changed) {
+            if (model->render_status & 0x8000) {
+                _CurMatrixSet(model->shadow_transform);
+            } else {
+                _CurMatrixSet(camera->viewMatrix);
+                if (model->render_status & 0x80000)
+                    _CurMatrixMul(model->shadow_transform);
+            }
+            if (model->render_status & 1) {
+                _CurMatrixMul(model->projection_rows);
+                _CurMatrixMul(matrices.part.values);
+            } else {
+                _CurMatrixMul(matrices.part.values);
+            }
+            _CurMatrixGet(matrices.clip.values);
+            selected = s_pPacket;
+            sceVif1PkOpenUpkCode(selected.sdk, 0x3c2, 0x6c, 1, 1);
+            selected = s_pPacket;
+            sceVif1PkAddUpkData128N(selected.sdk,
+                                    matrices.clip.values, 4);
+            selected = s_pPacket;
+            sceVif1PkCloseUpkCode(selected.sdk);
+        }
+    }
+    size = sceVif1PkSize(s_pPacket.sdk);
+    return size * 0x10u +
+           (s_pPacket.sdk->limit - (u32)s_pPacket.sdk->cursor) + 0x10000u >
+           0x200000u;
+}
+
+void nmlPacketAddTextureParam(NmlMaterialRenderState *material,
+                              NmlModelRenderState *model)
+{
+    NmlProRealParam *proreal;
+
+    proreal = model->proreal;
+    if (model->proreal_override != 0)
+        proreal = model->proreal_override;
+    s_pPacket.sdk = xglPacketGetCurrent();
+    if (model->render_status & 0x800) {
+        u64 texture_filter = 0x60;
+
+        nmlPacketAppendGsWords(0x3f, 0, 0);
+        nmlPacketAppendGsValue(6, &proreal->texture_gs_parameters[0].value);
+        nmlPacketAppendGsValue(0x14, &texture_filter);
+        nmlPacketAppendGsValue(8, &proreal->texture_gs_parameters[1].value);
+    } else if (material->material_flags & 1) {
+        u32 tex0_low = material->texture_parameters[0].buffer +
+                       (sRender.texture_buffer_base << 5);
+        u32 tex0_high = material->texture_parameters[0].width +
+                        (sRender.texture_buffer_base << 10);
+
+        nmlPacketAppendGsWords(0x3f, 0, 0);
+        nmlPacketAppendGsWords(6, tex0_high, tex0_low);
+        nmlPacketAppendGsWords(0x14, *(u32 *)&material->texture_parameters[1].width,
+                               *(u32 *)&material->texture_parameters[1].buffer);
+        nmlPacketAppendGsFields(8, material->texture_parameters[2].width,
+                                &material->texture_parameters[2].buffer);
+    }
+}
 
 static int add_exec_prog(NmlMaterialRenderState *material, NmlModelRenderState *model,
                          int program_index)
@@ -1578,9 +2190,69 @@ u8 *nmlPacketSetAttributeData64(const void *data)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_packet_add", nmlPacketSetAttributeData64N);
+u8 *nmlPacketSetAttributeData64N(const void *data, int count)
+{
+    int remaining;
+    XglPacket *packet;
+    Quadword *destination;
+    const Quadword *source;
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_packet_add", nmlPacketSetAttributeData16N);
+    packet = xglPacketGetCurrent();
+    s_pPacket.sdk = packet;
+    remaining = count;
+    packet->cursor -= count * 64;
+    destination = (Quadword *)s_pPacket.sdk->cursor;
+    source = data;
+    /* One 64-byte attribute record per pass: four quadword copies, then the
+     * count, pointer and branch of the original copy loop (delay slot nop). */
+    __asm__ __volatile__(
+        "1:\n\t"
+        "lq $2, 0(%2)\n\t"
+        "sq $2, 0(%1)\n\t"
+        "lq $2, 16(%2)\n\t"
+        "sq $2, 16(%1)\n\t"
+        "lq $2, 32(%2)\n\t"
+        "sq $2, 32(%1)\n\t"
+        "lq $2, 48(%2)\n\t"
+        "sq $2, 48(%1)\n\t"
+        "addi %0, %0, -1\n\t"
+        "addi %1, %1, 64\n\t"
+        "addi %2, %2, 64\n\t"
+        "bne $0, %0, 1b"
+        : "+r"(remaining), "+r"(destination), "+r"(source)
+        :
+        : "$2", "memory");
+    return s_pPacket.sdk->cursor;
+}
+
+u8 *nmlPacketSetAttributeData16N(const void *data, int count)
+{
+    NmlAttributePacket *packet;
+    Quadword *destination;
+    const Quadword *source;
+    int remaining;
+
+    packet = (void *)xglPacketGetCurrent();
+    s_pPacket.attributes = packet;
+    remaining = count;
+    packet->cursor.bytes -= count * 16;
+    destination = s_pPacket.attributes->cursor.quadwords;
+    source = data;
+    /* One 16-byte quadword per pass: copy, then the count, pointer and branch
+     * of the original copy loop (the delay-slot nop is emitted by GCC). */
+    __asm__ __volatile__(
+        "1:\n\t"
+        "lq $2, 0(%2)\n\t"
+        "sq $2, 0(%1)\n\t"
+        "addi %0, %0, -1\n\t"
+        "addi %1, %1, 16\n\t"
+        "addi %2, %2, 16\n\t"
+        "bne $0, %0, 1b"
+        : "+r"(remaining), "+r"(destination), "+r"(source)
+        :
+        : "$2", "memory");
+    return s_pPacket.attributes->cursor.bytes;
+}
 
 u8 *nmlPacketSetAttributeAlloc16N(u32 count)
 {
@@ -1672,7 +2344,123 @@ void nmlPacketAddFog(NmlModelRenderState *model, int viewport_index)
     sceVif1PkCloseUpkCode(s_pPacket.sdk);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_packet_add", nmlPacketAddPixelControl);
+void nmlPacketAddPixelControl(NmlMaterialRenderState *material,
+                              NmlModelRenderState *model,
+                              u32 pixel_control_flags)
+{
+    NmlCurrentPacket selected;
+    u16 viewport = pixel_control_flags;
+    int pixel_reference = model->pixel_test_reference;
+    float reflect_alpha = model->reflect_alpha;
+    float alpha;
+    int special_material = 0;
+    u32 material_flags;
+    u64 packed_alpha;
+    int i;
+
+    alpha = model->default_block_alpha;
+    if (viewport != model->block_alpha_view)
+        alpha = model->block_alpha_by_view[viewport];
+    if (model->render_status & 0x100000) {
+        if (strstr(material->name, lenz_name) != 0 ||
+            strstr(material->name, eye_name) != 0) {
+            alpha = model->special_block_alpha;
+            reflect_alpha = 2.0f;
+            special_material = 1;
+            s_nPixelTestType = -1;
+        }
+    }
+
+    for (i = 0; i < *(int *)&model->pixel_test_count; i++) {
+        s_nPixelTestType = -1;
+        if (((short *)((u8 *)model + i * 4))[361] ==
+            *(u32 *)&material->geometry_block_index) {
+            pixel_reference = model->pixel_test_entries[i].reference;
+            break;
+        }
+    }
+
+    selected.sdk = xglPacketGetCurrent();
+    s_pPacket = selected;
+    material_flags = material->material_flags;
+    if (material_flags & 0x10)
+        pixel_reference = 0x7F;
+    if (s_pModelCache != model->resource) {
+        material_flags = nmlPacketInvalidatePixelModel(
+            &model->resource, &material->material_flags);
+    }
+
+    if (pixel_control_flags & 0x10000) {
+        if (material_flags & 4) {
+            if (pixel_control_flags & 0x20000) {
+                if (s_nPixelTestType != 1) {
+                    u64 blend_mode = 0x68;
+
+                    s_nPixelTestType = 1;
+                    if (*(u32 *)&material->material_flags & 0x8000) {
+                        nmlPacketAppendGsWords(0x47, 0, 0x50000);
+                    } else {
+                        nmlPacketAppendGsWords(0x47, 0,
+                            (u32)nmlPacketMakeGsTest(1, 5, pixel_reference,
+                                                    0, 0, 0, 1, 2));
+                    }
+                    nmlPacketAppendGsValue(0x42, &blend_mode);
+                }
+            } else if (model->render_status & 0x20) {
+                nmlPacketSetPixelBlend(model, 2, alpha, reflect_alpha,
+                                       pixel_reference, 0);
+            } else {
+                nmlPacketSetPixelBlend(model, 3, alpha, reflect_alpha,
+                                       pixel_reference, 1);
+            }
+        } else if (pixel_control_flags & 0x20000) {
+            u64 blend_mode;
+
+            if (s_nPixelTestType != 4) {
+                s_nPixelTestType = 4;
+                nmlPacketAppendGsWords(0x47, 0, 0x50000);
+                blend_mode = 0x68;
+                nmlPacketAppendGsValue(0x42, &blend_mode);
+                nmlPacketAddPixelTestPacket(0x47, 0x50000, 0x50000,
+                                            0x42, *(u64 *)&model->pixel_test_parameters,
+                                            blend_mode);
+            }
+        } else {
+            nmlPacketSetPixelBlend(model, 5, alpha, reflect_alpha,
+                                   pixel_reference, 0);
+        }
+    } else if (material_flags & 4) {
+        if (s_nPixelTestType != 6) {
+            u64 test_value;
+            u32 depth_base;
+
+            pixel_reference =
+                (int)(model->material_alpha_scale * (float)pixel_reference);
+            test_value = nmlPacketMakeGsTest(1, 5, pixel_reference,
+                                             0, 0, 0, 1, 2);
+            depth_base = sRender.depth_buffer_base;
+
+            nmlPacketAppendGsWords(0x47, 0, (u32)test_value);
+            s_nPixelTestType = 6;
+            nmlPacketAddPixelTestPacket(0x47, test_value, 0x50001, 0x4E,
+                                        depth_base | 0x01000000,
+                                        depth_base | (0x8080ULL << 0x11));
+        }
+    } else if (s_nPixelTestType != 7) {
+        u32 depth_base = sRender.depth_buffer_base;
+
+        packed_alpha = nmlPacketMakeGsFixedAlpha((int)(alpha * 128.0f));
+        s_nPixelTestType = 7;
+        nmlPacketAppendGsWords(0x47, 0, 0x50000);
+        nmlPacketAppendGsValue(0x43, &packed_alpha);
+        nmlPacketAddPixelTestPacket(0x47, 0x50000, 0x50000, 0x4E,
+                                    depth_base | 0x01000000,
+                                    depth_base | (0x8080ULL << 0x11));
+    }
+
+    if (special_material)
+        s_nPixelTestType = -1;
+}
 
 int nmlPacketDirectData(const void *data, int size)
 {

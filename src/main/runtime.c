@@ -2711,7 +2711,22 @@ static void scriptReset_evsExit(void)
     GameLoopState.player->status_flags |= 0x1000;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/runtime", Java_xeno_util_Runtime_jumpCF__II);
+void Java_xeno_util_Runtime_jumpCF__II(RuntimeThreadState *thread, IntPairCall *arguments,
+                                       unsigned int *result)
+{
+    union ArgWord {
+        int value;
+        void (*func)(void);
+    } *words = (void *)arguments;
+    void (**reset_slot)(void) = &jthreadResetFunc;
+
+    args_jump.destination = arguments->first;
+    args_jump.argument = words[1].value;
+    *reset_slot = scriptReset_jump;
+    SCRIPT_talkIgnoreSet();
+    thread->resume_frames = thread->frame_depth;
+    thread->flags |= 9;
+}
 
 void Java_xeno_util_Runtime_jumpEvent__I(RuntimeThreadState *thread, IntPairCall *arguments,
                                          unsigned int *result)

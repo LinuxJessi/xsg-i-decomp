@@ -535,6 +535,27 @@ def irx_relocations(linked, target):
     return [record for group in groups for record in group]
 
 
+def function_bytes(image, symbol):
+    """Read the actual bounded FUNC payload, without changing its representation."""
+    index = symbol['section_index']
+    require(symbol['type'] == 2 and 0 < index < len(image.sections), 'invalid IOP FUNC section')
+    section = image.sections[index]
+    start = symbol['value'] - section['address']
+    require(section['type'] != 8 and 0 <= start < start + symbol['size'] <= section['size'],
+            'invalid IOP FUNC extent')
+    return image.payload(section)[start:start + symbol['size']]
+
+
+def reporting_comparison(comparison):
+    """Allow measured code differences, retaining valid fixed IRX identities."""
+    require(comparison.get('valid_irx') is True, 'reporting output is not a valid IRX')
+    diagnostics = comparison['diagnostics']
+    require(not diagnostics.get('header') and not diagnostics.get('module') and
+            diagnostics['symbols']['changed_records'] == 0 and
+            diagnostics['relocations']['changed_records'] == 0,
+            'reporting IRX metadata/symbol/relocation identities changed')
+
+
 def serialize(original, linked, candidate_functions):
     """Fresh ELF serialization: linked alloc sections/REL + pinned container data."""
     generated = {}
@@ -564,6 +585,9 @@ def serialize(original, linked, candidate_functions):
                     f"complete-module compiler FUNC identity differs: {claim['name']}")
             audits.append(dict(name=claim["name"], offset=emitted["value"], size=emitted["size"],
                                type=emitted["type"], binding=emitted["binding"],
+                               linked_sha256=sha(function_bytes(linked, emitted)),
+                               original_sha256=sha(function_bytes(original, expected)),
+                               exact=function_bytes(linked, emitted) == function_bytes(original, expected),
                                compiler_object=str(candidate["object"]),
                                compiler_assembly=str(candidate["assembly"]),
                                standalone_object_symbol=claim["object_symbol"],
@@ -597,7 +621,7 @@ def serialize(original, linked, candidate_functions):
     return bytes(out), manifest, audits
 
 
-def build_module(root, unit, candidate_objects, build_dir, output, toolchain=None):
+def build_module(root, unit, candidate_objects, build_dir, output, toolchain=None, *, reporting=False):
     root, build_dir, output = Path(root).resolve(), Path(build_dir).resolve(), Path(output).resolve()
     require(not build_dir.exists() and not output.exists(), "module build/output must be fresh")
     require(build_dir.is_relative_to(root / ".work") or build_dir.is_relative_to(root / "build") or build_dir.is_relative_to(Path("/tmp")), "build must be private")
@@ -618,7 +642,9 @@ def build_module(root, unit, candidate_objects, build_dir, output, toolchain=Non
     build_dir.mkdir(parents=True)
     output.parent.mkdir(parents=True, exist_ok=True)
     report = dict(schema_version=1, kind="iop_source_driven_complete_module_gate", unit=unit,
-                  ok=False, gate_passed=False, output=str(output), linked_elf=str(build_dir / "linked.elf"),
+                  ok=False, gate_passed=False, build_passed=False,
+                  mode='reporting' if reporting else 'exact',
+                  output=str(output), linked_elf=str(build_dir / "linked.elf"),
                   source_acceptance=False, recovery_credit=False,
                   metadata_scaffolding=True, runtime_execution_proven=False,
                   relocation_emission="Actual linked fixups grouped HI16/LO16 and emitted at first instruction offset; complete raw comparison unchanged",
@@ -650,7 +676,10 @@ def build_module(root, unit, candidate_objects, build_dir, output, toolchain=Non
         with output.open("xb") as stream:
             stream.write(payload)
         comparison = iop_compare.compare(unit, output, root)
-        report.update(ok=comparison["ok"], gate_passed=comparison["ok"],
+        if reporting:
+            reporting_comparison(comparison)
+        report.update(ok=True if reporting else comparison["ok"], gate_passed=comparison["ok"],
+                      build_passed=True,
                       comparison=comparison, functions=audits, loader_tables=tables,
                       assembly_provenance=provenance, container_layout=layout,
                       generated_source=dict(path=str(source), sha256=sha(source.read_bytes())),

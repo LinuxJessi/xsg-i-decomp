@@ -3,9 +3,9 @@
 
 typedef struct JntWork JntWork;
 
-typedef struct JntStaticChannel JntStaticChannel;
-
 typedef struct JntProducer JntProducer;
+
+typedef struct JntStaticChannel JntStaticChannel;
 
 typedef void *(*JntProductionConsumer)(JntWork *work,
                                       JntStaticChannel *channels,
@@ -13,6 +13,18 @@ typedef void *(*JntProductionConsumer)(JntWork *work,
 
 int JNT_addConsumer(JntProducer *producer, int consumer_id,
                     JntProductionConsumer consumer, int argument);
+
+typedef struct JntInterruptElement JntInterruptElement;
+
+struct JntInterruptWork {
+    unsigned char unmodeled_000[0x818];
+    JntInterruptElement *elements; /* 0x818 */
+};
+
+struct JntChannelList {
+    int count;                 /* 0x00 */
+    int channel_elements[8];   /* 0x04, indexed by channel */
+};
 
 typedef struct JntMoveResource {
     unsigned char unmodeled_00[0x10];
@@ -30,10 +42,11 @@ struct JntStaticChannel {
     int rotation_limits_offset;
     unsigned char unmodeled_08[6];
     unsigned short matrix_index;   /* 0x0E */
-    float translate[3];            /* 0x10 */
-    unsigned char unmodeled_1c[4];
+    float translate[4];            /* 0x10: quadword translation payload */
     JntRotationPayload rotate;     /* 0x20 */
-    unsigned char unmodeled_2C[0x14];
+    unsigned char unmodeled_2C[0x0C];
+    float translation_direction;  /* 0x38: sign selects the chain direction */
+    unsigned char unmodeled_3c[4];
 };
 
 JntStaticChannel *JNT_resetMatrix(JntWork *work, JntStaticChannel *channel);

@@ -398,12 +398,17 @@ def root_ninja(root, build, njobs):
         "  description = ELF-GATE",
         "",
     ]
-    stamps, statuses = [], []
+    stamps, statuses, report_stamps = [], [], []
     for unit in UNITS:
         stamp = f"build/{unit}/.always-built"
         status = f"build/{unit}/status.json"
         stamps.append(stamp)
         statuses.append(status)
+        report_stamp = f"build/{unit}/.always-report-built"
+        report_stamps.append(report_stamp)
+        report_targets = [f"build/{unit}.bin", f"build/{unit}.elf"]
+        if unit == 'main':
+            report_targets += ["build/carve/main.compare.json", "build/accepted_asm.json"]
         lines += [f"build {stamp}: unit",
                   f"  dir = build/{unit}",
                   f"  name = {unit}",
@@ -412,6 +417,13 @@ def root_ninja(root, build, njobs):
                   f"build {status}: status {stamp} | tools/tu/unit_status.py",
                   f"  dir = build/{unit}",
                   f"  name = {unit}",
+                  "",
+                  # Reporting uses the same compile/link rules and their fatal
+                  # failures, but native objdiff measures C mismatches later.
+                  f"build {report_stamp}: unit",
+                  f"  dir = build/{unit}",
+                  f"  name = {unit}",
+                  "  targets = " + " ".join(report_targets),
                   ""]
     gate_images = " ".join(f"--image {u}={p}" for u, p in images.items())
     lines += [f"build build/gate.json: elf_gate | {' '.join(statuses)} "
@@ -423,6 +435,7 @@ def root_ninja(root, build, njobs):
               # compare/carve/mapcheck/accepted-asm summary, then the whole-file
               # SHA-256 of all six images against the originals.
               "build gate: phony build/gate.json " + " ".join(statuses),
+              "build report: phony " + " ".join(report_stamps),
               "default all",
               ""]
     (root / "build.ninja").write_text("\n".join(lines))

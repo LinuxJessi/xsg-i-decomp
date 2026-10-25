@@ -233,10 +233,15 @@ typedef struct NmlModelBlock {
  * holds byte offsets from this record to individual NmlModelBlock records.
  */
 typedef struct NmlModel {
-    unsigned char unmodeled_000[0x40 - 0x0];
+    unsigned char unmodeled_000[0x3f];
+    signed char unclassified_3f;
     int partCount; /* +0x40 */
     int blockCount;
-    unsigned char unmodeled_048[0x68];
+    unsigned char unmodeled_048[0x24];
+    int unclassified_6c;
+    unsigned char unmodeled_070[0x30];
+    int unclassified_a0;
+    unsigned char unmodeled_0a4[0x0c];
     int blockOffsets[1];
 } NmlModel;
 
@@ -274,7 +279,8 @@ union LayoutStore {
         unsigned char unmodeled_1e0[0x1f0 - 0x1e0];
         Vector4 unmodeled_1f0; /* +0x1f0; copied as a projection input and passed to AlphaGroupSortEntry */
         Vector4 multiplyColor; /* +0x200 */
-        unsigned char unmodeled_210[0x238 - 0x210];
+        unsigned char unmodeled_210[0x234 - 0x210];
+        unsigned int packetFilterFlags;
         int pixelAlpha;                     /* +0x238, full-width pixel-alpha word */
         unsigned char unmodeled_23c[4];
         const char *texture;                /* +0x240 */
@@ -290,7 +296,8 @@ union LayoutStore {
         int mapShadowPartCount; /* +0x278 */
         int renderLevel; /* +0x27c */
         NmlStealthPacket *stealthPackets[10]; /* +0x280 */
-        unsigned char unmodeled_2a8[0x2b4 - 0x2a8];
+        unsigned char unmodeled_2a8[0x2b0 - 0x2a8];
+        unsigned int featureFlags;
         int partPixelAlphaCount; /* +0x2b4 */
         unsigned char *clipMasks; /* +0x2b8 */
         unsigned char unmodeled_2bc[4];
@@ -300,6 +307,9 @@ union LayoutStore {
         unsigned char unmodeled_2cc[4];
         NmlPartPixelAlpha partPixelAlpha[4]; /* +0x2d0 */
         unsigned short mapShadowParts[8];    /* +0x2e0 */
+        unsigned char unmodeled_2f0[0x300 - 0x2f0];
+        float viewportAlpha[4];
+        int viewportFlags[4];
     } fields;
 };
 

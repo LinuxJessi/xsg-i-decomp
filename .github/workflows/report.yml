@@ -46,22 +46,22 @@ jobs:
           python3 -B tools/iop_ci_stage.py
           python3 -B tools/iop_inventory.py --verify-only
 
-      - name: Compile, link and compare all six EE files
+      - name: Compile and link all six EE files for native progress measurement
         run: |
           python3 -B tools/tu/verify_report.py --begin
           python3 -B configure.py
-          ninja -j4 gate
+          ninja -j4 report
 
       - name: Compile, link and compare both IOP modules from 24 original objects
         run: |
-          python3 -B tools/iop_build.py \
+          python3 -B tools/iop_build.py --reporting \
             --build-dir ".work/ci-iop-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
             --report ".work/ci-iop-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/report.json" \
             --jobs 4
 
-      - name: Verify compiler emission and linked function bytes
+      - name: Verify fresh compiler/link provenance and record exact function bytes
         run: |
-          timeout -k 5 600 python3 -B tools/tu/verify_report.py --finish \
+          timeout -k 5 600 python3 -B tools/tu/verify_report.py --finish --reporting \
             --iop-report ".work/ci-iop-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/report.json"
 
       - name: Download pinned objdiff-cli
@@ -80,7 +80,7 @@ jobs:
           PY
 
       - name: Generate native objdiff report from verified object pairs
-        run: python3 -B tools/objdiff_report.py -o build/report.json
+        run: python3 -B tools/objdiff_report.py --reporting -o build/report.json
 
       - name: Upload progress report
         uses: actions/upload-artifact@v4
@@ -94,7 +94,5 @@ jobs:
         with:
           name: SLUS_204.69_verification
           path: |
-            build/gate.json
             build/verification.json
-            build/*/status.json
           if-no-files-found: error

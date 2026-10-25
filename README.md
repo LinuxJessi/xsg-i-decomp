@@ -13,18 +13,26 @@ The Sony SDK and public libraries do not need to be recovered.
 
 ## Progress
 
-Recovered 6,640 of 7,645 in-scope game function(s) (86.854%).
+Published source coverage: 6,783 of 7,645 in-scope game functions (88.725%).
+
+By source form: 6,391 C, 387 C with inline assembly, and 5 standalone assembly functions.
 
 | Version | Target | Functions | Progress |
 | --- | --- | ---: | ---: |
-| NTSC-U | `SLUS_204.69` | 3,536 / 3,671 | 96.323% |
-| NTSC-U | `OV01.OVL` | 773 / 1,081 | 71.508% |
+| NTSC-U | `SLUS_204.69` | 3,591 / 3,671 | 97.821% |
+| NTSC-U | `OV01.OVL` | 789 / 1,081 | 72.988% |
 | NTSC-U | `OV02.OVL` | 66 / 110 | 60.000% |
-| NTSC-U | `OV10.OVL` | 175 / 361 | 48.476% |
-| NTSC-U | `OV11.OVL` | 68 / 139 | 48.921% |
+| NTSC-U | `OV10.OVL` | 197 / 361 | 54.571% |
+| NTSC-U | `OV11.OVL` | 118 / 139 | 84.892% |
 | NTSC-U | `OV12.OVL` | 1,527 / 1,788 | 85.403% |
 | NTSC-U | `SSD.IRX` | 442 / 442 | 100.000% |
 | NTSC-U | `RSSD.IRX` | 53 / 53 | 100.000% |
+
+These counts describe published non-provisional source definitions, not exactness
+or independent-review acceptance totals. `JNT_getVal2` (99.112% instruction match)
+is provisional support and excluded. MAIN's counted function bodies match, with
+17 whole-file differing bytes confined to that excluded function. All five
+overlays and both IOP modules have whole-file or whole-module proof.
 
 [![Progress map](https://decomp.dev/OpokXeno/xsg-i-decomp.svg?w=950&h=475)](https://decomp.dev/OpokXeno/xsg-i-decomp)
 
@@ -109,10 +117,16 @@ build then says which check it relaxed.
 ./configure.py      # generate every unit build directory and build.ninja
 ninja               # build and compare all six originals
 ninja gate          # + per-unit status and the whole-file SHA-256 gate
+ninja report        # compile and link EE inputs for progress measurement
 ```
 
 `ninja gate` writes `build/gate.json`. `"result": "pass"` means every one of the
 six files came out byte for byte identical to your original.
+
+The GitHub progress workflow uses `ninja report` and explicit reporting mode to
+measure nonmatching compiled functions with native objdiff scores. Compilation,
+linking and provenance errors still fail the job; matching differences are
+recorded in the report. This does not change the strict recovery acceptance gate.
 
 Public builds use `config/objects/data-carves.json` to place constants and jump
 tables emitted by the recovered C functions. Terminal object padding is verified

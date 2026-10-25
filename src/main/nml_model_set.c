@@ -743,6 +743,50 @@ typedef struct NmlDirectEntry {
 
 
 
+extern const char D_004D2890[];
+
+typedef struct NmlNonAlphaGroup {
+    short firstBlock;
+    short blockCount;
+    unsigned char unmodeled_04[4];
+    unsigned int flags;
+    LayoutStore *layout; /* +0x0c */
+} NmlNonAlphaGroup;
+
+extern NmlNonAlphaGroup s_aNonAlphaGroup[];
+
+extern const char D_004DC478[];
+
+extern void nmlPacketClrModelCache(void);
+
+extern void nmlPacketAddGsFogCol(const float color[3]);
+
+extern void nmlPacketAddGifTag(NmlMaterialRenderState *, NmlModelRenderState *, int);
+
+extern void nmlPacketAddTextureParam(NmlMaterialRenderState *, NmlModelRenderState *);
+
+extern void nmlPacketAddPixelControl(NmlMaterialRenderState *, NmlModelRenderState *, int);
+
+extern int nmlPacketAddTexture(NmlModelRenderState *);
+
+extern void nmlPacketAddReflectParam(NmlMaterialRenderState *, NmlModelRenderState *);
+
+extern void nmlPacketAddFog(NmlModelRenderState *, int);
+
+extern void nmlPacketAddReflRot(NmlMaterialRenderState *, NmlModelRenderState *);
+
+typedef struct NmlPartFlagData {
+    unsigned char unmodeled_00[0x1c];
+    unsigned int flags; /* +0x1c */
+    unsigned char unmodeled_20[0x40 - 0x20];
+} NmlPartFlagData;
+
+extern void nmlFilterBackClear(void);
+
+extern void nmlFilterSetFlatRender(LayoutStore *);
+
+extern void nmlFilterSetPacket(LayoutStore *, int);
+
 static float _VectorLengthSQ(const Vector4 *first, const Vector4 *second)
 {
     register float lengthSq asm("$f0");
@@ -2635,7 +2679,33 @@ static void set_circle_shadow_ratio(int scale)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", nmlModelLexDataCheck);
+int nmlModelLexDataCheck(NmlModel *model)
+{
+    int result = 1;
+    NmlModelBlock *lastBlock;
+    char *name;
+    int *offsets;
+
+    if ((unsigned int) model - 0x00200000u <= 0x01dfffffu
+        && ((unsigned int) model & 0xf) == 0
+        && (*(u64 *) model & 0x00ffffffULL) == 0x78656cULL) {
+        if (model->unclassified_3f == 0
+            || model->unclassified_6c != 0
+            || (offsets = model->blockOffsets,
+                lastBlock = (NmlModelBlock *) ((char *) model
+                    + offsets[model->blockCount - 1]),
+                name = (char *) lastBlock + lastBlock->baseOffset,
+                name += model->unclassified_a0 != 0 ? model->blockCount << 4 : 0,
+                strstr(name + lastBlock->textOffset, D_004D2890) != 0)) {
+            long long count = model->blockCount;
+
+            if (count > 0) {
+                result = 0;
+            }
+        }
+    }
+    return result;
+}
 
 static void nmlModelLexBlockDoit(NmlModel *model)
 {
@@ -2878,7 +2948,54 @@ static void nmlModelCalcSample(void *arg0, void **arg1)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", nmlModelCalcEntryClip);
+static int nmlModelCalcEntryClip(NmlModelSampleView *model)
+{
+    Vector4 clip;
+    int anySubwindow;
+    int index;
+
+    int clipDisabled = 1;
+    do {
+    } while (0);
+    if (s_nClip != clipDisabled) {
+        __asm__ __volatile__(
+                "lq $2, 0(%1)\n\t"
+                "sq $2, 0(%0)"
+                :
+            : "r"(&clip), "r"(&s_inLayout.slots[0x7C])
+                : "$2", "memory"
+        );
+        clip.w *= D_004D88F4;
+
+        if (model->sampleCount != 0) {
+            anySubwindow = 0;
+            for (index = 1; index < 4; ++index) {
+                if (g_aSubWindow[index] != 0) {
+                    anySubwindow = 1;
+                }
+            }
+            if (anySubwindow) {
+                int passed = 0;
+                int active = 0;
+                for (index = 0; index < 4; ++index) {
+                    if (g_aSubWindow[index] != 0) {
+                        int result = nmlModelCalcClipStudio(&clip, index);
+                        ++active;
+                        s_inLayout.slots[0xC4 + index].i = result;
+                        passed += result;
+                    }
+                }
+                if (passed == active) {
+                    s_inLayout.slots[0x94].i |= 0x20000;
+                }
+            } else if (nmlModelCalcClipStudio(&clip, 0) != 0) {
+                s_inLayout.slots[0xC4].i = 1;
+                s_inLayout.slots[0x94].i |= 0x20000;
+            }
+        }
+    }
+    return 0;
+}
 
 static float deapth_for_studio(int studio, Vector4 *position, float scale)
 {
@@ -3131,9 +3248,330 @@ static StudioCamera *nmlModelRenderDrop(struct NmlModelRenderRange *range,
     return partsResult;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", nmlModelFlushSubNonAlpha);
+static int nmlModelFlushSubNonAlpha(int viewport, StudioCamera *camera)
+{
+    int result;
+    int group_index;
+    int previous_tag;
+    NmlFlushMaterialView *material;
+    int tag;
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", nmlModelFlushSubAlpha);
+    nmlPacketClrModelCache();
+    nmlPacketGsInit();
+    nmlPacketAddGsPixeltest(0x50000);
+    nmlPacketAddGsZbuf(0);
+    nmlPacketAddGsFlush();
+
+    group_index = 0;
+    result = group_index;
+    for (group_index = 0; group_index < s_nNonAlphaGroup; group_index++) {
+        LayoutStore *layout;
+        int block_index;
+
+        previous_tag = -1;
+
+        if (s_aNonAlphaGroup[group_index].flags & 0x48) {
+            continue;
+        }
+
+        nmlPacketAddGsFrame(sRender.display_buffer_base,
+                            ((s_aNonAlphaGroup[group_index].flags & 2) == 0) ? s_nStencilVal : 0);
+        nmlPacketAddGsFBA(s_aNonAlphaGroup[group_index].flags & 2);
+
+        layout = s_apModelLayout[s_aBlockLayout[s_aNonAlphaGroup[group_index].firstBlock]];
+        {
+            int subwindow = g_aSubWindow[viewport];
+            if (subwindow == 1) {
+                if (viewport != layout->fields.renderLevel) {
+                    continue;
+                }
+            } else if (subwindow == 2) {
+                if (layout->fields.renderLevel != 0) {
+                    continue;
+                }
+            }
+        }
+
+        nmlPacketAddFog(layout, viewport);
+        nmlPacketAddGsFogCol(&layout->fields.fogColor.x);
+        {
+            float viewportAlpha = layout->fields.viewportAlpha[viewport];
+            nmlPacketAddGsAlpha(((unsigned long long)(int)(viewportAlpha * 128.0f) << 32) | 104);
+        }
+        nmlPacketAddGsFlush();
+
+        for (block_index = s_aNonAlphaGroup[group_index].firstBlock;
+             block_index < s_aNonAlphaGroup[group_index].firstBlock +
+                               s_aNonAlphaGroup[group_index].blockCount;
+             block_index++) {
+                material = s_apBlock[block_index];
+                layout = s_apModelLayout[s_aBlockLayout[block_index]];
+
+                if (s_nAnotherStudio != 0) {
+                    if (layout->fields.viewportFlags[viewport] != 0 ||
+                        ((layout->fields.clipMasks[viewport] >> viewport) & 1) != 0) {
+                        continue;
+                    }
+                }
+
+                tag = (material->material_flags & 1) |
+                      (layout->fields.render_status & 0x01004002);
+                if (previous_tag != tag) {
+                    previous_tag = tag;
+                    nmlPacketAddGifTag(material, layout, 0);
+                }
+                nmlPacketAddTransMicrocode(material, layout);
+                if ((result = nmlPacketAddTexture(layout)) != 0) {
+                    break;
+                }
+
+                nmlPacketAddTextureParam(material, layout);
+                nmlPacketAddPixelControl(material, layout, viewport);
+                nmlPacketAddGsFlush();
+
+                if ((material->material_flags & 0x1000) &&
+                    (!(layout->fields.featureFlags & 0x10) ||
+                     ((layout->fields.render_status & 0x100000) &&
+                      strstr(material->name, D_004DC478) != 0))) {
+                    nmlPacketAddReflRot(material, layout);
+                    nmlPacketAddReflectParam(material, layout);
+                }
+
+                nmlPacketAddBlockMaterial(material, layout, 0,
+                                          viewport);
+                if ((result = (int)nmlPacketAddParts(material, layout, camera)) != 0) {
+                    break;
+                }
+                nmlPacketAddExecProg(material, layout, 0, 0);
+        }
+    }
+    return result;
+}
+
+static int nmlModelFlushSubAlpha(int viewport, StudioCamera *camera)
+{
+    int result;
+    int group_index;
+    int previous_gif_flags;
+
+    group_index = 0;
+    result = group_index;
+    nmlPacketClrModelCache();
+    for (group_index = 0; group_index < s_nAlphaGroup; ++group_index) {
+        LayoutStore *filter_model;
+        int display_base;
+        int block_index;
+
+        filter_model = 0;
+        if (s_aAlphaGroup[group_index].status & 0x48) {
+            continue;
+        }
+        if (result != 0) {
+            break;
+        }
+        nmlPacketAddGsZbuf(0);
+        nmlPacketAddGsAlpha(0x68);
+        nmlPacketAddGsFrame(sRender.display_buffer_base,
+                            (s_aAlphaGroup[group_index].status & 2) ? 0xffffff : s_nStencilVal);
+        nmlPacketAddGsFrame1(sRender.display_buffer_base,
+                             (s_aAlphaGroup[group_index].status & 2) ? 0xffffff : s_nStencilVal);
+        nmlPacketAddGsFBA(s_aAlphaGroup[group_index].status & 2);
+        nmlPacketAddGsFBA1(s_aAlphaGroup[group_index].status & 2);
+        nmlPacketAddGifTagStandard(1, 1);
+        nmlPacketAddGsFlush();
+        nmlPacketClrModelCache();
+
+        for (block_index = s_aAlphaGroup[group_index].firstBlock;
+             block_index > s_aAlphaGroup[group_index].firstBlock -
+                               s_aAlphaGroup[group_index].blockCount;
+             --block_index) {
+            LayoutStore *layout = s_apModelLayout[s_aBlockLayout[block_index]];
+            NmlFlushMaterialView *material = s_apBlock[block_index];
+
+            if (s_nAnotherStudio != 0) {
+                if (layout->fields.viewportFlags[viewport] != 0) {
+                    continue;
+                }
+                if (((layout->fields.clipMasks[viewport] >> viewport) & 1) != 0) {
+                    continue;
+                }
+            }
+            if (layout->fields.packetFilterFlags != 0) {
+                filter_model = layout;
+            }
+            if (g_aSubWindow[viewport] == 1) {
+                if (viewport != layout->fields.renderLevel) {
+                    continue;
+                }
+            } else if (g_aSubWindow[viewport] == 2) {
+                if (layout->fields.renderLevel != 0) {
+                    continue;
+                }
+            }
+            if ((((const NmlPartFlagData *)layout->fields.weightedMatrices)[material->partIndex].flags & 1) == 0 &&
+                (material->material_flags & 0x8000) == 0 &&
+                (layout->fields.render_status & 8) == 0) {
+                continue;
+            }
+            if (material->material_flags & 2) {
+                continue;
+            }
+            nmlPacketAddTransMicrocode(material, layout);
+            if (material->material_flags & 4) {
+                result = nmlPacketAddTexture(layout);
+                if (result != 0) {
+                    break;
+                }
+                nmlPacketAddTextureParam(material, layout);
+            }
+            nmlPacketAddBlockMaterial(material, layout, 1, viewport);
+            result = (int)nmlPacketAddParts(material, layout, camera);
+            if (result != 0) {
+                break;
+            }
+            nmlPacketAddPixelControl(material, layout, viewport | 0x30000);
+            nmlPacketAddGsFlush();
+            nmlPacketAddExecProg(material, layout, 1, 1);
+        }
+
+        if (filter_model != 0 && (filter_model->fields.packetFilterFlags & 2) != 0) {
+            unsigned int filter_flags = filter_model->fields.packetFilterFlags;
+            int *count_ptr = &s_nCount;
+            filter_model->fields.packetFilterFlags = 2;
+            nmlFilterSetPacket(filter_model, *count_ptr);
+            filter_model->fields.packetFilterFlags = filter_flags & ~2u;
+        }
+        if (result != 0) {
+            break;
+        }
+
+        {
+            if (s_aAlphaGroup[group_index].status & 0x800) {
+                nmlFilterBackClear();
+            }
+            nmlPacketGsInit();
+            nmlPacketAddGsZbuf(1);
+            nmlPacketAddGsPixeltest(0x50000);
+            display_base = sRender.display_buffer_base;
+            if (s_aAlphaGroup[group_index].status & 0x800) {
+                display_base = sRender.flip_base;
+            }
+            previous_gif_flags = -1;
+            nmlPacketAddGsFrame((unsigned short)display_base,
+                                (s_aAlphaGroup[group_index].status & 2) ? 0 : s_nStencilVal);
+            nmlPacketAddGsFrame1((unsigned short)display_base,
+                                 (s_aAlphaGroup[group_index].status & 2) ? 0 : s_nStencilVal);
+            nmlPacketAddGsFBA(s_aAlphaGroup[group_index].status & 2);
+            nmlPacketAddGsFBA1(s_aAlphaGroup[group_index].status & 2);
+            nmlPacketAddGsFlush();
+
+            for (block_index = s_aAlphaGroup[group_index].firstBlock;
+                 block_index > s_aAlphaGroup[group_index].firstBlock -
+                                   s_aAlphaGroup[group_index].blockCount;
+                 --block_index) {
+                LayoutStore *layout = s_apModelLayout[s_aBlockLayout[block_index]];
+                NmlFlushMaterialView *material = s_apBlock[block_index];
+                unsigned int flags;
+                unsigned int render_status;
+
+                if (s_nAnotherStudio != 0) {
+                    if (layout->fields.viewportFlags[viewport] != 0) {
+                        continue;
+                    }
+                    if (((layout->fields.clipMasks[viewport] >> viewport) & 1) != 0) {
+                        continue;
+                    }
+                }
+                if (g_aSubWindow[viewport] == 1) {
+                    if (viewport != layout->fields.renderLevel) {
+                        continue;
+                    }
+                } else if (g_aSubWindow[viewport] == 2) {
+                    if (layout->fields.renderLevel != 0) {
+                        continue;
+                    }
+                }
+
+                if (layout->fields.packetFilterFlags != 0) {
+                    filter_model = layout;
+                }
+                if (filter_model == 0 &&
+                    (s_aAlphaGroup[group_index].status & 0x800) != 0) {
+                    filter_model = layout;
+                }
+
+                render_status = layout->fields.render_status;
+                flags = (material->material_flags & 1) | (render_status & 0x01004002);
+                if (render_status & 0x2000) {
+                    flags &= ~(render_status & 0x01000002);
+                }
+                nmlPacketAddTransMicrocode(material, layout);
+                if (previous_gif_flags != flags) {
+                    previous_gif_flags = flags;
+                    nmlPacketAddGifTag(material, layout, 1);
+                }
+                result = nmlPacketAddTexture(layout);
+                if (result != 0) {
+                    break;
+                }
+                nmlPacketAddTextureParam(material, layout);
+                if (flags & 0x01000002) {
+                    nmlPacketAddFog(layout, viewport);
+                    nmlPacketAddGsFogCol(&layout->fields.fogColor.x);
+                }
+                if ((material->material_flags & 0x1000) != 0 &&
+                    ((layout->fields.featureFlags & 0x10) == 0 ||
+                     ((layout->fields.render_status & 0x100000) != 0 &&
+                      strstr(material->name, D_004DC478) != 0))) {
+                    nmlPacketAddReflRot(material, layout);
+                }
+                nmlPacketAddBlockMaterial(material, layout, 0, viewport);
+                result = (int)nmlPacketAddParts(material, layout, camera);
+                if (result != 0) {
+                    break;
+                }
+                nmlPacketAddPixelControl(material, layout, viewport | 0x10000);
+                if (material->material_flags & 0x20) {
+                    nmlPacketAddGsAlpha(0x48);
+                } else if (material->material_flags & 0x40) {
+                    nmlPacketAddGsAlpha(0x42);
+                } else {
+                    nmlPacketAddGsAlpha(layout->fields.alpha);
+                }
+                nmlPacketAddGsFlush();
+                if ((material->material_flags & 0x1000) != 0 &&
+                    ((layout->fields.featureFlags & 0x10) == 0 ||
+                     ((layout->fields.render_status & 0x100000) != 0 &&
+                      strstr(material->name, D_004DC478) != 0))) {
+                    nmlPacketAddReflectParam(material, layout);
+                }
+                nmlPacketAddExecProg(material, layout, 1, 0);
+            }
+
+        }
+
+        if (s_aAlphaGroup[group_index].status & 0x800) {
+            nmlFilterSetFlatRender(filter_model);
+        }
+        if (s_nUseStealth != 0) {
+            nmlFilterSetFrameAlphaClear();
+        }
+        if (filter_model != 0) {
+            nmlFilterSetPacket(filter_model, s_nCount);
+        }
+        if (result != 0) {
+            break;
+        }
+        if ((s_aAlphaGroup[group_index].status & 0x10) != 0 && viewport == 0 &&
+            s_nUseStealth != 0 && s_nMapAlphaEntry != 0) {
+            nmlFilterSetFrameToBuffer(sRender.display_buffer_base);
+        }
+        if (result != 0) {
+            break;
+        }
+    }
+    return result;
+}
 
 INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", nmlModelFlushSub);
 

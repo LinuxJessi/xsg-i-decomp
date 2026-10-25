@@ -74,8 +74,32 @@ typedef struct NmlTextureResourceEntry {
  * nmlPacketSetAttributeData16N(s_inProReal, 0x1e), storing the packet address
  * it returns in NmlModelRenderState::proreal (main 0x00233028-0x00233030).
  */
+/* Partial view for the geometry and vertex indices consumed by AddParts. */
+typedef struct NmlPartsBlockView {
+    unsigned char unmodeled_000[0x20];
+    u32 render_flags;
+    unsigned char unmodeled_024[0x08];
+    int part_id;
+    u16 bone_indices[48];
+    Vector4 bounding_sphere;
+    u32 geometry_index;
+    u32 vertex_index_offset;
+    u32 vertex_index_count;
+    u16 vertex_index_base;
+    unsigned char unmodeled_0ae[0x12];
+    u32 material_flags;
+} NmlPartsBlockView;
+
+typedef union NmlPartsReferenceScratch {
+    u64 halves[2];
+    Vector4 vector;
+    float components[4];
+} NmlPartsReferenceScratch;
+
 typedef struct NmlProRealParam {
-    unsigned char unmodeled_000[0xc0];
+    unsigned char unmodeled_000[0x40];
+    Matrix projection_transform;
+    Matrix4 normal_transform;
     u32 block_material_data[16];
     unsigned char unmodeled_100[0x1c];
     /*
@@ -87,9 +111,13 @@ typedef struct NmlProRealParam {
      * slot of the "Pro" microcode family instead of the plain one.
      */
     u32 projection_entry;
-    unsigned char unmodeled_120[0x20];
+    unsigned char unmodeled_120[0x10];
+    GsTag texture_gs_parameters[2];
     unsigned char unmodeled_140[0x20];
-    unsigned char unmodeled_160[0x60];
+    NmlScreenQuadword final_normal_row;
+    unsigned char unmodeled_170[0x20];
+    NmlPartsReferenceScratch reference_point;
+    unsigned char unmodeled_1a0[0x20];
     void *texture;
 } NmlProRealParam;
 
@@ -160,6 +188,12 @@ struct NmlMaterialRenderState {
 };
 
 
+typedef struct NmlPixelTestEntry {
+    short reference;
+    short geometry_block_index;
+} NmlPixelTestEntry;
+
+
 /*
  * The model layout the engine renders from: the single s_inLayout (main
  * 0x004a91e0, 0x320 bytes) plus the per-entry copies in s_apModelLayout.
@@ -167,23 +201,39 @@ struct NmlMaterialRenderState {
 struct NmlModelRenderState {
     unsigned char unmodeled_000[0x3c];
     float block_material_alpha;
-    unsigned char unmodeled_040[0x30];
+    Vector4 normal_vectors[3];
     NmlScreenQuadword screen_translation;
-    NmlScreenQuadword screen_scale;
-    unsigned char unmodeled_090[0x130];
+    union {
+        NmlScreenQuadword screen_scale;
+        Matrix projection_matrix;
+        Matrix4 projection_rows;
+    };
+    Matrix4 reference_transform;
+    Vector4 light_points[3];
+    unsigned char unmodeled_130[0x10];
+    NmlScreenQuadword light_parameters[3];
+    unsigned char unmodeled_170[0x10];
+    Matrix4 shadow_transform;
     /* +0x1c0: the fog color parcel; its fourth word is fog intensity. */
     u32 fog_color[4];
     /* +0x1d0: the fog-distance parcel sent after fog_color. */
     u32 fog_parameters[4];
-    unsigned char unmodeled_1e0[0x40];
+    unsigned char unmodeled_1e0[0x10];
+    float circle_center_x;
+    unsigned char unmodeled_1f4[4];
+    float circle_center_z;
+    unsigned char unmodeled_1fc[0x24];
     float material_alpha_scale;
     float reflect_alpha;
     float default_block_alpha;
     float alpha_limit;
     union { u32 alpha_options; float alpha_options_value; };
-    unsigned char unmodeled_234[0x0c];
+    u32 unmodeled_234;
+    int pixel_test_reference;
+    u32 unmodeled_23c;
     void *texture;
-    unsigned char unmodeled_244[0x0c];
+    u32 unmodeled_244;
+    u64 pixel_test_parameters;
     /*
      * +0x250: the render-status word.  nmlModelSetRenderStatus is the setter
      * that names it, and it ORs the value it is given (main 0x0022fab0 sets
@@ -222,7 +272,9 @@ struct NmlModelRenderState {
     int block_alpha_multiplier;
     unsigned char unmodeled_274[8];
     int block_alpha_view;
-    unsigned char unmodeled_280[0x30];
+    unsigned char unmodeled_280[0x28];
+    int shadow_height_enabled;
+    float shadow_height;
     /*
      * +0x2b0: the render-level word nmlModelSetRenderLevel ORs its whole
      * argument into (main 0x0022e97c).  nmlModelSetSpecularOff sets bit 1
@@ -232,9 +284,13 @@ struct NmlModelRenderState {
      * own, so they stay literals.
      */
     u32 render_level;
-    unsigned char unmodeled_2b4[8];
+    int pixel_test_count;
+    u32 unmodeled_2b8;
     float special_block_alpha;
-    unsigned char unmodeled_2c0[0x30];
+    unsigned char unmodeled_2c0[4];
+    float circle_scale;
+    unsigned char unmodeled_2c8[8];
+    NmlPixelTestEntry pixel_test_entries[8];
     /* +0x2f0: one fog intensity multiplier for each viewport. */
     float fog_intensity[4];
     float block_alpha_by_view[4];
@@ -292,20 +348,6 @@ void nmlPacketAddFog(NmlModelRenderState *model, int viewport_index);
 typedef struct NmlBlockVectorBlock {
     Vector4 vectors[4];
 } NmlBlockVectorBlock;
-
-
-typedef struct NmlPixelTestEntry {
-    short reference;
-    short geometry_block_index;
-} NmlPixelTestEntry;
-
-
-typedef union NmlPartsReferenceScratch {
-    u64 halves[2];
-    Vector4 vector;
-    float components[4];
-} NmlPartsReferenceScratch;
-
 
 
 #endif /* SRC_MAIN_NML_PACKET_ADD_H */

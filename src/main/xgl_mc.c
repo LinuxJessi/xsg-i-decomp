@@ -1,5 +1,6 @@
 #include "common.h"
 #include "shared.h"
+#include "main/xgl_cd.h"
 #include "xgl_mc.h"
 
 /* The request routines zero and use this complete memory-card save workspace. */
@@ -8,17 +9,23 @@ unsigned char SaveData[0x163B0] = { 0 };
 /* The state machine uses both a word and per-slot halfwords at offset 4. */
 typedef struct McRequestState {
     unsigned char phase;
-    unsigned char unmodeled_01[3];
+    unsigned char subphase;
+    unsigned char unmodeled_02;
+    unsigned char next_card;
     union {
         int combined;
         short slots[2];
     } status;
+    int descriptor;
+    int card_type;
+    unsigned char unmodeled_10[4];
+    int formatted;
+    unsigned char unmodeled_18[8];
 } McRequestState;
 
 /* State and its 0x60-byte full-path buffer share the original workspace. */
 typedef struct McRequestStorage {
     McRequestState state;
-    unsigned char unmodeled_08[0x20 - 0x08];
     unsigned char fullPath[0x60];
 } McRequestStorage;
 static McRequestStorage mw;
@@ -83,6 +90,58 @@ static int create_sub2(int result);
 unsigned char *xglMcSetFullPath(int card, int selector);
 
 void xglMcWriteMapName(char *buffer, int slot);
+
+typedef struct McSavePayload {
+    unsigned char unmodeled_00[4];
+    int entry_count;
+    unsigned char unmodeled_08[8];
+    int group_count;
+} McSavePayload;
+
+typedef struct McSaveHeader {
+    unsigned char unmodeled_00[4];
+    int start;
+    int end;
+    unsigned char unmodeled_0c[0x34];
+    char icon_header[0x400];
+    McSavePayload payload;
+} McSaveHeader;
+
+typedef struct McSaveChecksum {
+    unsigned char unmodeled_00[28];
+    float checksum;
+} McSaveChecksum;
+
+typedef struct McWorkspaceView {
+    McRequestState state;
+    unsigned char full_path[96];
+    unsigned char map_name[36];
+    McRequestEntry request;
+} McWorkspaceView;
+
+extern float D_004D8794;
+
+float xglFRand(void);
+
+void FlushCache(int mode);
+
+int sceMcDelete(int port, int slot, const char *path);
+
+extern int D_0093E0A4[];
+
+extern McRequestEntry D_0093E144;
+
+typedef struct McDirectoryEntry {
+    unsigned char unmodeled_00[9];
+    unsigned char second;
+    unsigned char minute;
+    unsigned char hour;
+    unsigned char day;
+    unsigned char month;
+    unsigned short year;
+    unsigned char unmodeled_10[32];
+    unsigned char name[16];
+} McDirectoryEntry;
 
 int xglMcRequest(int card, int operation, const McRequestArguments *arguments,
                  int *result)
@@ -405,24 +464,24 @@ static void execute(McRequestEntry *request)
             sceMcOpen(request->card, 0, (const char *)mw.fullPath, 1);
             mw.state.phase = 4;
         }
-        mw.state.unmodeled_01[0] = 0;
+        mw.state.subphase = 0;
         return;
     case 8:
         xglMcSetFullPath(request->slot, -1);
         sceMcMkdir(request->card, 0, mw.fullPath);
-        mw.state.unmodeled_01[0] = 0;
+        mw.state.subphase = 0;
         mw.state.phase = 5;
         return;
     case 6:
         xglMcSetFullPath(request->slot, 0);
         sceMcOpen(request->card, 0, (const char *)mw.fullPath, 0x202);
-        mw.state.unmodeled_01[0] = 0;
+        mw.state.subphase = 0;
         mw.state.phase = 3;
         return;
     case 4:
         xglMcSetFullPath(request->slot, 0);
         sceMcOpen(request->card, 0, (const char *)mw.fullPath, 1);
-        mw.state.unmodeled_01[0] = 0;
+        mw.state.subphase = 0;
         mw.state.phase = 4;
         return;
     case 9:
@@ -446,9 +505,223 @@ static void execute(McRequestEntry *request)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/xgl_mc", create_sub2);
+static int create_sub2(int result)
+{
+    int slot = ((McWorkspaceView *)&mw)->request.slot;
+    McSaveHeader *save;
+    McSavePayload *payload;
+    McSaveChecksum *trailer;
+    float *checksum;
+    int size;
+    unsigned char *write_data;
 
-INCLUDE_ASM("asm/main/nonmatchings/xgl_mc", xglMcMain);
+    if (mw.state.subphase < 2 && (result >= 0 || result == -4)) {
+        if (mw.state.subphase == 0) {
+            xglMcSetFullPath(slot, 0);
+            sceMcDelete(((McWorkspaceView *)&mw)->request.card, 0, (char *)((McWorkspaceView *)&mw)->full_path);
+        } else {
+            xglMcSetFullPath(slot, 1);
+            sceMcOpen(((McWorkspaceView *)&mw)->request.card, 0, (char *)&mw + 32, 0x202);
+        }
+    } else {
+        if (result < 0)
+            goto store_error;
+        save = (McSaveHeader *)((McWorkspaceView *)&mw)->request.buffer;
+        switch (mw.state.subphase) {
+        case 0:
+        case 1:
+        case 2:
+            mw.state.descriptor = result;
+            write_data = (unsigned char *)save->icon_header;
+            xglMcWriteMapName((char *)write_data, slot);
+            sceMcWrite(mw.state.descriptor, write_data, 964);
+            break;
+        case 3:
+            sceMcClose(mw.state.descriptor);
+            break;
+        case 4:
+            xglMcSetFullPath(slot, 2);
+            {
+                McWorkspaceView *view = (McWorkspaceView *)&mw;
+                sceMcOpen(view->request.card, 0, (char *)&mw + 32, 0x202);
+            }
+            break;
+        case 5:
+            mw.state.descriptor = result;
+            write_data = (unsigned char *)&save->payload;
+            payload = (McSavePayload *)write_data;
+            trailer = (McSaveChecksum *)((unsigned char *)payload + (payload->entry_count * 8 + 16) * payload->group_count);
+            checksum = &trailer->checksum;
+            size = save->end - save->start - 40;
+            *checksum = (xglFRand() - 1.5f) * D_004D8794 + 1.0f;
+            FlushCache(0);
+            sceMcWrite(mw.state.descriptor, write_data, size);
+            break;
+        case 6:
+            sceMcClose(mw.state.descriptor);
+            return 1;
+        default:
+            break;
+        }
+    }
+    mw.state.subphase++;
+    *((McWorkspaceView *)&mw)->request.result = mw.state.subphase;
+    return 0;
+
+store_error:
+    *((McWorkspaceView *)&mw)->request.result = result;
+    return -1;
+}
+
+int xglMcMain(void)
+{
+    XglClock clock;
+    int command;
+    int result;
+    int sync;
+    short *status;
+    int stored_result;
+    unsigned char *slots;
+    McDirectoryEntry *directory;
+    unsigned int latest;
+    unsigned int timestamp;
+    int latest_slot;
+    int index;
+    int slot;
+    int created;
+    int card_type;
+    void *buffer;
+    int size;
+    unsigned char phase;
+    unsigned char card;
+    McRequestEntry *request;
+    unsigned char *clear_slot;
+
+    sync = sceMcSync(1, &command, &result);
+    if (sync == 0) {
+        if (mw.state.phase == 1 && queue_end == queue_top)
+            return mw.state.status.combined;
+        return 0xFF00FF;
+    }
+    if (sync == -1) {
+        result = 0;
+        command = 0;
+    }
+    switch (mw.state.phase) {
+    case 1:
+        if (queue_end == queue_top) {
+            status = &mw.state.status.slots[mw.state.descriptor];
+            switch (mw.state.card_type) {
+            case 1: *status = 0x81; break;
+            case 2: *status = 1; break;
+            case 3: *status = 0x82; break;
+            default: *status = 0; break;
+            }
+            if (result == -1 || result == -2) {
+                *status = 0x80;
+            } else {
+                card_type = mw.state.card_type;
+                if (card_type == 2 && result == 0 && mw.state.formatted == 0)
+                    *status = card_type;
+            }
+        }
+        mw.state.phase = 0;
+    case 0:
+        if (queue_end != queue_top) {
+            request = &queue[queue_top];
+            D_0093E144 = *request;
+            execute(request);
+            queue_top = (queue_top + 1) & 7;
+            return 0xFF00FF;
+        }
+        card = mw.state.next_card & 1;
+        mw.state.descriptor = card;
+        sceMcGetInfo(card, 0, &mw.state.card_type, 0, &mw.state.formatted);
+        mw.state.phase = 1;
+        mw.state.next_card ^= 1;
+        break;
+    case 2:
+        *((McWorkspaceView *)&mw)->request.result = result;
+        mw.state.phase = 0;
+        if (result < 0)
+            break;
+        sceMcClose(result);
+        return 0xFF00FF;
+    case 6:
+        stored_result = result;
+        *((McWorkspaceView *)&mw)->request.result = stored_result;
+        slots = (unsigned char *)((McWorkspaceView *)&mw)->request.buffer;
+        clear_slot = &slots[100];
+        index = 100;
+        do {
+            index--;
+            *clear_slot = 0;
+            clear_slot--;
+        } while (index >= 0);
+        if (result > 0) {
+            latest = 0;
+            index = 0;
+            latest_slot = 0;
+            directory = (McDirectoryEntry *)(((unsigned int)((McWorkspaceView *)&mw)->request.buffer + 163) & ~63);
+            while (index < result) {
+                    slot = directory->name[0] * 10 + directory->name[1] - 528;
+                    slots[slot] = 1;
+                    clock.year = directory->year;
+                    clock.month = directory->month;
+                    clock.day = directory->day;
+                    clock.hour = directory->hour;
+                    clock.minute = directory->minute;
+                    clock.second = directory->second;
+                    clock.status = 0;
+                    timestamp = xglClockDayTime2UInt(&clock);
+                    if (latest < timestamp) {
+                        latest = timestamp;
+                        latest_slot = slot;
+                    }
+                    index++;
+                    directory++;
+            }
+            slots[100] = latest_slot;
+        }
+        mw.state.phase = 0;
+        break;
+    case 5:
+        created = create_sub2(result);
+        if (created == 0)
+            return 0xFF00FF;
+        mw.state.phase = 0;
+        if (created < 0)
+            mw.state.status.combined = 0xFF00FF;
+        break;
+    case 3:
+    case 4:
+        if (result >= 0) {
+            if (mw.state.subphase == 0) {
+                mw.state.descriptor = result;
+                phase = mw.state.phase;
+                size = ((McWorkspaceView *)&mw)->request.size;
+                buffer = (void *)((McWorkspaceView *)&mw)->request.buffer;
+                switch (phase) {
+                case 3:
+                    sceMcWrite(result, buffer, size);
+                    break;
+                case 4:
+                    sceMcRead(result, buffer, size);
+                    break;
+                }
+                mw.state.subphase = 1;
+                return 0xFF00FF;
+            }
+            sceMcClose(mw.state.descriptor);
+        } else {
+            *((McWorkspaceView *)&mw)->request.result = result;
+            mw.state.status.combined = 0xFF00FF;
+        }
+        mw.state.phase = 0;
+        break;
+    }
+    return D_0093E0A4[0];
+}
 
 int xglMcEasyLoad(const char *path, void *buffer, int size)
 {

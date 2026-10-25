@@ -57,7 +57,7 @@ struct SchedulerState {
     unsigned char unmodeled_6b4[0x6bc - 0x6b4];
     struct SefActor *targetActor;   /* +0x6bc */
     struct SefActor *sourceActor;   /* +0x6c0 */
-    struct SefModelMatrixContext *modelMatrixContext; /* +0x6c4 */
+    struct SefParentRecord *parentRecord; /* +0x6c4 */
     unsigned char unmodeled_6c8[0x6e0 - 0x6c8];
     int soundId;                    /* +0x6e0 */
     unsigned char unmodeled_6e4[0x9e6 - 0x6e4];

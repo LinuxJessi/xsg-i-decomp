@@ -9,6 +9,9 @@ extern void xglMatrixUnit(float matrix[4][4]);
 
 void xglMatrixInverse(Matrix4 destination, const Matrix4 source);
 
+void xglMatrixScale(Matrix4 destination, const Matrix4 source,
+                    const float scale[4]);
+
 extern void xglMatrixStackUnit(void);
 
 void xglMatrixStackMul(const Matrix4 matrix);

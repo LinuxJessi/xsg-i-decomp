@@ -2768,22 +2768,39 @@ def registered_object_items(root, unit, original, symbol, items):
     if not path.is_file():
         return []
     text, matches = path.read_text(), []
-    for section, section_items_ in items.items():
-        for item in section_items_:
-            identities = [s for s in original.symbols if s.name == symbol.name and
-                          s.value == item['start'] and s.bind == symbol.bind and
-                          s.type == symbol.type and s.size == symbol.size and
-                          0 < s.shndx < len(original.sections) and original.sections[s.shndx].name == section]
-            if len(identities) != 1 or symbol.size > item['end'] - item['start']:
-                continue
-            registered = []
-            for label in item.get('labels', []):
-                values = re.findall(r'^\s*' + re.escape(label) + r'\s*=\s*(0x[0-9A-Fa-f]+)\s*;',
-                                    text, re.MULTILINE)
-                if len(values) == 1 and int(values[0], 16) == item['start']:
-                    registered.append(label)
-            if registered:
-                matches.append((section, item, registered))
+    # cc1 numbers a function-local static `name.N` by its TU-wide label
+    # counter, so a candidate that does not yet reproduce every earlier label
+    # names the same static `tag_msg.1` where the retail object has
+    # `tag_msg.5` (main/tu168). Only when no item of this TU has a retail OBJECT
+    # with the exact name, accept the retail local with the same base name when it is otherwise the
+    # identical OBJECT; the caller still needs one unique item and the
+    # function-static proof, and the split planner still checks the
+    # initializer, relocations and extents.
+    local = re.fullmatch(r'([A-Za-z_][A-Za-z_0-9]*)\.\d+', symbol.name)
+
+    def same_base(name):
+        other = re.fullmatch(r'([A-Za-z_][A-Za-z_0-9]*)\.\d+', name or '')
+        return bool(local and other and other[1] == local[1])
+
+    for same_name in ((lambda name: name == symbol.name), same_base):
+        for section, section_items_ in items.items():
+            for item in section_items_:
+                identities = [s for s in original.symbols if same_name(s.name) and
+                              s.value == item['start'] and s.bind == symbol.bind and
+                              s.type == symbol.type and s.size == symbol.size and
+                              0 < s.shndx < len(original.sections) and original.sections[s.shndx].name == section]
+                if len(identities) != 1 or symbol.size > item['end'] - item['start']:
+                    continue
+                registered = []
+                for label in item.get('labels', []):
+                    values = re.findall(r'^\s*' + re.escape(label) + r'\s*=\s*(0x[0-9A-Fa-f]+)\s*;',
+                                        text, re.MULTILINE)
+                    if len(values) == 1 and int(values[0], 16) == item['start']:
+                        registered.append(label)
+                if registered:
+                    matches.append((section, item, registered))
+        if matches or not local:
+            break
     return matches
 
 
@@ -4524,7 +4541,8 @@ def refresh_nobits_spans(obj, elf, declared):
     return refreshed, changes
 
 
-def refresh_initialized_spans(root, unit, unit_dir, tu_id, obj, elf, ctx, declared, c_refs, per_func):
+def refresh_initialized_spans(root, unit, unit_dir, tu_id, obj, elf, ctx, declared, c_refs, per_func,
+                              split_mixed=False):
     """Refresh private placement requests from current C objects and originals.
 
     Original VA/extent ownership is retained. Only compiler coordinates change;
@@ -4532,6 +4550,10 @@ def refresh_initialized_spans(root, unit, unit_dir, tu_id, obj, elf, ctx, declar
     unique exact bytes/relocations and the producer's existing cc1 provenance
     proof. The ordinary splitter still requires complete input coverage.
     Nothing here writes a registry or supplies acceptance evidence.
+
+    `split_mixed` (a retry only, see `_derive_current`) routes a legacy run
+    whose owners are partly named C OBJECTs and partly anonymous emissions
+    item by item instead of refusing it.
     """
     if unit != 'main':
         return declared, None
@@ -4666,6 +4688,7 @@ def refresh_initialized_spans(root, unit, unit_dir, tu_id, obj, elf, ctx, declar
 
     dropped_owners = []
     for sec, runs in initialized.items():
+        split_runs = {}
         for run in refreshed[sec]:
             parts = run.get('c_input_spans') or []
             if parts:
@@ -4723,6 +4746,55 @@ def refresh_initialized_spans(root, unit, unit_dir, tu_id, obj, elf, ctx, declar
                         raise CarveError(f'{tu_id} {sec}: retained original run is not exactly tiled by current named owners')
                     run['range'] = [h8(lo), h8(hi)]
                     run['c_input_spans'] = parts
+                elif (split_mixed and names and set(names) & current_named.keys()
+                      and _anonymous_span_names_are_scaffold(items.get(sec, []), set(names), lo, hi)
+                      and all(elf.sections[current_named[n].shndx].name == raw_section_name(unit, sec)
+                              for n in set(names) & current_named.keys())):
+                    # A legacy run whose owners are partly named C OBJECTs and
+                    # partly anonymous compiler emissions (main/tu168: the
+                    # named tables D_004C4F50/D_004C4F60 and the switch table
+                    # jtbl_004C4F80). The whole span cannot be one anonymous
+                    # coordinate (it contains named OBJECTs), and the split
+                    # planner credits an anonymous span only for the owners
+                    # labelled inside it. Keep the original extent, but route
+                    # each original item as its own adjacent run: a named owner
+                    # through its own OBJECT, an anonymous one through the
+                    # unchanged unique exact coordinate and cc1 provenance proof
+                    # below. Every item must carry exactly one registered owner.
+                    span_items = sorted((it for it in items.get(sec, []) if lo <= it['start'] < hi),
+                                        key=lambda it: it['start'])
+                    if (not span_items or span_items[0]['start'] != lo or span_items[-1]['end'] < hi
+                            or any(a['end'] != b['start'] for a, b in zip(span_items, span_items[1:]))
+                            or hx(run['range'][0]) != lo):
+                        raise CarveError(f'{tu_id} {sec}: retained mixed run is not tiled by original items')
+                    pieces = []
+                    for it in span_items:
+                        labels = set(names).intersection(it.get('labels') or [])
+                        if len(labels) != 1:
+                            raise CarveError(f'{tu_id} {sec}: retained mixed run item {h8(it["start"])} '
+                                             f'has no unique registered owner')
+                        name = next(iter(labels))
+                        item_lo, item_hi = it['start'], min(it['end'], hi)
+                        # Like the all-named route above, a retained trailing
+                        # fill past the generated end returns to scaffold.
+                        piece = dict(range=[h8(item_lo), h8(item_hi)], generated=[h8(item_lo), h8(item_hi)],
+                                     generated_by=sorted(fn for fn, refs in per_func.items()
+                                                         if set(it.get('labels') or []) & refs),
+                                     c_owned_symbols=[name], also_referenced_by_c=[])
+                        if name in current_named:
+                            sym = current_named[name]
+                            padding = item_hi - item_lo - sym.size
+                            if padding < 0:
+                                raise CarveError(f'{tu_id} {sec}: current named owner exceeds its original item: {name}')
+                            piece['c_input_spans'] = [named_part(sec, item_lo, item_hi, [name],
+                                                                 dict(zero_padding_tail=padding) if padding else None)]
+                        else:
+                            part = dict(section=raw_section_name(unit, sec), range=[h8(item_lo), h8(item_hi)],
+                                        symbols=[], anonymous_emission=True, credit='verified')
+                            piece['c_input_spans'] = [part]
+                            anonymous.append((sec, piece, part, item_lo, item_hi))
+                        pieces.append(piece)
+                    split_runs[id(run)] = pieces
                 elif names and _anonymous_span_names_are_scaffold(items.get(sec, []), set(names), lo, hi):
                     part = dict(section=raw_section_name(unit, sec), range=[h8(lo), h8(hi)],
                                 symbols=[], anonymous_emission=True, credit='verified')
@@ -4731,6 +4803,8 @@ def refresh_initialized_spans(root, unit, unit_dir, tu_id, obj, elf, ctx, declar
                     anonymous.append((sec, run, part, lo, hi))
                 else:
                     raise CarveError(f'{tu_id} {sec}: retained compiler run has no exact current owner identities')
+        if split_runs:
+            refreshed[sec] = [piece for run in refreshed[sec] for piece in split_runs.get(id(run), [run])]
 
     # New C objects are routed only by an original mapped name/extent. Their
     # initializer and any meaningful retail binding/type are checked below by
@@ -5979,8 +6053,19 @@ def _derive_current(root, unit, unit_dir, tu_id, source, obj, *, _declared=None,
                     refresh_refused=str(exc),
                     reason='the legacy initialized runs equal a derivation without any initialized request')
                 return fresh
-        out['problems'].append(str(exc))
-        return out
+        # A legacy run can mix named C OBJECTs with anonymous emissions
+        # (main/tu168 D_004C4F50/D_004C4F60 + jtbl_004C4F80). When the request
+        # cannot be kept as it is, retry the refresh routing such a run item by
+        # item; every coordinate, byte, relocation and cc1 provenance proof is
+        # unchanged, and a second refusal is reported as before.
+        try:
+            declared, refresh = refresh_initialized_spans(root, unit, unit_dir, tu_id, obj, elf, ctx,
+                                                          declared, c_refs, per_func, split_mixed=True)
+        except CarveError:
+            out['problems'].append(str(exc))
+            return out
+        out['span_refresh'] = dict(refresh or {}, mixed_runs_split=True, first_refusal=str(exc))
+        out['declared_current'] = copy.deepcopy(declared)
     if unit != 'main':
         raw_cc1 = overlay_cc1_sidecar(unit_dir, unit, ctx['name'])
         if raw_cc1:

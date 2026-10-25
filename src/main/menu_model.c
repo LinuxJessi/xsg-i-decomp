@@ -31,6 +31,7 @@ typedef struct MenuModelPadRecord {
 
 
 extern MenuModelPadRecord PadData[2];
+extern const unsigned short guno_eid_tbl[29];
 extern const MenuModelScaleLimits D_004DA938[];
 extern const MenuModelScaleLimits D_004DA940[];
 
@@ -1919,7 +1920,6 @@ XglTaskPrefix *MenuModelWeaponCreate(MenuModelTaskWork *unit,
 int MenuScenarioNoGet(void);
 int func_A1A2E8(int modelId);
 MenuModelUnitResourceData *func_A191C0(int modelId);
-extern const unsigned short guno_eid_tbl[29];
 
 void MenuModelCreate(int *result, int modelId)
 {

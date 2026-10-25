@@ -3,6 +3,32 @@
 
                                               /* MARK provisional: .lit4 0x004d8564 */
 
+extern StudioCamera *xglStudioGetActiveCamera(void);
+
+typedef struct LookEnemyPlace {
+    unsigned long long words[2];
+} LookEnemyPlace;
+
+typedef struct LookEnemyTargetSlot {
+    unsigned char unmodeled_000[0x0c];
+    LookEnemyPlace *lookPlaceTarget;
+} LookEnemyTargetSlot;
+
+typedef struct LookEnemyWorkEntry {
+    unsigned char unmodeled_000[0x3860];
+    LookEnemyTargetSlot targetSlot;
+    unsigned char unmodeled_3870[0x40];
+} LookEnemyWorkEntry;
+
+extern LookEnemyWorkEntry enepc[16];
+
+static inline void look_copy_place(LookAlignedVector4 *place, const Vector4 *source)
+{
+    __asm__ __volatile__("lq $2, 0(%0)\n"
+                         "sq $2, 0(%1)\n"
+                         : : "r" (source), "r" (place) : "$2", "memory");
+}
+
 float xglAsin(float value)
 {
     /* MARK: explicit NaN-fallback call structure -- emits sqrt.s + c.eq.s/bc1t
@@ -58,7 +84,63 @@ void look_limit_add(float *angle, float target, float step)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/look", look_get_place);
+static int look_get_place(LookCharacter *actor, LookAlignedVector4 *place)
+{
+    LookCharacter *target;
+    int result = 1;
+    LookEnemyTargetSlot *enemyEntry = 0;
+    unsigned short mode = actor->lookMode;
+
+    if (actor->number < 16)
+        enemyEntry = &enepc[actor->number].targetSlot;
+
+    switch (mode) {
+    case 1: {
+        LookEnemyPlace *enemyPlace;
+
+        if (enemyEntry != 0) {
+            enemyPlace = enemyEntry->lookPlaceTarget;
+            if (enemyPlace != 0) {
+                result = 0;
+                *(LookEnemyPlace *)place = *enemyPlace;
+            }
+        }
+        break;
+    }
+    case 2:
+        look_copy_place(place, &xglStudioGetActiveCamera()->position);
+        result = 0;
+        break;
+    case 3:
+        look_copy_place(place, &actor->worldPosition);
+        result = 0;
+        break;
+    case 4: {
+        LookModelRecord *model;
+
+        target = actor->lookTarget;
+        if (target == 0)
+            break;
+        model = target->model;
+        if (model != 0) {
+            if (model->detail >= 8)
+                look_copy_place(place, &target->headPosition);
+            else
+                look_copy_place(place, &target->nearPosition);
+        }
+        result = 0;
+        break;
+    }
+    case 5:
+        target = actor->lookTarget;
+        if (target == 0)
+            break;
+        look_copy_place(place, &target->eyePosition);
+        result = 0;
+        break;
+    }
+    return result;
+}
 
 void LOOK_target_init(void)
 {

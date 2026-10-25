@@ -1,8 +1,10 @@
-"""Native IOP object pairs, backed by fresh C emission and complete IRX gates.
+"""Native IOP pairs backed by fresh C emission and complete fixed-layout IRX builds.
 
 Original references are assembled from original instructions and evidenced data
 ranges. Compiler objects are only debug-stripped, never patched or normalized.
 Unattributed original data stays in explicit target-only report buckets.
+Strict defaults require whole-module equality; explicit reporting records actual
+linked hashes while retaining container, symbol and relocation identities.
 """
 import hashlib
 import json
@@ -21,7 +23,7 @@ def run(command, root):
                           check=True, capture_output=True).stdout.decode()
 
 
-def load_evidence(root, report_path):
+def load_evidence(root, report_path, *, reporting=False):
     sys.path.insert(0, str(root))
     from tools import iop_module
     manifest = verification.read(root / 'config/iop-build.json')
@@ -29,7 +31,9 @@ def load_evidence(root, report_path):
     registered = {(item['unit'], item.get('fdr_index', int(item['id'].rsplit('-', 1)[1]))): item
                   for item in registry['groups']}
     report = verification.read(report_path)
-    verification.require(report.get('gate_passed') is True and report.get('functions_expected') == 495 and
+    verification.require(report.get('mode', 'exact') == ('reporting' if reporting else 'exact'),
+                         'IOP evidence reporting mode differs')
+    verification.require(report.get('ok' if reporting else 'gate_passed') is True and report.get('functions_expected') == 495 and
                          report.get('unique_source_groups') == 24 and
                          report.get('manifest_sha256') == verification.digest(root / 'config/iop-build.json'),
                          'IOP report is not a current complete 24-object build')
@@ -44,9 +48,21 @@ def load_evidence(root, report_path):
         original = iop_module.Elf(root / 'game/extracted-iso/IOP' /
                                   ('SSD.IRX' if unit == 'iop_ssd' else 'RSSD.IRX'))
         output = Path(report['whole_irx'][unit]['path'])
-        verification.require(module['gate_passed'] and output.read_bytes() == original.raw and
+        verification.require(module.get('build_passed' if reporting else 'gate_passed') is True and
+                             (reporting or output.read_bytes() == original.raw) and
                              verification.digest(output) == report['whole_irx'][unit]['sha256'],
                              unit + ': complete raw IRX proof changed')
+        if reporting:
+            iop_module.reporting_comparison(module['comparison'])
+        current = iop_module.Elf(output)
+        verification.require(verification.digest(Path(module['linked_elf'])) == module['linked_sha256'],
+                             unit + ': actual linked ELF changed')
+        identical = current.raw == original.raw
+        verification.require(report['whole_irx'][unit]['byte_identical'] == identical and
+                             report['whole_irx'][unit]['original_sha256'] == verification.digest(
+                                 root / 'game/extracted-iso/IOP' /
+                                 ('SSD.IRX' if unit == 'iop_ssd' else 'RSSD.IRX')),
+                             unit + ': actual IOP comparison flags/hashes differ')
         inputs = {tuple((f['name'], f['offset'], f['size']) for f in c['functions']): c
                   for c in module['compiler_inputs']}
         for group in entries:
@@ -59,7 +75,8 @@ def load_evidence(root, report_path):
                                  record.get('source', group['source']) == group['source'],
                                  'IOP build group differs from the original FDR registry')
             emitted = emissions[(unit, group['source'])]
-            candidate = inputs[scope]
+            candidate = dict(inputs[scope])
+            candidate['linked_functions'] = {}
             verification.require(verification.digest(root / group['source']) == group['source_sha256'] ==
                                  emitted['source_sha256'], 'IOP source changed: ' + group['source'])
             for kind in ('object', 'assembly'):
@@ -75,6 +92,24 @@ def load_evidence(root, report_path):
                 found = original.named_symbol(name)
                 verification.require((found['value'], found['size'], found['type']) == (offset, size, 2),
                                      'IOP original function identity changed')
+                actual = current.named_symbol(name)
+                verification.require(all(actual[key] == found[key] for key in
+                                         ('name', 'value', 'size', 'type', 'binding', 'other')),
+                                     'IOP current linked FUNC identity changed')
+                before = iop_module.function_bytes(original, found)
+                after = iop_module.function_bytes(current, actual)
+                candidate['linked_functions'][name] = dict(
+                    sha256=hashlib.sha256(after).hexdigest(),
+                    original_sha256=hashlib.sha256(before).hexdigest(), exact=before == after,
+                    va=actual['value'], size=actual['size'])
+                if reporting:
+                    audits = [f for f in module['functions'] if f['name'] == name]
+                    proof = candidate['linked_functions'][name]
+                    verification.require(len(audits) == 1 and
+                                         audits[0].get('linked_sha256') == proof['sha256'] and
+                                         audits[0].get('original_sha256') == proof['original_sha256'] and
+                                         audits[0].get('exact') == proof['exact'],
+                                         'IOP actual function bytes differ from fresh module-link evidence')
             groups.append((unit, group, candidate, original))
     verification.require(len(groups) == 24 and len(identities) == 495, 'IOP original-object scope drift')
     return groups, contract, tools, report
@@ -234,9 +269,9 @@ def assemble_reference(root, destination, group, original, rows, contract, tools
     return obj, spans
 
 
-def prepare(root, project, report_path):
+def prepare(root, project, report_path, *, reporting=False):
     from tu import objdiff_inputs
-    groups, contract, tools, report = load_evidence(root, report_path)
+    groups, contract, tools, report = load_evidence(root, report_path, reporting=reporting)
     prefix = Toolchain(root).dir('ps2dev-binutils') / 'mips64r5900el-ps2-elf-'
     units, expected, assigned = [], {}, {}
     originals = {unit: original for unit, _, _, original in groups}
@@ -255,7 +290,8 @@ def prepare(root, project, report_path):
                              name + ': native object function scope differs')
         units.append(dict(name=name, target_path=str(target), base_path=str(base),
                           metadata=dict(complete=False, source_path=group['source'], progress_categories=[unit])))
-        expected[name] = dict(functions=scope, allowed=scope, complete=False)
+        expected[name] = dict(functions=scope, allowed=scope, complete=False,
+                              exact={name: row['exact'] for name, row in candidate['linked_functions'].items()})
     accounting = {}
     for unit, original in originals.items():
         destination = project / unit / 'unattributed-data'

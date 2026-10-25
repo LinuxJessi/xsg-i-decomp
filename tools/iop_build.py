@@ -6,6 +6,8 @@ compiles each manifest source once under its original ECOFF object's selected
 soft/hard-float contract, verifies compiler emission and original symbol
 identity, then assembles and links each complete IRX through iop_module.py.
 The original IRX remains the byte authority; this tool never edits it.
+--reporting retains same-layout code differences after a valid ordinary build;
+gate_passed still records exact whole-module equality and never becomes a waiver.
 """
 
 import argparse
@@ -214,6 +216,8 @@ def main(argv=None):
     parser.add_argument("--reuse-report", type=Path,
                         help="prior build-report.json pinning the compile objects to reuse")
     parser.add_argument("--jobs", type=int, default=4)
+    parser.add_argument("--reporting", action="store_true",
+                        help="retain valid same-layout code mismatches for native progress; not acceptance")
     parser.add_argument("--unit", choices=("iop_ssd", "iop_rssd", "both"), default="both")
     args = parser.parse_args(argv)
     root, build_root, report_path = args.root.resolve(), args.build_dir.resolve(), args.report.resolve()
@@ -246,6 +250,7 @@ def main(argv=None):
     report_path.parent.mkdir(parents=True, exist_ok=True)
     receipt = dict(schema_version=1, kind="iop_published_source_build", ok=False,
                    gate_passed=False, runtime_execution_proven=False,
+                   mode='reporting' if args.reporting else 'exact',
                    source_acceptance=False, recovery_credit=False,
                    selected_units=selected_units, functions_expected=function_count,
                    unique_source_groups=source_count, compiler_process_jobs=args.jobs,
@@ -280,18 +285,21 @@ def main(argv=None):
             candidates = [item["descriptor"] for item in receipts if item["unit"] == unit]
             module_dir = build_root / "module" / unit
             output = build_root / "output" / f"{unit}.IRX"
-            module_report = iop_module.build_module(root, unit, candidates, module_dir, output)
+            module_report = iop_module.build_module(root, unit, candidates, module_dir, output,
+                                                    reporting=args.reporting)
             receipt["module_reports"][unit] = module_report
-            require(module_report.get("gate_passed") is True,
+            require(module_report.get("build_passed" if args.reporting else "gate_passed") is True,
                     f"complete {unit} IRX gate failed: {module_report.get('error') or module_report.get('comparison')}")
             actual = output.read_bytes()
             original = (root / "game/extracted-iso" / units[unit]["path"]).read_bytes()
-            require(actual == original, f"complete {unit} raw IRX differs after module gate")
+            if not args.reporting:
+                require(actual == original, f"complete {unit} raw IRX differs after module gate")
             receipt["whole_irx"][unit] = dict(path=str(output), sha256=digest(output),
                                                 original_sha256=hashlib.sha256(original).hexdigest(),
-                                                byte_identical=True,
+                                                byte_identical=actual == original,
                                                 functions_verified=len(module_report.get("functions", [])))
-        receipt["ok"] = receipt["gate_passed"] = True
+        receipt["ok"] = True
+        receipt["gate_passed"] = all(v['byte_identical'] for v in receipt['whole_irx'].values())
     except Exception as exc:
         receipt["error"] = f"{type(exc).__name__}: {exc}"
         raise

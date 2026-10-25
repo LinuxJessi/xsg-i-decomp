@@ -115,6 +115,10 @@ int Check_CrossingOver(const Vector4 *first_start, const Vector4 *first_end,
 
 int Get_Attr(const Point4 *position, int mapIndex, int attrMask);
 
+extern const float D_004D81A0;
+
+extern const float D_004D81A4;
+
 float Get_Decimal_Surplus_for_Radius(float angle)
 {
     if (angle <= 0.0f) {
@@ -386,7 +390,37 @@ void Check_Octpus(float length, float radius, const Point4 *origin,
     *destination = checked[ranked[0]];
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/get", Get_WallSpace);
+float Get_WallSpace(int unused, const signed char *wall_flags,
+                    short count, float angle)
+{
+    int signed_count = count;
+    float count_as_float = (float)signed_count;
+    int half_count = count / 2;
+    short checked = 0;
+    short selected = 0;
+    short start = (short)(angle / (D_004D81A0 / count_as_float)
+                          + (float)half_count);
+
+    if (half_count > 0) {
+        short steps = half_count;
+        int forward = start + steps;
+        int backward = start + signed_count + steps;
+        do {
+            if (wall_flags[forward % signed_count] == 0) {
+                selected = (short)(forward % signed_count);
+                break;
+            }
+            forward++;
+            if (wall_flags[backward % signed_count] == 0) {
+                selected = (short)(backward % signed_count);
+                break;
+            }
+            backward--;
+            checked++;
+        } while (checked < steps);
+    }
+    return (float)selected * (D_004D81A4 / count_as_float);
+}
 
 void Get_One_Step(float length, const Point4 *source,
                   const Point4 *destination, Point4 *output)

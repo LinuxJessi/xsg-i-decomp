@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate an unmodified native objdiff report after exact linked verification."""
+"""Generate an unmodified native objdiff report after fresh linked verification."""
 import argparse
 import os
 from pathlib import Path
@@ -16,6 +16,8 @@ def main():
     ap.add_argument('-o', '--output', default='build/report.json')
     ap.add_argument('--objdiff', type=Path, default=os.environ.get('OBJDIFF_CLI'))
     ap.add_argument('--root', type=Path, default=verification.ROOT)
+    ap.add_argument('--reporting', action='store_true',
+                    help='consume reporting-only provenance, including nonmatching C')
     args = ap.parse_args()
     root = args.root.resolve()
     output = root / args.output
@@ -27,15 +29,15 @@ def main():
         pin = verification.read(root / 'config/report-tools.json')['objdiff-cli']
         verification.require(verification.digest(binary) == pin['sha256'],
                              'objdiff-cli does not match config/report-tools.json')
-        evidence = verification.load_verified(root, root / 'build')
+        evidence = verification.load_verified(root, root / 'build', reporting=args.reporting)
         project, expected = objdiff_inputs.prepare(root, evidence)
         temporary = project / 'report.pending.json'
         temporary.unlink(missing_ok=True)
         subprocess.run(['timeout', '-k', '5', '120', str(binary), 'report', 'generate',
                         '--project', str(project), '--output', str(temporary)],
                        env={**os.environ, 'RAYON_NUM_THREADS': '4'}, check=True)
-        objdiff_inputs.validate(verification.read(temporary), expected)
-        verification.load_verified(root, root / 'build')
+        objdiff_inputs.validate(verification.read(temporary), expected, reporting=args.reporting)
+        verification.load_verified(root, root / 'build', reporting=args.reporting)
         # Preserve the native report without rewriting scores or counts.
         temporary.replace(output)
         print(f'Native objdiff report: {output}')

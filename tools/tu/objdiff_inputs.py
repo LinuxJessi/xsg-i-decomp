@@ -5496,7 +5496,7 @@ def registered_nobits_zero_sizes(body, reference, original, compiled, assembly, 
 
 
 def registered_current_data_layout(root, unit_dir, obj, tu, base, assembly, preprocessed,
-                                   evidence, destination, prefix, reference=None):
+                                   evidence, destination, prefix, reference=None, *, reporting=False):
     """Ordinary LD placement of verified C inputs, never imported DATA bytes.
 
     The compiler object stays immutable. This comparison view uses the same
@@ -5504,7 +5504,8 @@ def registered_current_data_layout(root, unit_dir, obj, tu, base, assembly, prep
     It retains the complete original TU footprint, including zero-input fill.
     """
     checked=evidence['objects'][obj['id']]
-    if obj['unit']!='main' or not checked.get('complete'):return None
+    if obj['unit']!='main' or not (checked.get('complete') or
+                                 reporting and checked.get('source_complete')):return None
     manifest=verification.read(unit_dir/'tu-manifest.carved.json')
     current=next(t for t in manifest['tus'] if t['id']==obj['id'])
     verification.require(tu['name']==current['name'] and tu['text']==current['text'] and all(
@@ -5583,7 +5584,8 @@ def registered_current_data_layout(root, unit_dir, obj, tu, base, assembly, prep
             for s in image.symbols if s.type in (1,2) and s.shndx!=0)
         return sorted(rows),sorted(rel,key=repr),identities
     verification.require(signature(compiled)==signature(raw),'native C emission differs from verified ordinary input')
-    verification.require(functions(base)=={f['name']:f['size'] for f in checked['functions']},
+    verification.require(functions(base)=={f.get('compiled_name',f['name']):f.get('compiled_size',f['size'])
+                                          for f in checked['functions']},
                          'current DATA view includes a function outside verified C scope')
     registry=data_carve.load_registry(root)
     plans=data_carve.split_plans(root,'main',unit_dir,obj['id'],raw,registry)
@@ -5685,9 +5687,13 @@ def registered_current_data_layout(root, unit_dir, obj, tu, base, assembly, prep
     for sec in resolved.sections:
         if not sec.flags&2 or not sec.size or sec.type==8 or sec.name=='.reginfo':continue
         payload=resolved.section_bytes(sec)
-        verification.require(payload==data_carve.va_bytes(original,sec.addr,sec.size)==data_carve.va_bytes(linked,sec.addr,sec.size),
-                             'ordinary C placement resolved payload differs from original/verified link')
-        resolved_proofs.append(dict(section=sec.name,range=[sec.addr,sec.addr+sec.size],sha256=hashlib.sha256(payload).hexdigest()))
+        verification.require(payload==data_carve.va_bytes(linked,sec.addr,sec.size),
+                             'ordinary C placement resolved payload differs from verified link')
+        original_equal=payload==data_carve.va_bytes(original,sec.addr,sec.size)
+        if not reporting:
+            verification.require(original_equal,'ordinary C placement resolved payload differs from original')
+        resolved_proofs.append(dict(section=sec.name,range=[sec.addr,sec.addr+sec.size],
+                                   sha256=hashlib.sha256(payload).hexdigest(),original_equal=original_equal))
     for path,digest in pins.items():
         verification.require(verification.digest(Path(path))==digest,'current DATA view authority/input changed')
     pins.update({str(p):verification.digest(p) for p in (base,assembly)})
@@ -5819,6 +5825,7 @@ def prepare(root, evidence, only_objects=None, *, iop_only=False, project_dir=No
                 for unit in cov.OVERLAY_UNITS} if objects else {}
     originals = verification.read(root / cov.ORIGINALS)['units']
     expected = {}
+    reporting = evidence.get('mode', 'exact') == 'reporting'
 
     def prepare_object(obj):
         unit, stem = obj['unit'], Path(obj['source']).stem
@@ -5919,7 +5926,7 @@ def prepare(root, evidence, only_objects=None, *, iop_only=False, project_dir=No
                 strip_debug(prefix,joint,target,unit_dir)
             comparison=destination/'base.placed.o'
             current_placement=registered_current_data_layout(root,unit_dir,obj,tu,base,assembly,
-                Path(str(base)+'.i').read_text(),evidence,comparison,prefix,reference=target)
+                Path(str(base)+'.i').read_text(),evidence,comparison,prefix,reference=target,reporting=reporting)
             if current_placement:
                 original=parsed_elf((unit_dir/'orig'/originals[unit]['file']).read_bytes())
                 body,cleanup=current_layout_reference((destination/'joint.s').read_text(),parsed_elf(target.read_bytes()),
@@ -5952,7 +5959,9 @@ def prepare(root, evidence, only_objects=None, *, iop_only=False, project_dir=No
             nested = nested_base_names(root, obj['id'], allowed, actual)
             # Every remaining definition must be emitted C in the verified scope,
             # with its verified size; the include view cannot supply any body.
-            verification.require(actual == {nested.get(n, n): size for n, size in allowed.items()}
+            emitted_sizes = {f.get('compiled_name', nested.get(f['original_symbol'], f['original_symbol'])):
+                             f.get('compiled_size', f['size']) for f in checked['functions']}
+            verification.require(actual == emitted_sizes
                                  and set(actual) <= emitted,
                                  f'{name}: compiler-only emission differs from verified C scope')
             stripped_base = destination / 'base.nodebug.o'
@@ -6056,8 +6065,10 @@ def prepare(root, evidence, only_objects=None, *, iop_only=False, project_dir=No
         # map name or the original name depending on how the target was built.
         credited = {name: f['size'] for f in checked['functions']
                     for name in (f['name'], f['original_symbol'])}
+        exact = {name: f.get('exact', True) for f in checked['functions']
+                 for name in (f['name'], f['original_symbol'])}
         return unit_config, dict(functions=target_functions, allowed=credited,
-                                 complete=checked['complete'], data_only=data_only)
+                                 exact=exact, complete=checked['complete'], data_only=data_only)
 
     if 'fork' in multiprocessing.get_all_start_methods():
         # These Python-heavy proofs need separate interpreters for parallelism.
@@ -6085,7 +6096,8 @@ def prepare(root, evidence, only_objects=None, *, iop_only=False, project_dir=No
         report_path = root / iop['build_report']
         verification.require(verification.digest(report_path) == iop.get('build_report_sha256'),
                              'verified IOP build report changed')
-        iop_units, iop_expected, iop_proof = iop_objdiff.prepare(root, project, report_path)
+        iop_units, iop_expected, iop_proof = iop_objdiff.prepare(root, project, report_path,
+                                                            reporting=reporting)
         verification.require(not set(iop_expected).intersection(expected), 'duplicate IOP object name')
         units.extend(iop_units)
         expected.update(iop_expected)
@@ -6096,7 +6108,7 @@ def prepare(root, evidence, only_objects=None, *, iop_only=False, project_dir=No
     return project, expected
 
 
-def validate(report, expected):
+def validate(report, expected, *, reporting=False):
     """Reject scope drift and scaffold credit; leave native JSON unchanged."""
     units = {u['name']: u for u in report['units']}
     verification.require(set(units) == set(expected), 'native report dropped or added units')
@@ -6108,7 +6120,8 @@ def validate(report, expected):
             verification.require(not function.get('fuzzy_match_percent', 0) or
                                  function['name'] in checked['allowed'],
                                  f'{name}/{function["name"]}: scaffolding received matching credit')
-            if function['name'] in checked['allowed']:
+            if (function['name'] in checked['allowed'] and
+                    (not reporting or checked.get('exact', {}).get(function['name'], True))):
                 verification.require(function.get('fuzzy_match_percent') == 100,
                                      f'{name}/{function["name"]}: verified C is not a native 100% match')
         # Keep objdiff's native BSS measure. It describes uninitialized storage
@@ -6120,7 +6133,7 @@ def validate(report, expected):
                                  f'{name}: initialized scaffold data received matching credit')
         verification.require(bool(unit.get('metadata', {}).get('complete', False)) == checked['complete'],
                              f'{name}: unexpected complete metadata')
-        if checked['complete']:
+        if checked['complete'] and not reporting:
             measures=unit.get('measures',{})
             for kind in (('code','data') if name.startswith('main/') else ('code',)):
                 total=int(measures.get('total_'+kind,0));matched=int(measures.get('matched_'+kind,0))

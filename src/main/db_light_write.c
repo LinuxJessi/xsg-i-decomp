@@ -291,6 +291,15 @@ void updateCursorMode0(void);
 
 void updateCursorMode2(void);
 
+enum CursorMode {
+    CURSOR_MODE_NONE = -1,
+    CURSOR_MODE_0,
+    CURSOR_MODE_1,
+    CURSOR_MODE_2,
+    CURSOR_MODE_3,
+    CURSOR_MODE_4
+};
+
 void DB_lightWrite(int descriptor)
 {
     char buffer[128];
@@ -1651,7 +1660,42 @@ void drawCursor(void)
     drawAxis(matrix, 1.0f);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/db_light_write", initCursor);
+void initCursor(void)
+{
+    int camera_index;
+    StudioCamera *camera;
+    StudioCamera *current;
+    HomogeneousVector *cursor_position;
+    CursorState *state;
+
+    for (camera_index = 0; camera_index < 8; camera_index++) {
+        xglStudioGetCamera(&camera, camera_index);
+        current = camera;
+        if (camera_index == 0) {
+            current->active = 1;
+            current->state = 1;
+        } else {
+            current->active = 0;
+        }
+    }
+
+    cursor_position = &cursor[1];
+    tcamera.mode1 = 20;
+    tcamera.view_constraint = cursor_position;
+    state = (CursorState *)(cursor_position - 1);
+    tcamera.view_offset[0] = 0;
+    tcamera.view_offset[1] = 0;
+    tcamera.view_offset[2] = 0;
+    tcamera.view_mode = 1;
+    state->step = 3;
+    cursorMode = -1;
+    state->position.x = 0.0f;
+    state->position.y = 0.0f;
+    state->position.z = 0.0f;
+    *(enum CursorMode *)&state->mode = CURSOR_MODE_0;
+    state->submode = 2;
+    changeCameraMode();
+}
 
 static void printM(int x, int y, const float *matrix)
 {

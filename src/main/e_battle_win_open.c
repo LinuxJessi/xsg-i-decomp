@@ -89,7 +89,95 @@ typedef struct BattleWinAnalysisParams {
     const char *rare_item_text;
 } BattleWinAnalysisParams;
 
-INCLUDE_ASM("asm/main/nonmatchings/e_battle_win_open", eBattleWinOpen);
+extern BattleWinItem *BW_item;
+
+typedef struct BattleWinOpenParams {
+    int x;
+    int y;
+    int style;
+    int window_dx;
+    int window_dy;
+    BattleWinCommand *commands;
+    const char *title;
+} BattleWinOpenParams;
+
+extern const char text_0;
+
+extern const char D_004C3960[];
+
+extern BattleWinItem *BW_item;
+
+extern void endPrintInit(void);
+
+void eBattleWinOpen(BattleWinOpenParams *params)
+{
+    BattleWindow *window = BW;
+    BattleWinItem *items = BW_item;
+    BattleWindow *information;
+    BattleWinCommand *command;
+    BattleWinItem *item;
+    const char *text;
+    const char *next_text;
+
+    window->commands = params->commands;
+    command = params->commands;
+    item = items;
+    text = command->text;
+    if (text != 0) {
+        do {
+            unsigned char flags;
+
+            item->text = text;
+            item->icon = command->icon;
+            flags = command->flags;
+            command++;
+            item->flags = flags;
+            item++;
+            next_text = command->text;
+            text = next_text;
+        } while (next_text != 0);
+        window = BW;
+        items = BW_item;
+    }
+    item[1].text = 0;
+    item->text = &text_0;
+    {
+        unsigned short x = params->x;
+        unsigned short y = params->y;
+        int style = params->style;
+
+        window->list.x = x;
+        window->list.y = y;
+        window->list.style = style;
+        window->list.width = 468;
+        window->list.height = 112;
+        window->list.title = params->title;
+        window->list.items = items;
+        window->list.columns = 2;
+    }
+    BW->list.rows = 4;
+    BW->list.draw_flags = 7;
+    WindowSPSet(&BW->list);
+    BW->list.state = 1;
+    BW->list.window.alpha = 64;
+    WindowDXSet(&BW->window);
+    information = BW;
+    {
+        information->window.x = (unsigned short)params->x + (unsigned short)params->window_dx;
+        information->window.y = (unsigned short)params->y + (unsigned short)params->window_dy;
+        information->window.style = params->style;
+        information->window.width = 312;
+        information->window.height = 64;
+        information->window.tag_id = D_004C3960;
+        information->window.ribbon_initialized = 1;
+    }
+    BW->window.state = 1;
+    eMessageSet(&BW->message, 0);
+    BW->message.mode = 0x20;
+    BW->message.x = BW->window.x + 3;
+    BW->message.y = BW->window.y + 3;
+    BW->message.extent = BW->window.style + 2;
+}
 
 void eBattleWinClose(void *window)
 {
@@ -554,7 +642,45 @@ int eBattleWinPageCheck4(void)
     return BW4->page;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/e_battle_win_open", eBattleWinInit2);
+void *eBattleWinInit2(void *arena)
+{
+    void *cursor = arena;
+    int *active_flag;
+    int *third_flag;
+    int *second_flag;
+    BattleWindow2 **dialog_slot = &BW2;
+
+    BW = cursor;
+    cursor = BW + 1;
+    BW->mode = 0;
+    BW_item = cursor;
+    cursor = BW_item + 256;
+    {
+        *dialog_slot = cursor;
+        active_flag = &(*dialog_slot)->active;
+        cursor = *dialog_slot + 1;
+        *active_flag = 0;
+    }
+    {
+        BattleWindow3 **analysis_slot = &BW3;
+
+        *analysis_slot = cursor;
+        second_flag = &(*analysis_slot)->active;
+        cursor = *analysis_slot + 1;
+        *second_flag = 0;
+    }
+    {
+        BattleWindow4 **paged_slot = &BW4;
+
+        *paged_slot = cursor;
+        third_flag = &(*paged_slot)->active;
+        cursor = *paged_slot + 1;
+        BW3BattleOrDataBase = 0;
+        *third_flag = 0;
+    }
+    endPrintInit();
+    return cursor;
+}
 
 void eBattleWinInit(void)
 {

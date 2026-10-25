@@ -35,6 +35,21 @@ DEPENDENCY_PACKET_KEYS = frozenset({
 })
 
 
+def packet_request(packet):
+    """Validate the shared packet envelope before resolving its immutable pins.
+
+    This is a shape check only. Consumers must still call
+    ``load_packet_dependencies`` before trusting any carried source or evidence.
+    """
+    if not isinstance(packet, dict) or set(packet) not in (
+            DEPENDENCY_PACKET_KEYS, DEPENDENCY_PACKET_KEYS | {'reviewed_owned_declarations'}):
+        raise DependencyError('dependency packet does not contain the complete pinned record schema')
+    request = packet.get('request')
+    if not isinstance(request, dict) or set(request) != DEPENDENCY_REQUEST_KEYS:
+        raise DependencyError('dependency packet does not contain complete request pins')
+    return request
+
+
 def _reviewed_declaration_context(db, request):
     """Bind declaration refinement to a current independent ready receipt."""
     try:
@@ -506,13 +521,10 @@ def load_packet_dependencies(repo, db, packets, tu_id, target_functions, revisio
         return []
     requests = []
     for index, packet in enumerate(packets):
-        if not isinstance(packet, dict) or set(packet) not in (
-                DEPENDENCY_PACKET_KEYS, DEPENDENCY_PACKET_KEYS | {'reviewed_owned_declarations'}):
-            raise DependencyError(f'dependency packet row {index} does not contain the complete pinned record schema')
-        request = packet.get('request')
-        if not isinstance(request, dict) or set(request) != DEPENDENCY_REQUEST_KEYS:
-            raise DependencyError(f'dependency packet row {index} does not contain complete request pins')
-        requests.append(request)
+        try:
+            requests.append(packet_request(packet))
+        except DependencyError as exc:
+            raise DependencyError(f'dependency packet row {index}: {exc}') from exc
 
     records = load_dependencies(repo, db, requests, tu_id, target_functions, revision, tu_edit)
     if len(records) != len(packets):

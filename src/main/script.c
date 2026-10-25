@@ -678,7 +678,62 @@ void SCRIPT_reset(void)
 extern void JNI_loadClassDB(int slot, void *image);
 
 
-INCLUDE_ASM("asm/main/nonmatchings/script", SCRIPT_init);
+void *SCRIPT_init(void *heap_base)
+{
+    unsigned char *cursor = heap_base;
+    unsigned char *system_file_buffer;
+    unsigned char *base_file_buffer;
+    JThread **event_thread = &evtVM[0];
+    ScriptDbEntry *entry = scriptDB;
+    int remaining_vms = 1;
+
+    evtDebug.flags = 0;
+    cursor += 0x40000;
+    system_file_buffer = cursor;
+    cursor += 0x8000;
+    base_file_buffer = cursor;
+    cursor += 0x8000;
+    entry->motion_data = (void *)0x05000000;
+    entry->pdb = (void *)0x06100000;
+    entry->class_slot = 2;
+    entry->skip_count = 0;
+    entry->class_image = cursor;
+    cursor += 0x2D000;
+    entry->active = 0;
+    entry->thread = 0;
+    ++entry;
+    {
+    int *current_db = &currentScriptDB;
+    *current_db = 0;
+    }
+    entry->active = 0;
+    entry->thread = 0;
+    entry->skip_count = 0;
+    entry->class_image = cursor;
+    cursor += 0x2D000;
+    entry->motion_data = (void *)0x06500000;
+    entry->pdb = (void *)0x06900000;
+    entry->class_slot = 3;
+
+    xglCdReadFile(D_004C1D70, system_file_buffer, 0, 0);
+    xglCdReadFile(D_004C1D80, base_file_buffer, 0, 0);
+    JNI_initSystem(heap_base, 0x40000);
+    JNI_loadClassDB(0, system_file_buffer);
+    JNI_loadClassDB(1, base_file_buffer);
+    initVM();
+    defaultVM = JNI_createThread(0, 8, 0x80);
+    stageVM = JNI_createThread(0, 8, 0x46);
+    while (remaining_vms >= 0) {
+        --remaining_vms;
+        event_thread[0] = JNI_createThread(0, 8, 0x40);
+        ++event_thread;
+    }
+    UseVMFlag = 0;
+    JNI_pushFrame();
+    JNI_pushFrame();
+    JNI_loadNativeClass();
+    return cursor;
+}
 
 void SCRIPT_execTalkto(void *actor)
 {
@@ -2302,7 +2357,186 @@ void DB_evtMonitor(ScriptMenuTask *task)
 
 
 
-INCLUDE_ASM("asm/main/nonmatchings/script", SCRIPT_exec);
+ScriptDbEntry *SCRIPT_exec(void)
+{
+    ScriptDbEntry *entry;
+    SceneObject object;
+    JThread *thread;
+    ScriptSceneTask *task;
+    XglTaskScheduler *scheduler;
+    JThread *vm;
+    StudioCamera *stage_camera;
+    StudioCamera *scene_camera;
+    int camera_index;
+
+    XTK_setWindowOwner(0);
+    currentScriptDB ^= 1;
+    entry = &scriptDB[(currentScriptDB + 1) & 1];
+    JNI_loadClassDB(entry->class_slot, 0);
+    entry = &scriptDB[currentScriptDB];
+    PLAY_setupDefault(PLAY_getCurrent());
+    if (entry->active == 0) {
+        ScriptActorRecord *actor;
+
+        JNI_popFrame();
+        XTK_setResourceID(1);
+        GameLoopState.kind = 2;
+        nmlModelSetGlobalPointLightReset();
+        s_nScriptCfTime = 0;
+        TCAMERA_init();
+        TWSYS_init();
+        MSG_init();
+        ACT_init();
+        MAP_initUnit();
+        InitCfSystem();
+        actor = ACT_create(0, 1);
+        ACT_initMotion(actor);
+        ACT_loadMotion(actor, actor->in_use_id, 1);
+        ACT_loadResource(actor, actor->in_use_id);
+        GameLoopState.main_actor = actor;
+        entry->skip_count = 1;
+        entry->thread = 0;
+        JNI_loadClassDB(entry->class_slot, 0);
+        JNI_pushFrame();
+        JNI_loadNativeClass();
+        return 0;
+    }
+    if (GameLoopState.flags & 0x800) {
+        JNI_popFrame();
+        TCAMERA_init();
+        TWSYS_init();
+        MSG_init();
+        ACT_init();
+        MAP_initUnit();
+        JNI_pushFrame();
+        JNI_loadNativeClass();
+    }
+    if (entry->skip_count != 0) {
+        if (entry->skip_count == 1) {
+            ScriptActorRecord *actor;
+            int camera_index;
+
+            camera_index = 0;
+            JNI_popFrame();
+            XTK_setResourceID(1);
+            GameLoopState.kind = 2;
+            nmlModelSetGlobalPointLightReset();
+            s_nScriptCfTime = 0;
+            while (camera_index < 8) {
+                StudioCamera *configured_camera;
+
+                xglStudioGetCamera(&stage_camera, camera_index);
+                xglCameraClipRangeDefault(stage_camera);
+                configured_camera = stage_camera;
+                if (camera_index == 0) {
+                    configured_camera->state = 4;
+                    configured_camera->active = 1;
+                } else {
+                    configured_camera->active = 0;
+                }
+                ++camera_index;
+                configured_camera->position.z = 1000000.0f;
+                configured_camera->position.y = 1000000.0f;
+                configured_camera->position.x = 1000000.0f;
+                configured_camera->rotation.y = 1.5707964f;
+                configured_camera->rotation.x = 0.0f;
+                configured_camera->rotation.z = 0.0f;
+            }
+            s_nScriptTalkLock = 0;
+            TCAMERA_init();
+            TWSYS_init();
+            MSG_init();
+            nmlModelInit();
+            ACT_init();
+            MAP_initUnit();
+            InitCfSystem();
+            s_nScriptSequenceReset = 0;
+            xglRenderClearColor(0x80000000);
+            actor = ACT_create(0, 1);
+            ACT_initMotion(actor);
+            ACT_loadMotion(actor, actor->in_use_id, 1);
+            ACT_loadResource(actor, actor->in_use_id);
+            GameLoopState.main_actor = actor;
+            JNI_pushFrame();
+            JNI_loadNativeClass();
+            JNI_loadClassDB(entry->class_slot, entry->class_image);
+            object = newObject(loadClass(
+                loadConstString((const char *)entry->active, -1), 0));
+            thread = JNI_createThread(2, 6, 0x46);
+            *(void **)&thread->object = object;
+            vm = defaultVM;
+            entry->thread = thread;
+            STAGE_instance(vm, object);
+        }
+        return entry;
+    }
+
+    XTK_setResourceID(2);
+    nmlModelSetGlobalPointLightReset();
+    nmlModelSetFadeIn((int)GameLoopState.fade_frames, 0);
+    FX_ScreenMask(0,
+                  SCRIPT_FADE_COLOR(GameLoopState.fade_red,
+                                    GameLoopState.fade_green,
+                                    GameLoopState.fade_blue),
+                  (int)GameLoopState.fade_frames, 3);
+    {
+        int camera_index = 0;
+
+        while (camera_index < 8) {
+            StudioCamera *configured_camera;
+
+            xglStudioGetCamera(&scene_camera, camera_index);
+            xglCameraClipRangeDefault(scene_camera);
+            configured_camera = scene_camera;
+            if (camera_index == 0) {
+                configured_camera->state = 4;
+                configured_camera->active = 1;
+            } else {
+                configured_camera->active = 0;
+            }
+            ++camera_index;
+            configured_camera->position.z = 1000000.0f;
+            configured_camera->position.y = 1000000.0f;
+            configured_camera->position.x = 1000000.0f;
+            configured_camera->rotation.y = 1.5707964f;
+            configured_camera->rotation.x = 0.0f;
+            configured_camera->rotation.z = 0.0f;
+        }
+    }
+    s_nScriptTalkLock = 0;
+    TCAMERA_init();
+    TWSYS_init();
+    MSG_init();
+    {
+    unsigned int *event_active = &s_nScriptEventActive;
+    unsigned int *sequence_reset = &s_nScriptSequenceReset;
+    GameLoopState.kind = 3;
+    *event_active = 1;
+    GameLoopState.flags |= 0x800;
+    *sequence_reset = 0;
+    }
+    xglRenderClearColor(0x80000000);
+    nmlModelInit();
+    GameResourceReset(0);
+    GameLoopState.scene_reset_counter = 0;
+    UnduInit(0);
+    ACT_matrixInit();
+    ACT_initScene();
+    MAP_initUnit();
+    JNI_pushFrame();
+    JNI_loadNativeClass();
+    JNI_loadClassDB(entry->class_slot, entry->class_image);
+    scheduler = GameLoopState.task_scheduler;
+    task = (ScriptSceneTask *)xglTaskEntryNext(
+        scheduler, (int (*)(XglTaskPrefix *))sceneObserver,
+        scheduler != 0 ? scheduler->active_tail : 0);
+    if (task != 0) {
+        task->thread = 0;
+        task->owner = &GameLoopState;
+        task->state_flags = 0;
+    }
+    return entry;
+}
 
 
 ScriptDbEntry *SCRIPT_exec2(void)

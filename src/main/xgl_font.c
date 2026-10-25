@@ -256,7 +256,7 @@ void xglFontReloadTexture(struct FontDrawCursor *cursor, int flags);
 
 extern void sceVif1PkCloseDirectHLCode(XglPacket *packet);
 
-extern int xglFontCheckProportional(unsigned int high, unsigned int low);
+extern int xglFontCheckProportional(unsigned char high, int low);
 
 unsigned int xglFontGetProportionalSize(int code);
 
@@ -330,7 +330,26 @@ extern void sceVif1PkCnt(XglPacket *packet, int mode);
 
 extern void sceVif1PkOpenDirectHLCode(XglPacket *packet, int mode);
 
-INCLUDE_ASM("asm/main/nonmatchings/xgl_font", xglFontDebugMode);
+extern const signed char tbl_7[];
+
+extern float dptofp(unsigned long long value);
+
+void xglFontDebugMode(int mode)
+{
+    if (mode >= 0) {
+        struct FontModePacket *packets = ModeEnv;
+        int value0;
+        unsigned long long value1;
+
+        FS.state.debug_mode = mode;
+        value1 = (unsigned char)FS.state.debug_mode | 0x50000ULL;
+        value0 = 0x50000;
+        value0 |= ((unsigned int)FS.state.debug_mode & 0xff) + 0x23;
+
+        packets[0].frame.value = value0;
+        packets[1].frame.value = value1;
+    }
+}
 
 int xglFontGetKanjiClutUV(int code, int *clut)
 {
@@ -441,7 +460,115 @@ int xglFontGetSPcodeSize(int code, const unsigned char *text)
     return size;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/xgl_font", xglFontPrintSub);
+static void xglFontPrintSub(void *args)
+{
+    unsigned long long *list = (unsigned long long *)args;
+    const char *text = (const char *)(int)list[0];
+    unsigned char ahead = *text;
+
+    list++;
+    for (;;) {
+        unsigned int code;
+
+        if (*text == 0)
+            break;
+        code = *text & 0xff;
+
+        if (code < 32) {
+            int remaining = xglFontGetSPcodeSize(code, (const unsigned char *)text);
+
+            for (; remaining >= 0; remaining--)
+                *FS.state.queue_cursor++ = *text++;
+        } else if (code == '%') {
+            int width = 0;
+            unsigned int radix;
+
+            text++;
+            for (;;) {
+                code = (unsigned char)*text++;
+
+                switch (code) {
+                case '0': case '1': case '2': case '3': case '4':
+                case '5': case '6': case '7': case '8': case '9':
+                    width = width * 10 + (code - '0');
+                    continue;
+                case 'b':
+                    radix = 2;
+                    goto numeric_tail;
+                case 'd':
+                    radix = 10;
+                    goto numeric_tail;
+                case 'x':
+                    radix = 16;
+                    goto numeric_tail;
+                numeric_tail:
+                    {
+                        unsigned long long value = (unsigned int)list[0];
+                        struct FontNumericCommand *command = (struct FontNumericCommand *)FS.state.queue_cursor;
+
+                        list++;
+                        if (width == 0)
+                            width = 1;
+                        command->opcode = 17;
+                        command->radix = radix;
+                        command->digits_minus_one = (unsigned char)(width - 1);
+                        command->value_high = value >> 24;
+                        command->value_mid_high = value >> 16;
+                        command->value_mid_low = value >> 8;
+                        command->value_low = value;
+                        FS.state.queue_cursor += sizeof(*command);
+                    }
+                    break;
+                case 'f':
+                    goto float_tail;
+                float_tail:
+                    {
+                        float value = dptofp(list[0]);
+                        unsigned int bits = *(unsigned int *)&value;
+                        struct FontNumericCommand *command = (struct FontNumericCommand *)FS.state.queue_cursor;
+
+                        list++;
+                        command->opcode = 17;
+                        command->radix = 0xff;
+                        command->digits_minus_one = 0xff;
+                        command->value_high = bits >> 24;
+                        command->value_mid_high = bits >> 16;
+                        command->value_mid_low = bits >> 8;
+                        command->value_low = bits;
+                        FS.state.queue_cursor += sizeof(*command);
+                    }
+                    break;
+                case 's': {
+                    const unsigned char *string = (const unsigned char *)(int)list[0];
+
+                    int c;
+
+                    list++;
+                    while ((c = *string) != 0) {
+                        *FS.state.queue_cursor++ = *string++;
+                    }
+                    break;
+                }
+                case 'c':
+                    code = (unsigned char)list[0];
+                    list++;
+                    /* fall through */
+                case '%':
+                    *FS.state.queue_cursor++ = code;
+                    break;
+                default:
+                    break;
+                }
+                break;
+            }
+        } else {
+            text++;
+            *FS.state.queue_cursor++ = ahead;
+        }
+        ahead = *text;
+    }
+    *FS.state.queue_cursor++ = 0;
+}
 
 static void xglFontPrintDirectCore(const char *text)
 {
@@ -614,7 +741,45 @@ static void xglFontFlushSubCRLF(void)
 
 INCLUDE_ASM("asm/main/nonmatchings/xgl_font", xglFontFlushCore);
 
-INCLUDE_ASM("asm/main/nonmatchings/xgl_font", xglFontCheckProportional);
+int xglFontCheckProportional(unsigned char row, int column)
+{
+    column &= 0xff;
+
+    if (row == 0xa7) {
+        switch (column) {
+        case 0xa3:
+            return 0x41;
+        case 0xa1:
+            return 0x40;
+        case 0xa6:
+            return 0x42;
+        default:
+            break;
+        }
+        return -1;
+    }
+    if (row == 0xa1) {
+        if (column == 0xa1) {
+            return 0x25;
+        }
+        if (column == 0xa5) {
+            return 0x0a;
+        }
+    }
+    if (row == 0xa3) {
+        return tbl_7[(column - 0xa0) >> 5] + (column & 0x1f);
+    }
+    if (row >= 0xd0) {
+        unsigned short glyph = column + row * 94 - 0x4d21;
+
+        row = ~(glyph >> 5) & 7;
+        if (row < 2) {
+            row ^= 1;
+        }
+        return (row << 5) + (glyph & 0x1f);
+    }
+    return -1;
+}
 
 unsigned int xglFontGetProportionalSize(int code)
 {
@@ -823,7 +988,85 @@ void xglFontFlush(void)
     buffer_reset();
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/xgl_font", xglFontGetStringWidth2);
+int xglFontGetStringWidth2(const char *text, int delimiter)
+{
+    struct FontState *state;
+    int width = 0;
+    signed char compact = 0;
+    int first = 1;
+    unsigned char high;
+
+    state = &FS.state;
+    while (*text != 0 &&
+           (high = *text,
+            !(!first && delimiter > 0 && high == ' ') &&
+                !(!first && delimiter == 2 && high == '/') &&
+                high != '\n')) {
+        unsigned char low;
+        int proportional_code;
+
+        if (high < 32) {
+            int remaining;
+            switch (high) {
+            case 21:
+                switch (text[2]) {
+                case 2:
+                    state->default_width = text[3];
+                    break;
+                case 4:
+                    state->proportional_mode = text[3];
+                    break;
+                }
+                break;
+            case 24:
+                compact = text[1];
+                break;
+            case 25:
+                state->queue_reset_flag = text[1];
+                break;
+            }
+            remaining = xglFontGetSPcodeSize(
+                high, (const unsigned char *)text);
+            while (remaining >= 0) {
+                remaining--;
+                text++;
+            }
+        } else {
+            if (high < 0xa0) {
+                if ((signed char)high >= 0) {
+                    if (!(state->queue_reset_flag & 2)) {
+                        width += 16;
+                        text++;
+                        first = 0;
+                        continue;
+                    }
+                }
+            }
+            if ((signed char)high >= 0) {
+                unsigned int encoded = xglFontAscii2Euc(high, (signed char **)&text);
+                low = encoded;
+                high = (encoded >> 8) & 0xff;
+                text++;
+            } else {
+                low = text[1];
+                text += 2;
+            }
+            if (compact && (unsigned char)(high + 0x5d) < 3) {
+                width += 8;
+            } else {
+                proportional_code = xglFontCheckProportional(high, low);
+                if ((state->queue_reset_flag & 1) && proportional_code >= 0) {
+                    unsigned int bounds = xglFontGetProportionalSize(proportional_code);
+                    width += ((bounds >> 8) & 0xff) - (bounds & 0xff) + 1;
+                } else {
+                    width += 20;
+                }
+            }
+        }
+        first = 0;
+    }
+    return width;
+}
 
 int xglFontGetStringWidth(const char *text)
 {

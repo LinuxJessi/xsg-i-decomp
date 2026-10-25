@@ -1901,9 +1901,61 @@ void InitShopSymbol(UwamonoInitSymbolUnit *unit)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", InitEvsSymbol);
+extern const signed char printflgReadOnly __asm__("printflg");
 
-INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", InitRetSymbol);
+void InitEvsSymbol(UwamonoInitSymbolUnit *unit)
+{
+    UwamonoInitSymbolState *timerState = &unit->timerState;
+
+    xglMatrixStackUnit();
+    xglMatrixStackTrans(&unit->position.x);
+    xglMatrixStackRotX(unit->rotationX);
+    xglMatrixStackRotY(unit->rotationY);
+    xglMatrixStackRotZ(unit->rotationZ);
+    xglMatrixStackSave(&unit->matrix[0]);
+    unit->savedMatrix = &unit->matrix[0];
+
+    if (timerState->state == -1) {
+        timerState->state = 0;
+    }
+    timerState->timer = 0;
+    unit->updateFunction = MAP_updateUnitSymbol;
+    unit->flags = unit->flags | 0x10000;
+    if (printflgReadOnly == 0) return;
+    printf(D_004CA190,
+           fptodp(unit->position.x),
+           fptodp(unit->position.y),
+           fptodp(unit->position.z));
+}
+
+void InitRetSymbol(UwamonoInitSymbolUnit *unit)
+{
+    UwamonoInitSymbolState *timerState = &unit->timerState;
+    float (*matrix)[4] = unit->matrix;
+    Vector4 *position = &unit->position;
+
+    xglMatrixStackUnit();
+    xglMatrixStackTrans(&position->x);
+    xglMatrixStackRotX(unit->rotationX);
+    xglMatrixStackRotY(unit->rotationY);
+    xglMatrixStackRotZ(unit->rotationZ);
+    xglMatrixStackSave(matrix);
+    unit->savedMatrix = matrix;
+
+    if (timerState->state == -1) {
+        timerState->state = 0;
+    }
+    timerState->timer = 0;
+    unit->updateFunction = MAP_updateUnitSymbol;
+    unit->flags |= 0x10000;
+
+    if (printflgReadOnly != 0) {
+        printf(D_004CA190,
+               fptodp(position->x),
+               fptodp(unit->position.y),
+               fptodp(unit->position.z));
+    }
+}
 
 void SetHideObject(void *argument)
 {

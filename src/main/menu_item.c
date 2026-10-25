@@ -496,7 +496,7 @@ typedef struct MenuItemSelectWork {
     u8 unmodeled_02;
     u8 unmodeled_03;
     int color;
-    MenuItemSelectWindow window;
+    MenuItemSelectWindow window[1];
     u8 unmodeled_19c[0x330 - 0x19C];
     MenuItemSelectContent content;
     MenuItemSelectSprite sprite;
@@ -746,6 +746,10 @@ extern char *strcpy(char *destination, const char *source);
 extern char *strcat(char *destination, const char *source);
 
 
+
+extern const char *msg10_3[];
+
+extern const char *msg00_2_0036D6A8[];
 
 int MenuItemUseCheck(s16 itemId)
 {
@@ -1600,7 +1604,90 @@ void MenuItemListMain(void)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_item", MenuItemSelectMain);
+void MenuItemSelectMain(void)
+{
+    MenuItemSelectWork *select = MenuItemSelect;
+    struct {
+        short x;
+        short y;
+        short mode;
+    } slideTarget;
+    short *targetY;
+    unsigned char sortMode;
+    MenuItemWorkData *menu;
+    int n;
+    int m;
+    short windowWidth;
+    short windowHeight;
+
+    switch (select->state) {
+    case 0:
+        select->color = 0xFFFFF0;
+        windowWidth = 176;
+        windowHeight = 102;
+        for (n = 0, m = 0; n < 1; n++, m++) {
+        int *color = &select->color;
+        const char **titleTable = msg10_3;
+        const char **sortTextTable = msg00_2_0036D6A8;
+        short *size = &select->window[n].width;
+        int spriteColor;
+        int windowState;
+
+        WindowDXSet((WindowDX *)&select->window[n]);
+        select->window[n].title = titleTable[0];
+        windowState = 3;
+        select->window[m].callbackArg = &select->content;
+        select->window[n].color = *color;
+        select->window[n].callback = (void (*)(MenuItemSelectWindow *, MenuItemSelectContent *))MenuSelectWindow;
+        size[0] = windowWidth;
+        select->content.text = sortTextTable[n];
+        select->window[0].height = windowHeight;
+        select->content.mode = 0;
+        select->content.selection = 0;
+        select->window[n].x = -208;
+        select->window[n].y = 160;
+        select->window[n].state = 1;
+        WindowDXMain((WindowDX *)&select->window[n]);
+        select->window[n].state = windowState;
+        eSpriteSet(&select->sprite, 0x60A);
+        spriteColor = *color;
+        select->unmodeled_02 = 0;
+        select->state = n + 2;
+        select->sprite.color = spriteColor + 2;
+    }
+        /* fall through */
+    case 2:
+        break;
+    default:
+        return;
+    }
+
+    menu = &MenuWork;
+    targetY = &slideTarget.y;
+    slideTarget.x = -208;
+    *targetY = 160;
+    slideTarget.mode = 0;
+    if (menu->mode == 0x80) {
+        slideTarget.x = 80;
+        slideTarget.mode = 1;
+        select->content.selection = menu->sortSelection;
+    }
+    {
+        short *currentX = &select->window[0].x;
+        signed char tab;
+
+        MoveSlide(currentX, &slideTarget.x, 3.0f);
+        MoveSlide(&select->window[0].y, targetY, 3.0f);
+        WindowDXMain((WindowDX *)&select->window[0]);
+        select->sprite.x = (unsigned short)*currentX + 144;
+
+        /* Eight tabs share the ability, normal and six category sort choices. */
+        tab = menu->listTab;
+        sortMode = menu->sortChoices[tab];
+        select->sprite.y = (unsigned short)select->window[0].y + ((signed char)sortMode / 2) * 24 + 2;
+        eSpriteMain(&select->sprite);
+    }
+}
 
 void MenuItemIconMain(void)
 {

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Verify public progress claims against the current compiled and linked build.
 
-Run --begin before configure/ninja, then --finish after ninja gate. Only hashes,
+Run --begin before configure/ninja, then --finish after ninja gate. Reporting-only
+CI may use ninja report and --finish --reporting to retain nonmatching C. Only hashes,
 symbol identities and counts go in verification.json; never original bytes.
 This is public CI evidence, not a replacement for the recovery acceptance audit.
 """
@@ -93,7 +94,9 @@ def function_indexes(elf):
 
 
 def symbol(elf, name, size, value=None):
-    found = function_indexes(elf)[0].get((name, size), ())
+    found = (function_indexes(elf)[0].get((name, size), ()) if size is not None else
+             [s for s in elf.symbols if s.name == name and s.type == 2
+              and s.shndx not in (0, 0xfff1) and s.size > 0])
     if value is not None:
         found = [s for s in found if s.value == value]
     require(len(found) == 1, f'{name}: missing/ambiguous FUNC symbol or wrong address/size')
@@ -114,7 +117,7 @@ def original_symbol(elf, label, size, va):
     return found[0]
 
 
-def emitted_name(root, tu_id, target, size, emitted, compiled):
+def emitted_name(root, tu_id, target, size, emitted, compiled, *, reporting=False):
     """The compiler's name for an original function, allowing registered nested renumbering.
 
     cc1 names a GNU nested function `name.N` by its count of private names
@@ -137,7 +140,8 @@ def emitted_name(root, tu_id, target, size, emitted, compiled):
             pattern = re.escape(item['source_name']) + r'\.[0-9]+'
             found = [s.name for s in compiled.symbols
                      if s.name in emitted and re.fullmatch(pattern, s.name)
-                     and s.type == 2 and s.bind == 0 and s.size == size]
+                     and s.type == 2 and s.bind == 0
+                     and (s.size > 0 if reporting else s.size == size)]
             if len(found) == 1:
                 return found[0]
     return None
@@ -270,31 +274,76 @@ def complete_objects(root, build, objects, placed, derived, fills, original, lin
     return [_complete_object_with_context(obj, context) for obj in objects]
 
 
-def finish(root, build, snapshot, iop_report=None):
+def compiled_placement(root, unit_dir, object_path, compiled, placed, derived, fresh, artifacts):
+    """Bind C emission to the actual ordinary link input, including data splits.
+
+    Reporting does not assume original function sizes or addresses. It still
+    requires the compiler's symbol identities/offsets in the input the linker
+    actually selected, and pins that fresh input for later unchanged checks.
+    """
+    owned = {str(object_path.relative_to(unit_dir))}
+    while True:
+        additions = {out for out, source in derived.items() if source in owned}
+        if additions <= owned:
+            break
+        owned.update(additions)
+    text = compiled.section('.text')
+    matches = [(path, start, size) for (path, section), (start, size) in placed.items()
+               if path in owned and section == '.text']
+    require(len(matches) == 1 and matches[0][2] == text.size,
+            f'{object_path}: missing/ambiguous ordinary C text placement')
+    path, start, _ = matches[0]
+    selected_path = unit_dir / path
+    artifacts[str(selected_path.relative_to(root))] = fresh(selected_path)
+    selected = Elf(selected_path.read_bytes())
+    actual = {(s.name, s.bind, s.size, s.value) for s in selected.symbols
+              if s.type == 2 and s.shndx == selected.section('.text').index}
+    expected = {(s.name, s.bind, s.size, s.value) for s in compiled.symbols
+                if s.type == 2 and s.shndx == text.index}
+    require(actual == expected, f'{object_path}: selected link input changed C function identities')
+    return start - text.addr
+
+
+def finish(root, build, snapshot, iop_report=None, *, reporting=False):
     same_inputs(root, snapshot)
     started = (build / 'verification-inputs.json').stat().st_mtime_ns
     def fresh(path):
         require(path.stat().st_mtime_ns >= started,
                 f'{path}: predates this verification; use a fresh build checkout')
         return digest(path)
-    gate = read(build / 'gate.json')
-    fresh(build / 'gate.json')
+    gate = None
+    if not reporting:
+        gate = read(build / 'gate.json')
+        fresh(build / 'gate.json')
     originals = read(root / cov.ORIGINALS)['units']
-    require(gate.get('result') == 'pass', 'whole-file gate did not pass')
-    require(set(gate.get('targets', {})) == set(cov.EE_UNITS), 'gate must cover all six EE files')
+    if not reporting:
+        require(gate.get('result') == 'pass', 'whole-file gate did not pass')
+        require(set(gate.get('targets', {})) == set(cov.EE_UNITS), 'gate must cover all six EE files')
     objects, _, _, _, _ = cov.tracked_scope(root)
     parser = cov.import_tu_edit(root)
-    results, artifacts, problems = {}, {}, []
+    results, artifacts, problems, units = {}, {}, [], {}
     for unit in cov.EE_UNITS:
         unit_dir = build / unit
         original_path = unit_dir / 'orig' / originals[unit]['file']
         image_path = unit_dir / 'build' / f'{unit}.bin'
         linked_path = unit_dir / 'build' / f'{unit}.rom.elf'
         expected = originals[unit]['sha256']
-        require(digest(original_path) == digest(image_path) == expected,
-                f'{unit}: actual current original/rebuilt whole-file hashes differ')
-        status = read(unit_dir / 'status.json')
-        require(status.get('result') == 'pass', f'{unit}: unit checks failed')
+        require(digest(original_path) == expected, f'{unit}: original hash differs')
+        identical = digest(image_path) == expected
+        units[unit] = dict(whole_file_identical=identical, original_sha256=expected,
+                           rebuilt_sha256=digest(image_path))
+        if not reporting:
+            require(identical, f'{unit}: actual current original/rebuilt whole-file hashes differ')
+            status = read(unit_dir / 'status.json')
+            require(status.get('result') == 'pass', f'{unit}: unit checks failed')
+        elif unit == 'main':
+            # These controls contain only original scaffolding / accepted ASM.
+            # Their failure is not an allowed nonmatching C result.
+            for relative, key in [('build/carve/main.compare.json', 'whole_file_identical'),
+                                  ('build/accepted_asm.json', 'ok')]:
+                path = unit_dir / relative
+                require(read(path).get(key) is True, f'{unit}: {relative} failed')
+                artifacts[str(path.relative_to(root))] = fresh(path)
         original = Elf(original_path.read_bytes())
         linked = Elf(linked_path.read_bytes())
         map_path = unit_dir / 'build' / f'{unit}.rom.elf.map'
@@ -314,7 +363,10 @@ def finish(root, build, snapshot, iop_report=None):
             path = unit_dir / 'tu-manifest.carved.json'
             artifacts[str(path.relative_to(root))] = digest(path)
         artifacts[str(original_path.relative_to(root))] = digest(original_path)
-        for path in (image_path, linked_path, unit_dir / 'status.json'):
+        for path in (image_path, linked_path):
+            artifacts[str(path.relative_to(root))] = fresh(path)
+        if not reporting:
+            path = unit_dir / 'status.json'
             artifacts[str(path.relative_to(root))] = fresh(path)
         completion_candidates = []
         for obj in (o for o in objects if o['unit'] == unit):
@@ -327,6 +379,8 @@ def finish(root, build, snapshot, iop_report=None):
                 preprocessed_path = Path(str(assembly_path)[:-2] + '.i')
                 for path in (object_path, assembly_path, preprocessed_path):
                     artifacts[str(path.relative_to(root))] = fresh(path)
+                placement = (compiled_placement(root, unit_dir, object_path, compiled,
+                             placed, derived, fresh, artifacts) if reporting else None)
                 for name, va, size in obj['functions']:
                     if va not in claimed:
                         continue
@@ -336,24 +390,36 @@ def finish(root, build, snapshot, iop_report=None):
                     if category == 'exact_asm':
                         continue
                     target = original_symbol(original, name, size, va)
-                    c_name = emitted_name(root, obj['id'], target, size, emitted, compiled)
+                    c_name = emitted_name(root, obj['id'], target, size, emitted, compiled,
+                                          reporting=reporting)
                     require(c_name is not None,
                             f'{obj["id"]}/{name}: no compiler-emitted C function')
-                    current = symbol(linked, c_name, size, va)
-                    compiled_sym = symbol(compiled, c_name, size)
+                    compiled_sym = symbol(compiled, c_name, None if reporting else size)
+                    current = symbol(linked, c_name, compiled_sym.size,
+                                     placement + compiled_sym.value if reporting else va)
                     require(target.bind == current.bind == compiled_sym.bind,
                             f'{obj["id"]}/{name}: symbol binding differs')
                     a, b = function_bytes(original, target), function_bytes(linked, current)
-                    require(a == b, f'{obj["id"]}/{name}: linked function bytes differ')
-                    verified.append(dict(name=name, original_symbol=target.name,
+                    exact = current.value == va and current.size == size and a == b
+                    if not reporting:
+                        require(exact, f'{obj["id"]}/{name}: linked function bytes differ')
+                    row = dict(name=name, original_symbol=target.name,
                                          va=va, size=size, category=category,
-                                         sha256=hashlib.sha256(b).hexdigest()))
+                                         sha256=hashlib.sha256(b).hexdigest())
+                    if reporting:
+                        row.update(compiled_name=c_name, compiled_size=compiled_sym.size,
+                                   linked_va=current.value, linked_size=current.size, exact=exact,
+                                   source_category=category,
+                                   category=category if exact else category.replace('exact_', 'nonmatching_', 1))
+                    verified.append(row)
             if obj['functions'] and len(verified) == len(obj['functions']):
                 completion_candidates.append(obj)
             results[obj['id']] = dict(functions=verified, complete=False)
         completed = complete_objects(root, build, completion_candidates, placed, derived,
                                      fills, original, linked)
         for obj, (complete, alignment_artifacts) in zip(completion_candidates, completed):
+            if reporting:
+                results[obj['id']]['source_complete'] = complete
             results[obj['id']]['complete'] = complete
             for name, expected in alignment_artifacts.items():
                 path = Path(name)
@@ -382,17 +448,23 @@ def finish(root, build, snapshot, iop_report=None):
     iop_report = Path(iop_report).resolve()
     require(iop_report.is_relative_to(root), 'IOP build report must belong to this checkout')
     artifacts[str(iop_report.relative_to(root))] = fresh(iop_report)
-    groups, _, _, iop_build = iop_objdiff.load_evidence(root, iop_report)
+    groups, _, _, iop_build = iop_objdiff.load_evidence(root, iop_report, reporting=reporting)
     for unit, group, candidate, original in groups:
         object_id = f'{unit}/debug-file-{group["fdr_index"]:03d}'
         verified = []
         for function in group['functions']:
             target = original.named_symbol(function['name'])
-            section = original.sections[target['section_index']]
-            at = target['value']-section['address']
-            verified.append(dict(name=target['name'], original_symbol=target['name'],
+            measured = candidate['linked_functions'][target['name']]
+            row = dict(name=target['name'], original_symbol=target['name'],
                                  va=target['value'], size=target['size'], category='exact_c',
-                                 sha256=hashlib.sha256(original.payload(section)[at:at+target['size']]).hexdigest()))
+                                 sha256=measured['sha256'])
+            if reporting:
+                row.update(exact=measured['exact'], original_sha256=measured['original_sha256'],
+                           compiled_name=target['name'], compiled_size=target['size'],
+                           linked_va=measured['va'], linked_size=measured['size'],
+                           source_category='exact_c',
+                           category='exact_c' if measured['exact'] else 'nonmatching_c')
+            verified.append(row)
         results[object_id] = dict(functions=verified, complete=False, source=group['source'],
                                  review_state='user_authorized_review_waiver', data_credit=0,
                                  storage_ownership_complete=False)
@@ -401,24 +473,36 @@ def finish(root, build, snapshot, iop_report=None):
             require(path.is_relative_to(root), 'IOP compiler artifact lies outside this checkout')
             artifacts[str(path.relative_to(root))] = fresh(path)
     for unit, proof in iop_build['whole_irx'].items():
+        units[unit] = dict(whole_file_identical=proof['byte_identical'],
+                           original_sha256=proof['original_sha256'], rebuilt_sha256=proof['sha256'])
         path = Path(proof['path']).resolve()
         require(path.is_relative_to(root), 'IOP complete-module output lies outside this checkout')
         artifacts[str(path.relative_to(root))] = fresh(path)
+        linked = Path(iop_build['module_reports'][unit]['linked_elf']).resolve()
+        require(linked.is_relative_to(root), 'IOP linked ELF lies outside this checkout')
+        artifacts[str(linked.relative_to(root))] = fresh(linked)
     same_inputs(root, snapshot)
-    artifacts[str((build / 'gate.json').relative_to(root))] = digest(build / 'gate.json')
+    if not reporting:
+        artifacts[str((build / 'gate.json').relative_to(root))] = digest(build / 'gate.json')
     return dict(schema='verified-progress/1', inputs=snapshot, artifacts=artifacts,
+                mode='reporting' if reporting else 'exact', units=units,
                 objects=results, iop=dict(build_report=str(iop_report.relative_to(root)),
                     build_report_sha256=digest(iop_report), functions=495, original_objects=24,
                     review_state='user_authorized_review_waiver', data_credit=0),
-                note='IOP C credit follows fresh compiler emission and complete raw IRX equality; '
+                note='Reporting mode verifies fresh compiler/link provenance and records differences; '
+                'it does not grant source acceptance or exact credit for nonmatching functions. '
+                'IOP reporting retains fixed valid IRX identities and actual linked hashes; '
+                'strict IOP verification requires complete raw IRX equality. '
                 'review waiver is recorded separately. Complete means '
                 'all original TU code and storage are recompiled and linked from C; '
                 'assembly scaffolding never completes a TU.')
 
 
-def load_verified(root, build):
+def load_verified(root, build, *, reporting=False):
     evidence = read(build / 'verification.json')
     require(evidence.get('schema') == 'verified-progress/1', 'wrong verification schema')
+    require(evidence.get('mode', 'exact') == ('reporting' if reporting else 'exact'),
+            'verification mode differs; use the matching explicit reporting option')
     same_inputs(root, evidence['inputs'])
     for name, want in evidence['artifacts'].items():
         require(digest(root / name) == want, f'{name}: build evidence changed; re-verify')
@@ -428,6 +512,8 @@ def load_verified(root, build):
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--root', type=Path, default=ROOT)
+    ap.add_argument('--reporting', action='store_true',
+                    help='report fresh nonmatching C after ninja report; not an acceptance gate')
     ap.add_argument('--iop-report', type=Path,
                     help='fresh tools/iop_build.py report for all 24 original SSD/RSSD objects')
     mode = ap.add_mutually_exclusive_group(required=True)
@@ -447,7 +533,8 @@ def main():
             report = a.iop_report
             if report is not None and not report.is_absolute():
                 report = root / report
-            result = finish(root, build, read(build / 'verification-inputs.json'), report)
+            result = finish(root, build, read(build / 'verification-inputs.json'), report,
+                            reporting=a.reporting)
             output = build / 'verification.json'
         output.write_text(json.dumps(result, indent=1) + '\n')
         print(f'verify_report: {output}')

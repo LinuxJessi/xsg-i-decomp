@@ -1032,7 +1032,7 @@ def emitted_c_category(cls, source_statements, emitted_blocks):
 
 
 # Source transport, not another ASM class. These two exact definitions implement
-# already-admitted MMI operations in the two original JNT consumers. A name alone
+# already-admitted MMI operations in the three original JNT consumers. A name alone
 # never qualifies: source, complete use, actual emission and absence of an
 # out-of-line object must all be proven before free-text admission can omit it.
 _JNT_MMI_HELPERS = {
@@ -1041,6 +1041,7 @@ _JNT_MMI_HELPERS = {
 }
 _JNT_MMI_CONSUMERS = {
     'JNT_interpolate': (0x00313350, 1076, {'jntCopyMatrix': 4, 'jntCopyMatrixRow': 1}),
+    'JNT_setMDLMatrix': (0x00313950, 320, {'jntCopyMatrix': 1}),
     'JNT_resetMatrix': (0x003148a8, 396, {'jntCopyMatrix': 2}),
 }
 
