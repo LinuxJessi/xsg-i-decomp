@@ -545,16 +545,67 @@ typedef struct McamAngleOffset {
 } McamAngleOffset;
 
 /*
+ * Offset 0x14 of the record unitPtrGet returns lands just past ObjectTask's
+ * modeled task/work prefix (shared.h); the real per-unit allocation is
+ * longer than that partial view (shared.h's own XglTaskPrefix comment
+ * documents the same gap for the task-specific payload). cmdDeadTime,
+ * cmdCamSetAct and cmdCamSetAct3 are the only functions in this TU that
+ * read the pointer stored there. This is this TU's own local view of
+ * the same per-unit allocation src/ov01/unit_cmd.h's UnitRecord already
+ * names `motionActor` at the same +0x14 offset and
+ * src/ov01/data_unit_org_get.h's UnitEquipInfo also reaches; not unified
+ * with either pending an owner decision (kit/public-lane/backburner/README.md
+ * section A).
+ */
+typedef struct UnitDeadTimeRecord {
+    unsigned char unmodeled_0[0x14];
+    struct UnitDeadTimeBlock *target;   /* +0x14 */
+} UnitDeadTimeRecord;
+
+/*
+ * The block cmdDeadTime reaches through the pointer stored just past
+ * ObjectTask's modeled task/work prefix; only the field cmdDeadTime writes
+ * is modeled. cmdCamSetAct/cmdCamSetAct3 only forward the pointer itself
+ * (UnitDeadTimeRecord.target) into McamParams/McamActorTarget without
+ * dereferencing this block.
+ */
+typedef struct UnitDeadTimeBlock {
+    unsigned char unmodeled_0[0xD0];
+    float value;    /* +0xD0: cmdDeadTime, reciprocal-scaled duration */
+} UnitDeadTimeBlock;
+
+/*
+ * One tracked unit of cmdCamSetAct3's two-unit camera: the same three words
+ * cmdCamSetAct stores at +0x20..+0x28 of McamParams for a single unit
+ * (sw $3,0x20($18) target / sw $4,0x24($18) charaId / sw $2,0x28($18) actId
+ * at 0x00a20f8c/0x00a20fa4/0x00a20fc4), repeated per unit at +0x2C/+0x38
+ * (sw $3,0x2C($18) at 0x00a212e8 / sw $3,0x38($18) at 0x00a21350).
+ */
+typedef struct McamActorTarget {
+    UnitDeadTimeBlock *targetBlock;    /* +0x0: the unit's UnitDeadTimeRecord target */
+    int charaId;                       /* +0x4: CalcUnitParam.charaId, widened to a word */
+    int actId;                         /* +0x8: raw script operand */
+} McamActorTarget;
+
+/*
  * mcamPtrGet (this TU, still asm) returns the camera-offset parameter block
  * cmdCamOffsPos (0x00a21458) fills in. cmdCamOffsAng (C in this TU) reaches
  * the same +0x70 enable flag for its own angle block, so that block stays a
- * separate, unmodeled span here.
+ * separate, unmodeled span here. cmdCamSetAct (0x00a20f28) reaches a
+ * disjoint span at the head of the same block: +0x00 (sw $19,0x0($18), a
+ * one/zero flag -- the same unitTrackMode word below, observed value 1
+ * here), +0x20/+0x24/+0x28 (the single-unit form of McamActorTarget below).
+ * cmdCamSetAct3 (0x00a21288) reaches the two-unit form at +0x2C/+0x38.
  */
 typedef struct McamParams {
-    int unitTrackMode;                 /* +0x00: mode selector, written 0 by cmdCamCopy (sw $0,0x0($2) at 0x00a20e00) and cmdCamSetPos (sw $0,0x0($17) at 0x00a20e6c); other code in the original stores other values here (observed 0, 1, 3), none of which this TU's C functions rely on; its meaning is not established */
+    int unitTrackMode;                 /* +0x00: mode selector, written 0 by cmdCamCopy (sw $0,0x0($2) at 0x00a20e00) and cmdCamSetPos (sw $0,0x0($17) at 0x00a20e6c), 1 by cmdCamSetAct (sw $19,0x0($18) at 0x00a20f70) and 3 by cmdCamSetAct3 (sw $19,0x0($18) at 0x00a212b0); none of this TU's other C functions rely on further values */
     unsigned char unmodeled_4[0x10 - 0x4];
     Vector4 lockPosition;              /* +0x10: cmdCamCopy (swc1 0x10/0x14/0x18, w 1.0f at 0x1C) */
-    unsigned char unmodeled_20[0x70 - 0x20];
+    UnitDeadTimeBlock *targetBlock;    /* +0x20: cmdCamSetAct (sw $3,0x20($18) at 0x00a20f8c) */
+    int charaId;                       /* +0x24: cmdCamSetAct (sw $4,0x24($18) at 0x00a20fa4) */
+    int actId;                         /* +0x28: cmdCamSetAct (sw $2,0x28($18) at 0x00a20fc4) */
+    McamActorTarget pairTarget[2];     /* +0x2C/+0x38: cmdCamSetAct3 */
+    unsigned char unmodeled_44[0x70 - 0x44];
     int offsEnabled;                  /* +0x70 */
     unsigned char unmodeled_74[0x80 - 0x74];
     Vector4 offset;                   /* +0x80: x/y/z scaled by 0.01, w fixed at 1.0 */

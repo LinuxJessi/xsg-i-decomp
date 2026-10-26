@@ -1333,11 +1333,102 @@ int cmdCamSetPos(ThinkProcess *proc)
     return 0;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/cmd", cmdCamSetAct);
+int cmdCamSetAct(ThinkProcess *proc)
+{
+    int unitNo;
+    McamParams *cam = mcamPtrGet();
+    ObjectTask *unit;
+    int actId;
+    float offsX;
+    float offsY;
+    float offsZ;
+
+    unitNo = unitNoChk(cmdNum(proc->pc));
+
+    cam->unitTrackMode = 1;
+
+    unit = unitPtrGet(unitNo);
+    cam->targetBlock = ((UnitDeadTimeRecord *)unit)->target;
+    unit = unitPtrGet(unitNo);
+    cam->charaId = calcUPGet(unit)->charaId;
+
+    proc->pc += 2;
+    actId = cmdNum(proc->pc);
+    proc->pc += 2;
+    cam->offsEnabled = 1;
+    cam->actId = actId;
+
+    offsX = (float)cmdNum(proc->pc);
+    proc->pc += 2;
+    cam->offset.x = offsX * 0.01f;
+
+    offsY = (float)cmdNum(proc->pc);
+    proc->pc += 2;
+    cam->offset.y = offsY * 0.01f;
+
+    offsZ = (float)cmdNum(proc->pc);
+    proc->pc += 2;
+    cam->offset.w = 1.0f;
+    cam->offset.z = offsZ * 0.01f;
+
+    myMCamSet(camMode, cam);
+    return 0;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/cmd", cmdCamSetAct2);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/cmd", cmdCamSetAct3);
+/*
+ * Two-unit form of cmdCamSetAct. Each unit number has its own variable
+ * (firstUnitNo, secondUnitNo): with a single shared unit-number variable the
+ * allocator ranks it ahead of proc and cam for the callee-saved registers
+ * $16..$18, which permutes all three registers and changes the bytes.
+ */
+int cmdCamSetAct3(ThinkProcess *proc)
+{
+    McamParams *cam = mcamPtrGet();
+    int firstUnitNo;
+    int secondUnitNo;
+    ObjectTask *unit;
+    float offsX;
+    float offsY;
+    float offsZ;
+
+    firstUnitNo = unitNoChk(cmdNum(proc->pc));
+    cam->unitTrackMode = 3;
+    unit = unitPtrGet(firstUnitNo);
+    cam->pairTarget[0].targetBlock = ((UnitDeadTimeRecord *)unit)->target;
+    unit = unitPtrGet(firstUnitNo);
+    cam->pairTarget[0].charaId = calcUPGet(unit)->charaId;
+    proc->pc += 2;
+    cam->pairTarget[0].actId = cmdNum(proc->pc);
+    proc->pc += 2;
+
+    secondUnitNo = unitNoChk(cmdNum(proc->pc));
+    unit = unitPtrGet(secondUnitNo);
+    cam->pairTarget[1].targetBlock = ((UnitDeadTimeRecord *)unit)->target;
+    unit = unitPtrGet(secondUnitNo);
+    cam->pairTarget[1].charaId = calcUPGet(unit)->charaId;
+    proc->pc += 2;
+    cam->pairTarget[1].actId = cmdNum(proc->pc);
+    proc->pc += 2;
+
+    cam->offsEnabled = 1;
+    offsX = (float)cmdNum(proc->pc);
+    proc->pc += 2;
+    cam->offset.x = offsX * 0.01f;
+
+    offsY = (float)cmdNum(proc->pc);
+    proc->pc += 2;
+    cam->offset.y = offsY * 0.01f;
+
+    offsZ = (float)cmdNum(proc->pc);
+    proc->pc += 2;
+    cam->offset.w = 1.0f;
+    cam->offset.z = offsZ * 0.01f;
+
+    myMCamSet(camMode, cam);
+    return 0;
+}
 
 int cmdCamOffsPos(ThinkProcess *proc)
 {
@@ -1780,28 +1871,6 @@ int cmdStatReset(ThinkProcess *proc)
     calcStatReset(unitPtrGet(unitNo), category, mask, 0);
     return 0;
 }
-
-/*
- * The block cmdDeadTime reaches through the pointer stored just past
- * ObjectTask's modeled task/work prefix; only the field this function
- * writes is modeled.
- */
-typedef struct UnitDeadTimeBlock {
-    unsigned char unmodeled_0[0xD0];
-    float value;    /* +0xD0: reciprocal-scaled duration */
-} UnitDeadTimeBlock;
-
-/*
- * Offset 0x14 of the record unitPtrGet returns lands just past ObjectTask's
- * modeled task/work prefix (shared.h); the real per-unit allocation is
- * longer than that partial view (shared.h's own XglTaskPrefix comment
- * documents the same gap for the task-specific payload). cmdDeadTime is the
- * only function in this allocation that reads the pointer stored there.
- */
-typedef struct UnitDeadTimeRecord {
-    unsigned char unmodeled_0[0x14];
-    UnitDeadTimeBlock *target;   /* +0x14 */
-} UnitDeadTimeRecord;
 
 int cmdDeadTime(ThinkProcess *proc)
 {
