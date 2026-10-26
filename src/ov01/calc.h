@@ -96,7 +96,8 @@ typedef struct CalcUnitParam CalcUnitParam;
 struct CalcUnitParam {
     short maxHp;                /* +0x00: calcIdol2Chk's threshold base */
     short maxEp;                /* +0x02: calcEp's clamp ceiling */
-    unsigned char unmodeled_04[0x0C - 0x04];
+    short baseAtk;                /* +0x04: calcWpnAtkGet override term */
+    unsigned char unmodeled_06[0x0C - 0x06];
     unsigned char hitStat;      /* +0x0C: calcHitParaGet's own signed view */
     /*
      * +0x0D: calcHitRate (this TU, 0x00a13010) loads the target's byte with
@@ -116,9 +117,12 @@ struct CalcUnitParam {
     */
     short coliMove;             /* +0x10: term used when this unit moves */
     short coliTarget;           /* +0x12: term used when it is approached */
-    unsigned char unmodeled_14[0x16 - 0x14];
+    unsigned char unmodeled_14[0x15 - 0x14];
+    signed char sizeClass;          /* +0x15: cmdPartySizeGet size byte */
     signed char counterRate;    /* +0x16: calcCounter's base counter chance */
-    unsigned char unmodeled_17[0x1C - 0x17];
+    unsigned char unmodeled_17[0x18 - 0x17];
+    u16 conditions;                /* +0x18: status conditions word */
+    unsigned char unmodeled_1a[0x1C - 0x1A];
     u16 flags;               /* +0x1C */
     unsigned char unmodeled_1e[0x24 - 0x1E];
     u16 statProtect[1];      /* +0x24: calcStatProtectGet/Set's group word */
@@ -138,7 +142,8 @@ struct CalcUnitParam {
                                  * (src/ov01/data_unit_org_get.c). */
     unsigned char unmodeled_46[0x50 - 0x46];
     CalcUnitParam *linkedUnit;   /* +0x50: menuStatChrIdGet reads its charaId */
-    unsigned char unmodeled_54[0x5E - 0x54];
+    short baseCharaId;             /* +0x54: unit character id when flags&0x40 clear */
+    unsigned char unmodeled_56[0x5E - 0x56];
     short weaponId[3];       /* +0x5E: per-slot weapon ids */
     short accessoryId[3];    /* +0x64: calcMagDefGet's per-slot item ids */
     short attachmentId[3];   /* +0x6A: calcWpnEnableChk's `lh $3,0x6A($3)`,
@@ -161,7 +166,8 @@ struct CalcUnitParam {
     u16 statAltMask[8];      /* +0xBC */
     unsigned char statTurnCount[8][16]; /* +0xCC: calcStatTurn's countdown grid */
     u16 etherDisableFlags;   /* +0x14C: calcEtherDisableGet/Set's bit set */
-    unsigned char unmodeled_14e[0x15C - 0x14E];
+    unsigned char unmodeled_14e[0x158 - 0x14E];
+    struct UnitWork *effectUnit;   /* +0x158: effect object, same kind as statEffUnits */
     struct UnitWork *statEffUnits[8]; /* +0x15C: statEffOn/statEffOff */
 };
 
