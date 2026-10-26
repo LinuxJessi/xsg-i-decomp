@@ -171,10 +171,37 @@ struct CmdEntry {
     int selector;      /* +0x00 */
     int argument;      /* +0x04 */
     int extra;         /* +0x08 */
-    unsigned char unmodeled_0c[8]; /* +0x0C: unwritten by any claimed call */
+    int itmId;         /* +0x0C: unitCmdTgtSet copies it into the TgtCmd
+                         * (src/ov01/calc.c) itmId it builds for
+                         * tgtFindFirst (lw $3, 0xC($7); sw $3, 0x8($29),
+                         * unit_cmd/unitCmdTgtSet.s 0x00a03434/0x00a0343c). */
+    int mode;          /* +0x10: unitCmdTgtSet's own TgtCmd.mode, the same
+                         * offset tgtFindChk branches on for mode 3
+                         * (lw $2, 0x10($7); sw $2, 0xC($29),
+                         * unit_cmd/unitCmdTgtSet.s 0x00a03444/0x00a0344c). */
 };
 
 extern void unitCmdSet(ObjectTask *unit, CmdEntry *cmd);
+
+/*
+ * tgtFindFirst's search criteria (src/ov01/calc.c, still asm there, its own
+ * TgtCmd restated here as a local view -- flagged for review: the single
+ * owner definition should live where tgtFindFirst is defined, src/ov01/calc.c,
+ * per proposals.md): unitCmdTgtSet builds one of these on its own stack from
+ * its queued CmdEntry before calling it.
+ */
+typedef struct TgtCmd {
+    int tecId;          /* +0x00 */
+    ObjectTask *target; /* +0x04 */
+    int itmId;          /* +0x08 */
+    int mode;           /* +0x0C: 3 = item */
+} TgtCmd;
+
+extern ObjectTask *tgtFindFirst(ObjectTask *unit, TgtCmd *cmd);
+
+/* Still asm, src/ov01/battle_init.c; unitCmdTgtSet's only other caller into
+ * that TU. */
+extern void cmdListCansel(ObjectTask *unit);
 
 /* The three shorts after charaId are CalcUnitParam.weaponId[0..2]. */
 extern void sefSetupPlayer(short charaId, short, short, short);
