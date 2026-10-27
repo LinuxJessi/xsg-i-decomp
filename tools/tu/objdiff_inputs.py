@@ -5678,7 +5678,16 @@ def registered_current_data_layout(root, unit_dir, obj, tu, base, assembly, prep
         definitions.append(f'{symbol.name} = 0x{values.pop():08X};')
     for sec in image.sections:
         if not sec.flags&2 or not sec.size or sec.name=='.reginfo':continue
-        start=int(tu['text']['start'],16) if sec.name=='.text' else layout[sec.name]['range'][0]
+        if sec.name=='.text':
+            text_placement=placed.get((route,sec.name))
+            verification.require(text_placement is not None and text_placement[1]==sec.size,
+                                 f'{obj["id"]}: ordinary C text placement is missing or differs in size')
+            start=text_placement[0]
+            if not reporting:
+                verification.require(start==int(tu['text']['start'],16),
+                                     f'{obj["id"]}: ordinary C text placement differs from original')
+        else:
+            start=layout[sec.name]['range'][0]
         placements.append(f'{sec.name} 0x{start:08X} : {{ *({sec.name}) }}')
     resolved_script=destination.with_suffix('.resolve.ld');resolved_path=destination.with_suffix('.resolve.elf')
     resolved_script.write_text('\n'.join(definitions)+'\nSECTIONS {\n'+'\n'.join(placements)+'\n}\n')
@@ -5688,6 +5697,7 @@ def registered_current_data_layout(root, unit_dir, obj, tu, base, assembly, prep
         if not sec.flags&2 or not sec.size or sec.type==8 or sec.name=='.reginfo':continue
         payload=resolved.section_bytes(sec)
         verification.require(payload==data_carve.va_bytes(linked,sec.addr,sec.size),
+                             f'{obj["id"]} {sec.name} at 0x{sec.addr:08X}: '
                              'ordinary C placement resolved payload differs from verified link')
         original_equal=payload==data_carve.va_bytes(original,sec.addr,sec.size)
         if not reporting:
