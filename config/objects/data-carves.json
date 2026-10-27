@@ -53824,6 +53824,36 @@
     },
     {
      "range": [
+      "0x004c1910",
+      "0x004c19b8"
+     ],
+     "generated": [
+      "0x004c1910",
+      "0x004c19b8"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "jtbl_004C1910"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".rodata",
+       "range": [
+        "0x004c1910",
+        "0x004c19b8"
+       ],
+       "symbols": [],
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        576,
+        744
+       ]
+      }
+     ]
+    },
+    {
+     "range": [
       "0x004c19b8",
       "0x004c1a20"
      ],
@@ -53846,8 +53876,8 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        568,
-        672
+        744,
+        848
        ]
       }
      ]
@@ -53876,8 +53906,8 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        672,
-        784
+        848,
+        960
        ]
       }
      ]
@@ -53906,8 +53936,8 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        784,
-        884
+        960,
+        1060
        ]
       }
      ]
@@ -73375,6 +73405,36 @@
       "0x004d7e84",
       "0x004d7e88"
      ]
+    },
+    {
+     "range": [
+      "0x004d7e88",
+      "0x004d7e8c"
+     ],
+     "generated": [
+      "0x004d7e88",
+      "0x004d7e8c"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "D_004D7E88"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".lit4",
+       "range": [
+        "0x004d7e88",
+        "0x004d7e8c"
+       ],
+       "symbols": [],
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        12,
+        16
+       ]
+      }
+     ]
     }
    ],
    ".rodata": [
@@ -73437,9 +73497,69 @@
        ]
       }
      ]
+    },
+    {
+     "range": [
+      "0x004c9ae0",
+      "0x004c9bbc"
+     ],
+     "generated": [
+      "0x004c9ae0",
+      "0x004c9bbc"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "jtbl_004C9AE0"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".rodata",
+       "range": [
+        "0x004c9ae0",
+        "0x004c9bbc"
+       ],
+       "symbols": [],
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        32,
+        252
+       ]
+      }
+     ]
     }
    ],
    ".sdata": [
+    {
+     "range": [
+      "0x004db680",
+      "0x004db686"
+     ],
+     "generated": [
+      "0x004db680",
+      "0x004db686"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "D_004DB680"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".sdata",
+       "range": [
+        "0x004db680",
+        "0x004db686"
+       ],
+       "symbols": [],
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        32,
+        38
+       ]
+      }
+     ]
+    },
     {
      "range": [
       "0x004db688",
@@ -114663,6 +114783,36 @@
     },
     {
      "range": [
+      "0x004d1a40",
+      "0x004d1a60"
+     ],
+     "generated": [
+      "0x004d1a40",
+      "0x004d1a60"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "jtbl_004D1A40"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".rodata",
+       "range": [
+        "0x004d1a40",
+        "0x004d1a60"
+       ],
+       "symbols": [],
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        64,
+        96
+       ]
+      }
+     ]
+    },
+    {
+     "range": [
       "0x004d1a60",
       "0x004d1a80"
      ],
@@ -114685,8 +114835,8 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        64,
-        96
+        96,
+        128
        ]
       }
      ],
@@ -114720,8 +114870,8 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        96,
-        124
+        128,
+        156
        ]
       }
      ],
@@ -114755,8 +114905,8 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        128,
-        156
+        160,
+        188
        ]
       }
      ],
