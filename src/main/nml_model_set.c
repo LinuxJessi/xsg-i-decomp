@@ -715,11 +715,11 @@ void nmlModelFlushClear(void);
 
 static void AlphaGroupLastEntry(void);
 
-extern int nmlModelRenderTexture(void *, int, int);
+static int nmlModelRenderTexture(struct NmlModelRenderRange *, int, int);
 
 static int nmlModelRenderCircle(const NmlCircleOrigin *origin, int pitch, int frame);
 
-extern int nmlModelRenderDropCircle(void *, int, StudioCamera *);
+static int nmlModelRenderDropCircle(const NmlCircleOrigin *, int, StudioCamera *);
 
 static StudioCamera *nmlModelRenderDrop(struct NmlModelRenderRange *range,
                                         int step, StudioCamera *screen, int mode);
@@ -786,6 +786,51 @@ extern void nmlFilterBackClear(void);
 extern void nmlFilterSetFlatRender(LayoutStore *);
 
 extern void nmlFilterSetPacket(LayoutStore *, int);
+
+typedef union GifCommandData {
+    u64 value;
+    struct {
+        u32 low;
+        u32 high;
+    } words;
+} GifCommandData;
+
+extern void sceVif1PkCnt(XglPacket *packet, int count);
+
+extern void sceVif1PkOpenDirectHLCode(XglPacket *packet, int mode);
+
+extern void sceVif1PkAddDirectDataN(XglPacket *packet, const void *data, int count);
+
+extern void sceVif1PkCloseDirectHLCode(XglPacket *packet);
+
+static inline GifCommandData *fade_packet_begin(GifCommandData *gif,
+    u64 tagWord, u64 registerList)
+{
+    gif[1].value = registerList;
+    gif[0].value = tagWord;
+    return gif + 2;
+}
+
+static inline GifCommandData *fade_packet_add_ad(GifCommandData *write,
+    u64 value, u64 address)
+{
+    write->value = value;
+    write++;
+    write->value = address;
+    return write + 1;
+}
+
+static inline int fade_packet_close(GifCommandData *gif,
+    GifCommandData *write)
+{
+    int qwordCount = (write - gif) / 2;
+
+    gif[0].value += qwordCount - 1;
+    return qwordCount;
+}
+
+extern void nmlPacketMakeCircleTexture(NmlModelRenderState *model,
+                                       const StudioCamera *camera);
 
 static float _VectorLengthSQ(const Vector4 *first, const Vector4 *second)
 {
@@ -1264,7 +1309,41 @@ static void CLEAR_MODEL_ENTRY(void)
     s_nMapClip = 0;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", CONSTRUCT_MODELSYSTEM);
+static void CONSTRUCT_MODELSYSTEM(void)
+{
+    int primaryWindow = 2;
+    int inactiveWindow = 0;
+    unsigned int initialBlockCount = 1;
+
+    g_aSubWindow[0] = primaryWindow;
+    s_nModel = 0;
+    s_nBlocks = initialBlockCount;
+    s_nDirect = 0;
+    s_nBlocksAlpha = 0;
+    s_nBlocksAlphaLast = 0;
+    s_nAnotherStudio = 0;
+    s_nUseStealth = 0;
+    s_nUseGnosys = 0;
+    s_nUseZwrite = 0;
+    s_nMapAlphaEntry = 0;
+    s_nMapLast = 0;
+    s_nMainCameraWarp = 0;
+    s_nRenderCancel = 0;
+    s_nRenderCancelOld = 0;
+    s_nFrameLockOff = 0;
+    s_nPause = 0;
+    s_nMenu = 0;
+    g_aSubWindow[3] = g_aSubWindow[2] = g_aSubWindow[1] = inactiveWindow;
+    s_nEffectWrite = 1;
+    __asm__ __volatile__(
+        "sq $0, 0(%0)\n"
+        "sq $0, 16(%0)\n"
+        "sq $0, 32(%0)\n"
+        "sq $0, 48(%0)"
+        : : "r"(s_inGblPointC) : "memory");
+    __asm__ __volatile__("sq $0, 0(%0)" : : "r"(s_inGblFogCol) : "memory");
+    __asm__ __volatile__("sq $0, 0(%0)" : : "r"(&s_inGblFogPara) : "memory");
+}
 
 static void INIT_MODELSYSTEM(void)
 {
@@ -1443,7 +1522,95 @@ int nmlModelSetRenderLevel(int level)
     return renderLevel;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", fade_render);
+static void fade_render(NmlPacket packet, FadeControl *control)
+{
+    int mode = control->unclassified_1c;
+    unsigned int zeroModeDepthAndFog = 0x00fffffc;
+    unsigned int depthAndFog = 0x02ffffff;
+    int frame;
+
+    if (mode == 0) {
+        depthAndFog = zeroModeDepthAndFog;
+    }
+    if (control->startDelay != 0) {
+        control->startDelay--;
+        return;
+    }
+
+    frame = control->frame;
+    if (frame >= 0) {
+        if (control->dispose != 0) {
+            control->frame = 0;
+            frame = 0;
+        }
+        if (frame >= 0) {
+            if (control->cancelFrames == 0) {
+                if (mode == 0) {
+                    control->level = (int)(((float)(frame - 5) /
+                        (float)control->duration) * 128.0f);
+                } else {
+                    control->level = (int)(((float)frame /
+                        (float)control->duration) * 128.0f);
+                }
+                if (mode == 0) {
+                    control->level = 128 - control->level;
+                }
+                if (control->level < 0) {
+                    control->level = 0;
+                }
+                if (control->level > 128) {
+                    control->level = 128;
+                }
+                if (control->skipRender == 0) {
+                    GifCommandData gifData[32];
+                    GifCommandData *write = fade_packet_begin(gifData,
+                        0x1000000000008000ULL, 14);
+                    u64 xyzControl = (u64)depthAndFog << 32;
+                    u64 rgbaq;
+                    int qwordCount;
+
+                    write = fade_packet_add_ad(write, 0x01bf000001ff0000ULL, 64);
+                    write = fade_packet_add_ad(write, 68, 66);
+                    write = fade_packet_add_ad(write, 0x30000, 71);
+                    write = fade_packet_add_ad(write, 70, 0);
+                    rgbaq = (u64)control->color[0] | 0x3f80000000000000ULL;
+                    rgbaq |= ((u64)control->color[2] << 16) |
+                        ((u64)control->color[1] << 8);
+                    rgbaq |= (u64)control->level << 24;
+                    write = fade_packet_add_ad(write, rgbaq, 1);
+                    write = fade_packet_add_ad(write, xyzControl | 0x72007000, 4);
+                    write = fade_packet_add_ad(write, xyzControl | 0x8e009000, 4);
+                    qwordCount = fade_packet_close(gifData, write);
+
+                    sceVif1PkCnt(packet, 0);
+                    sceVif1PkOpenDirectHLCode(packet, 0);
+                    sceVif1PkAddDirectDataN(packet, &gifData, qwordCount);
+                    sceVif1PkCloseDirectHLCode(packet);
+                    frame = control->frame;
+                }
+            }
+            if (frame >= 0) {
+                int nextFrame = frame - 1;
+
+                control->frame = nextFrame;
+                if (nextFrame < 0) {
+                    if (control->locked != 0) {
+                        control->frame = 0;
+                    } else {
+                        control->skipRender = 0;
+                    }
+                }
+            }
+        }
+    }
+    if (control->dispose != 0 || control->cancelFrames > 0) {
+        control->frame = -1;
+        control->duration = 1;
+        control->skipRender = 0;
+        control->dispose = 0;
+        control->locked = 0;
+    }
+}
 
 void nmlFadePacketWrite(NmlPacket packet)
 {
@@ -1454,7 +1621,30 @@ void nmlFadePacketWrite(NmlPacket packet)
     s_nFadeDoit = 0;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", fade_set);
+static void fade_set(FadeControl *control, float *color, int skipRender,
+                     int duration, int direction, int mode, int startDelay)
+{
+    float red, green, blue;
+
+    control->frame = duration;
+    control->duration = duration;
+    __builtin_memcpy(&red, &color[0], sizeof(red));
+    control->color[0] = (int)(red * 255.0f);
+    __builtin_memcpy(&green, &color[1], sizeof(green));
+    control->color[1] = (int)(green * 255.0f);
+    __builtin_memcpy(&blue, &color[2], sizeof(blue));
+    control->color[2] = (int)(blue * 255.0f);
+    control->skipRender = skipRender;
+    control->unclassified_1c = direction;
+    control->unclassified_20 = mode;
+    control->startDelay = startDelay;
+    control->level = 0;
+    control->dispose = 0;
+    if (duration < 0) {
+        control->frame = -1;
+    }
+    sRender.fade_callback = (XglRenderFadeCallback)nmlFadePacketWrite;
+}
 
 void nmlModelSetFadeOutLock(void) {
     D_0095DB90[0] = 1;
@@ -1781,7 +1971,33 @@ void nmlModelSetShadowVec(const Vector4 *shadowVector)
     s_nShadowVec = 1;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", nmlModelSetTexMap);
+void nmlModelSetTexMap(int mode, int size, float weight)
+{
+    LayoutStore *layout = &s_inLayout;
+    unsigned long long texMapState;
+
+    layout->slots[0x268 / 4].i = mode;
+    layout->slots[0x270 / 4].i = size;
+    layout->slots[0x274 / 4].f = weight;
+
+    if (layout->slots[0x270 / 4].i < 0) {
+        layout->slots[0x270 / 4].i = 0;
+    }
+    if (layout->slots[0x270 / 4].i >= 0x81) {
+        layout->slots[0x270 / 4].i = 0x80;
+    }
+
+    texMapState = layout->qwords[0x268 / 8];
+    if ((texMapState & 0x10001) == 0x10001) {
+        layout->slots[0x250 / 4].i |= 0x40000;
+    } else if ((texMapState & 0x20001) == 0x20001) {
+        layout->slots[0x250 / 4].i |= 0x200000;
+    } else if ((texMapState & 0x30000) == 0x30000) {
+        layout->slots[0x250 / 4].i |= 0x400000;
+    } else {
+        layout->slots[0x250 / 4].i |= 0x4000;
+    }
+}
 
 void nmlModelSetProreal(NmlProRealState *input)
 {
@@ -3162,7 +3378,94 @@ INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", nmlModelEntryCard);
 
 INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", nmlModelRenderProreal);
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", nmlModelRenderTexture);
+static int nmlModelRenderTexture(struct NmlModelRenderRange *range, int step,
+                                 int frame)
+{
+    extern float D_004D8948;
+    extern void nmlFilterSetTexClear(int);
+    extern void nmlFilterSetTexFillDraw(int, LayoutStore *);
+    extern void nmlPacketAddGsScissor(u64);
+    LayoutStore *firstLayout;
+    unsigned int capturedBase;
+    int frameBase;
+    int result = 0;
+    StudioCamera *camera;
+    LayoutStore *layout;
+    NmlMaterialRenderState *material;
+    int index;
+
+    capturedBase = sRender.texture_buffer_base;
+    camera = xglStudioSelectGetActiveCamera(frame);
+    if (camera != 0) {
+        goto test_fov;
+    }
+    return 0;
+
+render_body:
+    nmlPacketGsInit();
+    frameBase = capturedBase & 0xffff;
+    nmlPacketAddGsZbuf(1);
+    nmlPacketAddGsFBA(0);
+    nmlPacketAddGsFrame(frameBase, 0);
+    nmlPacketAddGsFlush();
+    nmlFilterSetTexClear(frameBase);
+    nmlPacketGsInit();
+    nmlPacketAddGsPixeltest(0x31001);
+    nmlPacketAddGsScissor(0x00df000001ff0000ULL);
+    nmlPacketAddGsFlush();
+    nmlPacketAddGifTagStandard(0, 0);
+    if (s_nAnotherStudio != 0) {
+        nmlPacketAddScreen((NmlModelRenderState *)camera);
+    }
+
+    index = range->first - step;
+    while (index != range->first + range->count * step - step) {
+        index += step;
+        material = s_apBlock[index];
+        layout = s_apModelLayout[s_aBlockLayout[index]];
+        if ((layout->fields.render_status & 0x100000) == 0) {
+            layout->fields.render_status |= 0x8000;
+            if (firstLayout == 0) {
+                firstLayout = layout;
+            }
+            nmlPacketAddTransMicrocode(material,
+                                       (NmlModelRenderState *)layout);
+            result = nmlPacketAddParts(material,
+                                       (NmlModelRenderState *)layout,
+                                       camera);
+            if (result != 0) {
+                break;
+            }
+            nmlPacketAddExecProg(material,
+                                 (NmlModelRenderState *)layout, 0, 0);
+            layout->fields.render_status &= ~0x8000;
+        }
+    }
+
+    if (result != 0) {
+        goto render_done;
+    }
+    if (firstLayout != 0) {
+        nmlFilterSetTexFillDraw(frameBase, firstLayout);
+    }
+    nmlPacketGsInit();
+    nmlPacketAddGsScissor(0x01bf000001ff0000ULL);
+    nmlPacketAddGsFlush();
+    if (firstLayout != 0) {
+        result = nmlModelRenderProreal(firstLayout, frame);
+    }
+    goto render_done;
+
+test_fov:
+    if (D_004D8948 >= range->layout->fields.textureTransparency) {
+        goto render_done;
+    }
+    firstLayout = 0;
+    goto render_body;
+
+render_done:
+    return result;
+}
 
 static int nmlModelRenderCircle(const NmlCircleOrigin *origin, int pitch, int frame)
 {
@@ -3205,7 +3508,28 @@ static int nmlModelRenderCircle(const NmlCircleOrigin *origin, int pitch, int fr
     return result;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", nmlModelRenderDropCircle);
+static int nmlModelRenderDropCircle(const NmlCircleOrigin *origin, int pitch, StudioCamera *camera)
+{
+    int index;
+    int end;
+    LayoutStore *model = 0;
+
+    do {
+        index = origin->x - pitch;
+        end = origin->x + origin->y * pitch - pitch;
+        while (index != end) {
+            index += pitch;
+            model = s_apModelLayout[s_aBlockLayout[index]];
+            if ((model->fields.render_status & 0x100000u) == 0)
+                break;
+        }
+    } while (0);
+
+    set_circle_shadow_ratio((int)((float)model->fields.texMapSize * model->fields.circleShadowScale));
+    nmlPacketSendCircleTexture(&s_aCircleShadow, s_aCircleShadowClut);
+    nmlPacketMakeCircleTexture((NmlModelRenderState *)model, camera);
+    return 0;
+}
 
 static StudioCamera *nmlModelRenderDrop(struct NmlModelRenderRange *range,
                                         int step, StudioCamera *screen, int mode)

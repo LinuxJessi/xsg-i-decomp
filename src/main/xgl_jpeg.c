@@ -902,7 +902,48 @@ static void ConvertMCU2YUV(void)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/xgl_jpeg", ConvertYUV2RGB);
+static void ConvertYUV2RGB(int width, int height)
+{
+    int row = 0;
+    u32 *rgb = (u32 *)0x70003000;
+
+    if (height > 0) {
+        do {
+            JpegWork *work = sw;
+            JpegYuvPixel *pixel = work->decodedYuvPixels + row * 16;
+
+            if (width > 0) {
+                int remaining = width;
+
+                do {
+                    /* StartOfScan installs VF21-VF26; FFIDCT leaves them live. */
+                    __asm__ __volatile__(
+                        "lqc2 vf10, 0(%0)\n\t"
+                        "vmulax.xyzw ACCxyzw,vf21xyzw,vf10x\n\t"
+                        "vmadday.xyzw ACCxyzw,vf22xyzw,vf10y\n\t"
+                        "vmaddaz.xyzw ACCxyzw,vf23xyzw,vf10z\n\t"
+                        "vmaddw.xyzw vf9xyzw,vf24xyzw,vf0w\n\t"
+                        "qmfc2 $8,vf25\n\t"
+                        "vftoi0.xyzw vf10xyzw,vf9xyzw\n\t"
+                        "qmfc2 $9,vf26\n\t"
+                        "qmfc2 $2,vf10\n\t"
+                        "pmaxw $3,$2,$8\n\t"
+                        "pminw $2,$3,$9\n\t"
+                        "ppach $3,$0,$2\n\t"
+                        "ppacb $2,$0,$3\n\t"
+                        "sw $2,0(%1)"
+                        :
+                        : "r"(pixel), "r"(rgb)
+                        : "$2", "$3", "$8", "$9", "memory");
+                    remaining--;
+                    pixel++;
+                    rgb++;
+                } while (remaining != 0);
+            }
+            row++;
+        } while (row < height);
+    }
+}
 
 INCLUDE_ASM("asm/main/nonmatchings/xgl_jpeg", StartOfScan);
 

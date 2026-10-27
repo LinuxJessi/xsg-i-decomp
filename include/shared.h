@@ -116,7 +116,9 @@ typedef struct StudioCamera {
     u8 unmodeled_28[0x48];
     Vector4 screenOffset;
     Vector4 screenScale;
-    u8 unmodeled_90[0x10];
+    u8 unmodeled_90[4];
+    float fov;
+    u8 unmodeled_98[8];
     Vector4 rotation;
     Vector4 angleVelocity;
     u8 unmodeled_c0[0x10];

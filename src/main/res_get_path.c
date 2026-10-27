@@ -2258,7 +2258,22 @@ void GameResourceWorkReload(void)
     MapChangeFadeSet();
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/res_get_path", GameResourceAlloc);
+void *GameResourceAlloc(int size)
+{
+    int index;
+
+    index = resource_get_free();
+    if (index == -1)
+        return 0;
+
+    size = (size + 63) & ~63;
+    GameResource[index + 1].address = GameResource[index].address + size;
+    GameResource[index + 1].size = GameResource[index].size - size;
+    GameResource[index].size = size;
+    GameResource[index].state = 9;
+    GameResource[index].handle = xglSRand();
+    return GameResource[index].address;
+}
 
 void *GameResourceRealloc(void *address, int size)
 {

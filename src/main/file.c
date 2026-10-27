@@ -344,6 +344,91 @@ extern void eMessageCpy(char *destination, char *source);
 
 extern void eMessageCat(char *source);
 
+struct FileLoadGauge {
+    short x;
+    short y;
+    unsigned int vertex_attribute;
+    short width;
+    short height;
+    unsigned short current;
+    unsigned short maximum;
+    struct FileGaugeColor {
+        unsigned char red;
+        unsigned char green;
+        unsigned char blue;
+        unsigned char alpha;
+    } filled_color;
+    struct FileGaugeColor unfilled_color;
+};
+
+extern struct FileLoadGauge gauge;
+
+void tyaDrawGauge(struct FileLoadGauge *progress);
+
+typedef struct FileObjectImages {
+    FileObjectEntryView slots[99];
+    FileObjectEntryView templates[3];
+    FileObjectEntryView current;
+} FileObjectImages;
+
+extern XglTaskScheduler *FileTask;
+
+extern unsigned char *FileCardDataBuf;
+
+extern void *FileExistCheckWork;
+
+extern unsigned char D_004C4D80[];
+
+extern unsigned char D_004C4D98[];
+
+extern unsigned char D_004C4DB0[];
+
+extern unsigned char D_004C4DC8[];
+
+void endPrintDirectFrameCopy(XglPacket *packet, int source, int destination);
+
+void endPrintInit(void);
+
+void MenuCfTaikiPush(void);
+
+void MenuCfTaikiPop(void);
+
+XglTaskScheduler *MenuBgTaskInit(void *work, int mode);
+
+void *xglTaskInitial(void *work, int entries, int mode);
+
+void MenuBgTaskMain(void);
+
+void MenuBgTaskBreak(void);
+
+void MenuLoadInit(void);
+
+void MenuFontLoad(int mode, int wait);
+
+void WindowTexLoad(int mode, int resource);
+
+void *MenuSaveMapTextLoad(void *work, int mode);
+
+void MenuLoadFile(const unsigned char *name, void *destination);
+
+void MenuWorkEndCheck(void *end);
+
+int MenuLoadSync(void);
+
+int GameSnapShotSaveThumbnail(int quality, void *destination);
+
+void GameSnapShotCheck(void);
+
+void GameCfPlayerLoadResource(int mode);
+
+void MapChangeFadeSet(void);
+
+void exit(int status);
+
+void *MenuWorkEndGet(void);
+
+void MenuFile(void);
+
 static void VersionUpDate(SaveDataHeader *save_data)
 {
     save_data->version += 1;
@@ -568,7 +653,161 @@ void FileObjectJpegDecChange(int number)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/file", FileObjectAllLoad);
+int FileObjectAllLoad(void)
+{
+    struct FileHddLoadRequest {
+        int slot;
+        FileSaveRecord *data;
+        int size;
+    } hdd_request;
+    McRequestArguments card_request;
+    int xglHddMcLoadMount(void);
+    int xglHddMcLoadCore(void *request);
+    int xglHddMcUmount(void);
+    int index;
+    int loaded_count;
+    int state;
+    unsigned char *load_state = &FileObjectDataSystem->load_state;
+    unsigned char *load_index = &FileObjectDataSystem->load_index;
+
+    switch (*load_state) {
+    case 0: {
+        FileWorkBlock *initial_work = FileWork;
+
+        gauge.x = 123;
+        gauge.y = 296;
+        gauge.vertex_attribute = 0xffffffffU;
+        loaded_count = 0;
+        gauge.width = 256;
+        index = 0;
+        gauge.height = 8;
+        gauge.current = 0;
+        gauge.maximum = 0;
+        gauge.filled_color.red = 161;
+        gauge.filled_color.green = 232;
+        gauge.filled_color.blue = 205;
+        gauge.filled_color.alpha = 128;
+        gauge.unfilled_color.red = 64;
+        gauge.unfilled_color.green = 64;
+        gauge.unfilled_color.blue = 64;
+        gauge.unfilled_color.alpha = 128;
+        __builtin_memset(&initial_work->hdd_result, 0,
+                         sizeof(initial_work->hdd_result));
+        for (; index < 99; index++) {
+            state = FileObjectDataSystem->state[index];
+
+            if (state != 1) {
+                int empty = state <= 0;
+
+                if (empty) {
+                    continue;
+                }
+                if (state < 5) {
+                    FileObjectDataInput(index, state);
+                    loaded_count++;
+                }
+            } else {
+                gauge.maximum++;
+            }
+        }
+        *load_state = 2;
+        *load_index = 0;
+        if (loaded_count == 99) {
+            FileWorkBlock *work = FileWork;
+
+            work->hdd_result = 0;
+            if (!work->use_hdd) {
+                unsigned short *card_status = work->card_status;
+
+                if (card_status[work->card_number] != 1) {
+                    work->hdd_result = -1;
+                }
+            }
+            *load_state = 0;
+            return 0;
+        }
+        if (FileWork->use_hdd) {
+            FileWork->hdd_result = xglHddMcLoadMount();
+        }
+    }
+    case 2:
+        gauge.current++;
+        while (*load_index < 99) {
+            if (FileObjectDataSystem->state[*load_index] == 1) {
+                *load_state = 4;
+                break;
+            }
+            (*load_index)++;
+        }
+        if (*load_index == 99) {
+            *load_state = 0;
+            if (FileWork->use_hdd) {
+                FileWork->hdd_result = xglHddMcUmount();
+            }
+            return 0;
+        }
+    case 4:
+        if (FileWork->use_hdd) {
+            hdd_request.slot = *load_index;
+            hdd_request.data = FileSaveData;
+            hdd_request.size = sizeof(*FileSaveData);
+            memset(FileSaveData, 0, sizeof(*FileSaveData));
+            FileWork->hdd_result = xglHddMcLoadCore(&hdd_request);
+            *load_state = 6;
+        } else {
+            card_request.slot = *load_index;
+            card_request.buffer = FileSaveData;
+            card_request.size = sizeof(*FileSaveData);
+            memset(FileSaveData, 0, sizeof(*FileSaveData));
+            xglMcRequest(FileWork->card_number, 4, &card_request,
+                         &FileWork->request_result);
+            *load_state = 6;
+            tyaDrawGauge(&gauge);
+            return 1;
+        }
+    case 6:
+        if (FileWork->use_hdd) {
+            if (FileWork->hdd_result != 0) {
+                FileObjectDataSystem->state[*load_index] = 4;
+                FileObjectDataInput(*load_index, 4);
+                *load_state = 9;
+            } else {
+                FileObjectDataInput(*load_index, 1);
+                *load_state = 8;
+            }
+        } else {
+            FileWorkBlock *work = FileWork;
+            unsigned short *card_status = work->card_status;
+            int status = card_status[work->card_number];
+
+            if (status != 1) {
+                if (status != 255) {
+                    FileObjectDataSystem->state[*load_index] = 4;
+                    FileObjectDataInput(*load_index, 4);
+                    FileWork->hdd_result = -1;
+                    *load_state = 9;
+                }
+            } else {
+                FileObjectDataInput(*load_index, 1);
+                *load_state = 8;
+            }
+        }
+        if (*load_state == 8) {
+            *load_state = 2;
+            (*load_index)++;
+        }
+        if (*load_state == 9) {
+            *load_state = 0;
+            if (FileWork->use_hdd) {
+                FileWork->hdd_result = xglHddMcUmount();
+            }
+            return 0;
+        }
+        break;
+    }
+    tyaDrawGauge(&gauge);
+    return 1;
+}
 
 void FileSinkiSaveDataPush(void)
 {
@@ -1825,4 +2064,136 @@ void endBackTexDraw(unsigned char *color)
     sceVif1PkCloseDirectHLCode(packet);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/file", MenuFileMain);
+int MenuFileMain(int menu_mode)
+{
+    extern void exit(int status) __attribute__((noreturn));
+    unsigned char *task_work;
+    int buffer_end;
+    XglTaskPrefix *entry;
+    FileObjectEntryView *images;
+
+    endPrintDirectFrameCopy(xglPacketGetCurrent(), sRender.copy_width << 5,
+                           sRender.copy_height << 5);
+    GameLoopState.runtime_flags |= 0x04000000;
+    xglSleep();
+    endPrintInit();
+    GameLoopState.runtime_flags |= 0x04000000;
+    MenuCfTaikiPush();
+    endPrintDirectFrameCopy(xglPacketGetCurrent(), sRender.copy_height << 5,
+                           sRender.draw_back_value << 5);
+    endBackTexDraw((unsigned char *)-1);
+    xglSleep();
+
+    FileWork = (FileWorkBlock *)(((unsigned int)MenuWorkEndGet() + 0x7f) & ~0x7f);
+    task_work = (unsigned char *)(FileWork + 1);
+    memset(FileWork, 0, sizeof(*FileWork));
+    task_work = (unsigned char *)MenuBgTaskInit(task_work, 1);
+    FileTask = (XglTaskScheduler *)task_work;
+    task_work = xglTaskInitial(task_work, 0x10, 0);
+
+    entry = xglTaskEntryNext(FileTask, (int (*)(XglTaskPrefix *))tskTskMain,
+                             FileTask ? FileTask->active_tail : 0);
+    TskObjectSet((TskObject *)entry, MenuFilePas, task_work);
+    task_work += 0x3cc;
+    entry = xglTaskEntryNext(FileTask, (int (*)(XglTaskPrefix *))tskTskMain,
+                             FileTask ? FileTask->active_tail : 0);
+    TskObjectSet((TskObject *)entry, MenuFileInfo, task_work);
+    task_work += 0x460;
+    entry = xglTaskEntryNext(FileTask, (int (*)(XglTaskPrefix *))tskTskMain,
+                             FileTask ? FileTask->active_tail : 0);
+    TskObjectSet((TskObject *)entry, tskFileSelect, task_work);
+    task_work += 0x1e8c;
+    entry = xglTaskEntryNext(FileTask, (int (*)(XglTaskPrefix *))tskTskMain,
+                             FileTask ? FileTask->active_tail : 0);
+    TskObjectSet((TskObject *)entry, (TskObjectWorker)tskFileEx, task_work);
+    task_work += 0x50;
+    entry = xglTaskEntryNext(FileTask, (int (*)(XglTaskPrefix *))tskTskMain,
+                             FileTask ? FileTask->active_tail : 0);
+    buffer_end = 0x01000000;
+    TskObjectSet((TskObject *)entry, tskFileData, task_work);
+
+    FileCardDataBuf = (unsigned char *)buffer_end;
+    buffer_end += 0x12000;
+    FileObjectDataSystem = (FileObjectSystem *)buffer_end;
+    memset(FileObjectDataSystem, 0, 0x258);
+    task_work += 0x249c;
+    {
+        int card;
+
+        for (card = 0; card < 99; ++card)
+            FileObjectDataSystem->card_status[card] = -1;
+    }
+
+    FileJpegDec = (unsigned char *)(buffer_end + 0x800);
+    memset(FileJpegDec, 0, 0x46500);
+    FileObjectData = (unsigned char *)((buffer_end + 0x800 + 0x46500 + 0x7ff) & ~0x7ff);
+    memset(FileObjectData, 0, 0x696a0);
+    buffer_end = ((buffer_end + 0x800 + 0x46500 + 0x7ff) & ~0x7ff) + 0x696a0;
+    images = (FileObjectEntryView *)FileObjectData;
+    {
+        int i;
+
+        for (i = 0; i <= 2; ++i) {
+            FileObjectEntryView *leader_images;
+            FileObjectEntryView *next_images;
+
+            images[i + 99].chapter = -1;
+            leader_images = (FileObjectEntryView *)FileObjectData;
+            leader_images[i + 99].leader = -1;
+            next_images = (FileObjectEntryView *)FileObjectData;
+            next_images[i + 99].play_time = -1;
+            images = next_images;
+        }
+    }
+    FileSaveData = (FileSaveRecord *)((buffer_end + 0x7ff) & ~0x7ff);
+    FileExistCheckWork = (void *)(((unsigned int)FileSaveData + 0x16baf) & ~0x7ff);
+    memset(FileExistCheckWork, 0, 0x2000);
+    if (menu_mode == 0) {
+        FileObjectImages *objects = (FileObjectImages *)FileObjectData;
+        unsigned char *thumbnail = objects->current.thumbnail;
+
+        memset(thumbnail, 0, sizeof(objects->current.thumbnail));
+        if (GameSnapShotSaveThumbnail(30, ((FileObjectImages *)FileObjectData)->current.thumbnail) > 0x1000)
+            exit(1);
+    }
+    MenuLoadInit();
+    MenuFontLoad(1, 1);
+    WindowTexLoad(0, 0x10001);
+    WindowTexLoad(0, 0x10002);
+    task_work = MenuSaveMapTextLoad(task_work, 1);
+    if (menu_mode == 0)
+        MenuLoadFile(D_004C4D80, FileCardDataBuf);
+    MenuLoadFile(D_004C4D98, ((FileObjectImages *)FileObjectData)->templates[0].thumbnail);
+    MenuLoadFile(D_004C4DB0, ((FileObjectImages *)FileObjectData)->templates[1].thumbnail);
+    MenuLoadFile(D_004C4DC8, ((FileObjectImages *)FileObjectData)->templates[2].thumbnail);
+    MenuWorkEndCheck(task_work);
+    if (menu_mode == 0)
+        xglSoundEffectNormalID(1, 0);
+    while (MenuLoadSync() != 0) {
+        MenuBgTaskMain();
+        xglSleep();
+    }
+    FileWork->text_index = menu_mode;
+    FileWork->command = 0x24;
+    FileWork->input_flags = 2;
+    FileWork->result = 0;
+    for (;; endPrintExtFunc(0, 100, 0), MenuBgTaskMain(),
+            xglTaskExecute(FileTask), xglSleep()) {
+        GameSnapShotCheck();
+        if (FileWork->state != 0xff) {
+            MenuFile();
+        } else {
+            break;
+        }
+    }
+    MenuBgTaskBreak();
+    xglTaskExecute(FileTask);
+    MenuCfTaikiPop();
+    MenuFontLoad(0, 0);
+    WindowTexLoad(0, 0);
+    if (menu_mode == 0)
+        GameCfPlayerLoadResource(0);
+    MapChangeFadeSet();
+    GameLoopState.runtime_flags &= 0xfbffffff;
+    return FileWork->result == 0;
+}

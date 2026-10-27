@@ -63,4 +63,6 @@ typedef struct LookAtPlayerActor {
     u8 unmodeled_a34[0xa70 - 0xa34];
 } LookAtPlayerActor;
 
+void GameCfPlayerLoadResource(int use_cache);
+
 #endif /* INCLUDE_MAIN_LOOK_AT_PLAYER_H */

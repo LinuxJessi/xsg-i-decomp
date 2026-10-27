@@ -65,6 +65,14 @@ int MenuMaryIdChange(int id);
 
 static void tskMenuTaiPointa(MenuPointaTask *task);
 
+extern MenuModelTransform *MenuVecMat;
+
+extern const float D_004D7D9C;
+
+extern XglTaskScheduler *MenuTask_XMX;
+
+extern void xglCameraInit(StudioCamera *camera);
+
 int MenuTopCommandCheck(int commandId)
 {
     unsigned int commandBit = 1 << (commandId - 1);
@@ -782,7 +790,79 @@ static void tskMenuTaiPointa(MenuPointaTask *task)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_top_command_check", MenuBackModelSet);
+unsigned char *MenuBackModelSet(unsigned char *allocationStart)
+{
+    StudioCamera *camera = xglStudioGetCamera2(2);
+    int pointaIndex;
+    int modelIndex;
+
+    xglCameraInit(camera);
+    camera->position.x = 0.0f;
+    camera->position.y = 0.0f;
+    camera->position.z = 4.0f;
+    camera->position.w = 1.0f;
+    camera->rotation.x = 0.0f;
+    camera->rotation.y = 0.0f;
+    camera->rotation.z = 0.0f;
+    camera->rotation.w = 1.0f;
+    camera->fov = D_004D7D9C;
+    camera->state = 1;
+    camera->active = 1;
+
+    {
+        MenuModelTransform **modelBaseSlot = &MenuVecMat;
+
+        *modelBaseSlot = (MenuModelTransform *)
+            (((unsigned int)allocationStart + 127) & ~127);
+        allocationStart = (unsigned char *)(*modelBaseSlot + 16);
+    }
+
+    pointaIndex = 0;
+    do {
+        int (*pointaCallback)(XglTaskPrefix *) =
+            (int (*)(XglTaskPrefix *))tskMenuTaiPointa;
+        MenuPointaTask *task = (MenuPointaTask *)xglTaskEntryNext(
+            MenuTask_XMX, pointaCallback,
+            MenuTask_XMX ? MenuTask_XMX->active_tail : 0);
+        if (task != 0) {
+            MenuModelTransform *base;
+
+            task->state = 0;
+            base = MenuVecMat;
+            task->index = pointaIndex;
+            task->formation = &base[1];
+            task->pointer = &base[pointaIndex + 5];
+        }
+    } while (++pointaIndex < 4);
+
+    modelIndex = 0;
+    do {
+        MenuTopPartyData *party = (MenuTopPartyData *)PartyDataGet();
+        MenuTaiTask *task;
+
+        if (party->slot[modelIndex].id != 0) {
+            party = (MenuTopPartyData *)PartyDataGet();
+            if (party->slot[modelIndex].id >= 17) {
+                break;
+            }
+            task = (MenuTaiTask *)xglTaskEntryNext(
+                MenuTask_XMX, (int (*)(XglTaskPrefix *))tskMenuTai,
+                MenuTask_XMX ? MenuTask_XMX->active_tail : 0);
+            if (task != 0) {
+                MenuModelTransform *base;
+
+                task->state = 0;
+                base = MenuVecMat;
+                task->index = modelIndex;
+                task->model = (MenuModelScalarTransform *)&base[modelIndex + 1];
+            }
+        } else {
+            return allocationStart;
+        }
+        modelIndex++;
+    } while (modelIndex < 3);
+    return allocationStart;
+}
 
 void MenuStatusDisp(MenuStatusPanelWindow *window, MenuStatusPanel *work)
 {

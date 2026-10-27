@@ -524,6 +524,29 @@
       "scaffold_assembler": "ps2dev-binutils",
       "note": "config/vu-build.json is the contract's authority; this entry names its tools by identity. --fatal-warnings makes the DVP assembler's count warnings errors; -no-abicalls -64 clear the PIC/n32 marks that would make ld speak when the object meets this project's EABI64 objects."
     },
+    "ee-tu-c296-G8-db-light-swap": {
+      "description": "Whole original MAIN db_light_write TU: GCC 2.96 -O2 -G8 with qualified swapping GAS",
+      "compiler": "ee-gcc2.96-realconv-lp7",
+      "driver": "ee-gcc",
+      "driver_flags": [
+        "-nostdinc",
+        "-fno-builtin"
+      ],
+      "flags": [
+        "-O2",
+        "-G8"
+      ],
+      "assembler": "ee-as-la29-vsqrt-swap",
+      "assembler_argv": [
+        "-EL",
+        "-m5900",
+        "-mabi=eabi",
+        "-G8",
+        "-I",
+        "."
+      ],
+      "scaffold_assembler": "ee-as-la29-vsqrt-swap"
+    },
     "ee-tu-c296-G8-script-swap": {
       "description": "Whole original MAIN script TU: GCC 2.96 -O2 -G8 with qualified swapping GAS",
       "compiler": "ee-gcc2.96-realconv-lp7",
@@ -554,6 +577,16 @@
       "splat64": "0.50.0",
       "spimdisasm": "1.42.4",
       "rabbitizer": "1.16.2"
+    }
+  },
+  "assembler_selection": {
+    "date": "2026-10-27",
+    "assembler": "ee-as-la29-vsqrt",
+    "options": [],
+    "reason": "User selected the common assembler that leaves the fewest measured original-byte differences.",
+    "evidence": {
+      "path": ".work/g2-all-ee-20261027/F-result.json",
+      "sha256": "41a44cfa9ddd6800f988bce46f3f41b6b346d3249a72f16c8fa64c8ca0385d97"
     }
   }
 }

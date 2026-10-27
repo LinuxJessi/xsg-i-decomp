@@ -14,12 +14,19 @@ void eBattleWinClose(void *window);
 void eBattleWinClose3(void);
 void eBattleWinInit(void);
 
+void endPrintInit(void);
+void endPrintDirectFrameCopy(XglPacket *packet, int tagLow, int tagHigh);
+
 extern int Get_ActorNumber(int target);
+
+extern int MenuFileMain(int mode);
 
 void *newObject(SceneClass *scene_class);
 void *newClass(void);
 void loadStaticClass(void *class_slot, const char *name);
 
+void MenuGameDataPush(void);
+void MenuGameDataPop(void);
 void GamePushSaveDataUser(void);
 void Game(void);
 
@@ -61,6 +68,8 @@ void JNI_popFrame(void);
 extern char *STR_tokenGetNext(char *text, const char *delimiters);
 extern int STR_tokenGetType(void);
 
+void GameCfPlayerLoadResource(int use_cache);
+
 int MEfObjDestroy(void *object);
 
 float *MMathCalcHermite(float *destination, float parameter,
@@ -81,13 +90,24 @@ void CUR_MATRIX_Sxyz4s(const Vector4 *scale);
 
 int MenuMaryIdChange(int id);
 int MenuScenarioNoGet(void);
+int MenuEquipStealMaskCheck(void);
 const unsigned char *MenuSaveMapNameGet(int mapId);
 int MenuMainCharCheck(int charId);
 int MenuSortGet(int listIndex, int entryIndex);
 
 int MenuEtherWhoCheck(int etherId);
 
+void MenuModelMemorySet(int state);
+void MenuModelMemoryInit(void *base, int size);
+void MenuModelMenuMotionLoad(void);
+void MenuModelMain(void);
+void MenuModelAllBreak(void);
+
+void MenuShopMain(int shopType);
+
 void MenuPasWindow(void);
+
+void nmlFilterSetTexClear(int frameBase);
 
 void nmlModelSetSortOffset(float offset);
 void nmlModelSetGlobalPointLightCol(int index, const Vector4 *color);
@@ -96,8 +116,10 @@ void nmlModelSetRenderStatus(int status);
 void nmlModelSetClip(int clip);
 int nmlModelSetGlobalFogReset(void);
 void nmlModelSetFogCancel(void);
+void nmlModelFlush(void);
 
 extern const char D_004DC4D0[4];
+void nmlPacketAddGsScissor(u64 scissor);
 
 int CheckPointLine(const Vector4 *first, const Vector4 *second,
                    const Vector4 *point);
@@ -111,6 +133,10 @@ void PartyOutFriendOff(int id);
 int PartyOutFriendCheck(int id);
 int PartyFriendLockCheck(int id, int flag);
 int PartyAllPartyGet(int *out, int mode);
+
+void GameResourceWorkReload(void);
+
+int scGetImmAdrImmIdx2(int base, unsigned short *table, int index);
 
 extern void CallMethod(const char *method_name);
 int SCRIPT_getCfTime(void);
@@ -142,11 +168,20 @@ void TWSYS_draw(void);
 void Vibration_Set_Weak(int duration);
 void VibrationEngine(void);
 
+void *MenuWorkEndGet(void);
 void UmnMailBoxSet(int box_id);
 unsigned char *UmnMailDataGet(int box_id);
 void MoveSlide(short *current, short *target, float rate);
+int MenuLoadSync(void);
+void MenuLoadInit(void);
+void MenuLoadCancel(void);
+extern void MenuBgTaskBreak(void);
 void ChangeTopLevel(int top_level);
 void MenuKeepSelectReset(void);
+void MenuFontLoad(int original_font, int asynchronous);
+void MenuCfTaikiPush(void);
+void MenuCfTaikiPop(void);
+void MenuBgTaskMain(void);
 
 extern void xglVectorLength(float *destination, const Vector4 *vector);
 extern void xglMatrixStackUnit(void);
@@ -171,6 +206,9 @@ extern void xglFontPrint(int x, int y, int color, const char *text);
 
 int xglHddMount(void);
 extern int xglHddActivate(int state);
+extern int xglHddMcUmount(void);
+extern int xglHddMcLoadMount(void);
+extern int xglHddMcLoadCore(void *save);
 
 extern unsigned char SaveData[];
 extern void xglMcSetMapName(const unsigned char *primary_euc_name,
@@ -186,6 +224,7 @@ extern void xglSoundEffectNormalID(int sound_id, int variant);
 void xglSoundSendEffect(void *swd, void *sed, int bank);
 
 extern StudioCamera *xglStudioGetCamera2(int camera_id);
+extern void xglStudioChange(int studio_index);
 extern StudioCamera *xglStudioMainCameraMove(void);
 extern void xglStudioMove(void);
 

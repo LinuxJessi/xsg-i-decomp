@@ -16,4 +16,6 @@ typedef union GsTag {
     u32 words[2];
 } GsTag;
 
+void nmlPacketAddGsScissor(u64 scissor);
+
 #endif /* INCLUDE_MAIN_NML_PACKET_ADD_H */

@@ -15,9 +15,9 @@
  },
  "assemblers": {
   "c_tu": {
-   "id": "gnu-as-2.9-ee-991111 LA29+vsqrt+nolabel+laimm (ee-legacy-binutils-la29-vsqrt-nolabel-laimm-v1)",
-   "path": "tool:ee-as-la29-vsqrt",
-   "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
+   "id": "gnu-as-2.9-ee-991111 LA29+vsqrt+nolabel+laimm+swap (ee-legacy-binutils-la29-vsqrt-nolabel-laimm-swap-v1)",
+   "path": "tool:ee-as-la29-vsqrt-swap",
+   "sha256": "448143a3f1f7ecd4fffb79ea3e641afa36863895366873f93462028535f95494",
    "argv": "-EL -m5900 -mabi=eabi <G> -I .",
    "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
   },
@@ -73,7 +73,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -157,7 +157,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -314,7 +314,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -506,7 +506,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -725,7 +725,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -911,7 +911,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -1079,7 +1079,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -1297,7 +1297,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -1422,7 +1422,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -1542,7 +1542,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -1705,7 +1705,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -1783,7 +1783,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -1862,7 +1862,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -1932,7 +1932,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -2032,7 +2032,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -2162,7 +2162,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -2229,7 +2229,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -2305,7 +2305,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -2420,7 +2420,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -2488,7 +2488,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -2562,7 +2562,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -2634,7 +2634,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -2708,7 +2708,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -2788,7 +2788,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -2859,7 +2859,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -2930,7 +2930,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -3003,7 +3003,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -3070,7 +3070,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -3147,7 +3147,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -3237,7 +3237,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -3329,7 +3329,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -3416,7 +3416,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -3504,7 +3504,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -3584,7 +3584,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -3654,7 +3654,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -3725,7 +3725,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -3805,7 +3805,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -3880,7 +3880,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -3952,7 +3952,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -4023,7 +4023,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -4097,7 +4097,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -4163,7 +4163,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -4234,7 +4234,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -4307,7 +4307,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -4378,7 +4378,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -4450,7 +4450,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -4530,7 +4530,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -4608,7 +4608,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -4684,7 +4684,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -4760,7 +4760,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -4857,7 +4857,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -4928,7 +4928,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -5018,7 +5018,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -5088,7 +5088,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -5169,7 +5169,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -5336,7 +5336,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -5431,7 +5431,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -5502,7 +5502,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -5573,7 +5573,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -5666,7 +5666,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -5735,7 +5735,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -5869,7 +5869,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -5950,7 +5950,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -6109,7 +6109,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -6190,7 +6190,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -6403,7 +6403,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -6475,7 +6475,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -6542,7 +6542,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -6650,7 +6650,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -6734,7 +6734,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -6805,7 +6805,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -7027,7 +7027,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -7102,7 +7102,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -7177,7 +7177,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -7251,7 +7251,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -7327,7 +7327,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -7406,7 +7406,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -7504,7 +7504,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -7580,7 +7580,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -7652,7 +7652,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -7741,7 +7741,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -7810,7 +7810,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -7893,7 +7893,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -8002,7 +8002,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -8087,7 +8087,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -8154,7 +8154,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -8255,7 +8255,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -8370,7 +8370,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -8456,7 +8456,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -8545,7 +8545,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -8677,7 +8677,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -8770,7 +8770,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -8855,7 +8855,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -9016,7 +9016,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -9108,7 +9108,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -9183,7 +9183,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -9260,7 +9260,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -9337,7 +9337,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -9409,7 +9409,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -9478,7 +9478,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -9557,7 +9557,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -9645,7 +9645,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -9741,7 +9741,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -9830,7 +9830,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -9898,7 +9898,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -9981,7 +9981,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -10058,7 +10058,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -10143,7 +10143,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -10225,7 +10225,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -10311,7 +10311,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -10392,7 +10392,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -10461,7 +10461,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -10577,7 +10577,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -10647,7 +10647,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -10766,7 +10766,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -10840,7 +10840,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -10916,7 +10916,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -11001,7 +11001,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -11085,7 +11085,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -11172,7 +11172,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -11245,7 +11245,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -11333,7 +11333,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -11437,7 +11437,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -11529,7 +11529,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -11627,7 +11627,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -11708,7 +11708,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -11802,7 +11802,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -11880,7 +11880,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -11948,7 +11948,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -12028,7 +12028,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -12105,7 +12105,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -12186,7 +12186,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -12273,7 +12273,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -12340,7 +12340,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -12415,7 +12415,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -12531,7 +12531,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -12716,7 +12716,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -12793,7 +12793,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -12890,7 +12890,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -12962,7 +12962,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -13043,7 +13043,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -13121,7 +13121,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -13233,7 +13233,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -13325,7 +13325,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -13435,7 +13435,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -13514,7 +13514,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -13587,7 +13587,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -13716,7 +13716,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -13791,7 +13791,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -13875,7 +13875,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -13983,7 +13983,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -14075,7 +14075,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -14147,7 +14147,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -14269,7 +14269,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -14351,7 +14351,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -14477,7 +14477,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -14544,7 +14544,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -14628,7 +14628,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -14703,7 +14703,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -14784,7 +14784,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -14851,7 +14851,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",
@@ -14944,7 +14944,7 @@
       "path": "tool:ee-as-la29-vsqrt",
       "sha256": "8c55ab9beeb4834c6cc0e841379b81930e329496f85893e8607d5b772c2b51ff",
       "argv": "-EL -m5900 -mabi=eabi <G> -I .",
-      "basis": "user decision 2026-09-11 (relayed by the coordinator): single assembler for game and runtime objects"
+      "basis": "User selection 2026-10-27: one common assembler with normal options; clean-source comparison .work/g2-all-ee-20261027/F-result.json"
      },
      "contract_basis": {
       "decision": "one compile contract per TU: lp7 cc1 (single GCC 2.96 cc1) + LA29-vsqrt (single game/runtime assembler), flags of the accepted records (user decisions 2026-09-11)",

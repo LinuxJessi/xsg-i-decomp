@@ -29,7 +29,64 @@ static void swapf(float *left, float *right)
     *right = value;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/colli_test", CheckIntersect);
+static int CheckIntersect(CollisionPoint *line_start, CollisionPoint *line_end,
+                          CollisionPoint *lower, CollisionPoint *upper)
+{
+    float determinant;
+    float line_dz;
+    float cross;
+    float end_x;
+    float upper_z;
+    float lower_z;
+    float upper_x;
+    float lower_x;
+    float end_z;
+    float start_z;
+    float origin_dx;
+    float origin_dz;
+    int reverse;
+    int result;
+
+    determinant = (upper->x - lower->x) * (line_end->z - line_start->z);
+    cross = (line_end->x - line_start->x) * (upper->z - lower->z);
+    if (determinant == cross)
+        return 0;
+
+    determinant -= cross;
+    if (determinant < 0.0f) {
+        reverse = 1;
+        determinant = -determinant;
+    } else {
+        reverse = 0;
+    }
+
+    end_x = line_end->x;
+    upper_z = upper->z;
+    lower_z = lower->z;
+    upper_x = upper->x;
+    lower_x = lower->x;
+    end_z = line_end->z;
+    start_z = line_start->z;
+    origin_dx = lower_x - line_start->x;
+    origin_dz = lower_z - start_z;
+    line_dz = end_z - start_z;
+    cross = origin_dz * (end_x - line_start->x) - origin_dx * line_dz;
+    if (reverse)
+        cross = -cross;
+    if (cross < 0.0f || determinant < cross)
+        return 0;
+
+    cross = origin_dz * (upper_x - lower_x) - origin_dx * (upper_z - lower_z);
+    if (reverse)
+        cross = -cross;
+    result = 0;
+    if (!(cross < 0.0f)) {
+        result = 1;
+        if (determinant < cross)
+            result = 0;
+    }
+    return result;
+}
 
 static int GetIntersectionPointLineX(float *intersection, const float *line_start,
                                      const float *line_end, float x)

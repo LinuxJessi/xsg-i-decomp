@@ -21,7 +21,9 @@ typedef struct XglRenderState {
     u16 width;                         /* +0x10 */
     u16 height;                        /* +0x12 */
     u16 flip_base;                     /* +0x14 */
-    unsigned char unmodeled_16[0x0a];
+    unsigned char unmodeled_16[4];
+    u16 texture_buffer_base;            /* +0x1a */
+    unsigned char unmodeled_1c[4];
     u16 display_buffer_base;            /* +0x20 */
     u16 draw_buffer_base;               /* +0x22 */
     XglRenderFadeCallback final_packet_callback[8]; /* +0x24 */

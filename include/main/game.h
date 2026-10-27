@@ -9,6 +9,10 @@
 #include "main/xgl_studio.h"
 #include "main/xgl_task.h"
 
+void MenuGameDataPush(void);
+
+void MenuGameDataPop(void);
+
 void GamePushSaveDataUser(void);
 
 void Game(void);

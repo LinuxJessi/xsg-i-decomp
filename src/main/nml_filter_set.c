@@ -890,7 +890,7 @@ void nmlFilterSetFrameAlphaClear(void)
     nmlPacketAddGsFlush();
 }
 
-void nmlFilterSetTexClear(void)
+void nmlFilterSetTexClear(int frameBase)
 {
     struct NmlFilterGsRegisterEntry *gsEntry42;
     struct NmlFilterGsRegisterEntry *gsEntry47;

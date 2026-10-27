@@ -60,7 +60,10 @@ typedef struct FileSaveRecord {
 } FileSaveRecord;
 
 typedef struct FileObjectSystem {
-    unsigned char unmodeled_00[0x67];
+    unsigned char unmodeled_00[2];
+    unsigned char load_state;
+    unsigned char load_index;
+    signed char card_status[99];
     unsigned char state[99];
 } FileObjectSystem;
 
@@ -92,7 +95,9 @@ typedef struct FileSaveData {
 /* Defining-owner interface proposals: game.c, menu_1.c and party.c. */
 
 typedef struct FileGameLoopState {
-    unsigned char unmodeled_00[0x50];
+    unsigned char unmodeled_00[0x10];
+    unsigned int runtime_flags;
+    unsigned char unmodeled_14[0x50 - 0x14];
     short map_no;
 } FileGameLoopState;
 
@@ -141,7 +146,9 @@ extern char *msg00_4_0036D658[3];
 /* xgl_render.c and SDK packet-builder interface proposals. */
 
 typedef struct FileRenderState {
-    unsigned char unmodeled_00[0x14];
+    unsigned char unmodeled_00[0x10];
+    unsigned short copy_width;
+    unsigned short copy_height;
     unsigned short draw_back_value;
 } FileRenderState;
 

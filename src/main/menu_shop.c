@@ -97,10 +97,12 @@ typedef struct MenuShopWeapon {
 
 /* Nine 0x28-byte categories and the final eight-byte slot/count view share
  * the original 0x170-byte storage extent. */
-static struct {
+typedef struct {
     ShopDataCategory records[9];
     ShopDataTail tail;
-} ShopData;
+} MenuShopData;
+
+static MenuShopData ShopData;
 
 extern int MenuScenarioNo;
 
@@ -1072,6 +1074,34 @@ extern const struct MenuShopSortOptionTable D_004C77D8;
 extern const struct MenuShopRowCountTable D_004C7820;
 
 extern const char *msg00_4_0036DB60[];
+
+static void MenuShopModelMain(TskObject *task, void *data);
+
+static inline unsigned char *MenuShopAlignBuffer(unsigned char *buffer,
+    unsigned int alignment)
+{
+    unsigned int address = (unsigned int)buffer;
+
+    return (unsigned char *)((address + alignment - 1) & ~(alignment - 1));
+}
+
+static inline void MenuShopAppendPartyId(MenuShopWorkData *work, int *nextSlot,
+    int **source)
+{
+    short *destination = &work->partyIds[*nextSlot];
+
+    ++*nextSlot;
+    *destination = (short)*(*source)++;
+}
+
+static inline void MenuShopAppendUnitId(MenuShopWorkData *work, int *nextSlot,
+    int **source)
+{
+    short *destination = &work->unitIds[*nextSlot];
+
+    ++*nextSlot;
+    *destination = (short)*(*source)++;
+}
 
 void MenuShopAgwsListChange(void)
 {
@@ -3907,7 +3937,229 @@ void MenuShopCore(void) {
     xglFontDebugPrintf(0, 0x80, D_004C7A98, MenuShopWork->unitSelection);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_shop", MenuShopMain);
+void MenuShopMain(int shopType)
+{
+    int partyIds[16];
+    unsigned char *workspace;
+    unsigned char *modelMemory;
+    int memberIndex;
+    int unitCount;
+
+    extern unsigned int GameLoopState[];
+    extern XglTaskScheduler *MenuShopTask;
+    extern unsigned char *ShopDataBufTop;
+    extern const char D_004C7AA8[];
+    extern void *MenuWorkEndGet(void);
+    extern unsigned char *MenuBgTaskInit(unsigned char *work, int cameraId);
+    extern void *xglTaskInitial(void *pool, int capacity, int flags);
+    extern void *MenuModelInit(void *workStart);
+    extern unsigned int GameResourceWorkAlloc(int size);
+    extern void MenuModelMemoryInit(void *base, int size);
+    extern void MenuModelMemorySet(int count);
+    extern void MenuModelMenuMotionLoad(void);
+    extern void MenuWorkEndCheck(void *workEnd);
+    extern void MenuLoadInit(void);
+    extern void MenuLoadCancel(void);
+    extern int MenuLoadSync(void);
+    extern void MenuLoadFile(const char *name, void *buffer);
+    extern void MenuBgTaskMain(void);
+    extern void MenuBgTaskBreak(void);
+    extern void MenuCfTaikiPush(void);
+    extern void MenuCfTaikiPop(void);
+    extern void MenuGameDataPush(void);
+    extern void MenuGameDataPop(void);
+    extern void endPrintInit(void);
+    extern void endBackTexDraw(void *color);
+    extern void MenuFontLoad(int font, int option);
+    extern int WindowTexLoad(unsigned char *buffer, unsigned int request);
+    extern int MenuEquipStealMaskCheck(void);
+    extern void MenuModelMain(void);
+    extern void MenuModelAllBreak(void);
+    extern void nmlModelFlush(void);
+    extern void GameResourceWorkReload(void);
+    extern void GameCfPlayerLoadResource(int mode);
+    extern void MenuShopCore(void);
+    extern void endPrintExtFunc(int depth, int mode, void *vertices);
+    extern void endPrintDirectFrameCopy(XglPacket *packet, int x, int y);
+    extern void xglStudioChange(int mode);
+
+    endPrintDirectFrameCopy(xglPacketGetCurrent(), (int)sRender.width << 5,
+        (int)sRender.height << 5);
+    GameLoopState[4] |= 0x04000000;
+    xglSleep();
+    endPrintInit();
+    GameLoopState[4] |= 0x04000000;
+    MenuCfTaikiPush();
+    MenuGameDataPush();
+    xglStudioChange(0);
+    endPrintDirectFrameCopy(xglPacketGetCurrent(), (int)sRender.height << 5,
+        (int)sRender.flip_base << 5);
+
+    workspace = (unsigned char *)(((unsigned int)MenuWorkEndGet() + 127) & ~127U);
+    ShopDataBufTop = workspace;
+    {
+        MenuShopWorkData *initialWork =
+            (MenuShopWorkData *)MenuShopAlignBuffer(workspace + 8192, 2048);
+        MenuShopWork = initialWork;
+        workspace = (unsigned char *)initialWork + 128;
+        memset(initialWork, 0, 128);
+    }
+    workspace = MenuBgTaskInit(workspace, 3);
+    MenuShopTask = (XglTaskScheduler *)workspace;
+    workspace = xglTaskInitial(workspace, 16, 0);
+
+    TskObjectSet3((TskObject *)xglTaskEntryNext(MenuShopTask,
+        (int (*)(XglTaskPrefix *))tskTskMain3,
+        MenuShopTask != 0 ? MenuShopTask->active_tail : 0),
+        MenuShopPas, workspace);
+    workspace += 1516;
+    TskObjectSet3((TskObject *)xglTaskEntryNext(MenuShopTask,
+        (int (*)(XglTaskPrefix *))tskTskMain3,
+        MenuShopTask != 0 ? MenuShopTask->active_tail : 0),
+        MenuShopInfo, workspace);
+    workspace += 976;
+    TskObjectSet3((TskObject *)xglTaskEntryNext(MenuShopTask,
+        (int (*)(XglTaskPrefix *))tskTskMain3,
+        MenuShopTask != 0 ? MenuShopTask->active_tail : 0),
+        MenuShopList, workspace);
+    MenuShopWinSP = (MenuShopWindowSP *)(workspace + 12);
+    workspace += 5956;
+    TskObjectSet3((TskObject *)xglTaskEntryNext(MenuShopTask,
+        (int (*)(XglTaskPrefix *))tskTskMain3,
+        MenuShopTask != 0 ? MenuShopTask->active_tail : 0),
+        MenuShopSelect, workspace);
+    workspace += 7928;
+    TskObjectSet3((TskObject *)xglTaskEntryNext(MenuShopTask,
+        (int (*)(XglTaskPrefix *))tskTskMain3,
+        MenuShopTask != 0 ? MenuShopTask->active_tail : 0),
+        MenuShopEx, workspace);
+    workspace += 1728;
+    TskObjectSet3((TskObject *)xglTaskEntryNext(MenuShopTask,
+        (int (*)(XglTaskPrefix *))tskTskMain3,
+        MenuShopTask != 0 ? MenuShopTask->active_tail : 0),
+        MenuShopEx2, workspace);
+    workspace += 480;
+    TskObjectSet3((TskObject *)xglTaskEntryNext(MenuShopTask,
+        (int (*)(XglTaskPrefix *))tskTskMain3,
+        MenuShopTask != 0 ? MenuShopTask->active_tail : 0),
+        MenuShopEx02, workspace);
+    workspace += 472;
+    TskObjectSet3((TskObject *)xglTaskEntryNext(MenuShopTask,
+        (int (*)(XglTaskPrefix *))tskTskMain3,
+        MenuShopTask != 0 ? MenuShopTask->active_tail : 0),
+        MenuShopSeisan, workspace);
+    workspace += 1668;
+    TskObjectSet3((TskObject *)xglTaskEntryNext(MenuShopTask,
+        (int (*)(XglTaskPrefix *))tskTskMain3,
+        MenuShopTask != 0 ? MenuShopTask->active_tail : 0),
+        MenuShopSeisan02, workspace);
+    workspace += 984;
+    TskObjectSet3((TskObject *)xglTaskEntryNext(MenuShopTask,
+        (int (*)(XglTaskPrefix *))tskTskMain3,
+        MenuShopTask != 0 ? MenuShopTask->active_tail : 0),
+        MenuShopIcon, workspace);
+    workspace += 508;
+    TskObjectSet3((TskObject *)xglTaskEntryNext(MenuShopTask,
+        (int (*)(XglTaskPrefix *))tskTskMain3,
+        MenuShopTask != 0 ? MenuShopTask->active_tail : 0),
+        MenuShopParameter, workspace);
+    workspace += 1996;
+    TskObjectSet3((TskObject *)xglTaskEntryNext(MenuShopTask,
+        (int (*)(XglTaskPrefix *))tskTskMain3,
+        MenuShopTask != 0 ? MenuShopTask->active_tail : 0),
+        MenuShopLine, workspace);
+    workspace += 80;
+    TskObjectSet3((TskObject *)xglTaskEntryNext(MenuShopTask,
+        (int (*)(XglTaskPrefix *))tskTskMain3,
+        MenuShopTask != 0 ? MenuShopTask->active_tail : 0),
+        MenuShopModelMain, 0);
+    workspace = MenuModelInit(workspace);
+
+    modelMemory = (unsigned char *)GameResourceWorkAlloc(0x180000);
+    xglStudioChange(0);
+    MenuModelMemoryInit(modelMemory, 0x180000);
+    MenuModelMemorySet(20);
+    MenuModelMenuMotionLoad();
+    MenuWorkEndCheck(workspace);
+    MenuLoadInit();
+    endBackTexDraw((void *)-1);
+    xglSleep();
+    MenuFontLoad(1, 1);
+    WindowTexLoad(0, 0x10001);
+    WindowTexLoad(0, 0x10002);
+    MenuLoadFile(D_004C7AA8, ShopDataBufTop);
+    xglSoundEffectNormalID(1, 0);
+
+    while (MenuLoadSync() != 0) {
+        MenuBgTaskMain();
+        xglSleep();
+    }
+
+    ShopData = ((const MenuShopData *)ShopDataBufTop)[shopType - 1];
+    if (shopType == 20)
+        MenuShopWork->noCategories = 1;
+    if (shopType == 6 && MenuEquipStealMaskCheck() == 1)
+        MenuShopWork->noCategories = 1;
+    MenuShopAgwsListChange();
+    MenuShopWork->nextState = 32;
+    MenuKeepSelectReset();
+    MenuShopWork->partyCount = PartyAllPartyGet(partyIds, 1);
+    {
+        MenuShopWorkData *partyWork = MenuShopWork;
+        memberIndex = 0;
+        if (partyWork->partyCount > 0) {
+            int *partySource = partyIds;
+            do {
+                MenuShopAppendPartyId(partyWork, &memberIndex, &partySource);
+            } while (memberIndex < partyWork->partyCount);
+        }
+    }
+    MenuShopWork->unitCount = PartyAgwsGet(partyIds);
+    memberIndex = 0;
+    unitCount = MenuShopWork->unitCount;
+    if (unitCount > 0) {
+        MenuShopWorkData *unitWork = MenuShopWork;
+        int *unitSource = partyIds;
+        do {
+            MenuShopAppendUnitId(unitWork, &memberIndex, &unitSource);
+        } while (memberIndex < unitWork->unitCount);
+        unitCount = MenuShopWork->unitCount;
+    }
+
+    if (unitCount != 0 && ShopData.records[7].count != 0)
+        MenuShopWork->equipmentStatus = 1;
+    else
+        MenuShopWork->equipmentStatus = 0;
+    if (ShopData.tail.count != 0)
+        MenuShopWork->modelBreakPending = 1;
+    else
+        MenuShopWork->modelBreakPending = 0;
+    MenuScenarioNo = MenuScenarioNoGet();
+
+    while ((GameSnapShotCheck(), MenuShopWork->state != 0xff) &&
+        (MenuShopCore(), 1)) {
+        endPrintExtFunc(0, 100, 0);
+        MenuBgTaskMain();
+        nmlModelFlush();
+        xglTaskExecute(MenuShopTask);
+        MenuModelMain();
+        xglSleep();
+    }
+
+    MenuLoadCancel();
+    MenuBgTaskBreak();
+    MenuShopWork->state = 0xff;
+    xglTaskExecute(MenuShopTask);
+    if (MenuShopWork->modelBreakPending != 0)
+        MenuModelAllBreak();
+    MenuCfTaikiPop();
+    MenuFontLoad(0, 0);
+    WindowTexLoad(0, 0);
+    GameResourceWorkReload();
+    GameCfPlayerLoadResource(1);
+    MenuGameDataPop();
+    GameLoopState[4] &= ~0x04000000;
+}
 
 /* MenuShopModelMain copies all four coordinates to the camera at +0xD0. */
 const float D_004C7390[4] = { -2.0f, 1.8f, 8.5f, 1.0f };

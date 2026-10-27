@@ -21,4 +21,6 @@ void nmlModelSetFogCancel(void);
 
 void nmlModelSetMapLastEntry(void *map, int blockId);
 
+void nmlModelFlush(void);
+
 #endif /* INCLUDE_MAIN_NML_MODEL_SET_H */

@@ -13,6 +13,7 @@ import ast
 import json
 import re
 import sqlite3
+import tempfile
 from pathlib import Path
 
 
@@ -289,16 +290,70 @@ def _result_claim(result, function):
     return claim
 
 
+def _matching_context_form(result, function, form):
+    """Reprove MAIN matching-only C context without granting recovery acceptance.
+
+    Read the retained compiler/map/ELF pins through the worker's strict proof
+    validator. Its optional COMMON replay goes to temporary storage, never
+    into the immutable provider attempt. No audit command is executed.
+    """
+    if ((result.get('comparison') or {}).get('kind') != 'tu-matching-only' or
+            not str((result.get('tu') or {}).get('id', '')).startswith('main/')):
+        return False
+    claim = (form.get('matching_claims') or {}).get(function) or {}
+    if (claim.get('category') != 'exact_c' or not claim.get('matching_exact') or
+            claim.get('evidence') != 'linked-function-extent'):
+        return False
+    from tools import worker
+    output = Path(form.get('output_dir') or '').resolve()
+    attempt = worker.Attempt(output.parent.parent, no_queue=True)
+    if attempt.task_id != result.get('task_id'):
+        raise DependencyError('matching context form belongs to another attempt')
+    rows = [row for row in attempt.budget.get('forms') or []
+            if row.get('id') == form.get('form')]
+    if len(rows) != 1 or Path(rows[0].get('output_dir') or '').resolve() != output:
+        raise DependencyError('matching context has no unique retained charged form')
+    record = rows[0].get('tu') or {}
+    source = _citable_form_source(form, result['tu'])
+    if form.get('kind') == 'subset':
+        variants = (record.get('subset') or {}).get('tried') or []
+        records = [row for row in variants if Path(row.get('source') or '').resolve() == source]
+        if len(records) != 1:
+            raise DependencyError('matching context has no unique retained subset')
+        record = records[0]
+    if (record.get('gate') != form.get('gate') or record.get('audit') != form.get('audit') or
+            record.get('functions') != form.get('functions')):
+        raise DependencyError('matching context differs from its retained form')
+    _, entry = worker.tu_manifest_entry(attempt)
+    paths = worker.tu_paths(attempt, entry)
+    with tempfile.TemporaryDirectory(prefix='xeno-dependency-proof-') as scratch:
+        def replay_path(path, label='path'):
+            if Path(path).name != 'compiler-proof-allocated.o':
+                raise DependencyError('matching context requested an unexpected provider write')
+            return Path(scratch) / 'allocated.o'
+        attempt.check_writable = replay_path
+        proof = worker.tu_validate_compiler_proof(attempt, entry, paths, record, source)
+    row = proof['functions'].get(function) or {}
+    if proof['errors'] or not row.get('emission_ok') or not row.get('linked_function_exact'):
+        raise DependencyError(f'{function}: matching C context proof failed: '
+                              f'{proof["errors"] or row.get("reasons")}')
+    return True
+
+
+def _form_proves_function(result, function, form):
+    audit = form.get('audit') or {}
+    row = (audit.get('functions') or {}).get(function) or {}
+    return (((form.get('gate') or {}).get('ok') is True and audit.get('ok') is True and
+             row.get('claimed') is True and row.get('ok') is True and
+             row.get('category') == 'exact_c') or
+            _matching_context_form(result, function, form))
+
+
 def _matching_citable_form(result, function):
     for form in result.get('tu', {}).get('citable_forms') or []:
-        gate = form.get('gate') or {}
-        audit = form.get('audit') or {}
-        audited = (audit.get('functions') or {}).get(function) or {}
-        if (gate.get('ok') is True and audit.get('ok') is True and
-                audited.get('claimed') is True and audited.get('ok') is True and
-                audited.get('category') == 'exact_c'):
+        if _form_proves_function(result, function, form):
             return form
-    raise DependencyError(f'{function}: no same-form passing whole-file gate and exact_c TU audit')
+    raise DependencyError(f'{function}: no same-form audited exact_c or linked MAIN matching C proof')
 
 
 def _citable_form_source(form, tu):
@@ -314,6 +369,22 @@ def _citable_form_source(form, tu):
         raise DependencyError('citable form source directory is missing')
     if form.get('kind') != 'subset':
         return output_dir / f'{stem}.c'
+
+    # Matching-only subsets retain their exact staged source pin. They do not
+    # borrow a failed full-form source or imply a passing gate/audit.
+    matching_sources = {(item.get('staged_source') or {}).get('path'):
+                        (item.get('staged_source') or {}).get('sha256')
+                        for item in (form.get('matching_claims') or {}).values()
+                        if item.get('matching_exact') and item.get('evidence') == 'linked-function-extent'}
+    if matching_sources:
+        if len(matching_sources) != 1:
+            raise DependencyError('matching subset does not name one staged source')
+        path, digest = next(iter(matching_sources.items()))
+        source = Path(path or '').resolve()
+        if (not source.is_relative_to(output_dir) or source.name != f'{stem}.c' or
+                not source.is_file() or sha256_file(source) != digest):
+            raise DependencyError('matching subset source differs from its retained pin')
+        return source
 
     # Recover the exact subset path from the retained charged-form ledger, not
     # from a guessed filename or the result's submitted copy. The result's
@@ -450,8 +521,6 @@ def load_dependencies(repo, db, requests, tu_id, target_functions, revision, tu_
         if len(forms) != 1:
             raise DependencyError(f'{task}: pinned citable form {form_name!r} is absent')
         form = forms[0]
-        if (form.get('gate') or {}).get('ok') is not True or (form.get('audit') or {}).get('ok') is not True:
-            raise DependencyError(f'{task}: pinned form gate or audit is no longer passing')
         form_source = _citable_form_source(
             dict(form, form=form_name), tu)
         if (str(form_source.resolve()) != str(Path(request.get('form_source_path') or '').resolve()) or
@@ -469,10 +538,8 @@ def load_dependencies(repo, db, requests, tu_id, target_functions, revision, tu_
             raise DependencyError(f'{task}: dependency functions duplicate an earlier dependency: {duplicates}')
         for name in functions:
             _result_claim(result, name)
-            audit = (form.get('audit') or {}).get('functions') or {}
-            row = audit.get(name) or {}
-            if not (row.get('claimed') and row.get('ok') and row.get('category') == 'exact_c'):
-                raise DependencyError(f'{task}: {name} is not exact_c in the pinned form audit')
+            if not _form_proves_function(result, name, form):
+                raise DependencyError(f'{task}: {name} lacks exact C context proof in the pinned form')
         published_header = repo / str(Path(tu.get('path')).with_suffix('.h'))
         header_text = None
         header_sha256 = None
@@ -741,6 +808,79 @@ def _provider_prelude_allowlist(record, patch, tu_edit):
     return list(unique.values())
 
 
+def _header_body(text, task):
+    match = re.match(r'\s*#ifndef\s+([A-Za-z_]\w*)\s*\n\s*#define\s+\1\s*(?:\n|$)', text)
+    if not match:
+        return text
+    tail = re.search(r'(?m)^#endif\b[^\n]*\s*$', text[match.end():])
+    if not tail:
+        raise DependencyError(f'{task}: private header has an unterminated include guard')
+    return text[match.end():match.end() + tail.start()]
+
+
+def _provider_header_refinements(record, tu_edit):
+    """Carry only exact support-function prototypes in private MAIN contexts.
+
+    The provider loader already replays its immutable compiler proof. Other
+    published declarations, types and macros retain the additive-only rule.
+    """
+    result = record.get('result') or {}
+    matching = result.get('matching_only')
+    if (not isinstance(matching, dict) or matching.get('schema') != 'tu-matching-only/1' or
+            (result.get('tu') or {}).get('unit') != 'main'):
+        return []
+    support = {name for row in result.get('functions') or []
+               if row.get('allocation_role') == 'support' and row.get('selected_credit') == 0
+               for name in row.get('original_names') or []}
+    requested = support.intersection(record['functions'])
+    if not requested or record.get('header_text') is None:
+        return []
+    task = record['request']['task']
+    def prototypes(text):
+        body = _header_body(text, task)
+        found = {}
+        for item in tu_edit.scan(body):
+            raw = item.text(body)
+            keys = _declared_names(raw, tu_edit) if item.kind == 'decl' else set()
+            for name in requested:
+                if (not item.conditional and set(keys) == {('ordinary', name)} and
+                        '{' not in raw and re.search(r'\b' + re.escape(name) + r'\s*\(', raw)):
+                    found.setdefault(name, []).append(raw)
+        return found
+    before = prototypes(record.get('published_header_text') or '')
+    after = prototypes(record['header_text'])
+    rows = []
+    for name in sorted(requested):
+        old, new = before.get(name, []), after.get(name, [])
+        if len(old) == len(new) == 1 and tu_edit._norm(old[0]) != tu_edit._norm(new[0]):
+            rows.append(dict(function=name, before=old[0], after=new[0],
+                             source_header_sha256=record['header_sha256']))
+    return rows
+
+
+def compose_header(base_header, records, tu_edit):
+    """Apply pinned maintenance prototypes to a private owner-header copy."""
+    current = base_header
+    for record in records:
+        for row in _provider_header_refinements(record, tu_edit):
+            if current.count(row['before']) != 1:
+                raise DependencyError(f'{record["request"]["task"]}: header prototype base changed')
+            current = current.replace(row['before'], row['after'], 1)
+    return current
+
+
+def verify_header_refinements(header_text, records, tu_edit):
+    """Reject edits to imported function declarations after composition."""
+    for record in records:
+        body = _header_body(header_text, record['request']['task'])
+        for row in _provider_header_refinements(record, tu_edit):
+            declarations = [item.text(body) for item in tu_edit.scan(body)
+                            if item.kind == 'decl' and
+                            ('ordinary', row['function']) in _declared_names(item.text(body), tu_edit)]
+            if len(declarations) != 1 or tu_edit._norm(declarations[0]) != tu_edit._norm(row['after']):
+                raise DependencyError(f'{record["request"]["task"]}: imported header prototype changed')
+
+
 def _provider_header_allowlist(record, function_codes, tu_edit):
     """Select exact header declarations/macros needed by the requested C bodies.
 
@@ -752,16 +892,11 @@ def _provider_header_allowlist(record, function_codes, tu_edit):
     task = record['request']['task']
     candidate = record['header_text']
     published = record.get('published_header_text') or ''
-    def include_guard_body(text):
-        match = re.match(r'\s*#ifndef\s+([A-Za-z_]\w*)\s*\n\s*#define\s+\1\s*(?:\n|$)', text)
-        if not match:
-            return text
-        tail = re.search(r'(?m)^#endif\b[^\n]*\s*$', text[match.end():])
-        if not tail:
-            raise DependencyError(f'{task}: private header has an unterminated include guard')
-        return text[match.end():match.end() + tail.start()]
-    candidate_body = include_guard_body(candidate)
-    published_body = include_guard_body(published) if published else ''
+    candidate_body = _header_body(candidate, task)
+    published_body = _header_body(published, task) if published else ''
+    refinements = _provider_header_refinements(record, tu_edit)
+    replacements = {tu_edit._norm(row['before']): tu_edit._norm(row['after'])
+                    for row in refinements}
     candidate_items = tu_edit.scan(candidate_body)
     base_items = tu_edit.scan(published_body) if published_body else []
     base_decls = [tu_edit._norm(item.text(published_body)) for item in base_items if item.kind == 'decl']
@@ -769,7 +904,7 @@ def _provider_header_allowlist(record, function_codes, tu_edit):
     cursor = 0
     for raw in base_decls:
         try:
-            cursor = candidate_decls.index(raw, cursor) + 1
+            cursor = candidate_decls.index(replacements.get(raw, raw), cursor) + 1
         except ValueError as exc:
             raise DependencyError(f'{task}: cited private header removes or changes a published declaration') from exc
 
@@ -788,6 +923,8 @@ def _provider_header_allowlist(record, function_codes, tu_edit):
         raw = item.text(candidate_body)
         if item.kind == 'decl' and not item.conditional:
             keys = sorted(_declared_names(raw, tu_edit))
+            if tu_edit._norm(raw) in replacements.values():
+                continue  # The private owner header carries this exact declaration.
             if keys:
                 rows.append(dict(text=raw, kind='declaration', keys=keys, item=item))
         elif item.kind in ('pp', 'other') and not item.conditional:
@@ -976,7 +1113,8 @@ def compose(base_text, records, tu_edit):
                             functions=record['functions'], form=record['form'],
                             declarations=imported_declarations,
                             prelude_declarations=selected_prelude,
-                            owned_declaration_refinements=refinements))
+                            owned_declaration_refinements=refinements,
+                            header_prototype_refinements=_provider_header_refinements(record, tu_edit)))
     manifest = dict(schema=SCHEMA, tu=records[0]['request']['tu_id'] if records else None,
                     base_sha256=base_sha256, dependencies=details,
                     composed_base_sha256=sha256_bytes(current.text.encode('utf-8', errors='surrogateescape')))

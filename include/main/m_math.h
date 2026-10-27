@@ -32,4 +32,6 @@ void MMathCalcHermitePrm(HermiteVector *tangent_start, HermiteVector *tangent_en
                           const HermiteVector *point_prev, const HermiteVector *point_start,
                           const HermiteVector *point_end, const HermiteVector *point_next);
 
+Matrix4 *MMathScaleMatrix(Matrix4 *out, const Matrix4 *matrix, const Vector4 *scale);
+
 #endif /* INCLUDE_MAIN_M_MATH_H */

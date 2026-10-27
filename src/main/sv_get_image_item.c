@@ -246,7 +246,7 @@ extern void sceVif1PkRefLoadImage(XglPacket *packet,
                                   unsigned int x, unsigned int y,
                                   unsigned int width, unsigned int height);
 
-s16 svLoadImageList(SvTypeList *typeList);
+int svLoadImageList(SvTypeList *typeList);
 
 static int svImageListAlloc(int typeListAddr);
 
@@ -593,6 +593,30 @@ extern float sefGetMatrixScale(float *matrix);
 
 extern StudioCamera *xglStudioGetActiveCamera(void);
 
+typedef struct SvImageChunk {
+    unsigned int byteSize;
+    unsigned int storageSize;
+    short kind;
+    unsigned short typeFlags;
+    short width;
+    unsigned short height;
+    unsigned short bitsPerPixel;
+    unsigned char unmodeled_12[2];
+    char name[0x2c];
+    char data[1];
+} SvImageChunk;
+
+typedef struct SvClutChunk {
+    unsigned char unmodeled_00[10];
+    unsigned short typeFlags;
+    short width;
+    unsigned short height;
+    unsigned short bitsPerPixel;
+    unsigned char unmodeled_12[2];
+    char name[44];
+    unsigned char data[1];
+} SvClutChunk;
+
 void *svGetImageItem(int index) {
     return &_imageList.items[index];
 }
@@ -812,7 +836,29 @@ void svLoadClut(ClutUploadRequest *clut)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/sv_get_image_item", svLoadImageList);
+int svLoadImageList(SvTypeList *typeList)
+{
+    int textureCount = 0;
+    int index = 0;
+
+    for (; index < 256; index++) {
+        int used = typeList->entries[index].used;
+        int kind;
+        if (used == 0) {
+            continue;
+        }
+        kind = typeList->entries[index].resourceKind;
+        if (kind == 4) {
+            textureCount++;
+            svLoadTexture(&typeList->entries[index]);
+            continue;
+        }
+        if (kind == 3) {
+            svLoadClut((ClutUploadRequest *)&typeList->entries[index]);
+        }
+    }
+    return textureCount;
+}
 
 s16 svLoadMapperList(void)
 {
@@ -848,9 +894,83 @@ static int svGetSizeBit(unsigned int value)
     return 0;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/sv_get_image_item", svAddImage);
+static int svAddImage(SvTypeList *typeList, void *chunk)
+{
+    int index;
+    int storageSize;
+    unsigned short typeFlags;
+    SvTypeListEntry *entry;
+    SvImageChunk *image;
 
-INCLUDE_ASM("asm/main/nonmatchings/sv_get_image_item", svAddClut);
+    index = svImageListAlloc((int)typeList);
+    if (index < 0) {
+        return -1;
+    }
+
+    entry = &typeList->entries[index];
+    entry->data = (unsigned char *)chunk + 0x40;
+    entry->used = 1;
+    entry->resourceKind = 4;
+    image = chunk;
+    typeFlags = image->typeFlags;
+    entry->typeFlags = typeFlags;
+    entry->width = image->width;
+    entry->height = image->height;
+    entry->bitsPerPixel = image->bitsPerPixel;
+    entry->textureWidthExponent = svGetSizeBit(entry->width);
+    entry->textureHeightExponent = svGetSizeBit(entry->height);
+    entry->name = image->name;
+
+    storageSize = image->storageSize;
+    if ((short)image->bitsPerPixel == 4) {
+        entry->bufferWidthPixels = image->width >> 1;
+        if ((int)entry->height * 2 < (int)entry->width) {
+            storageSize *= (int)entry->width / ((int)entry->height * 2);
+        }
+    } else if ((unsigned int)entry->width < (unsigned int)entry->height) {
+        entry->bufferWidthPixels = image->width * (int)entry->height / (int)entry->width;
+    } else {
+        entry->bufferWidthPixels = (unsigned short)image->width;
+    }
+
+    entry->basePointer = (unsigned int)typeList->savedSize >> 6;
+    typeList->savedSize += (unsigned int)storageSize >> 2;
+    return index;
+}
+
+static int svAddClut(SvTypeList *typeList, void *const chunkData)
+{
+    const SvClutChunk *const chunk = chunkData;
+    SvTypeListEntry *entry;
+    int index;
+
+    index = svImageListAlloc((int)typeList);
+    if (index < 0) {
+        return -1;
+    }
+    entry = &typeList->entries[index];
+    entry->data = chunk->data;
+    entry->used = 1;
+    entry->resourceKind = 3;
+    entry->typeFlags = chunk->typeFlags;
+    entry->width = chunk->width;
+    entry->height = chunk->height;
+    entry->bitsPerPixel = chunk->bitsPerPixel;
+    entry->textureWidthExponent = svGetSizeBit(entry->width);
+    entry->textureHeightExponent = svGetSizeBit(entry->height);
+    {
+        const char *name = chunk->name;
+        const int savedSize = typeList->savedSize;
+        const short bufferWidthPixels = chunk->width * 4;
+        const unsigned short basePointer = (unsigned int)savedSize >> 6;
+
+        entry->bufferWidthPixels = bufferWidthPixels;
+        entry->name = name;
+        typeList->savedSize = entry->bitsPerPixel == 8 ? savedSize + 256 : savedSize + 128;
+        entry->basePointer = basePointer;
+    }
+    return index;
+}
 
 typedef struct SvResourceChunk {
     unsigned int byteSize;
@@ -1630,7 +1750,212 @@ void svDrawModel(SvModelDrawItem *item, void *place)
     nmlModelEntryEffect(item->model);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/sv_get_image_item", sefDrawParticle2);
+void sefDrawParticle2(SvQuadParticle *particle, const Vector4 *position,
+                      SGsPacket *packet, SvParticleDrawContext *context)
+{
+    SGsGifRecord *header;
+    SGsGifRecord *vertices;
+    const SvQuadImageParameters *image;
+    const Vector4 *scale;
+    const Quadword *textureCoordinates;
+    unsigned long long registerWord;
+    int drawVariant;
+
+    header = &packet->base[packet->count];
+    vertices = &header[3];
+    scale = context->scale;
+    /* The render basis and viewport registers are live on entry. */
+    __asm__ __volatile__(
+        "lqc2 vf8, 0(%0)\n\t"
+        "lqc2 vf31, 0(%1)\n\t"
+        "lqc2 vf1, 0(%2)\n\t"
+        "lqc2 vf2, 16(%2)\n\t"
+        "lqc2 vf3, 32(%2)\n\t"
+        "lqc2 vf4, 48(%2)\n\t"
+        "vmulax.xyzw ACCxyzw, vf13xyzw, vf1x\n\t"
+        "vmadday.xyzw ACCxyzw, vf14xyzw, vf1y\n\t"
+        "vmaddaz.xyzw ACCxyzw, vf15xyzw, vf1z\n\t"
+        "vmaddw.xyzw vf9xyzw, vf8xyzw, vf1w\n\t"
+        "vmulax.xyzw ACCxyzw, vf13xyzw, vf2x\n\t"
+        "vmadday.xyzw ACCxyzw, vf14xyzw, vf2y\n\t"
+        "vmaddaz.xyzw ACCxyzw, vf15xyzw, vf2z\n\t"
+        "vmaddw.xyzw vf10xyzw, vf8xyzw, vf2w\n\t"
+        "vmulax.xyzw ACCxyzw, vf13xyzw, vf3x\n\t"
+        "vmadday.xyzw ACCxyzw, vf14xyzw, vf3y\n\t"
+        "vmaddaz.xyzw ACCxyzw, vf15xyzw, vf3z\n\t"
+        "vmaddw.xyzw vf11xyzw, vf8xyzw, vf3w\n\t"
+        "vmulax.xyzw ACCxyzw, vf13xyzw, vf4x\n\t"
+        "vmadday.xyzw ACCxyzw, vf14xyzw, vf4y\n\t"
+        "vmaddaz.xyzw ACCxyzw, vf15xyzw, vf4z\n\t"
+        "vmaddw.xyzw vf12xyzw, vf8xyzw, vf4w\n\t"
+        "vmulx.xyzw vf9xyzw, vf9xyzw, vf31x\n\t"
+        "vmuly.xyzw vf10xyzw, vf10xyzw, vf31y\n\t"
+        "vmulz.xyzw vf11xyzw, vf11xyzw, vf31z\n\t"
+        "vmulw.xyzw vf12xyzw, vf12xyzw, vf31w"
+        : : "r"(position), "r"(scale), "r"(&particle->localTransform)
+        : "memory");
+    /* Project the four transformed and scaled matrix rows. */
+    __asm__ __volatile__(
+        "vmulax.xyzw ACCxyzw, vf21xyzw, vf9x\n\t"
+        "vmadday.xyzw ACCxyzw, vf22xyzw, vf9y\n\t"
+        "vmaddaz.xyzw ACCxyzw, vf23xyzw, vf9z\n\t"
+        "vmaddw.xyzw vf27xyzw, vf24xyzw, vf9w\n\t"
+        "vmulax.xyzw ACCxyzw, vf21xyzw, vf10x\n\t"
+        "vmadday.xyzw ACCxyzw, vf22xyzw, vf10y\n\t"
+        "vmaddaz.xyzw ACCxyzw, vf23xyzw, vf10z\n\t"
+        "vmaddw.xyzw vf28xyzw, vf24xyzw, vf10w\n\t"
+        "vmulax.xyzw ACCxyzw, vf21xyzw, vf11x\n\t"
+        "vmadday.xyzw ACCxyzw, vf22xyzw, vf11y\n\t"
+        "vmaddaz.xyzw ACCxyzw, vf23xyzw, vf11z\n\t"
+        "vmaddw.xyzw vf29xyzw, vf24xyzw, vf11w\n\t"
+        "vmulax.xyzw ACCxyzw, vf21xyzw, vf12x\n\t"
+        "vmadday.xyzw ACCxyzw, vf22xyzw, vf12y\n\t"
+        "vmaddaz.xyzw ACCxyzw, vf23xyzw, vf12z\n\t"
+        "vmaddw.xyzw vf30xyzw, vf24xyzw, vf12w"
+        : : );
+
+    {
+        unsigned long long gifRegisters = 0x00512512512512eeULL;
+        unsigned long long dataWord;
+
+        header[0].dword[1] = gifRegisters;
+        dataWord = 0xe02a400000008000ULL;
+        header[0].dword[0] = dataWord;
+        image = &particle->imageParameters;
+        dataWord = image->texture;
+        header[1].dword[0] = dataWord;
+        header[1].dword[1] = 6;
+        dataWord = alphaTbl_004CBE78[particle->blendMode];
+        registerWord = 66;
+        header[2].dword[0] = dataWord;
+        header[2].dword[1] = registerWord;
+    }
+    drawVariant = context->drawVariant;
+    if (drawVariant & 1) {
+        float halfWidth = image->halfWidth;
+        float halfHeight = image->halfHeight;
+        const Vector4 *plane = &particle->planeOffset;
+
+        __asm__ __volatile__(
+            "lqc2 vf5, 0(%2)\n\t"
+            "mfc1 $2, %0\n\tmfc1 $3, %1\n\t"
+            "qmtc2 $2, vf6\n\tqmtc2 $3, vf7\n\t"
+            "vmove.zw vf1zw, vf5zw\n\tvmove.zw vf2zw, vf5zw\n\t"
+            "vmove.zw vf3zw, vf5zw\n\tvmove.zw vf4zw, vf5zw\n\t"
+            "vsubx.x vf1x, vf5x, vf6x\n\tvaddx.x vf2x, vf5x, vf6x\n\t"
+            "vsubx.x vf3x, vf5x, vf6x\n\tvaddx.x vf4x, vf5x, vf6x\n\t"
+            "vaddx.y vf1y, vf5y, vf7x\n\tvaddx.y vf2y, vf5y, vf7x\n\t"
+            "vsubx.y vf3y, vf5y, vf7x\n\tvsubx.y vf4y, vf5y, vf7x"
+            : : "f"(halfWidth), "f"(halfHeight), "r"(plane)
+            : "$2", "$3", "memory");
+    } else if (drawVariant & 2) {
+        float halfWidth = image->halfWidth;
+        float halfHeight = image->halfHeight;
+        const Vector4 *plane = &particle->planeOffset;
+
+        __asm__ __volatile__(
+            "lqc2 vf5, 0(%2)\n\t"
+            "mfc1 $2, %0\n\tmfc1 $3, %1\n\t"
+            "qmtc2 $2, vf6\n\tqmtc2 $3, vf7\n\t"
+            "vmove.yw vf1yw, vf5yw\n\tvmove.yw vf2yw, vf5yw\n\t"
+            "vmove.yw vf3yw, vf5yw\n\tvmove.yw vf4yw, vf5yw\n\t"
+            "vsubx.x vf1x, vf5x, vf6x\n\tvaddx.x vf2x, vf5x, vf6x\n\t"
+            "vsubx.x vf3x, vf5x, vf6x\n\tvaddx.x vf4x, vf5x, vf6x\n\t"
+            "vaddx.z vf1z, vf5z, vf7x\n\tvaddx.z vf2z, vf5z, vf7x\n\t"
+            "vsubx.z vf3z, vf5z, vf7x\n\tvsubx.z vf4z, vf5z, vf7x"
+            : : "f"(halfWidth), "f"(halfHeight), "r"(plane)
+            : "$2", "$3", "memory");
+    } else if (drawVariant & 4) {
+        float halfWidth = image->halfWidth;
+        float halfHeight = image->halfHeight;
+        const Vector4 *plane = &particle->planeOffset;
+
+        __asm__ __volatile__(
+            "lqc2 vf5, 0(%2)\n\t"
+            "mfc1 $2, %0\n\tmfc1 $3, %1\n\t"
+            "qmtc2 $2, vf6\n\tqmtc2 $3, vf7\n\t"
+            "vmove.xw vf1xw, vf5xw\n\tvmove.xw vf2xw, vf5xw\n\t"
+            "vmove.xw vf3xw, vf5xw\n\tvmove.xw vf4xw, vf5xw\n\t"
+            "vsubx.y vf1y, vf5y, vf6x\n\tvaddx.y vf2y, vf5y, vf6x\n\t"
+            "vsubx.y vf3y, vf5y, vf6x\n\tvaddx.y vf4y, vf5y, vf6x\n\t"
+            "vaddx.z vf1z, vf5z, vf7x\n\tvaddx.z vf2z, vf5z, vf7x\n\t"
+            "vsubx.z vf3z, vf5z, vf7x\n\tvsubx.z vf4z, vf5z, vf7x"
+            : : "f"(halfWidth), "f"(halfHeight), "r"(plane)
+            : "$2", "$3", "memory");
+    } else {
+        return;
+    }
+
+    textureCoordinates = context->textureCoordinates;
+    vertices[0].quad = textureCoordinates[0];
+    vertices[3].quad = textureCoordinates[1];
+    vertices[6].quad = textureCoordinates[2];
+    vertices[9].quad = textureCoordinates[3];
+    vertices[1].quad = particle->packedColor.quad;
+    vertices[4].quad = particle->packedColor.quad;
+    vertices[7].quad = particle->packedColor.quad;
+    vertices[10].quad = particle->packedColor.quad;
+
+    /* Project each corner, divide ST by W, then write the packed XYZ2 lanes. */
+    __asm__ __volatile__(
+        "ctc2 $0, $vi18\n\t"
+        "vmulax.xyzw ACCxyzw, vf27xyzw, vf1x\n\t"
+        "vmadday.xyzw ACCxyzw, vf28xyzw, vf1y\n\t"
+        "vmaddaz.xyzw ACCxyzw, vf29xyzw, vf1z\n\t"
+        "vmaddw.xyzw vf9xyzw, vf30xyzw, vf0w\n\t"
+        "vmulax.xyzw ACCxyzw, vf27xyzw, vf2x\n\t"
+        "vmadday.xyzw ACCxyzw, vf28xyzw, vf2y\n\t"
+        "vmaddaz.xyzw ACCxyzw, vf29xyzw, vf2z\n\t"
+        "vclipw.xyz vf9xyz, vf9w\n\tvdiv Q, vf0w, vf9w\n\t"
+        "vmaddw.xyzw vf10xyzw, vf30xyzw, vf0w\n\t"
+        "vmulax.xyzw ACCxyzw, vf27xyzw, vf3x\n\t"
+        "vmadday.xyzw ACCxyzw, vf28xyzw, vf3y\n\t"
+        "vmaddaz.xyzw ACCxyzw, vf29xyzw, vf3z\n\t"
+        "vmaddw.xyzw vf11xyzw, vf30xyzw, vf0w\n\t"
+        "vclipw.xyz vf10xyz, vf10w\n\tlqc2 vf31, 0(%0)\n\t"
+        "vwaitq\n\tvmulq.xyz vf9xyz, vf9xyz, Q\n\t"
+        "vmulq.xyz vf31xyz, vf31xyz, Q\n\tvdiv Q, vf0w, vf10w\n\t"
+        "sqc2 vf31, 0(%0)\n\t"
+        "vmulax.xyzw ACCxyzw, vf27xyzw, vf4x\n\t"
+        "vmadday.xyzw ACCxyzw, vf28xyzw, vf4y\n\t"
+        "vmaddaz.xyzw ACCxyzw, vf29xyzw, vf4z\n\t"
+        "vmaddw.xyzw vf12xyzw, vf30xyzw, vf0w\n\t"
+        "vclipw.xyz vf11xyz, vf11w\n\tlqc2 vf31, 48(%0)\n\t"
+        "vwaitq\n\tvmulq.xyz vf10xyz, vf10xyz, Q\n\t"
+        "vmulq.xyz vf31xyz, vf31xyz, Q\n\tvdiv Q, vf0w, vf11w\n\t"
+        "sqc2 vf31, 48(%0)\n\tvclipw.xyz vf12xyz, vf12w\n\t"
+        "lqc2 vf31, 96(%0)\n\tvwaitq\n\t"
+        "vmulq.xyz vf11xyz, vf11xyz, Q\n\t"
+        "vmulq.xyz vf31xyz, vf31xyz, Q\n\tvdiv Q, vf0w, vf12w\n\t"
+        "sqc2 vf31, 96(%0)\n\t"
+        "vmulaw.xyzw ACCxyzw, vf26xyzw, vf0w\n\t"
+        "vmadd.xyzw vf1xyzw, vf9xyzw, vf25xyzw\n\t"
+        "vmulaw.xyzw ACCxyzw, vf26xyzw, vf0w\n\t"
+        "vmadd.xyzw vf2xyzw, vf10xyzw, vf25xyzw\n\t"
+        "lqc2 vf31, 144(%0)\n\tvwaitq\n\t"
+        "vmulq.xyz vf12xyz, vf12xyz, Q\n\t"
+        "vmulq.xyz vf31xyz, vf31xyz, Q\n\t"
+        "vmulaw.xyzw ACCxyzw, vf26xyzw, vf0w\n\t"
+        "vmadd.xyzw vf3xyzw, vf11xyzw, vf25xyzw\n\t"
+        "vmulaw.xyzw ACCxyzw, vf26xyzw, vf0w\n\t"
+        "vmadd.xyzw vf4xyzw, vf12xyzw, vf25xyzw\n\t"
+        "sqc2 vf31, 144(%0)\n\t"
+        "vftoi4.xy vf9xy, vf1xy\n\tvftoi4.xy vf10xy, vf2xy\n\t"
+        "vftoi4.xy vf11xy, vf3xy\n\tvftoi4.xy vf12xy, vf4xy\n\t"
+        "vftoi0.zw vf9zw, vf1zw\n\tvftoi0.zw vf10zw, vf2zw\n\t"
+        "vftoi0.zw vf11zw, vf3zw\n\tvftoi0.zw vf12zw, vf4zw\n\t"
+        "vsub.w vf9w, vf9w, vf9w\n\tvsub.w vf10w, vf10w, vf10w\n\t"
+        "vsub.w vf11w, vf11w, vf11w\n\tvsub.w vf12w, vf12w, vf12w\n\t"
+        "sqc2 vf9, 32(%0)\n\tsqc2 vf10, 80(%0)\n\t"
+        "sqc2 vf11, 128(%0)\n\tsqc2 vf12, 176(%0)"
+        : : "r"(vertices) : "memory");
+    __asm__ __volatile__("cfc2.ni %0, $vi18" : "=r"(registerWord));
+    if (registerWord == 0) {
+        packet->tagIndex = packet->count;
+        packet->count += 15;
+        header[0].dword[0] |= 1;
+    }
+}
 
 void sefDrawParticle(SvQuadParticle *particle, const Vector4 *position,
                      SGsPacket *packet, SvParticleDrawContext *context)
@@ -1876,7 +2201,113 @@ void sefDrawParticleList(SvParticleEffect *effect)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/sv_get_image_item", sefDrawParticleListCf);
+void sefDrawParticleListCf(SvParticleEffect *effect,
+                           SvParticleListCfContext *context,
+                           SvSchedulerEffectRecord *scheduler)
+{
+    extern Matrix4 *MMathTranslateMatrix(Matrix4 *, const Matrix4 *, const Vector4 *);
+    extern Matrix4 *MMathScaleMatrix(Matrix4 *, const Matrix4 *, const Vector4 *);
+    extern void sefDrawParticle2(SvQuadParticle *, const Vector4 *, SGsPacket *,
+                                 SvParticleDrawContext *);
+    Vector4 position;
+    Vector4 scaledScale;
+    Matrix4 modelPlace;
+    Matrix4 particlePlace;
+    Matrix4 *modelPlaceOutput;
+    Vector4 *scaleOutput;
+    Matrix4 *particlePlaceOutput;
+    int drawMode;
+    SGsPacket *drawPacket;
+    SGsGifRecord *scratchpad;
+    SvModelDrawItem *particles;
+    int composePlace;
+    short drawVariant;
+    int available;
+    short *particleIndex;
+    int remaining;
+
+    drawMode = _draw3D;
+    drawPacket = &_packet;
+    particles = (SvModelDrawItem *)sevGetPtAllocator2(0);
+    composePlace = (effect->flags & 0x400) != 0 ||
+                   (scheduler->flags & 0x1000) != 0;
+    drawVariant = 0;
+    if (effect->scriptWords != 0) {
+        drawVariant = effect->scriptWords[-1];
+    }
+    /* The draw helpers consume the persistent camera and unit-matrix VF banks. */
+    __asm__ __volatile__(
+        "lqc2 vf16, 0(%0)\n\tlqc2 vf17, 16(%0)\n\t"
+        "lqc2 vf18, 32(%0)\n\tlqc2 vf19, 48(%0)"
+        : : "r"(&_invView) : "memory");
+    __asm__ __volatile__(
+        "lqc2 vf13, 0(%0)\n\tlqc2 vf14, 16(%0)\n\tlqc2 vf15, 32(%0)"
+        : : "r"(&_svUnitMatrix) : "memory");
+    _packet.loopCount = 1;
+    scaleOutput = &scaledScale;
+    particleIndex = effect->particleIndices;
+    _packet.count = 0;
+    available = 64;
+    _packet.tagIndex = 0;
+    particlePlaceOutput = &particlePlace;
+    scratchpad = (SGsGifRecord *)0x70000000;
+    _packet.base = scratchpad;
+    modelPlaceOutput = &modelPlace;
+    position.w = 1.0f;
+    context->drawVariant = drawVariant;
+    scaledScale.w = 1.0f;
+    context->scaledScale = scaleOutput;
+    for (remaining = 255; remaining >= 0; remaining--, particleIndex++) {
+        int index = *particleIndex;
+
+        if (index >= 0) {
+            SvModelDrawItem *item = &particles[index];
+
+            if (composePlace != 0) {
+                MMathMulMatrix(particlePlaceOutput, &item->cfMatrix,
+                               (const Matrix4 *)scheduler->localTransform);
+                context->place = particlePlaceOutput;
+                context->scaleMultiplier = item->scaleMultiplier * scheduler->localScale;
+            }
+            switch (drawMode) {
+            case 2:
+                if (item->renderType == 6) {
+                    MMathTranslateMatrix(modelPlaceOutput, context->place, &item->origin);
+                    MMathMulMatrix(modelPlaceOutput, modelPlaceOutput, &item->orientation);
+                    MMathScaleMatrix(modelPlaceOutput, modelPlaceOutput, &item->scale);
+                    svDrawModel(item, modelPlaceOutput);
+                }
+                break;
+            default:
+                if (item->position.alpha != 0 && item->renderType == 4) {
+                    MMathApplyMatrix(&position, context->place, &item->origin);
+                    __asm__ __volatile__(
+                        "lqc2 vf1, 0(%0)\n\t"
+                        "mfc1 $8, %1\n\t"
+                        "qmtc2.ni $8, vf2\n\t"
+                        "vmulx.xyz vf1, vf1, vf2x\n\t"
+                        "sqc2 vf1, 0(%2)"
+                        : : "r"(&item->scale), "f"(context->scaleMultiplier),
+                            "r"(scaleOutput) : "$8", "memory");
+                    if (context->drawVariant == 0) {
+                        sefDrawParticle((SvQuadParticle *)item, &position, drawPacket,
+                                        (SvParticleDrawContext *)context);
+                    } else {
+                        sefDrawParticle2((SvQuadParticle *)item, &position, drawPacket,
+                                         (SvParticleDrawContext *)context);
+                    }
+                    available--;
+                }
+                break;
+            }
+            if (available == 0) {
+                available = 64;
+                SGsSendPacket((SGsPacketReset *)&_packet);
+            }
+        }
+    }
+    SGsSendPacket((SGsPacketReset *)&_packet);
+}
 
 void sefDrawSchedulerEffect(int schedulerIndex)
 {

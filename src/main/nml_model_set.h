@@ -289,7 +289,8 @@ union LayoutStore {
         u32 render_status;                  /* +0x250 */
         int parent; /* +0x254 */
         Matrix4 *weightedMatrices; /* +0x258 */
-        unsigned char unmodeled_25c[0x26c - 0x25c];
+        unsigned char unmodeled_25c[0x268 - 0x25c];
+        int texMapMode; /* +0x268; supplied by map and actor shadow setup */
         float textureTransparency;
         int texMapSize; /* +0x270 */
         float texMapWeight; /* +0x274 */

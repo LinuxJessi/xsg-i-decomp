@@ -236,7 +236,34 @@ typedef struct CameraBasis {
 
 extern void xglVectorMulMat(Vector4 *destination, Matrix4 matrix, const Vector4 *vector);
 
-INCLUDE_ASM("asm/main/nonmatchings/near_dir", nearDir);
+extern float D_004D84AC;
+
+extern float D_004D84B0;
+
+extern float D_004D84B4;
+
+extern float D_004D84B8;
+
+float nearDir(float from, float to)
+{
+    float difference = to - from;
+    float scaled = difference * D_004D84AC;
+    float magnitude = __builtin_fabsf(scaled);
+    int doubled_whole = (int)scaled * 2;
+
+    if (magnitude >= 2.0f) {
+        int direction = scaled < 0.0f ? -1 : 1;
+        int whole = (int)scaled;
+
+        difference -= (float)whole * D_004D84B0;
+        if (whole & 1)
+            difference += (float)direction * D_004D84B4;
+    } else {
+        difference -= (float)doubled_whole * D_004D84B8;
+    }
+
+    return difference;
+}
 
 void SEQ_scaleSPL(Actor *actor)
 {
