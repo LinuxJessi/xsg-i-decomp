@@ -64,7 +64,9 @@ extern int rnd(int max);
 typedef struct WpnData WpnData;
 
 struct WpnData {
-    unsigned char unmodeled_00[0x0F - 0x00];
+    short attack;                      /* +0x00: calcWpnAtkGet's own base term,
+                                       * `lh $19,0x0($2)` (0x00a13438) */
+    unsigned char unmodeled_02[0x0F - 0x02];
     signed char apCost;               /* +0x0F: calcWpnEnableChk's `lb $4,0xF($17)`
                                        * against the AP count calcAp keeps */
     u8 equipped;                      /* +0x10: calcAttWpnChk's own check */
@@ -548,7 +550,17 @@ struct TecKindView {
     u8 attr;
     signed char epCost;     /* +0x01: calcTakeEpGet's base term, `lb $16,0x1($2)` */
     u16 flags;              /* +0x02: bit 0x800 rules out a counter */
-    unsigned char unmodeled_04[0x11 - 0x04];
+    unsigned char unmodeled_04[0x06 - 0x04];
+    /*
+     * +0x06: calcPowLevGet's base term, `lbu $18,0x6($2)` (0x00a13684,
+     * unsigned byte load). TecRecord (src/ov01/data_unit_org_get.c) owns
+     * the rest of this layout and does not yet name this byte or the next
+     * one either (its unmodeled_00[0x11] covers both); see
+     * OUTDIR/proposals.md for the same-size split that would.
+     */
+    u8 powLevBase;
+    signed char agility;    /* +0x07: calcPlusAglGet's base term, `lb $18,0x7($2)` */
+    unsigned char unmodeled_08[0x11 - 0x08];
     /*
      * +0x11: calcBp2Tid's timeline selector. calcBp2Tid.s (0x00a1267c)
      * reads it with `lb $2,0x11($2)` (signed byte load), hence `signed char`.
@@ -916,7 +928,94 @@ int calcHitParaGet(ObjectTask *unit) {
 
 INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcHit);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcWpnAtkGet);
+/*
+ * dataAttGet's return (src/ov01/data_unit_org_get.c, still opaque there:
+ * `typedef struct AttRecord { unsigned char opaque[0x0E]; } AttRecord;`),
+ * this TU's own bounded view: calcWpnAtkGet's attachment attack term,
+ * `lh $19,0x0($2)` (0x00a13410). AttRecord does not name this field and is
+ * not published, so this is a second definition of the same record; see
+ * OUTDIR/proposals.md (a same-size split of AttRecord's `opaque[0x0E]` names
+ * it on the owner side instead).
+ */
+typedef struct CalcAttData {
+    short attack; /* +0x00 */
+} CalcAttData;
+
+extern CalcAttData *dataAttGet(int attachmentId);
+extern const char D_00A44450[]; /* "** calcWpnAtkGet: Att equip err! %d\n" */
+extern const char D_00A44478[]; /* "** calcWpnAtkGet: wpnAtkAdj=%d\n" */
+
+/*
+ * calcWpnAtkGet's attack-boost percentage, the word at +0x17C of the unit's
+ * CalcUnitParam: a nonzero value gates the whole bonus block (`lw $3,0x17C($2)`,
+ * 0x00a13444) and is later divided into atk*pct/100 (`lw $3,0x17C($2)`,
+ * 0x00a134cc). CalcUnitParam (above) ends at 0x17C (effectUnit at +0x158 plus
+ * statEffUnits[8] reaches exactly +0x17C), so a trailing member would change
+ * the struct's size; that extent/alignment decision is not this function's to
+ * make (see OUTDIR/proposals.md), so the term is read through this named
+ * offset, not a member.
+ */
+#define CALC_PARAM_ATK_BOOST_PCT_OFF 0x17C
+
+int calcWpnAtkGet(ObjectTask *unit, int slot)
+{
+    BattleActor *actor;
+    short weaponId;
+    short attachmentId;
+    int atk;
+
+    atk = 0;
+    if (slot != -1)
+    {
+        weaponId = calcUPGet(unit)->weaponId[slot];
+        if (weaponId != 0)
+        {
+            if (calcAttWpnChk(weaponId))
+            {
+                attachmentId = calcUPGet(unit)->attachmentId[slot];
+                if (attachmentId != 0)
+                {
+                    atk = dataAttGet(attachmentId)->attack;
+                }
+                else
+                {
+                    printf(D_00A44450, weaponId);
+                }
+            }
+            else
+            {
+                atk = dataWpnGet(weaponId)->attack;
+            }
+        }
+
+        if (*(int *)((char *)calcUPGet(unit) + CALC_PARAM_ATK_BOOST_PCT_OFF) != 0)
+        {
+            /* An extra calcUPGet(unit) call the original makes and
+             * discards (`jal calcUPGet`/`daddu $4,$17,$0`, 0x00a13450)
+             * right before reading unit->work below. */
+            calcUPGet(unit);
+            actor = (BattleActor *) unit->work;
+            if (!(actor->flags & CALC_ACTOR_FLAG_ENEMY))
+            {
+                if (!(calcUPGet(unit)->flags & CALC_UNIT_FLAG_IS_AGWS))
+                {
+                    /* The 0xBB..0xC2 charaId range futtobiChk and
+                     * calcPlusAglGet exclude the same way (`slti $3,$3,0xBB`
+                     * at 0x00a13490, `slti $3,$3,0xC3` at 0x00a134a8). */
+                    if (calcUPGet(unit)->charaId < CALC_SPECIAL_MODEL_CHARACTER_ID_BEGIN ||
+                        calcUPGet(unit)->charaId >= CALC_SPECIAL_MODEL_CHARACTER_ID_END)
+                    {
+                        atk = calcUPGet(unit)->baseAtk;
+                    }
+                }
+            }
+
+            atk += atk * (*(int *)((char *)calcUPGet(unit) + CALC_PARAM_ATK_BOOST_PCT_OFF)) / 100;
+            printf(D_00A44478, atk);
+        }
+    }
+    return atk;
+}
 
 int calcPhyDefGet(ObjectTask *unit)
 {
@@ -967,9 +1066,104 @@ int calcMagDefGet(ObjectTask *unit)
     return magicDef;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcPowLevGet);
+/*
+ * dataSpecDataGet's return (src/ov01/data_unit_org_get.c, this TU's own
+ * bounded view): calcPowLevGet adds the halfword at +0x04 (`lh $2,0x4($2)`,
+ * 0x00a13710) to the technique's power level; calcPlusAglGet adds the
+ * halfword at +0x06 (`lh $2,0x6($2)`, 0x00a13828) to the technique's
+ * agility. dataSpecDataGet's own TU already names this record
+ * (src/ov01/data_unit_org_get.h's `PlSpecialSlot`, an 0xC-byte id/unmodeled
+ * pair) but does not yet name these two fields and is not published to
+ * calc.c (its header includes this one); see OUTDIR/proposals.md for the
+ * same-size split of `PlSpecialSlot.unmodeled_2[10]` that would.
+ */
+typedef struct CalcSpecSlot {
+    short id;                      /* +0x00 */
+    unsigned char unmodeled_02[0x04 - 0x02];
+    short powLevBonus;              /* +0x04: calcPowLevGet's bonus term */
+    short agility;                  /* +0x06: calcPlusAglGet's bonus term */
+    unsigned char unmodeled_08[0x0C - 0x08];
+} CalcSpecSlot;
 
-INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcPlusAglGet);
+extern CalcSpecSlot *dataSpecDataGet(int charaId, int specialId);
+
+/*
+ * dataPlChaGet's return (src/ov01/data_unit_org_get.c, this TU's own
+ * bounded view): calcPowLevGet reads a short at +0x9A (`lh $4,0x9A($2)`,
+ * 0x00a1373c) for tecId 0x262/0x263, divides it by 5 and adds it to the
+ * power level. dataPlChaGet's own TU already names the owning record
+ * (data_unit_org_get.h's `PlCharacter`, eight 0xC-byte `PlSpecialSlot`
+ * entries from +0x48), so +0x9A is that same special[6]'s own +0x0A
+ * halfword (0x48 + 6*0xC + 0xA = 0x9A) -- a member of the same 0xC-byte
+ * record CalcSpecSlot views above. CalcSpecSlot names only +0x04 and +0x06
+ * of it and leaves its +0x0A halfword unmodeled (inside unmodeled_08), so
+ * this view is the only place that halfword is named here. Naming it in
+ * `PlSpecialSlot` and reading it as `special[6]` there removes this view
+ * entirely. This TU
+ * cannot include data_unit_org_get.h (that header includes this one), so it
+ * keeps the plain offset here and says what it overlaps.
+ */
+typedef struct CalcPlCharaView {
+    unsigned char unmodeled_0[0x9A];
+    short special6PowLevTerm; /* +0x9A: PlCharacter.special[6]'s own +0x0A */
+} CalcPlCharaView;
+
+extern CalcPlCharaView *dataPlChaGet(int cid);
+
+int calcPowLevGet(ObjectTask *unit, int tecId)
+{
+    BattleActor *actor;
+    CalcSpecSlot *spec;
+    int powLev;
+
+    powLev = dataTecGet(tecId)->powLevBase;
+    if (dataTecGet(tecId)->kind == 2) {
+        actor = (BattleActor *) unit->work;
+        if (!(actor->flags & CALC_ACTOR_FLAG_ENEMY)) {
+            if (!(calcUPGet(unit)->flags & CALC_UNIT_FLAG_IS_AGWS)) {
+                /* The same 0xBB..0xC2 charaId exclusion as calcWpnAtkGet
+                 * (`slti` against 0xBB at 0x00a136d0, 0xC3 at 0x00a136e8). */
+                if (calcUPGet(unit)->charaId < CALC_SPECIAL_MODEL_CHARACTER_ID_BEGIN ||
+                    calcUPGet(unit)->charaId >= CALC_SPECIAL_MODEL_CHARACTER_ID_END) {
+                    spec = dataSpecDataGet(calcUPGet(unit)->charaId, tecId);
+                    if (spec != 0) {
+                        powLev += spec->powLevBonus;
+                    }
+                }
+            }
+        }
+    }
+    /* Technique ids 0x262 and 0x263 (`addiu $2,$17,-0x262`/`sltiu $2,$2,0x2`,
+     * 0x00a13718..0x00a1371c); what they are is not established. */
+    if ((unsigned int) (tecId - 0x262) < 2) {
+        powLev += dataPlChaGet(calcUPGet(unit)->charaId)->special6PowLevTerm / 5;
+    }
+    return powLev;
+}
+
+int calcPlusAglGet(ObjectTask *unit, int tecId)
+{
+    BattleActor *actor;
+    CalcSpecSlot *spec;
+    int agl;
+
+    agl = dataTecGet(tecId)->agility;
+    if (dataTecGet(tecId)->kind == 2) {
+        actor = (BattleActor *) unit->work;
+        if (!(actor->flags & CALC_ACTOR_FLAG_ENEMY)) {
+            if (!(calcUPGet(unit)->flags & CALC_UNIT_FLAG_IS_AGWS)) {
+                if (calcUPGet(unit)->charaId < CALC_SPECIAL_MODEL_CHARACTER_ID_BEGIN ||
+                    calcUPGet(unit)->charaId >= CALC_SPECIAL_MODEL_CHARACTER_ID_END) {
+                    spec = dataSpecDataGet(calcUPGet(unit)->charaId, tecId);
+                    if (spec != 0) {
+                        agl += spec->agility;
+                    }
+                }
+            }
+        }
+    }
+    return agl;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcDmg);
 

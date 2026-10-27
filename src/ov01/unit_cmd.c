@@ -584,7 +584,37 @@ int unitDeadSpecChk(ObjectTask *unit)
 
 INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitCmdMot);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitCmdTgtSet);
+extern const char D_00A43AB8[];
+
+int unitCmdTgtSet(ObjectTask *unit)
+{
+    Actor *actor;
+    CmdEntry *cmd;
+    TgtCmd tgtCmd;
+    ObjectTask *target;
+
+    actor = unit->work;
+    cmd = unitCmdPtrGet(unit);
+    if (actor->moveState != 0) {
+        return 0;
+    }
+    tgtCmd.tecId = cmd->argument;
+    tgtCmd.target = (ObjectTask *) cmd->extra;
+    tgtCmd.itmId = cmd->itmId;
+    tgtCmd.mode = cmd->mode;
+    target = tgtFindFirst(unit, &tgtCmd);
+    if (target != 0) {
+        /* The work slot is loaded again here, not read through the cached
+         * `actor`: reusing the local trades two callee-saved registers and
+         * the OV01.OVL gate no longer matches (tried, unitCmdTgtSet). */
+        ((Actor *) unit->work)->targetUnit = target;
+        return unitCmdNext(unit);
+    }
+    printf(D_00A43AB8);
+    cmdListCansel(unit);
+    unitCmdClear(unit);
+    return unitCmdNext(unit);
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitCmdTurn);
 

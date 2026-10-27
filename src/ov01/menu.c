@@ -527,13 +527,17 @@ void menuMapItemDisp(ObjectTask *task, GrPacket *packet)
 
 INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuTgtLineDisp);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuStockStart);
+extern int *actStockGet(void);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuStockNext);
-
-INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuStockBoost);
-
-INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuStockDead);
+typedef struct MenuStockTransform {
+    Vector4 position;                  /* +0x00: addiu $16,$16,0x90, then
+                                        * swc1 0x0/0x8 and sw $0,0x4 */
+    unsigned char unmodeled_10[0x50];
+    Vector4 target;                    /* +0x60: menuStockDead sets where
+                                        * this face's face moves to */
+    unsigned char unmodeled_70[0x10];  /* +0x70: ObjectWorkTransform's tail,
+                                        * not accessed here */
+} MenuStockTransform;
 
 typedef struct MenuStockWork {
     u32 flags;                         /* +0x00: bit 0x4 hides the face
@@ -556,13 +560,147 @@ typedef struct MenuStockWork {
                                         * while it is below 0x14 and writes
                                         * 0x14 otherwise; menuStockObjDraw
                                         * passes it as the sprite width */
-    unsigned char unmodeled_7c[4];
+    int stockSlot;                     /* +0x7C: menuStockDead indexes
+                                        * actStockGet() with it
+                                        * (lw $3,0x7C($5) at 0x00A28C40) */
     int index;                         /* +0x80: the face's pStockObj slot
-                                        * (sw $18,0x80) */
+                                        * (sw $18,0x80); menuStockDead
+                                        * decrements every later face's
+                                        * index by one */
     unsigned char unmodeled_84[0xC];
-    Vector4 position;                  /* +0x90: addiu $16,$16,0x90, then
-                                        * swc1 0x0/0x8 and sw $0,0x4 */
+    /*
+     * The +0x90..+0x110 tail of this work record (src/ov01/obj.h's
+     * ObjectWorkTransform restates the same span for objStdMove/objStdInit;
+     * that type is TU-local to obj.c and not published, so this is a
+     * second local view of the same storage -- flagged for Opok).
+     * menuStockDead takes this address once (addiu $8,$9,0x90) and writes
+     * target through it (sw $0,0x64($8) / swc1 0x60/0x68($8)).
+     */
+    MenuStockTransform transform;      /* +0x90 */
 } MenuStockWork;
+
+/* gr_gp_init.c data (still asm-owned): each face's x/z on screen, read as
+ * int pairs (lwc1 0x0/0x4, cvt.s.w). menuStockDead also indexes this. */
+typedef struct MenuStockPos {
+    int x;
+    int z;
+} MenuStockPos;
+extern MenuStockPos stockPosTbl[5];
+
+void *objCmdTailGet(ObjectTask *task);
+
+/* Bit of MenuStockWork.flags that hides a face: menuStockStart sets it for
+ * the fifth face (ori $2,$2,0x4) and clears it for the other four
+ * (and $2,$2,$21 with $21 = -5); menuStockObjDraw tests it (andi 0x4). */
+enum MenuStockWorkFlag {
+    MENU_STOCK_HIDDEN = 0x4
+};
+
+/*
+ * A stock face's MenuStockWork, read from its ObjectTask work slot as an
+ * int-sized word. The original reloads the slot after each int store into
+ * the record (menuStockStart: lw $3,0x10($17) after objCmdTailGet,
+ * lw $2,0x10($17) after sw $18,0x80($3), lw $3,0x10($17) after
+ * sw $22,0x78($2)) but schedules the reload above the float stores
+ * (lw $2,0x10($17) above swc1 $f1,0x0($16)): the slot's load conflicts
+ * with int stores only. Read as the published `void *`, gcc keeps the first
+ * load across those stores (lw $2 at 0x00A289FC disappears). Flagged for
+ * Opok: the original slot type looks int-sized (ObjectTask.work, shared.h).
+ */
+static __inline__ MenuStockWork *menuStockWorkGet(ObjectTask *task)
+{
+    return (MenuStockWork *)*(u32 *)&task->work;
+}
+
+/*
+ * Seeds the five stock faces: slot index, command 2, screen position from
+ * stockPosTbl, width 4, and only the fifth face hidden. x and z are read
+ * before the width store: the union width (see MenuStockWork) is stored
+ * with alias set 0, and the original loads both table words
+ * (lwc1 0x0/0x4($19)) above sw $22,0x78($2).
+ */
+void menuStockStart(void)
+{
+    ObjectTask *task;
+    Vector4 *position;
+    MenuCmdEntryView *entry;
+    float x;
+    float z;
+    int i;
+
+    for (i = 0; i < 5; i++) {
+        task = pStockObj[i];
+        position = &menuStockWorkGet(task)->transform.position;
+        entry = objCmdTailGet(task);
+        menuStockWorkGet(task)->index = i;
+        entry->selector = 2;
+        position->y = 0.0f;
+        x = stockPosTbl[i].x;
+        z = stockPosTbl[i].z;
+        menuStockWorkGet(task)->width.value = 4;
+        position->x = x;
+        position->z = z;
+        if (i >= 4) {
+            menuStockWorkGet(task)->flags |= MENU_STOCK_HIDDEN;
+        } else {
+            menuStockWorkGet(task)->flags &= ~MENU_STOCK_HIDDEN;
+        }
+    }
+}
+
+INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuStockNext);
+
+INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuStockBoost);
+
+/*
+ * menuStockDead's bounded view of the action-stock record actStockGet
+ * returns (battle_init.c ActStock.stock, the calc.c CalcActStock idiom):
+ * the lookup is addu $2,$2,$3 (record + slot*4), the member-array address
+ * order; the published `int *` indexed directly gives slot*4 + record
+ * (addu $3,$3,$2) instead. Restated locally because actStockGet's
+ * published return type is plain int * -- flagged for Opok.
+ */
+typedef struct MenuActStockView {
+    ObjectTask *stock[4]; /* +0x00: the queued actor per stock slot */
+} MenuActStockView;
+
+extern const char D_00A46898[]; /* "** StockDead %d %d\n" */
+extern int printf(const char *format, ...);
+
+/*
+ * A dead unit's face leaves the gauge: unless its action-stock slot is
+ * still occupied, every later face is sent one position left. printf takes
+ * only dead and i (the decremented index lands in a different register by
+ * allocation, not as an argument: passing it adds a copy).
+ */
+void menuStockDead(int dead)
+{
+    ObjectTask *task;
+    MenuCmdEntryView *entry;
+    MenuStockTransform *transform;
+    MenuStockWork *work;
+    int index;
+    int i;
+
+    if (((MenuActStockView *)actStockGet())->stock[((MenuStockWork *)pStockObj[dead]->work)->stockSlot] == 0) {
+        for (i = dead + 1; i < 4; i++) {
+            task = pStockObj[i];
+            entry = objCmdTailGet(task);
+            work = task->work;
+            index = work->index;
+            transform = &work->transform;
+            if (index > 0) {
+                index--;
+                transform->target.y = 0.0f;
+                work->index = index;
+                entry->selector = 1;
+                transform->target.x = stockPosTbl[index].x;
+                transform->target.z = stockPosTbl[index].z;
+                printf(D_00A46898, dead, i);
+            }
+        }
+    }
+}
 
 void menuStockObj(ObjectTask *task)
 {
@@ -1044,7 +1182,73 @@ void menuFontPut(GrPacket *packet, int x, int y, const char *text)
     grCloseSpr();
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuActCurPut);
+/*
+ * The cursor object's transform, the work's +0x90..+0x110 tail that
+ * grCalcMatrix reads through grBBCalc (a second local view of
+ * src/ov01/gr_gp_init.c's TU-local TransformState: position at +0x90,
+ * offset at +0xa0; flagged for Opok). menuActCurPut saves and restores all
+ * 0x80 bytes with aligned ld/sd loops (0x00A2B930, 0x00A2BA10), so the
+ * storage is eight-byte aligned: the union gives it that alignment the
+ * include/ov01/m_ef_create.h way. It writes position through
+ * sefGetNullPosition (addiu $17,$2,0x90) and offset.y (swc1 $f0,0x14($17)).
+ */
+typedef union MenuCursorTransform {
+    struct {
+        Vector4 position; /* +0x00 */
+        Vector4 offset;   /* +0x10 */
+        unsigned char unmodeled_20[0x60];
+    } fields;
+    u64 storage[0x80 / sizeof(u64)];
+} MenuCursorTransform;
+
+typedef struct MenuCursorWork {
+    unsigned char unmodeled_00[0x90];
+    MenuCursorTransform transform; /* +0x90 */
+} MenuCursorWork;
+
+/* A unit task's motion actor beside its ObjectTask prefix
+ * (lw $5,0x14($6) at 0x00A2B964): a second local view of src/ov01/cmd.h's
+ * TU-local CmdUnitRecord, flagged for Opok. */
+typedef struct MenuUnitTask {
+    ObjectTask task;   /* +0x00 */
+    void *motionActor; /* +0x14 */
+} MenuUnitTask;
+
+/* src/main/sef.c, spelled as src/ov01/cmd.h and src/ov01/m_cam.c do. */
+extern void sefGetNullPosition(Vector4 *position, void *actor, int part, int flag);
+/* src/ov01/gr_gp_init.c takes a MatrixCommand *, whose only recovered member
+ * (state at +0x10) is ObjectTask.work's slot; the cursor task is passed
+ * as is (daddu $4,$19,$0). Flagged for Opok. */
+extern int grBBCalc(ObjectTask *task, int *screenX, int *screenY);
+
+/*
+ * Draws the action cursor over a player unit: the cursor's transform is
+ * moved to the unit's null position, raised by 1.3, projected to the screen,
+ * and restored afterwards. Enemy units (BattleActor flag 0x40) get none.
+ */
+void menuActCurPut(GrPacket *packet, ObjectTask *cursor, ObjectTask *unit, int frame)
+{
+    MenuCursorTransform saved;
+    int screenX;
+    int screenY;
+    MenuCursorTransform *transform;
+
+    if (unit == 0 || (((BattleActor *)unit->work)->flags & ACTOR_FLAG_ENEMY)) {
+        return;
+    }
+    transform = &((MenuCursorWork *)cursor->work)->transform;
+    saved = *transform;
+    sefGetNullPosition(&transform->fields.position, ((MenuUnitTask *)unit)->motionActor, 0, 0);
+    transform->fields.offset.y = 1.3f;
+    if (grBBCalc(cursor, &screenX, &screenY) != 0) {
+        menuStatEnvMake(packet);
+        grOpenSpr(packet);
+        menuStatSprite(packet, screenX - 8, screenY - 8, 16, 16, (frame % 8) * 16, 0x80);
+        grCloseSpr();
+        grPacketSend(packet);
+    }
+    *transform = saved;
+}
 
 void menuStatSprite(GrPacket *packet, int x, int y, int width, int height, int srcX, int srcY) {
     GrSprite sprite;

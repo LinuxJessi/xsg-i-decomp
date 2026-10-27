@@ -68,7 +68,7 @@ typedef struct Actor {
 
 /*
  * The unit record scenarioMtd, transWepIn/transWepOut and spWepDispOn
- * (0x00a0e550, still INCLUDE_ASM here) all share: spWepDispOn receives the
+ * (0x00a0e550) all share: spWepDispOn receives the
  * same pointer scenarioMtd receives, dereferences it to reach this record,
  * then indexes its +0x1C table by (weapon-slot & 3) and reads +0x14, exactly
  * as transWepIn/transWepOut do on their own argument and scenarioMtd does on
@@ -89,6 +89,16 @@ struct BattleUnit {
  * pointer src/ov01/unit_cmd.c and src/ov01/snd.c already read through
  * ObjectTask.work on their own unit records, testing bit 0x40 of
  * Actor.flags (the enemy bit src/ov01/unit_cmd.h names ACTOR_FLAG_ENEMY).
+ *
+ * BattleUnit is the battle-side view of the unit's ObjectTask, the type
+ * calcUPGet takes. scenarioCam and spWepDispOn pass ScenarioBatExec.unit to
+ * calcUPGet unconverted (the first word of the exec record goes straight
+ * into the argument register: `jal calcUPGet` at 0x00a0ba90 with `lw $4,
+ * 0x0($16)` in its delay slot, and at 0x00a0e5d8 and 0x00a0e664 in
+ * spWepDispOn), so they write the same (ObjectTask *) conversion that
+ * battleCtrlBoostPl already uses on the unitTblGet() entries. The view
+ * stays partial: only work (+0x10), actor (+0x14) and weapon[] (+0x1C) are
+ * evidenced, and no other BattleUnit member is claimed here.
  */
 #define BATTLE_UNIT_WORK_OFF 0x10
 
@@ -108,17 +118,34 @@ typedef struct CamEvent {
     BattleUnit *target;   /* +0x0C */
 } CamEvent;
 
-extern void camEventExec(CamEvent *event, BattleUnit *unit);
+/*
+ * One argument: camEventExec reads only $4, and scenarioCam's item branch
+ * calls it without loading $5; the former (event, unit) spelling added
+ * `lw $5,0x0($16)` before that call (the original's `j camEventExec` at
+ * 0x00a0bb10 has no $5 set-up). entry_first_init.c declares it with one
+ * argument as well.
+ */
+extern void camEventExec(CamEvent *event);
 
 /*
  * The scenario-battle exec record the scenarioBatExecPhase* handlers work on
  * (scenarioBatExecPhase20 passes the same pointer to etehrCVGet and to
- * scenarioMtd, and every unit call there loads its first word). Only +0x00,
- * the acting unit, is read by this TU's C; spWepDispOn (still INCLUDE_ASM)
- * also reads +0x04, +0x08 and +0x0C, which are not modeled here.
+ * scenarioMtd, and every unit call there loads its first word). scenarioCam
+ * reads the action type (`lw $2,0x4($16)` at 0x00a0baa8, compared with 3),
+ * the technique id (`lw $4,0x8($16)` at 0x00a0bab4, passed to dataTecGet;
+ * `lw $2,0x8($16)` at 0x00a0bae8) and the item id (`lw $4,0xC($16)` at
+ * 0x00a0bad4, passed to dataItmGet). spWepDispOn reads the same type
+ * (`lw $2,0x4($16)` at 0x00a0e568, compared with 1), the technique id
+ * (`lw $4,0x8($16)` at 0x00a0e578 and 0x00a0e5cc; reloaded at 0x00a0e5d4
+ * and compared with 8 and 0xB) and, for a technique action, +0x0C as a
+ * weapon slot (`lw $5,0xC($16)` at 0x00a0e5b4 and 0x00a0e66c).
  */
 typedef struct ScenarioBatExec {
     BattleUnit *unit; /* +0x00 */
+    int type;         /* +0x04: 3 for an item action */
+    int tecId;        /* +0x08 */
+    int slotOrItemId; /* +0x0C: the item id for an item action (type 3),
+                       * the weapon slot for a technique (type 1) */
 } ScenarioBatExec;
 
 int dataMtdRead(BattleUnit *unit, int trigger);
@@ -133,9 +160,16 @@ void transWepOut(BattleUnit *unit, int slot);
 
 void spWepDispOn(ScenarioBatExec *exec, int weapon);
 void spWepDispOff(ScenarioBatExec *exec, int weapon);
+void spWepDispOnSub(BattleUnit *unit, int slot, int fade);
 void hairWindOn(BattleUnit *unit);
 void hairWindOff(BattleUnit *unit);
 extern void ACT_setHand(Actor *actor, int hand);
+extern Actor *ACT_setArms(Actor *actor, Actor *parent, unsigned int accessoryId, int flags);
+/* dataTid2WepSp is still INCLUDE_ASM in its defining TU (data_unit_org_get.c), so
+ * there is no prototype to check this against: the signature is read off the
+ * call in spWepDispOn (technique id in, `lw $4,0x8($16)` at 0x00a0e5cc; the
+ * result is only tested against zero and stored). */
+extern int dataTid2WepSp(int tecId);
 
 extern void transWepInDraw(Actor *actor);
 extern void transWepOutDraw(Actor *actor);
@@ -302,7 +336,24 @@ INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", battleCtrlConfusion);
 
 INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", battleCtrlJunk);
 
-static int actStock[9];
+/*
+ * The action-stock record (0x24 bytes, the span the published `int *` of
+ * actStockGet indexes). actStockRemove compares the unit against the boost
+ * slots (`lw $3,0x10($7)` at 0x00a085a8, `lw $2,0x14($7)` at 0x00a085c0) and
+ * the first `count` (`lw $2,0x18($7)` at 0x00a085c8) stock words from +0x00.
+ * The actor words are pointers: only with pointer-typed loads does the
+ * scheduler hoist the +0x10 load above the `*index = -1` int store, as the
+ * original does (`sw` in the first `bne` delay slot, 0x00a085b4).
+ * calc.c (CalcActStock, src/ov01/calc.h) and menu.c (actStockGet()[4]/[5])
+ * read the same storage through views of their own.
+ */
+typedef struct ActStock {
+    ObjectTask *stock[4]; /* +0x00 */
+    ObjectTask *boost[2]; /* +0x10: calcBoost's per-mode boosting actor */
+    int count;            /* +0x18 */
+    unsigned char unmodeled_1c[8];
+} ActStock;
+static ActStock actStock;
 
 INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", actStockInit);
 
@@ -312,16 +363,43 @@ INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", actStockMake);
 
 INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", actStockPick);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", actStockRemove);
+/*
+ * Drop `unit` from the boost slots and the stock; *index receives its stock
+ * position, or -1. Nonzero when any slot held it.
+ */
+int actStockRemove(ObjectTask *unit, int *index)
+{
+    int removed = 0;
+    int i;
+
+    *index = -1;
+    if (actStock.boost[0] == unit) {
+        actStock.boost[0] = 0;
+        removed = 1;
+    }
+    if (actStock.boost[1] == unit) {
+        actStock.boost[1] = 0;
+        removed = 1;
+    }
+    for (i = 0; i < actStock.count; i++) {
+        if (actStock.stock[i] == unit) {
+            actStock.stock[i] = 0;
+            removed = 1;
+            *index = i;
+            break;
+        }
+    }
+    return removed;
+}
 
 /*
- * The current action-stock count actStockInit/actStockMake/actStockPick/
- * actStockRemove (still INCLUDE_ASM here) read and write through the
- * address this returns (data still asm-owned; original ELF symbol name).
+ * The action-stock record actStockInit/actStockMake/actStockPick (still
+ * INCLUDE_ASM here) and actStockRemove work on; menu.c and calc.c declare
+ * this as returning `int *`, so that published type is kept.
  */
 int *actStockGet(void)
 {
-    return actStock;
+    return (int *)&actStock;
 }
 
 /*
@@ -417,7 +495,7 @@ void camEventTurnStartSet(void)
     D_00A57B80.unit = pActUnit;
     D_00A57B80.target = tgtUnitGet();
     D_00A57B80.param = (*(int *)*(void **)((char *)pActUnit + BATTLE_UNIT_WORK_OFF) >> 6) & 1;
-    camEventExec(&D_00A57B80, pActUnit);
+    camEventExec(&D_00A57B80);
 }
 
 /*
@@ -889,7 +967,85 @@ int scenarioBatNext(void)
     return 0;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", scenarioCam);
+/*
+ * dataTecGet's return, as far as this TU reads it: a byte at +0x00 whose
+ * bit 0x10 selects between the selector-0x2C and selector-0xF commands in
+ * syoukan1Sub and ends scenarioCam (`andi $3,$3,0x10` at 0x00a0bb40), and
+ * whose low two bits are scenarioCam's range class (`andi $3,$3,0x3` at
+ * 0x00a0bb58); +0x11 is the signed byte data_unit_org_get.c's TecRecord
+ * names `kind` (`lb $3,0x11($2)` at 0x00a0bb20). data_unit_org_get.c,
+ * dataTecGet's own TU, owns the layout.
+ */
+typedef struct TecFlagView {
+    unsigned char flags;                      /* +0x00 */
+    unsigned char unmodeled_01[0x11 - 0x01];
+    signed char kind;                         /* +0x11 */
+} TecFlagView;
+
+extern TecFlagView *dataTecGet(int tecId);
+
+/*
+ * dataItmGet's return as far as scenarioCam reads it: the item's
+ * target-selection flags byte (`lbu $3,0x8($2)` at 0x00a0bae0); calc.c's
+ * ItmTrgView names the same member.
+ */
+typedef struct ItmTrgView {
+    unsigned char unmodeled_00[0x08];
+    u8 trgFlags; /* +0x08 */
+} ItmTrgView;
+
+extern ItmTrgView *dataItmGet(int itmId);
+
+/*
+ * Queues the camera event for a scenario-battle action: items (type 3) use
+ * event 0x14 with the item's target-selection flags (bit 0x10 added when
+ * tecId is set); techniques of kind 2 or 6, or with flag bit 0x10, get
+ * none, the rest use event 2 or 3 by their range class. The CalcUnitParam
+ * bit tested first (`lhu $3,0x1C($2)`/`andi $3,$3,0x40` at
+ * 0x00a0ba98..0x00a0ba9c) is calc.h's CALC_UNIT_FLAG_IS_AGWS, which the
+ * generated include/ov01/calc.h does not carry yet.
+ */
+void scenarioCam(ScenarioBatExec *exec, BattleUnit **targets)
+{
+    int tecKind;
+    int range;
+
+    if (calcUPGet((ObjectTask *)exec->unit)->flags & 0x40) {
+        return;
+    }
+    if (exec->type == 3) {
+        D_00A57B80.type = 0x14;
+        D_00A57B80.unit = exec->unit;
+        D_00A57B80.target = *targets;
+        D_00A57B80.param = dataItmGet(exec->slotOrItemId)->trgFlags;
+        if (exec->tecId != 0) {
+            D_00A57B80.param |= 0x10;
+        }
+        camEventExec(&D_00A57B80);
+        return;
+    }
+    tecKind = dataTecGet(exec->tecId)->kind;
+    if (tecKind == 2 || tecKind == 6) {
+        return;
+    }
+    if (dataTecGet(exec->tecId)->flags & 0x10) {
+        return;
+    }
+    range = dataTecGet(exec->tecId)->flags & 0x3;
+    if (range == 0) {
+        D_00A57B80.type = 2;
+        D_00A57B80.unit = exec->unit;
+        D_00A57B80.param = exec->tecId;
+        D_00A57B80.target = *targets;
+        camEventExec(&D_00A57B80);
+    } else if (range == 1) {
+        D_00A57B80.type = 3;
+        D_00A57B80.unit = exec->unit;
+        D_00A57B80.param = exec->tecId;
+        D_00A57B80.target = *targets;
+        camEventExec(&D_00A57B80);
+    }
+}
 
 void scenarioBatEnd(void);
 
@@ -1083,18 +1239,6 @@ typedef struct Syoukan1SubArgs {
     int tecId;         /* +0x08 */
 } Syoukan1SubArgs;
 
-/*
- * dataTecGet's return, as far as this body reads it: a byte at +0x00 whose
- * bit 0x10 selects between the selector-0x2C and selector-0xF commands
- * below (src/ov01/data_unit_org_get.c, dataTecGet's own TU, still asm, owns
- * the rest of the layout).
- */
-typedef struct TecFlagView {
-    unsigned char flags; /* +0x00 */
-} TecFlagView;
-
-extern TecFlagView *dataTecGet(int tecId);
-
 void syoukan1Sub(Syoukan1SubArgs *args, int reserved, int replacementCharaId)
 {
     SyoukanCmdEntry cmd;
@@ -1277,7 +1421,52 @@ void scenarioMtd(ScenarioBatExec *exec)
     }
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", spWepDispOn);
+/*
+ * The weapon ids 0xD..0x10 (`addiu $2,$2,-0xD`/`sltiu $2,$2,0x4` at
+ * 0x00a0e5e4..0x00a0e5e8, on weaponId[2], `lh $2,0x62($2)` at 0x00a0e5e0)
+ * and 0xC (`addiu $4,$0,0xC` at 0x00a0e670), the accessory id 0x108
+ * ACT_setArms gets (`addiu $6,$0,0x108` at 0x00a0e620) and the technique
+ * ids 8 and 0xB (0x00a0e650/0x00a0e658) are compared as the original does;
+ * what each id is, is not established here.
+ */
+void spWepDispOn(ScenarioBatExec *exec, int weapon)
+{
+    int tecKind;
+    int wepSp;
+    int weaponId;
+    Actor *weaponActor;
+
+    if (exec->type == 1) {
+        tecKind = dataTecGet(exec->tecId)->kind;
+    } else {
+        spWepDispOnSub(exec->unit, weapon, 0);
+        return;
+    }
+
+    if (tecKind == 6) {
+        spWepDispOnSub(exec->unit, exec->slotOrItemId, 1);
+    } else {
+        wepSp = dataTid2WepSp(exec->tecId);
+        if (wepSp != 0) {
+            weaponId = calcUPGet((ObjectTask *)exec->unit)->weaponId[2];
+            if ((unsigned int)(weaponId - 0xD) >= 4) {
+                weaponActor = exec->unit->weapon[weapon & 3];
+                if (weaponActor != 0) {
+                    /* `ori $2,$2,0x8` at 0x00a0e614: the same bit spWepDispOffSub sets. */
+                    weaponActor->flags |= WEAPON_HIDDEN_BIT;
+                }
+            } else {
+                ACT_setArms(exec->unit->weapon[2], exec->unit->actor, 0x108, 0);
+            }
+            spWepDispOnSub(exec->unit, 2, 0);
+        } else if (exec->tecId == 8 || exec->tecId == 0xB) {
+            weaponId = calcUPGet((ObjectTask *)exec->unit)->weaponId[exec->slotOrItemId];
+            if (weaponId == 0xC) {
+                spWepDispOnSub(exec->unit, exec->slotOrItemId, 0);
+            }
+        }
+    }
+}
 
 /*
  * spWepDispOn's worker: with fade clear the weapon actor in slot `slot & 3`
