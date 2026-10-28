@@ -551,7 +551,29 @@ INCLUDE_ASM("asm/nonmatchings/ov10/card_fread", CardCountGeneration);
 
 INCLUDE_ASM("asm/nonmatchings/ov10/card_fread", CardPlayChkCondition);
 
-INCLUDE_ASM("asm/nonmatchings/ov10/card_fread", CardChkAttackType);
+/*
+ * The attack type of the topmost card in play: the stack's layers are walked
+ * from layers[39] down, skipping empty layers (cardId < 0) and cards 0x2F and
+ * 0x2C, which never decide the type. The result is held in a u8, the width of
+ * CardDefinition.attackType.
+ */
+s32 CardChkAttackType(CardDefinition *definitions, CardLayerStack *card)
+{
+    u8 attackType;
+    int i;
+
+    attackType = 0;
+    for (i = 39; i >= 0; i--) {
+        if (card->layers[i].cardId >= 0) {
+            if (card->layers[i].cardId == 0x2F || card->layers[i].cardId == 0x2C) {
+                continue;
+            }
+            attackType = definitions[card->layers[i].cardId].attackType;
+            break;
+        }
+    }
+    return attackType;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov10/card_fread", CPCMSub);
 
