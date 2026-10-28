@@ -1656,18 +1656,22 @@ def check_compiler(plan, output, lease):
     root = Path(plan['root'])
     tc = Toolchain(root)
     compiler = tc.dir('ee-gcc2.96-realconv-lp7')
-    assembler = tc.file('ee-as-la29-vsqrt')
+    # The probe assembles with the TU contract's own assembler (2026-10-27: game C TUs use the
+    # single swap-mask release with -g); the sha check below still binds it to the contract.
+    assemblers = {sha(tc.file(name)): name for name in ('ee-as-la29-vsqrt-swap', 'ee-as-la29-vsqrt')}
     results = []
     for tu_id, rows in grouped(plan).items():
         facts = plan['tus'][tu_id]
         flags = facts['contract']['flags']
         require(flags in (['-O2', '-G0'], ['-O2', '-G8']), 'automatic probe refuses an unsupported compile contract')
+        assembler = tc.file(assemblers.get(facts['contract'].get('assembler_sha256'), 'ee-as-la29-vsqrt'))
+        as_options = ' '.join(facts['contract'].get('assembler_options') or [])
         require(facts['contract']['compiler_profile'] in ('ee-gcc2_96-realconv', 'ee-gcc2_96-realconv-lp7') and
                 sha(compiler / 'cc1') == facts['contract']['cc1_sha256'] and
                 sha(assembler) == facts['contract']['assembler_sha256'], 'probe tools differ from the original TU contract')
         folder = output / tu_id.replace('/', '_')
         lease.check([folder / 'compile.log', folder / 'probe.o', folder / 'probe.i', folder / 'probe.s', folder / 'probe.o.asmsg'])
-        code = run(['bash', root / 'tools/tu/cc_tu.sh', folder / 'probe.c', folder / 'probe.o', compiler, assembler, flags[-1], root / 'build' / facts['unit'], root], root / 'build' / facts['unit'], folder / 'compile.log')
+        code = run(['env', 'XENO_EE_AS_OPTIONS=' + as_options, 'bash', root / 'tools/tu/cc_tu.sh', folder / 'probe.c', folder / 'probe.o', compiler, assembler, flags[-1], root / 'build' / facts['unit'], root], root / 'build' / facts['unit'], folder / 'compile.log')
         report = dict(tu=tu_id, returncode=code, verified=[], requires_linked_gate=[], problems=[])
         if code == 0:
             elf = Elf((folder / 'probe.o').read_bytes())

@@ -98,8 +98,7 @@ float *MMathCalcHermite(float *destination, float parameter,
         "vmadday.xyz ACCxyz,$vf3xyz,$vf5y\n\t"
         "vmaddz.xyz $vf1xyz,$vf4xyz,$vf6z\n\t"
         "vmove.w $vf1w,$vf0w\n\t"
-        "sqc2 $vf1,0(%3)\n\t"
-        "nop"
+        "sqc2 $vf1,0(%3)"
         : "=r"(scratch)
         : "f"(parameter), "r"(scratch), "r"(destination), "r"(tangent_first),
           "r"(tangent_second), "r"(endpoint_first), "r"(endpoint_second)
@@ -124,8 +123,7 @@ void MMathCalcHermitePrm(HermiteVector *tangent_start, HermiteVector *tangent_en
         "vmulx.xyz vf6xyz,vf6xyz,vf5x\n\t"
         "vmulx.xyz vf7xyz,vf7xyz,vf5x\n\t"
         "sqc2 vf6,0(%0)\n\t"
-        "sqc2 vf7,0(%1)\n\t"
-        "nop\n\t"
+        "sqc2 vf7,0(%1)"
         :
         : "r"(tangent_start), "r"(tangent_end), "r"(point_prev), "r"(point_start),
           "r"(point_end), "r"(point_next)
@@ -142,8 +140,7 @@ void *MMathDeg2RadVector(void *destination, const Vector4 *source)
         "qmtc2 $8,vf1\n\t"
         "lqc2 vf2,0(%1)\n\t"
         "vmulx.xyz vf2xyz,vf2xyz,vf1x\n\t"
-        "sqc2 vf2,0(%0)\n\t"
-        "nop\n\t"
+        "sqc2 vf2,0(%0)"
         : "+r"(result)
         : "r"(source), "f"(scale)
         : "$8", "memory"
@@ -161,8 +158,7 @@ void *MMathDeg2RadVectorI(void *destination, const Vector4 *source)
         "lqc2 vf2,0(%1)\n\t"
         "vitof0.xyz vf2xyz,vf2xyz\n\t"
         "vmulx.xyz vf2xyz,vf2xyz,vf1x\n\t"
-        "sqc2 vf2,0(%0)\n\t"
-        "nop\n\t"
+        "sqc2 vf2,0(%0)"
         : "+r"(result)
         : "r"(source), "f"(scale)
         : "$8", "memory"
@@ -179,8 +175,7 @@ void *MMathRad2DegVector(void *destination, const Vector4 *source)
         "qmtc2 $8,vf1\n\t"
         "lqc2 vf2,0(%1)\n\t"
         "vmulx.xyz vf2xyz,vf2xyz,vf1x\n\t"
-        "sqc2 vf2,0(%0)\n\t"
-        "nop\n\t"
+        "sqc2 vf2,0(%0)"
         : "+r"(result)
         : "r"(source), "f"(scale)
         : "$8", "memory"
@@ -198,8 +193,7 @@ void *MMathRad2DegVectorI(void *destination, const Vector4 *source)
         "lqc2 vf2,0(%1)\n\t"
         "vmulx.xyz vf2xyz,vf2xyz,vf1x\n\t"
         "vftoi0.xyz vf2xyz,vf2xyz\n\t"
-        "sqc2 vf2,0(%0)\n\t"
-        "nop\n\t"
+        "sqc2 vf2,0(%0)"
         : "+r"(result)
         : "r"(source), "f"(scale)
         : "$8", "memory"
@@ -218,8 +212,7 @@ void *MMathNormalizeVector2(void *destination, const Vector4 *source)
         "vmove.w vf2w,vf0w\n\t"
         "vwaitq\n\t"
         "vmulq.xyz vf2xyz,vf1xyz,Q\n\t"
-        "sqc2 vf2,0(%0)\n\t"
-        "nop\n\t"
+        "sqc2 vf2,0(%0)"
         : "+r"(destination)
         : "r"(source)
         : "memory"
@@ -470,8 +463,7 @@ Vector4 *MMathAddRotateVectorY(Vector4 *destination, float angle, const Vector4 
         "vmulax.xz ACC, vf3, vf5x\n\t"
         "vmaddx.xz vf3, vf4, vf6x\n\t"
         "vadd.xyz vf2, vf2, vf3\n\t"
-        "sqc2 vf2, 0(%3)\n\t"
-        "nop"
+        "sqc2 vf2, 0(%3)"
         : : "f"(angle), "r"(base), "r"(offset), "r"(destination) : "$8", "memory");
     return destination;
 }
@@ -496,8 +488,7 @@ Vector4 *MMathCalcOffset(Vector4 *destination, const Vector4 *first, const Vecto
         "vmulx.xz vf7, vf7, vf1x\n\t"
         "vmulaw.xyz ACC, vf7, vf6w\n\t"
         "vmaddw.xyz vf5, vf5, vf0w\n\t"
-        "sqc2 vf5, 0(%2)\n\t"
-        "nop"
+        "sqc2 vf5, 0(%2)"
         : : "r"(first), "r"(second), "r"(destination) : "memory");
     return destination;
 }
@@ -517,8 +508,7 @@ Vector4 *MMathCalcOffsetXYZ(Vector4 *destination, const Vector4 *first, const Ve
         "vmulax.xz ACC, vf6, vf7x\n\t"
         "vmaddx.xz vf6, vf2, vf1x\n\t"
         "vadd.xyz vf5, vf5, vf6\n\t"
-        "sqc2 vf5, 0(%2)\n\t"
-        "nop"
+        "sqc2 vf5, 0(%2)"
         : : "r"(first), "r"(second), "r"(destination) : "memory");
     return destination;
 }
@@ -532,8 +522,7 @@ Vector4 *MMathSubVectorMulS(Vector4 *destination, const Vector4 *first, const Ve
         "lqc2 vf2, 0(%2)\n\t"
         "vsub.xyz vf1, vf1, vf2\n\t"
         "vmulx.xyz vf1, vf1, vf3x\n\t"
-        "sqc2 vf1, 0(%3)\n\t"
-        "nop"
+        "sqc2 vf1, 0(%3)"
         : : "f"(scale), "r"(first), "r"(second), "r"(destination) : "$8", "memory");
     return destination;
 }
@@ -549,8 +538,7 @@ Vector4 *MMathSubVectorDivS(Vector4 *destination, const Vector4 *first, const Ve
         "vsub.xyz vf1, vf1, vf2\n\t"
         "vwaitq\n\t"
         "vmulq.xyz vf1, vf1, Q\n\t"
-        "sqc2 vf1, 0(%3)\n\t"
-        "nop"
+        "sqc2 vf1, 0(%3)"
         : : "f"(scale), "r"(first), "r"(second), "r"(destination) : "$8", "memory");
     return destination;
 }
@@ -570,8 +558,7 @@ Vector4 *MMathDivVector(Vector4 *destination, const Vector4 *first, const Vector
         "vdiv Q, vf1z, vf2z\n\t"
         "vwaitq\n\t"
         "vaddq.z vf3, vf0, Q\n\t"
-        "sqc2 vf3, 0(%2)\n\t"
-        "nop"
+        "sqc2 vf3, 0(%2)"
         : : "r"(first), "r"(second), "r"(destination) : "memory");
     return destination;
 }
@@ -585,8 +572,7 @@ Vector4 *MMathDivVectorS(Vector4 *destination, const Vector4 *source, float scal
         "vdiv Q, vf0w, vf2x\n\t"
         "vwaitq\n\t"
         "vmulq.xyz vf1, vf1, Q\n\t"
-        "sqc2 vf1, 0(%2)\n\t"
-        "nop"
+        "sqc2 vf1, 0(%2)"
         : : "f"(scale), "r"(source), "r"(destination) : "$8", "memory");
     return destination;
 }
@@ -609,8 +595,7 @@ Vector4 *MMathDivVector4(Vector4 *destination, const Vector4 *first, const Vecto
         "vdiv Q, vf1w, vf2w\n\t"
         "vwaitq\n\t"
         "vaddq.w vf3, vf3, Q\n\t"
-        "sqc2 vf3, 0(%2)\n\t"
-        "nop"
+        "sqc2 vf3, 0(%2)"
         : : "r"(first), "r"(second), "r"(destination) : "memory");
     return destination;
 }
@@ -624,8 +609,7 @@ Vector4 *MMathDivVectorS4(Vector4 *destination, const Vector4 *source, float sca
         "vdiv Q, vf0w, vf2x\n\t"
         "vwaitq\n\t"
         "vmulq.xyzw vf1, vf1, Q\n\t"
-        "sqc2 vf1, 0(%2)\n\t"
-        "nop"
+        "sqc2 vf1, 0(%2)"
         : : "f"(scale), "r"(source), "r"(destination) : "$8", "memory");
     return destination;
 }
@@ -690,8 +674,7 @@ Vector4 *MMathVectorCrossProduct(Vector4 *destination, const Vector4 *first, con
         "vopmula.xyz ACC, vf1, vf2\n\t"
         "vopmsub.xyz vf1, vf2, vf1\n\t"
         "vmove.w vf1, vf0\n\t"
-        "sqc2 vf1, 0(%2)\n\t"
-        "nop"
+        "sqc2 vf1, 0(%2)"
         : : "r"(first), "r"(second), "r"(destination) : "memory");
     return destination;
 }
@@ -706,8 +689,7 @@ Vector4 *MMathVectorInterpolation(Vector4 *destination, const Vector4 *first, co
         "lqc2 vf2, 0(%2)\n\t"
         "vmulaw.xyz ACC, vf1, vf3w\n\t"
         "vmaddx.xyz vf1, vf2, vf3x\n\t"
-        "sqc2 vf1, 0(%3)\n\t"
-        "nop"
+        "sqc2 vf1, 0(%3)"
         : : "f"(parameter), "r"(first), "r"(second), "r"(destination) : "$8", "memory");
     return destination;
 }
@@ -738,8 +720,7 @@ Matrix4 *MMathRotateMatrixX(Matrix4 *out, const Matrix4 *matrix, float angle)
         "sqc2 $vf1,16(%1)\n\t"
         "vmulax.xyzw ACCxyzw,$vf3xyzw,$vf5x\n\t"
         "vmsubx.xyzw $vf1xyzw,$vf2xyzw,$vf6x\n\t"
-        "sqc2 $vf1,32(%1)\n\t"
-        "nop"
+        "sqc2 $vf1,32(%1)"
         : "+r"(matrix) : "r"(out), "f"(angle) : "$8", "memory");
     return out;
 }
@@ -768,8 +749,7 @@ Matrix4 *MMathRotateMatrixY(Matrix4 *out, const Matrix4 *matrix, float angle)
         "sqc2 $vf2,0(%1)\n\t"
         "vmulax.xyzw ACCxyzw,$vf3xyzw,$vf5x\n\t"
         "vmaddx.xyzw $vf2xyzw,$vf1xyzw,$vf6x\n\t"
-        "sqc2 $vf2,32(%1)\n\t"
-        "nop"
+        "sqc2 $vf2,32(%1)"
         : "+r"(matrix) : "r"(out), "f"(angle) : "$8", "memory");
     return out;
 }
@@ -798,8 +778,7 @@ Matrix4 *MMathRotateMatrixZ(Matrix4 *out, const Matrix4 *matrix, float angle)
         "sqc2 $vf3,0(%1)\n\t"
         "vmulax.xyzw ACCxyzw,$vf2xyzw,$vf5x\n\t"
         "vmsubx.xyzw $vf3xyzw,$vf1xyzw,$vf6x\n\t"
-        "sqc2 $vf3,16(%1)\n\t"
-        "nop"
+        "sqc2 $vf3,16(%1)"
         : "+r"(matrix) : "r"(out), "f"(angle) : "$8", "memory");
     return out;
 }
@@ -838,8 +817,7 @@ Matrix4 *MMathRotateMatrixXY(Matrix4 *out, const Matrix4 *matrix, const Vector4 
         "sqc2 $vf8,0(%1)\n\t"
         "sqc2 $vf7,16(%1)\n\t"
         "sqc2 $vf3,32(%1)\n\t"
-        "sqc2 $vf4,48(%1)\n\t"
-        "nop"
+        "sqc2 $vf4,48(%1)"
         : "+r"(matrix) : "r"(out), "r"(angles) : "$8", "memory");
     return out;
 }
@@ -878,8 +856,7 @@ Matrix4 *MMathRotateMatrixYX(Matrix4 *out, const Matrix4 *matrix, const Vector4 
         "sqc2 $vf7,0(%1)\n\t"
         "sqc2 $vf8,16(%1)\n\t"
         "sqc2 $vf3,32(%1)\n\t"
-        "sqc2 $vf4,48(%1)\n\t"
-        "nop"
+        "sqc2 $vf4,48(%1)"
         : "+r"(matrix) : "r"(out), "r"(angles) : "$8", "memory");
     return out;
 }
@@ -928,8 +905,7 @@ Matrix4 *MMathRotateMatrixXYZ(Matrix4 *out, const Matrix4 *matrix, const Vector4
         "sqc2 $vf1,0(%1)\n\t"
         "sqc2 $vf2,16(%1)\n\t"
         "sqc2 $vf3,32(%1)\n\t"
-        "sqc2 $vf4,48(%1)\n\t"
-        "nop"
+        "sqc2 $vf4,48(%1)"
         : "+r"(matrix) : "r"(out), "r"(angles) : "$8", "memory");
     return out;
 }
@@ -978,8 +954,7 @@ Matrix4 *MMathRotateMatrixYXZ(Matrix4 *out, const Matrix4 *matrix, const Vector4
         "sqc2 $vf1,0(%1)\n\t"
         "sqc2 $vf2,16(%1)\n\t"
         "sqc2 $vf3,32(%1)\n\t"
-        "sqc2 $vf4,48(%1)\n\t"
-        "nop"
+        "sqc2 $vf4,48(%1)"
         : "+r"(matrix) : "r"(out), "r"(angles) : "$8", "memory");
     return out;
 }
@@ -996,8 +971,7 @@ Vector4 *MMathApplyMatrix(Vector4 *out, const Matrix4 *matrix, const Vector4 *ve
         "vmadday.xyzw ACCxyzw,$vf3xyzw,$vf1y\n\t"
         "vmaddaz.xyzw ACCxyzw,$vf4xyzw,$vf1z\n\t"
         "vmaddw.xyzw $vf1xyzw,$vf5xyzw,$vf1w\n\t"
-        "sqc2 $vf1,0(%0)\n\t"
-        "nop"
+        "sqc2 $vf1,0(%0)"
         : : "r"(out), "r"(matrix), "r"(vector) : "memory");
     return out;
 }
@@ -1032,8 +1006,7 @@ Matrix4 *MMathMulMatrix(Matrix4 *out, const Matrix4 *left, const Matrix4 *right)
         "vmadday.xyzw ACCxyzw,$vf3xyzw,$vf1y\n\t"
         "vmaddaz.xyzw ACCxyzw,$vf4xyzw,$vf1z\n\t"
         "vmaddw.xyzw $vf6xyzw,$vf5xyzw,$vf1w\n\t"
-        "sqc2 $vf6,48(%0)\n\t"
-        "nop"
+        "sqc2 $vf6,48(%0)"
         : : "r"(out), "r"(left), "r"(right) : "memory");
     return out;
 }
@@ -1053,8 +1026,7 @@ Matrix4 *MMathScaleMatrix(Matrix4 *out, const Matrix4 *matrix, const Vector4 *sc
         "sqc2 $vf1,0(%0)\n\t"
         "sqc2 $vf2,16(%0)\n\t"
         "sqc2 $vf3,32(%0)\n\t"
-        "sqc2 $vf4,48(%0)\n\t"
-        "nop"
+        "sqc2 $vf4,48(%0)"
         : : "r"(out), "r"(matrix), "r"(scale) : "memory");
     return out;
 }
@@ -1075,8 +1047,7 @@ Matrix4 *MMathScaleMatrixS(Matrix4 *out, const Matrix4 *matrix, float scale)
         "sqc2 $vf1,0(%0)\n\t"
         "sqc2 $vf2,16(%0)\n\t"
         "sqc2 $vf3,32(%0)\n\t"
-        "sqc2 $vf4,48(%0)\n\t"
-        "nop"
+        "sqc2 $vf4,48(%0)"
         : : "r"(out), "r"(matrix), "f"(scale) : "$8", "memory");
     return out;
 }
@@ -1096,8 +1067,7 @@ Matrix4 *MMathTranslateMatrix(Matrix4 *out, const Matrix4 *matrix, const Vector4
         "sqc2 $vf1,0(%0)\n\t"
         "sqc2 $vf2,16(%0)\n\t"
         "sqc2 $vf3,32(%0)\n\t"
-        "sqc2 $vf4,48(%0)\n\t"
-        "nop"
+        "sqc2 $vf4,48(%0)"
         : : "r"(out), "r"(matrix), "r"(translation) : "memory");
     return out;
 }
@@ -1129,8 +1099,7 @@ Vector4 *MMathCalcVectorMatrix(Vector4 *out, const Matrix4 *matrix)
     __asm__ __volatile__(
         "lqc2 $vf1,32(%1)\n\t"
         "vsub.xyzw $vf2xyzw,$vf0xyzw,$vf1xyzw\n\t"
-        "sqc2 $vf2,0(%0)\n\t"
-        "nop"
+        "sqc2 $vf2,0(%0)"
         : : "r"(out), "r"(matrix) : "memory");
     return out;
 }
@@ -1168,8 +1137,7 @@ void MMathRotTransPers(Vector4 *destination, const StudioCamera *camera, const M
         "vmaddw.xyz vf4, vf3, vf0w\n\t"
         "vftoi4.xy vf1, vf4\n\t"
         "vftoi0.zw vf1, vf4\n\t"
-        "sqc2 vf1, 0(%4)\n\t"
-        "nop"
+        "sqc2 vf1, 0(%4)"
         : : "r"(point), "r"(matrix), "r"(&camera->screenScale), "r"(&camera->screenOffset), "r"(destination) : "memory");
 }
 
@@ -1218,8 +1186,7 @@ int MMathRotTransPersClip(Vector4 *destination, const StudioCamera *camera, cons
     __asm__ __volatile__(
         "qmtc2.ni %0, vf2\n\t"
         "vmr32.w vf1, vf2\n\t"
-        "sqc2 vf1, 0(%1)\n\t"
-        "nop"
+        "sqc2 vf1, 0(%1)"
         :
         : "r"(result), "r"(destination)
         : "memory");

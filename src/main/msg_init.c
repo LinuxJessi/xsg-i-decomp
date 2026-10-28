@@ -628,7 +628,128 @@ int MSG_queuePop(MsgQueue *queue, unsigned char *destination, int limit)
     return output - destination;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/msg_init", MSG_copyln);
+int MSG_copyln(unsigned char **destination, unsigned char **source, int flags, unsigned char *output, unsigned char *input)
+{
+    unsigned int width;
+
+    output = *destination;
+    input = *source;
+    width = 0;
+    if (output == 0) {
+        return 0;
+    }
+    for (;;) {
+        int code = input[0];
+
+        input++;
+
+        if (code == 0) {
+            input = (unsigned char *)0;
+            break;
+        }
+        if (code == '\n') {
+            if (2 & flags) {
+                *output++ = code;
+            }
+            if (*input == 0) {
+                input = (unsigned char *)0;
+            }
+            break;
+        }
+        if ('/' == code && '[' == *input) {
+            if ((flags & 1) != 0) {
+                *output++ = code;
+                *output++ = *input++;
+            } else {
+                input++;
+            }
+            code = *input++;
+            if (code > 0x7f) {
+                if (0 != flags) {
+                    *output++ = code;
+                    switch (code) {
+                    case ']':
+                    case 0x81:
+                    case 0x84:
+                        break;
+                    case 0x85:
+                        while ((*output++ = *input++) != 0) {
+                        }
+                        break;
+                    case 0x80:
+                    case 0x82:
+                    case 0x83:
+                        *output++ = *input++;
+                        break;
+                    }
+                    *output++ = *input++;
+                }
+            } else {
+                input--;
+                for (;;) {
+                    code = input[0];
+                    input++;
+                    if (0x20 > code) {
+                        input = input - 1;
+                        _copyCTRLCode(&output, &input);
+                    } else if (']' == code) {
+                        if ((flags & 1) != 0) {
+                            *output++ = code;
+                        }
+                        break;
+                    } else {
+                        *output++ = code;
+                        if (0x8d < code) {
+                            *output++ = *input++;
+                        }
+                    }
+                }
+            }
+            continue;
+        }
+        if (code < 0x20) {
+            input = input - 1;
+            _copyCTRLCode(&output, &input);
+        } else {
+            int isAscii = (code < 0xa0);
+            unsigned char low = *input;
+            int proportional;
+
+            if (isAscii) {
+                unsigned int encoded;
+
+                input--;
+                encoded = xglFontAscii2Euc((signed char)code, (signed char **)&input);
+                code = (unsigned short)(encoded >> 8);
+                low = encoded & 0xff;
+                input++;
+                proportional = 1;
+            } else {
+                proportional = ctrlCodeFlags & 1;
+                input += 1;
+            }
+            *output++ = code;
+            if (code > 159) {
+                int glyph = xglFontCheckProportional(code & 0xFF, low & 0xFF);
+
+                *output++ = (unsigned char)low;
+                if (proportional && glyph >= 0) {
+                    unsigned int bounds = xglFontGetProportionalSize(glyph);
+
+                    width += ((bounds >> 8) & 0xff) - (bounds & 0xff) + 1;
+                } else {
+                    width += 20;
+                }
+            } else {
+                width = width + 8;
+            }
+        }
+    }
+    *output = 0;
+    *source = input;
+    *destination = output;
+    return width;
+}
 
 int MSG_queuePush(MsgQueue *queue, const unsigned char *text, int capacity, int length)
 {

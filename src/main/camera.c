@@ -1084,7 +1084,26 @@ void Java_xeno_Camera_setFog__IFFFFIIII(VMThread *thread,
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/camera", Java_xeno_Camera_resetFog__I);
+void Java_xeno_Camera_resetFog__I(VMThread *thread, VMSlot *arguments, VMSlot *result)
+{
+    CfCameraDefinition *definition;
+    int index;
+    int last;
+
+    (void)thread;
+    (void)result;
+    if (arguments[1].i < 0) {
+        index = 0;
+        last = 33;
+    } else {
+        index = arguments[1].i;
+        last = index + 1;
+    }
+    for (definition = &CfCameraDefine[index]; index < last; index++, definition++) {
+        __asm__ __volatile__("sq $0, 0(%0)\n" : : "r" (definition->fog_parameters) : "memory");
+        __asm__ __volatile__("sq $0, 0(%0)\n" : : "r" (definition->fog_color) : "memory");
+    }
+}
 
 void Java_xeno_Camera_setClipRange__FF(JavaEnvironment *environment,
                                        CameraSetClipRangeArgs *arguments,

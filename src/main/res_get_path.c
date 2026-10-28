@@ -351,7 +351,7 @@ static const char *tbl_0_00366420[20] = {
  */
 
 typedef struct {
-    u32 address;   /* +0x0 */
+    unsigned char *address;   /* +0x0 */
     int size;       /* +0x4 */
     int handle;     /* +0x8 */
     int state;      /* +0xC, -1 = free */

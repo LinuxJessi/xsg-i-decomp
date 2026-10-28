@@ -312,10 +312,6 @@ static unsigned short UpPara[8];
 static unsigned short MenuCharParty[8];
 static CharParaData paraUnit[2];
 
-/* Weapon slot per party character (chrNo 1..7), indexing calcTotalParaMenu's
- * attack words. */
-
-static unsigned char setSlotTbl[];
 
 static signed char ParaPointTbl[];
 
@@ -2680,6 +2676,11 @@ void CharPasMain(void)
     }
     endPrintExtFunc(pas->kind, 0x66, 0);
 }
+
+/* Weapon slot per party character (chrNo 1..7), indexing calcTotalParaMenu's
+ * attack words. */
+
+static unsigned char setSlotTbl[];
 
 int MenuCharEquipCalcPointGet(int chrNo)
 {

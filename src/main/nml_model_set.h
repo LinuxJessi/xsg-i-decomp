@@ -44,6 +44,18 @@ extern int s_nMapAlphaEntry;
 
 extern int s_nMainCameraWarp;
 
+/* The same 16 bytes as two doublewords, for the plain ld/sd copies. */
+typedef struct NmlQword {
+    unsigned long long lo;
+    unsigned long long hi;
+} NmlQword;
+
+/* A vector on a doubleword boundary: the original copies it with ld/sd. */
+typedef union NmlVector4Overlay {
+    Vector4 v;
+    NmlQword q;
+} NmlVector4Overlay;
+
 typedef struct NmlAlphaGroup {
     short firstBlock;
     short blockCount;
@@ -136,7 +148,7 @@ extern Vector4 s_inShadowVec;
 extern Vector4 s_inScale;
 
 extern Vector4 s_inGblPointC[];
-void xglVectorScaleXYZ(float scale, Vector4 *destination, const Vector4 *source);
+void xglVectorScaleXYZ(Vector4 *destination, const Vector4 *source, float scale);
 typedef unsigned int NmlPointQuadword __attribute__((mode(TI)));
 extern NmlPointQuadword s_inGblPointP[];
 extern NmlPointQuadword s_inGblFogCol[];
@@ -212,7 +224,9 @@ typedef struct NmlModelBlock {
     int baseOffset;
     int textOffset;
     int partId; /* +0x2c */
-    unsigned char unmodeled_030[0xc0 - 0x30];
+    unsigned short matrixIndices[48]; /* +0x30; transform then weighted entries */
+    float clipBounds[4]; /* +0x90; element 3 is the weighted clip radius */
+    unsigned char unmodeled_0a0[0x20];
     u32 materialFlags;
     unsigned char unmodeled_0c4[0x3c];
     Vector4 multiplyColor; /* +0x100 */
@@ -237,9 +251,11 @@ typedef struct NmlModel {
     signed char unclassified_3f;
     int partCount; /* +0x40 */
     int blockCount;
-    unsigned char unmodeled_048[0x24];
+    int sampleCount; /* +0x48 */
+    unsigned char unmodeled_04c[0x20];
     int unclassified_6c;
-    unsigned char unmodeled_070[0x30];
+    unsigned char unmodeled_070[0x20];
+    Vector4 entryTranslation; /* +0x90; w at +0x9c */
     int unclassified_a0;
     unsigned char unmodeled_0a4[0x0c];
     int blockOffsets[1];
@@ -277,7 +293,7 @@ union LayoutStore {
         Vector4 fogColor; /* +0x1c0 */
         Vector4 fogPara; /* +0x1d0 */
         unsigned char unmodeled_1e0[0x1f0 - 0x1e0];
-        Vector4 unmodeled_1f0; /* +0x1f0; copied as a projection input and passed to AlphaGroupSortEntry */
+        NmlVector4Overlay unmodeled_1f0; /* +0x1f0; copied as a projection input and passed to AlphaGroupSortEntry */
         Vector4 multiplyColor; /* +0x200 */
         unsigned char unmodeled_210[0x234 - 0x210];
         unsigned int packetFilterFlags;
@@ -314,5 +330,9 @@ union LayoutStore {
     } fields;
 };
 
+void nmlPacketAddGsScissor1(u64 scissor);
+void nmlPacketAddScreenClear(void);
+void nmlPacketClrTextureCache(void);
+int nmlPacketDirectData(const void *data, int size);
 
 #endif /* SRC_MAIN_NML_MODEL_SET_H */

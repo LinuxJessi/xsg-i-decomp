@@ -7,7 +7,7 @@ typedef struct Actor Actor;
 
 /*
  * The unit record scenarioMtd, transWepIn/transWepOut and spWepDispOn
- * (0x00a0e550, still INCLUDE_ASM here) all share: spWepDispOn receives the
+ * (0x00a0e550) all share: spWepDispOn receives the
  * same pointer scenarioMtd receives, dereferences it to reach this record,
  * then indexes its +0x1C table by (weapon-slot & 3) and reads +0x14, exactly
  * as transWepIn/transWepOut do on their own argument and scenarioMtd does on

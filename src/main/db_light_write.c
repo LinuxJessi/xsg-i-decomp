@@ -128,6 +128,16 @@ extern const char D_004C2050[];
 
 extern const char D_004C2088[];
 
+/* Clear-environment colour words (the GS clear block's color_r/g/b at 0x20). */
+typedef struct {
+    unsigned char unmodeled_00[0x20];
+    unsigned int color_r;
+    unsigned int color_g;
+    unsigned int color_b;
+} ClearEnvColorView;
+
+extern ClearEnvColorView ClearEnv;
+
 typedef struct { float f[28]; } LightFloats;
 
 typedef struct {
@@ -810,7 +820,104 @@ void drawAxis(Matrix4 matrix, float scale)
     xglPrimAddGifTagDirect(0, (const void *)0x70000000, 13);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/db_light_write", drawCircle3);
+extern void MATRIX_transpose3(Matrix4 matrix);
+extern void xglMatrixMul(Matrix4 destination, Matrix4 left, Matrix4 right);
+extern float dptofp(double value);
+
+void drawCircle3(const Vector4 *position, Matrix4 *matrix, int color_index)
+{
+    StudioCamera *camera_slot;
+    StudioCamera **camera = &camera_slot;
+    Matrix rotation;
+    unsigned int *write;
+    const unsigned char *red;
+    const unsigned char *green;
+    const unsigned char *blue;
+    const unsigned char *alpha;
+    const unsigned char *red_column;
+    const unsigned char *green_column;
+    const unsigned char *blue_column;
+    const unsigned char *alpha_column;
+    double magnitude;
+    double zero;
+    float offset_x;
+    Vector4 *centre;
+    float radius;
+    float angle;
+    int segment;
+    int colour;
+
+    color_index *= 2;
+    xglStudioGetCamera(camera, 0);
+    ((DebugLineScratch *)0x70000000)->transform.screen_offset = (*camera)->screenOffset;
+    *(Matrix4Block *)((DebugLineScratch *)0x70000000)->transform.world = *(Matrix4Block *)(*camera)->viewMatrix;
+    ((DebugLineScratch *)0x70000000)->transform.screen_scale = (*camera)->screenScale;
+    ((DebugLineScratch *)0x70000000)->transform.local = matrix;
+    ((DebugLineScratch *)0x70000000)->input[0].x = position->x;
+    ((DebugLineScratch *)0x70000000)->input[0].y = position->y;
+    ((DebugLineScratch *)0x70000000)->input[0].z = position->z;
+    ((DebugLineScratch *)0x70000000)->input[0].w = 1.0f;
+    transformVector(((DebugLineScratch *)0x70000000)->output, ((DebugLineScratch *)0x70000000)->input, 1, &((DebugLineScratch *)0x70000000)->transform);
+    __asm__ __volatile__(
+        "lq $2, 0(%1)\n"
+        "sq $2, 0(%0)\n"
+        "lq $2, 16(%1)\n"
+        "sq $2, 16(%0)\n"
+        "lq $2, 32(%1)\n"
+        "sq $2, 32(%0)\n"
+        "lq $2, 48(%1)\n"
+        "sq $2, 48(%0)\n"
+        :
+        : "r"(&rotation), "r"((*camera)->cameraToWorldMatrix)
+        : "$2", "memory");
+    rotation.elements[12] = 0.0f;
+    rotation.elements[13] = 0.0f;
+    rotation.elements[14] = 0.0f;
+    MATRIX_transpose3((float (*)[4])rotation.elements);
+    ((DebugLineScratch *)0x70000000)->transform.local = (Matrix4 *)rotation.elements;
+    xglMatrixMul(*matrix, (float (*)[4])rotation.elements, *matrix);
+    ((DebugLineScratch *)0x70000000)->input[0].x = position->w;
+    ((DebugLineScratch *)0x70000000)->input[0].y = 0.0f;
+    ((DebugLineScratch *)0x70000000)->input[0].z = 0.0f;
+    ((DebugLineScratch *)0x70000000)->input[0].w = 1.0f;
+    write = (unsigned int *)0x70000000;
+    zero = 0.0;
+    transformVector(&((DebugLineScratch *)0x70000000)->output[1], ((DebugLineScratch *)0x70000000)->input, 1, &((DebugLineScratch *)0x70000000)->transform);
+    write[0] = 0x8011;
+    write[1] = 0x20054000;
+    write[2] = 0xffffff51;
+    write[3] = 0;
+    write += 4;
+    magnitude = fptodp(((Vector4 *)0x700004f0)->x - 2048.0f);
+    if (magnitude < zero)
+        magnitude = zero - magnitude;
+    radius = dptofp(magnitude);
+    colour = color_index * 4 + 4;
+    red_column = &col[0];
+    green_column = &col[1];
+    blue_column = &col[2];
+    alpha_column = &col[3];
+    green = green_column + colour;
+    blue = blue_column + colour;
+    alpha = alpha_column + colour;
+    red = red_column + colour;
+    centre = (Vector4 *)0x700004e0;
+    angle = 0.0f;
+    for (segment = 16; segment >= 0; segment--) {
+        write[0] = *red;
+        write[1] = *green;
+        write[2] = *blue;
+        write[3] = *alpha;
+        write += 4;
+        write[0] = (centre->x + xglSin(angle) * radius) * 16.0f;
+        write[1] = (centre->y + xglCos(angle) * radius) * 16.0f;
+        angle += 0.39269908f;
+        write[2] = 0xffffffffU;
+        write[3] = 0;
+        write += 4;
+    }
+    xglPrimAddGifTagDirect(0, (const void *)0x70000000, 35);
+}
 
 void drawTags(const Vector3 *position, Matrix4 *matrix, const char *label)
 {
@@ -1786,9 +1893,122 @@ void EvtTools(void)
 
 
 
-INCLUDE_ASM("asm/main/nonmatchings/db_light_write", initLight3);
+void initLight3(void)
+{
+    StudioLight *light;
+    StudioLight *l;
+    StudioLight *source;
+    Vector4 *slot;
+    Vector4 *colour;
+    Vector4 *direction;
+    float sum;
+    int i;
+    int filled;
 
-INCLUDE_ASM("asm/main/nonmatchings/db_light_write", initLight2);
+    xglStudioGetLight(&light);
+    l = light;
+    slot = &lightCol[3];
+    slot->x = l->ambient_color.x;
+    slot->y = l->ambient_color.y;
+    slot->z = l->ambient_color.z;
+    sum = slot->x + slot->y + slot->z;
+    slot->w = sum / 3.0f;
+    colour = lightCol;
+    i = 0;
+    do {
+        filled = i + 1;
+        source = l;
+        colour->x = source->lights[0].color.x;
+        colour->y = source->lights[0].color.y;
+        colour->z = source->lights[0].color.z;
+        colour->w = (colour->x + colour->y + colour->z) / 3.0f;
+        colour++;
+        i = filled;
+    } while (filled < 3);
+    slot = &lightCol[4];
+    slot->x = (float)ClearEnv.color_r / 255.0f;
+    slot->y = (float)ClearEnv.color_g / 255.0f;
+    slot->z = (float)ClearEnv.color_b / 255.0f;
+    slot->w = (slot->x + slot->y + slot->z) / 3.0f;
+    slot = &lightCol[5];
+    slot->w = (slot->x + slot->y + slot->z) / 3.0f;
+    source = l;
+    i = 0;
+    do {
+        direction = &lightDir[i];
+        direction->x = source->lights[0].direction.x;
+        direction->y = source->lights[0].direction.y;
+        if (direction->y >= 0.0f) {
+            direction->y = 1.0f;
+        } else {
+            direction->y = -1.0f;
+        }
+        l = source;
+        direction->z = source->lights[0].direction.z;
+    } while (++i < 3);
+}
+
+void initLight2(void)
+{
+    StudioLight *light;
+    StudioLight *source;
+    Vector4 *destination;
+    Vector4 *direction;
+    float *walk;
+    int i;
+
+    xglStudioGetLight(&light);
+    source = light;
+    destination = &lightCol[3];
+    destination->x = source->ambient_color.x;
+    destination->y = source->ambient_color.y;
+    destination->z = source->ambient_color.z;
+    destination->w = (destination->x + destination->y + destination->z) / 3.0f;
+
+    for (i = 0; i < 3; i++) {
+        float lred;
+        float lgreen;
+        float lblue;
+
+        float *walk;
+
+        destination = lightCol + i;
+        walk = &source->lights[i].color.z;
+        lred = walk[-2];
+        destination->x = lred;
+        lgreen = walk[-1];
+        destination->y = lgreen;
+        lblue = walk[0];
+        destination->w = (lred + lgreen + lblue) / 3.0f;
+        destination->z = lblue;
+    }
+
+    destination = &lightCol[4];
+    destination->x = (float)ClearEnv.color_r / 255.0f;
+    destination->y = (float)ClearEnv.color_g / 255.0f;
+    destination->z = (float)ClearEnv.color_b / 255.0f;
+    destination->w = (destination->x + destination->y + destination->z) / 3.0f;
+
+    destination = &lightCol[5];
+    destination->w = (destination->x + destination->y + destination->z) / 3.0f;
+
+    walk = &source->lights[0].direction.z;
+    i = 0;
+    do {
+        float dgreen;
+
+        direction = &lightDir[i];
+        direction->x = walk[-2];
+        dgreen = walk[-1];
+        direction->y = dgreen;
+        if (dgreen >= 0.0f)
+            direction->y = 1.0f;
+        else
+            direction->y = -1.0f;
+        direction->z = walk[0];
+        walk += 8;
+    } while (++i < 3);
+}
 
 void initLight(void)
 {

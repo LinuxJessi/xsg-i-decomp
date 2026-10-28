@@ -29,6 +29,25 @@ static inline void look_copy_place(LookAlignedVector4 *place, const Vector4 *sou
                          : : "r" (source), "r" (place) : "$2", "memory");
 }
 
+static inline void look_zero_vector(Vector4 *destination)
+{
+    __asm__ __volatile__("sq $0, 0(%0)"
+                         : : "r" (destination) : "memory");
+}
+
+static inline void look_copy_matrix(Matrix4 destination, Matrix4 source)
+{
+    __asm__ __volatile__("lq $2, 0(%1)\n"
+                         "sq $2, 0(%0)\n"
+                         "lq $2, 16(%1)\n"
+                         "sq $2, 16(%0)\n"
+                         "lq $2, 32(%1)\n"
+                         "sq $2, 32(%0)\n"
+                         "lq $2, 48(%1)\n"
+                         "sq $2, 48(%0)\n"
+                         : : "r" (destination), "r" (source) : "$2", "memory");
+}
+
 float xglAsin(float value)
 {
     /* MARK: explicit NaN-fallback call structure -- emits sqrt.s + c.eq.s/bc1t
@@ -150,7 +169,63 @@ void LOOK_target_doit(void)
 {
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/look", LOOK_sebo_cont);
+void *LOOK_sebo_cont(LookJointWork *work, void *channels, LookCharacter *actor)
+{
+    Matrix4 matrix;
+    Matrix4 rootMatrix;
+    LookAlignedVector4 place;
+    Vector4 localPlace;
+
+    if (actor != 0) {
+        float weight = actor->lookWeight;
+        LookJointElement *element = &work->elements[work->jointIndex];
+
+        if (!(__builtin_fabsf(weight) < D_004D8568)) {
+
+            do {
+            if (weight <= 0.0f)
+                weight = 1.0f;
+            {
+                int placeStatus = look_get_place(actor, &place);
+
+                if (placeStatus == 0) {
+                    float *angle;
+
+                    place.v.w = 1.0f;
+                    look_copy_matrix(matrix, work->matrixBuffer[work->jointIndex - 1]);
+                    look_copy_matrix(rootMatrix, work->rootMatrix);
+                    matrix[0][3] = 0.0f;
+                    matrix[1][3] = 0.0f;
+                    matrix[2][3] = 0.0f;
+                    rootMatrix[0][3] = 0.0f;
+                    rootMatrix[1][3] = 0.0f;
+                    rootMatrix[2][3] = 0.0f;
+                    xglMatrixMul(matrix, rootMatrix, matrix);
+                    xglMatrixInverse(matrix, matrix);
+                    {
+                        Vector4 targetAngle;
+
+                        look_zero_vector(&targetAngle);
+                        xglVectorMulMat(&localPlace, matrix, &place.v);
+                        angle = &actor->lookAngles[0].y;
+                        targetAngle.y = xglAtan2(localPlace.x, localPlace.z);
+                        look_limit_add(angle, targetAngle.y, weight * D_004D8570);
+                    }
+                    element->rotation[2] += *angle * D_004D8574;
+                } else {
+                    float *angle = &actor->lookAngles[0].y;
+
+                    look_limit(angle, weight * D_004D856C);
+                    element->rotation[2] += *angle * D_004D8574;
+                }
+            }
+            } while (0);
+        }
+    }
+    return channels;
+}
+
+
 
 int look_get_place(LookCharacter *actor, LookAlignedVector4 *place);
 
@@ -229,7 +304,7 @@ void *LOOK_head_cont(LookJointWork *work, void *channels, LookCharacter *actor)
 }
 
 
-void LOOK_eye_cont(int model, int target, int step, int side);
+void *LOOK_eye_cont(LookJointWork *work, void *channels, LookCharacter *actor, int side);
 static float s_fEyeOffset = 0.0f;
 
 void LOOK_eyeL_cont(int model, int target, int step)
@@ -244,4 +319,148 @@ void LOOK_eyeR_cont(int model, int target, int step)
     LOOK_eye_cont(model, target, step, 1);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/look", LOOK_eye_cont);
+enum LookEyeComponent { EYE_YAW, EYE_PITCH, EYE_DURATION, EYE_STEP };
+
+extern float s_aEyeIdling[22][4];
+extern float s_aEyeControl[15][4];
+extern float s_aEyeDefault[1][4];
+extern const char D_004DC258[];
+extern const char D_004DC260[];
+extern const char D_004DC268[];
+extern char *strstr(const char *haystack, const char *needle);
+
+void *LOOK_eye_cont(LookJointWork *work, void *channels, LookCharacter *actor, int side)
+{
+    Matrix4 jointMatrix;
+    Matrix4 rootMatrix;
+    LookAlignedVector4 targetPlace;
+    Vector4 localPlace;
+    Vector4 angles;
+    LookJointElement *element;
+    LookEyeState *eyes;
+    LookAngleView *view;
+    float eyeWeight;
+    float yawScale;
+    float pitchScale;
+    float horizontalDistance;
+    float step;
+    int controlled;
+    unsigned int mode;
+    LookCharacter *owner;
+    LookModelRecord *model;
+
+    owner = actor->eyeOwner;
+    if (owner != 0)
+        actor = owner;
+    if (actor != 0) {
+    eyeWeight = actor->worldPosition.w;
+    controlled = 0;
+    element = work->elements + work->jointIndex;
+    eyes = actor->eyes;
+    view = (LookAngleView *)actor;
+    pitchScale = 1.0f;
+    yawScale = pitchScale;
+    if (eyeWeight <= 0.0f)
+        eyeWeight = 1.0f;
+    model = actor->model;
+    if (model != 0) {
+        const char *name = model->name;
+        if (strstr(name, D_004DC258) ||
+            strstr(name, D_004DC260) ||
+            strstr(name, D_004DC268)) {
+            pitchScale *= D_004D85B0;
+            yawScale *= D_004D85B0;
+        }
+    }
+    mode = actor->eyeMode;
+    switch (mode) {
+    case 1:
+        look_limit_add(&eyes[side].yaw, s_aEyeIdling[eyes[side].frame][EYE_YAW],
+                       s_aEyeIdling[eyes[side].frame][EYE_STEP]);
+        look_limit_add(&eyes[side].pitch, s_aEyeIdling[eyes[side].frame][EYE_PITCH],
+                       s_aEyeIdling[eyes[side].frame][EYE_STEP]);
+        eyes[side].timer++;
+        if (eyes[side].timer >= (int)s_aEyeIdling[eyes[side].frame][EYE_DURATION]) {
+            eyes[side].timer = 0;
+            eyes[side].frame++;
+            if (s_aEyeIdling[eyes[side].frame][EYE_DURATION] < 0.0f)
+                eyes[side].frame = 0;
+        }
+        controlled = 1;
+        break;
+    case 14:
+        yawScale = D_004D85B4;
+        yawScale = eyeWeight * yawScale;
+        look_limit_add(&eyes[side].yaw, actor->eyeYaw, yawScale);
+        look_limit_add(&eyes[side].pitch, actor->eyePitch, yawScale);
+        controlled = 1;
+        break;
+    case 7:
+    case 8:
+    case 9:
+        if (side != 0)
+            yawScale = -yawScale;
+        /* fall through */
+    case 2:
+    case 3:
+    case 4:
+    case 5:
+    case 6:
+    case 10:
+    case 11:
+    case 12:
+        look_limit_add(&eyes[side].yaw,
+                       s_aEyeControl[mode][EYE_YAW] * yawScale,
+                       s_aEyeControl[mode][EYE_STEP]);
+        look_limit_add(&eyes[side].pitch,
+                       s_aEyeControl[actor->eyeMode][EYE_PITCH] * pitchScale,
+                       s_aEyeControl[actor->eyeMode][EYE_STEP]);
+        controlled = 1;
+        break;
+    case 13:
+        controlled = 1;
+        break;
+    case 0:
+        break;
+    }
+    if (!controlled) {
+        look_limit_add(&eyes[side].yaw, s_aEyeDefault[0][EYE_YAW], s_aEyeDefault[0][EYE_STEP]);
+        look_limit_add(&eyes[side].pitch, s_aEyeDefault[0][EYE_PITCH], s_aEyeDefault[0][EYE_STEP]);
+    }
+    if (look_get_place(actor, &targetPlace) == 0) {
+        targetPlace.v.w = 1.0f;
+        look_copy_matrix(jointMatrix, work->matrixBuffer[work->jointIndex - 1]);
+        look_copy_matrix(rootMatrix, work->rootMatrix);
+        jointMatrix[0][3] = 0.0f;
+        jointMatrix[1][3] = 0.0f;
+        jointMatrix[2][3] = 0.0f;
+        rootMatrix[0][3] = 0.0f;
+        rootMatrix[1][3] = 0.0f;
+        rootMatrix[2][3] = 0.0f;
+        xglMatrixMul(jointMatrix, rootMatrix, jointMatrix);
+        xglMatrixInverse(jointMatrix, jointMatrix);
+        xglVectorMulMat(&localPlace, jointMatrix, &targetPlace.v);
+        localPlace.z += s_fEyeOffset;
+        angles.y = xglAtan2(localPlace.z, localPlace.x);
+        horizontalDistance = __builtin_sqrtf(localPlace.z * localPlace.z +
+                                             localPlace.x * localPlace.x);
+        step = D_004D85B8;
+        step = eyeWeight * step;
+        angles.z = xglAtan2(localPlace.y, horizontalDistance);
+        look_limit_add(&view->lookAngles[side][0], angles.y, step);
+        look_limit_add(&view->lookAngles[side][3], angles.z, step);
+        element->rotation[1] -= view->lookAngles[side][0] * D_004D85C0 * D_004D85C4;
+        element->rotation[0] += view->lookAngles[side][3] * D_004D85C0 * D_004D85C0;
+    } else {
+        step = D_004D85BC;
+        step = eyeWeight * step;
+        look_limit(&view->lookAngles[side][0], step);
+        look_limit(&view->lookAngles[side][3], step);
+        element->rotation[1] -= view->lookAngles[side][0] * D_004D85C0 * D_004D85C4;
+        element->rotation[0] += view->lookAngles[side][3] * D_004D85C0 * D_004D85C0;
+    }
+    element->rotation[1] += view->eyeAngles[side][2];
+    element->rotation[0] += view->eyeAngles[side][3];
+    }
+    return channels;
+}

@@ -26,7 +26,7 @@ from tu import cinc
 from tu.storage_directives import emitted_storage as parse_emitted_storage
 from tu import verify_report as verification
 from tu.elfinfo import Elf
-from tu.toolchain import Toolchain
+from tu.toolchain import Toolchain, tu_assembler_options
 
 
 emitted_storage = lru_cache(maxsize=16)(parse_emitted_storage)
@@ -319,6 +319,20 @@ def c_literal_bytes(spelling):
     return bytes(out)
 
 
+class EEAssembler(type(Path())):
+    """The TU contract's legacy ee-as path, carrying its per-object options
+    (user decision 2026-10-27: -g for every in-scope game C TU)."""
+
+    def __init__(self, *args, options=()):
+        super().__init__(*args)
+        self.options = tuple(options)
+
+
+def as_options(assembler):
+    """The per-object options to pass after the -G flag of every legacy ee-as run."""
+    return list(getattr(assembler, 'options', ()))
+
+
 def run(argv, cwd):
     subprocess.run(['timeout', '-k', '5', '30', *map(str, argv)], cwd=cwd,
                    check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -554,7 +568,7 @@ def compile_source(root, unit_dir, source, output, ccdir, assembler, flags, skip
             compiler_output_unchanged=True, scaffold_includes=includes,
             scaffold_code_and_storage_emitted=False), indent=2) + '\n')
     gflag = next(flag for flag in flags if flag.startswith('-G'))
-    run([assembler, '-EL', '-m5900', '-mabi=eabi', gflag, '-I.',
+    run([assembler, '-EL', '-m5900', '-mabi=eabi', gflag, *as_options(assembler), '-I.',
          f'-I{unit_dir}', f'-I{unit_dir / "include"}', '-o', output, assembly], cwd)
     return assembly
 
@@ -963,7 +977,7 @@ def original_text(reference, original_path, start, end, destination, cwd, obj, a
         return reference
     assembly.write_text(body)
     gflag = next(flag for flag in flags if flag.startswith('-G'))
-    run([assembler, '-EL', '-m5900', '-mabi=eabi', gflag, '-I.', '-Iinclude',
+    run([assembler, '-EL', '-m5900', '-mabi=eabi', gflag, *as_options(assembler), '-I.', '-Iinclude',
          '-o', destination, assembly], cwd)
     extracted = parsed_elf(destination.read_bytes())
     verification.require(extracted.section_bytes(extracted.section('.text')) == expected and
@@ -1026,7 +1040,7 @@ def original_literal_pool(reference, original_path, start, extent, destination, 
     assembly.write_text(body + pool)
     try:
         gflag = next(flag for flag in flags if flag.startswith('-G'))
-        run([assembler, '-EL', '-m5900', '-mabi=eabi', gflag, '-I.', '-Iinclude',
+        run([assembler, '-EL', '-m5900', '-mabi=eabi', gflag, *as_options(assembler), '-I.', '-Iinclude',
              '-o', destination, assembly], cwd)
         after = parsed_elf(destination.read_bytes())
         actual_lit = after.section('.lit4')
@@ -3525,7 +3539,7 @@ def joint_original(reference, text_reference, data, original_path, destination,
         body=rename(re.sub(r'\.include\s+"([^\"]+\.s)"',include,body))
     assembly=destination.with_suffix('.s');assembly.write_text(body)
     try:
-        run([assembler,'-EL','-m5900','-mabi=eabi',next(f for f in flags if f.startswith('-G')),
+        run([assembler,'-EL','-m5900','-mabi=eabi',next(f for f in flags if f.startswith('-G')),*as_options(assembler),
              '-I.','-Iinclude','-o',destination,assembly],cwd)
         after=parsed_elf(destination.read_bytes())
         switch_label_candidates=compiler_switch_target_labels(after,original,switch_proofs,tu)
@@ -3534,7 +3548,7 @@ def joint_original(reference, text_reference, data, original_path, destination,
             if switch_label_proofs:
                 previous=after
                 assembly.write_text(body)
-                run([assembler,'-EL','-m5900','-mabi=eabi',next(f for f in flags if f.startswith('-G')),
+                run([assembler,'-EL','-m5900','-mabi=eabi',next(f for f in flags if f.startswith('-G')),*as_options(assembler),
                      '-I.','-Iinclude','-o',destination,assembly],cwd)
                 after=parsed_elf(destination.read_bytes())
                 if original_reference_signature(previous)!=original_reference_signature(after):return reference,[]
@@ -3549,7 +3563,7 @@ def joint_original(reference, text_reference, data, original_path, destination,
                 preprocessed,registry or {},tu,cwd,scope)
             if source_pool_proofs:
                 assembly.write_text(body)
-                run([assembler,'-EL','-m5900','-mabi=eabi',next(f for f in flags if f.startswith('-G')),
+                run([assembler,'-EL','-m5900','-mabi=eabi',next(f for f in flags if f.startswith('-G')),*as_options(assembler),
                      '-I.','-Iinclude','-o',destination,assembly],cwd)
                 after=parsed_elf(destination.read_bytes())
         anonymous_char_proofs=[]
@@ -3558,7 +3572,7 @@ def joint_original(reference, text_reference, data, original_path, destination,
                 parsed_elf(compiler_object.read_bytes()),compiler_assembly.read_text(),preprocessed,registry,tu,cwd,destination,scope)
             if anonymous_char_proofs:
                 old=after;body=rewritten;assembly.write_text(body)
-                run([assembler,'-EL','-m5900','-mabi=eabi',next(f for f in flags if f.startswith('-G')),
+                run([assembler,'-EL','-m5900','-mabi=eabi',next(f for f in flags if f.startswith('-G')),*as_options(assembler),
                      '-I.','-Iinclude','-o',destination,assembly],cwd)
                 after=parsed_elf(destination.read_bytes())
                 if original_reference_signature(old)!=original_reference_signature(after):return reference,[]
@@ -3574,7 +3588,7 @@ def joint_original(reference, text_reference, data, original_path, destination,
                 parsed_elf(compiler_object.read_bytes()),compiler_assembly.read_text(),preprocessed,registry,tu,cwd,destination)
             if registered_nobits_proofs:
                 old=after;assembly.write_text(rewritten)
-                run([assembler,'-EL','-m5900','-mabi=eabi',next(f for f in flags if f.startswith('-G')),
+                run([assembler,'-EL','-m5900','-mabi=eabi',next(f for f in flags if f.startswith('-G')),*as_options(assembler),
                      '-I.','-Iinclude','-o',destination,assembly],cwd)
                 after=parsed_elf(destination.read_bytes())
                 if original_reference_signature(old)!=original_reference_signature(after):return reference,[]
@@ -3600,7 +3614,7 @@ def joint_original(reference, text_reference, data, original_path, destination,
             storage_extent_proofs.extend(found)
             if storage_extent_proofs:
                 previous=after;assembly.write_text(body)
-                run([assembler,'-EL','-m5900','-mabi=eabi',next(f for f in flags if f.startswith('-G')),
+                run([assembler,'-EL','-m5900','-mabi=eabi',next(f for f in flags if f.startswith('-G')),*as_options(assembler),
                      '-I.','-Iinclude','-o',destination,assembly],cwd)
                 after=parsed_elf(destination.read_bytes())
                 if original_reference_signature(previous)!=original_reference_signature(after):return reference,[]
@@ -3632,7 +3646,7 @@ def joint_original(reference, text_reference, data, original_path, destination,
                 cc1,registry or {},tu,identities)
             if source_pool_proofs or named_literal_proofs or literal_word_proofs or nobits_zero_size_proofs:
                 assembly.write_text(body)
-                run([assembler,'-EL','-m5900','-mabi=eabi',next(f for f in flags if f.startswith('-G')),
+                run([assembler,'-EL','-m5900','-mabi=eabi',next(f for f in flags if f.startswith('-G')),*as_options(assembler),
                      '-I.','-Iinclude','-o',destination,assembly],cwd)
                 after=parsed_elf(destination.read_bytes())
         funcs=lambda e:{(s.name,s.value,s.size,s.bind,s.type) for s in e.symbols if s.type==2}
@@ -5495,6 +5509,37 @@ def registered_nobits_zero_sizes(body, reference, original, compiled, assembly, 
 
 
 
+def owner_corrected_tu(root, tu, carved):
+    """The frozen TU coordinates after the verified owner corrections the carve applies.
+
+    `data_carve.carve_manifest` keeps the tracked TU map unchanged and, for a
+    registered single explicit .data route whose `basis.owner_correction.from_tu`
+    names this TU, moves the exact suffix [lo, end) of this TU's section to the
+    route's source TU, so this TU's section ends at lo in the carved manifest.
+    Apply exactly that correction, cross-checked against the carved manifest
+    (the moved section starts at lo and ends at the frozen end under the rule
+    'private owner correction'); every other coordinate stays the frozen one.
+    """
+    registry=verification.read(data_carve.registry_input_path(root)).get('tus',{})
+    carved={t['id']:t for t in carved['tus']}
+    sections=None
+    for tu_id,secs in registry.items():
+        for sec,runs in secs.items():
+            if sec!='.data' or len(runs)!=1:continue
+            correction=(runs[0].get('basis') or {}).get('owner_correction') or {}
+            if correction.get('from_tu')!=tu['name'] or tu_id==tu['id']:continue
+            entry=tu.get('sections',{}).get(sec)
+            lo,hi=(data_carve.hx(v) for v in runs[0]['range'])
+            moved=carved.get(tu_id,{}).get('sections',{}).get(sec,{})
+            verification.require(entry is not None and data_carve.hx(entry['start'])<lo<hi==data_carve.hx(entry['end'])
+                and moved.get('rule')=='private owner correction'
+                and data_carve.hx(moved.get('start','0'))==lo and data_carve.hx(moved.get('end','0'))==hi,
+                'registered owner correction does not move an exact suffix of this TU')
+            sections=sections or {name:dict(value) for name,value in tu['sections'].items()}
+            sections[sec]['end']=data_carve.h8(lo)
+    return tu if sections is None else dict(tu,sections=sections)
+
+
 def registered_current_data_layout(root, unit_dir, obj, tu, base, assembly, preprocessed,
                                    evidence, destination, prefix, reference=None, *, reporting=False):
     """Ordinary LD placement of verified C inputs, never imported DATA bytes.
@@ -5508,6 +5553,7 @@ def registered_current_data_layout(root, unit_dir, obj, tu, base, assembly, prep
                                  reporting and checked.get('source_complete')):return None
     manifest=verification.read(unit_dir/'tu-manifest.carved.json')
     current=next(t for t in manifest['tus'] if t['id']==obj['id'])
+    tu=owner_corrected_tu(root,tu,manifest)
     verification.require(tu['name']==current['name'] and tu['text']==current['text'] and all(
         all(entry[k]==current['sections'][name][k] for k in ('start','end'))
         for name,entry in tu.get('sections',{}).items()),'current DATA view TU coordinates differ from verified manifest')
@@ -5848,7 +5894,8 @@ def prepare(root, evidence, only_objects=None, *, iop_only=False, project_dir=No
             tu = main_tus[stem]
             contract = tu.get('contract', {})
             ccdir = Path(contract.get('cc_dir', '.'))
-            assembler = Path(contract.get('assembler_path', '.'))
+            assembler = EEAssembler(contract.get('assembler_path', '.'),
+                                    options=tu_assembler_options(contract))
             flags = contract.get('flags', [])
             data_sources = [unit_dir / (piece.get('file') or
                             f'asm/main/data/{piece["piece"]}.{section[1:]}.s')
@@ -5865,7 +5912,7 @@ def prepare(root, evidence, only_objects=None, *, iop_only=False, project_dir=No
             tus = overlays[unit]['units'][unit]['tus']
             tu = next(t for t in tus if t['name'] == stem)
             ccdir = Path(tu['compiler']['dir'])
-            assembler = Path(tu['assembler']['path'])
+            assembler = EEAssembler(tu['assembler']['path'], options=tu_assembler_options(tu))
             flags = tu['flags']
             data_sources = sorted((unit_dir / f'asm/data/{unit}').glob(stem + '.*.s'))
             if tu['kind'] == 'c':
@@ -5944,7 +5991,7 @@ def prepare(root, evidence, only_objects=None, *, iop_only=False, project_dir=No
                     data_registry.get(obj['id'],{}),tu,unit_dir,checked['functions'],current_placement)
                 verification.require(cleanup['identities'],'current DATA placement lacks a source-pool identity witness')
                 source=destination/'current-reference.s';source.write_text(body)
-                run([assembler,'-EL','-m5900','-mabi=eabi',next(f for f in flags if f.startswith('-G')),
+                run([assembler,'-EL','-m5900','-mabi=eabi',next(f for f in flags if f.startswith('-G')),*as_options(assembler),
                      '-I.','-Iinclude','-o',target,source],unit_dir)
                 linked_reference=destination/'current-reference.elf'
                 run([str(prefix)+'ld','-EL','-m','elf32lr5900','-T',destination/'joint.ld',

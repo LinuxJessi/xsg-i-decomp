@@ -652,8 +652,8 @@ extern void xglMatrixTrans(Matrix4 destination, const Matrix4 source,
 extern void xglVectorOuter(Vector4 *destination, const Vector4 *left,
                             const Vector4 *right);
 
-extern void xglVectorScaleXYZ(float scale, Vector4 *destination,
-                               const Vector4 *source);
+extern void xglVectorScaleXYZ(Vector4 *destination, const Vector4 *source,
+                               float scale);
 
 extern void xglVectorMulMat(Vector4 *destination, const Matrix4 matrix,
                              const Vector4 *source);
@@ -1371,13 +1371,13 @@ static u8 *DrawDropShadowSub(ActShadowActor *actor,
             xglVectorOuter(perpendicular, (const Vector4 *)(const void *)work->temporary,
                              light_direction);
             xglVectorLength(&length, perpendicular);
-            xglVectorScaleXYZ(I2F((signed char)contact[1]) * D_004D85F8 / length,
-                                &work->outer_offset, perpendicular);
-            xglVectorScaleXYZ(I2F((signed char)contact[2]) * D_004D85F8 / length,
-                                inner_offset, perpendicular);
+            xglVectorScaleXYZ(&work->outer_offset, perpendicular,
+                                I2F((signed char)contact[1]) * D_004D85F8 / length);
+            xglVectorScaleXYZ(inner_offset, perpendicular,
+                                I2F((signed char)contact[2]) * D_004D85F8 / length);
             xglVectorLength(&length, (const Vector4 *)(const void *)work->temporary);
-            xglVectorScaleXYZ(I2F((signed char)contact[1]) * D_004D85F8 / length,
-                                axial_offset, (const Vector4 *)(const void *)work->temporary);
+            xglVectorScaleXYZ(axial_offset, (const Vector4 *)(const void *)work->temporary,
+                                I2F((signed char)contact[1]) * D_004D85F8 / length);
 
             work->temporary[3] = ground_height;
             work->temporary[0] = first_position[0];

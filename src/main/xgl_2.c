@@ -104,8 +104,7 @@ void xglMemCopy64(void *destination, const void *source, int count)
         "addi %2,%2,-1\n\t"
         "addi %0,%0,64\n\t"
         "addi %1,%1,64\n\t"
-        "bne $0,%2,1b\n\t"
-        "nop"
+        "bne $0,%2,1b"
         : "+r"(destination), "+r"(source), "+r"(count)
         :
         : "$2", "memory");
@@ -126,8 +125,7 @@ void xglMemCopy64b(void *destination, const void *source, int count)
         "addi %2,%2,-1\n\t"
         "addi %0,%0,-64\n\t"
         "addi %1,%1,-64\n\t"
-        "bne $0,%2,1b\n\t"
-        "nop"
+        "bne $0,%2,1b"
         : "+r"(destination), "+r"(source), "+r"(count)
         :
         : "$2", "memory");
@@ -142,8 +140,7 @@ void xglMemCopy16(void *destination, const void *source, int count)
         "addi %2,%2,-1\n\t"
         "addi %0,%0,16\n\t"
         "addi %1,%1,16\n\t"
-        "bne $0,%2,1b\n\t"
-        "nop"
+        "bne $0,%2,1b"
         : "+r"(destination), "+r"(source), "+r"(count)
         :
         : "$2", "memory");
@@ -158,8 +155,7 @@ void xglMemCopy16b(void *destination, const void *source, int count)
         "addi %2,%2,-1\n\t"
         "addi %0,%0,-16\n\t"
         "addi %1,%1,-16\n\t"
-        "bne $0,%2,1b\n\t"
-        "nop"
+        "bne $0,%2,1b"
         : "+r"(destination), "+r"(source), "+r"(count)
         :
         : "$2", "memory");
@@ -174,8 +170,7 @@ void xglMemCopy8(void *destination, const void *source, int count)
         "addi %2,%2,-1\n\t"
         "addi %0,%0,8\n\t"
         "addi %1,%1,8\n\t"
-        "bne $0,%2,1b\n\t"
-        "nop"
+        "bne $0,%2,1b"
         : "+r"(destination), "+r"(source), "+r"(count)
         :
         : "$2", "memory");
@@ -190,8 +185,7 @@ void xglMemCopy8b(void *destination, const void *source, int count)
         "addi %2,%2,-1\n\t"
         "addi %0,%0,-8\n\t"
         "addi %1,%1,-8\n\t"
-        "bne $0,%2,1b\n\t"
-        "nop"
+        "bne $0,%2,1b"
         : "+r"(destination), "+r"(source), "+r"(count)
         :
         : "$2", "memory");
@@ -206,8 +200,7 @@ void xglMemCopy4(void *destination, const void *source, int count)
         "addi %2,%2,-1\n\t"
         "addi %0,%0,4\n\t"
         "addi %1,%1,4\n\t"
-        "bne $0,%2,1b\n\t"
-        "nop"
+        "bne $0,%2,1b"
         : "+r"(destination), "+r"(source), "+r"(count)
         :
         : "$2", "memory");
@@ -222,8 +215,7 @@ void xglMemCopy4b(void *destination, const void *source, int count)
         "addi %2,%2,-1\n\t"
         "addi %0,%0,-4\n\t"
         "addi %1,%1,-4\n\t"
-        "bne $0,%2,1b\n\t"
-        "nop"
+        "bne $0,%2,1b"
         : "+r"(destination), "+r"(source), "+r"(count)
         :
         : "$2", "memory");
@@ -238,8 +230,7 @@ void xglMemCopy2(void *destination, const void *source, int count)
         "addi %2,%2,-1\n\t"
         "addi %0,%0,2\n\t"
         "addi %1,%1,2\n\t"
-        "bne $0,%2,1b\n\t"
-        "nop"
+        "bne $0,%2,1b"
         : "+r"(destination), "+r"(source), "+r"(count)
         :
         : "$2", "memory");
@@ -254,8 +245,7 @@ void xglMemCopy2b(void *destination, const void *source, int count)
         "addi %2,%2,-1\n\t"
         "addi %0,%0,-2\n\t"
         "addi %1,%1,-2\n\t"
-        "bne $0,%2,1b\n\t"
-        "nop"
+        "bne $0,%2,1b"
         : "+r"(destination), "+r"(source), "+r"(count)
         :
         : "$2", "memory");
@@ -351,7 +341,7 @@ void xglVectorDivSubXYZ(Vector4 *destination, const Vector4 *numerator,
     destination->w = numerator->w;
 }
 
-void xglVectorScale(float scale, Vector4 *destination, const Vector4 *source)
+void xglVectorScale(Vector4 *destination, const Vector4 *source, float scale)
 {
     destination->x = source->x * scale;
     destination->y = source->y * scale;
@@ -359,7 +349,7 @@ void xglVectorScale(float scale, Vector4 *destination, const Vector4 *source)
     destination->w = source->w * scale;
 }
 
-void xglVectorScaleXYZ(float scale, Vector4 *destination, const Vector4 *source)
+void xglVectorScaleXYZ(Vector4 *destination, const Vector4 *source, float scale)
 {
     destination->x = source->x * scale;
     destination->y = source->y * scale;
@@ -520,8 +510,7 @@ void xglVectorNormal(Vector4 *destination, const Vector4 *source)
         "vrsqrt Q, vf0w, vf3x\n\t"
         "vwaitq\n\t"
         "vmulq.xyz vf2xyz, vf2xyz, Q\n\t"
-        "sqc2 vf2, 0(%0)\n\t"
-        "nop\n\t"
+        "sqc2 vf2, 0(%0)"
         :
         : "r"(destination), "r"(source)
         : "memory"
@@ -598,8 +587,7 @@ void xglVectorMulMat(Vector4 *destination, const Matrix4 matrix,
         "vmadday.xyzw ACCxyzw, vf28xyzw, vf1y\n\t"
         "vmaddaz.xyzw ACCxyzw, vf29xyzw, vf1z\n\t"
         "vmaddw.xyzw vf31xyzw, vf30xyzw, vf1w\n\t"
-        "sqc2 vf31, 0(%0)\n\t"
-        "nop\n\t"
+        "sqc2 vf31, 0(%0)"
         :
         : "r"(destination), "r"(matrix), "r"(vector)
         : "memory"
@@ -720,8 +708,7 @@ void xglMatrixMul(Matrix *destination, Matrix *left, Matrix *right)
         "sqc2 vf2, 0(%0)\n\t"
         "sqc2 vf3, 16(%0)\n\t"
         "sqc2 vf4, 32(%0)\n\t"
-        "sqc2 vf30, 48(%0)\n\t"
-        "nop\n\t"
+        "sqc2 vf30, 48(%0)"
         :
         : "r"(destination), "r"(left), "r"(right)
         : "memory"
@@ -871,7 +858,7 @@ void xglMatrixRotV(Matrix *destination, Matrix *source, Vector4 *axis,
         : "r"((unsigned int)Vu0CallCos / 8), "r"(angle)
         : "memory"
     );
-    xglVectorScaleXYZ(1.0f - cosineForScale, &oneMinusCosAxis, axis);
+    xglVectorScaleXYZ(&oneMinusCosAxis, axis, 1.0f - cosineForScale);
 
     __asm__ __volatile__(
         "ctc2.i %1,$vi27\n\t"
@@ -883,7 +870,7 @@ void xglMatrixRotV(Matrix *destination, Matrix *source, Vector4 *axis,
         : "r"((unsigned int)Vu0CallSin / 8), "r"(angle)
         : "memory"
     );
-    xglVectorScaleXYZ(sine, &sinAxis, axis);
+    xglVectorScaleXYZ(&sinAxis, axis, sine);
 
     __asm__ __volatile__(
         "ctc2.i %1,$vi27\n\t"
@@ -1129,8 +1116,7 @@ void xglMatrixStackUnit(void)
         "ctc2.i %0,$vi27\n\t"
         "vnop\n\t"
         "vnop\n\t"
-        "vcallmsr $vi27\n\t"
-        "nop"
+        "vcallmsr $vi27"
         :
         : "r"(entry)
         : "memory"
@@ -1147,8 +1133,7 @@ void xglMatrixStackMul(const Matrix4 matrix)
         "lqc2 $vf5,16(%1)\n\t"
         "lqc2 $vf6,32(%1)\n\t"
         "lqc2 $vf7,48(%1)\n\t"
-        "vcallmsr $vi27\n\t"
-        "nop"
+        "vcallmsr $vi27"
         :
         : "r"(entry), "r"(matrix)
         : "memory"
@@ -1163,8 +1148,7 @@ void xglMatrixStackReverse(void)
         "ctc2.i %0,$vi27\n\t"
         "vnop\n\t"
         "vnop\n\t"
-        "vcallmsr $vi27\n\t"
-        "nop"
+        "vcallmsr $vi27"
         :
         : "r"(entry)
         : "memory"
@@ -1179,8 +1163,7 @@ void xglMatrixStackInverse(void)
         "ctc2.i %0,$vi27\n\t"
         "vnop\n\t"
         "vnop\n\t"
-        "vcallmsr $vi27\n\t"
-        "nop"
+        "vcallmsr $vi27"
         :
         : "r"(entry)
         : "memory"
@@ -1195,8 +1178,7 @@ void xglMatrixStackScale(const float scale[4])
         "ctc2.i %0,$vi27\n\t"
         "vnop\n\t"
         "lqc2 $vf4,0(%1)\n\t"
-        "vcallmsr $vi27\n\t"
-        "nop"
+        "vcallmsr $vi27"
         :
         : "r"(entry), "r"(scale)
         : "memory"
@@ -1211,8 +1193,7 @@ void xglMatrixStackTrans(const float translation[4])
         "ctc2.i %0,$vi27\n\t"
         "vnop\n\t"
         "lqc2 $vf4,0(%1)\n\t"
-        "vcallmsr $vi27\n\t"
-        "nop"
+        "vcallmsr $vi27"
         :
         : "r"(entry), "r"(translation)
         : "memory"
@@ -1227,8 +1208,7 @@ void xglMatrixStackRotV(const float axis[4], float angle)
         "ctc2.i %0,$vi27\n\t"
         "lqc2 $vf5,0(%1)\n\t"
         "qmtc2 %2,$vf4\n\t"
-        "vcallmsr $vi27\n\t"
-        "nop"
+        "vcallmsr $vi27"
         :
         : "r"(entry), "r"(axis), "r"(angle)
         : "memory"
@@ -1243,8 +1223,7 @@ void xglMatrixStackRotX(float angle)
         "ctc2.i %0,$vi27\n\t"
         "vnop\n\t"
         "qmtc2 %1,$vf4\n\t"
-        "vcallmsr $vi27\n\t"
-        "nop"
+        "vcallmsr $vi27"
         :
         : "r"(entry), "r"(angle)
         : "memory"
@@ -1259,8 +1238,7 @@ void xglMatrixStackRotY(float angle)
         "ctc2.i %0,$vi27\n\t"
         "vnop\n\t"
         "qmtc2 %1,$vf4\n\t"
-        "vcallmsr $vi27\n\t"
-        "nop"
+        "vcallmsr $vi27"
         :
         : "r"(entry), "r"(angle)
         : "memory"
@@ -1275,8 +1253,7 @@ void xglMatrixStackRotZ(float angle)
         "ctc2.i %0,$vi27\n\t"
         "vnop\n\t"
         "qmtc2 %1,$vf4\n\t"
-        "vcallmsr $vi27\n\t"
-        "nop"
+        "vcallmsr $vi27"
         :
         : "r"(entry), "r"(angle)
         : "memory"
@@ -1300,8 +1277,7 @@ void xglMatrixStackFrustum(float left, float right, float bottom, float top,
     ((volatile int *)window)[7] = 0;
     ((volatile int *)window)[3] = 0;
     __asm__ __volatile__("sync" : : : "memory");
-    __asm__ __volatile__("vcallmsr $vi27\n\t"
-                         "nop"
+    __asm__ __volatile__("vcallmsr $vi27"
                          : : : "memory");
 }
 
@@ -1312,8 +1288,7 @@ void xglMatrixStackSave(float matrix[4][4])
         "sqc2 $vf28,0(%0)\n\t"
         "sqc2 $vf29,16(%0)\n\t"
         "sqc2 $vf30,32(%0)\n\t"
-        "sqc2 $vf31,48(%0)\n\t"
-        "nop"
+        "sqc2 $vf31,48(%0)"
         :
         : "r"(matrix)
         : "memory"
@@ -1327,8 +1302,7 @@ void xglMatrixStackLoad(float matrix[4][4])
         "lqc2 $vf28,0(%0)\n\t"
         "lqc2 $vf29,16(%0)\n\t"
         "lqc2 $vf30,32(%0)\n\t"
-        "lqc2 $vf31,48(%0)\n\t"
-        "nop"
+        "lqc2 $vf31,48(%0)"
         :
         : "r"(matrix)
         : "memory"
@@ -1343,8 +1317,7 @@ void xglMatrixStackPushUnit(void)
         "ctc2.i %0,$vi27\n\t"
         "vnop\n\t"
         "vnop\n\t"
-        "vcallmsr $vi27\n\t"
-        "nop"
+        "vcallmsr $vi27"
         :
         : "r"(entry)
         : "memory"
@@ -1359,8 +1332,7 @@ void xglMatrixStackPush(void)
         "ctc2.i %0,$vi27\n\t"
         "vnop\n\t"
         "vnop\n\t"
-        "vcallmsr $vi27\n\t"
-        "nop"
+        "vcallmsr $vi27"
         :
         : "r"(entry)
         : "memory"
@@ -1375,8 +1347,7 @@ void xglMatrixStackPop(int count)
         "ctc2.i %0,$vi27\n\t"
         "vnop\n\t"
         "ctc2 %1,$vi1\n\t"
-        "vcallmsr $vi27\n\t"
-        "nop"
+        "vcallmsr $vi27"
         :
         : "r"(entry), "r"(count)
         : "memory"
@@ -1393,8 +1364,7 @@ void xglMatrixStackMulVector(Vector4 *out, const Vector4 *vector)
         "lqc2 $vf4,0(%2)\n\t"
         "vcallmsr $vi27\n\t"
         "cfc2.i $0,$vi0\n\t"
-        "sqc2 $vf5,0(%1)\n\t"
-        "nop"
+        "sqc2 $vf5,0(%1)"
         :
         : "r"(entry), "r"(out), "r"(vector)
         : "memory"
@@ -1413,8 +1383,7 @@ void xglMatrixStackRTPS(Vector4 *out, const Vector4 *point,
         "lqc2 $vf6,0(%4)\n\t"
         "vcallmsr $vi27\n\t"
         "cfc2.i $0,$vi0\n\t"
-        "sqc2 $vf7,0(%1)\n\t"
-        "nop"
+        "sqc2 $vf7,0(%1)"
         :
         : "r"(entry), "r"(out), "r"(point), "r"(scale), "r"(offset)
         : "memory"
@@ -1495,8 +1464,7 @@ void xglQuaternion2Matrix(Matrix4 destination, const Vector4 *quaternion)
         "sqc2 vf0, 48(%0)\n\t"
         "sqc2 vf27, 0(%0)\n\t"
         "sqc2 vf28, 16(%0)\n\t"
-        "sqc2 vf29, 32(%0)\n\t"
-        "nop"
+        "sqc2 vf29, 32(%0)"
         :
         : "r"(destination), "r"(quaternion)
         : "memory"
@@ -1558,8 +1526,7 @@ void xglFSrand(float seed)
 {
     __asm__ __volatile__(
         "qmtc2.ni %0, vf1\n\t"
-        "vrinit R, vf1x\n\t"
-        "nop"
+        "vrinit R, vf1x"
         :
         : "r"(seed)
         : "memory"

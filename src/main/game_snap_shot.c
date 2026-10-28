@@ -101,7 +101,7 @@ extern int sceWrite(int descriptor, const void *buffer, unsigned int size);
 
 extern void xglClockUInt2DayTime(XglClock *clock, unsigned int seconds);
 
-extern void xglJpegEncode(GameSnapShotJpegParams *params);
+extern int xglJpegEncode(GameSnapShotJpegParams *params);
 
 extern void *memset(void *destination, int value, unsigned int size);
 

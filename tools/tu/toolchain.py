@@ -48,6 +48,44 @@ DEFAULT_GAME_DIR = "game/extracted-iso"
 DEFAULT_SPLAT_PYTHON = ".work/envs/split-tools/bin/python"
 
 
+# The per-object assembler options a TU contract may carry beyond
+# `-EL -m5900 -mabi=eabi -G<n>` (user decision 2026-10-27: -g for every in-scope
+# game C TU; main/tu148 and main/tu157 none).  Anything else is refused.
+EE_AS_BASE = ["-EL", "-m5900", "-mabi=eabi"]
+EE_AS_OPTIONS = ([], ["-g"])
+
+
+def tu_assembler_options(record):
+    """The per-object assembler options of a TU record, whatever its manifest shape.
+
+    config/tu-build.json contract (`assembler_flags`), MAIN object/compile
+    manifest contract (`assembler_options`), overlay compile manifest TU
+    (`assembler.argv`), or a record holding one of those under `contract`.
+    """
+    if not isinstance(record, dict):
+        return []
+    if isinstance(record.get("contract"), dict) and not any(
+            key in record for key in ("assembler_flags", "assembler_options")):
+        return tu_assembler_options(record["contract"])
+    if "assembler_options" in record:
+        options = list(record["assembler_options"] or [])
+    elif isinstance(record.get("assembler_flags"), list):
+        flags = record["assembler_flags"]
+        if flags[:3] != EE_AS_BASE or len(flags) < 4 or not flags[3].startswith("-G"):
+            raise ToolchainError(f"unsupported assembler flags {flags}")
+        options = list(flags[4:])
+    elif isinstance(record.get("assembler"), dict) and isinstance(record["assembler"].get("argv"), str):
+        argv = record["assembler"]["argv"].split()
+        if argv[:4] != EE_AS_BASE + ["<G>"] or argv[-2:] != ["-I", "."]:
+            raise ToolchainError(f"unsupported assembler argv {record['assembler']['argv']!r}")
+        options = argv[4:-2]
+    else:
+        options = []
+    if options not in EE_AS_OPTIONS:
+        raise ToolchainError(f"unsupported assembler options {options}")
+    return options
+
+
 class ToolchainError(SystemExit):
     """A missing or wrong tool: the build stops and says which one."""
 

@@ -747,7 +747,265 @@ void MenuTecPasMain(void)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_tec", MenuTecInfoMain);
+extern char D_004DB418[];
+extern char D_004DB420[];
+
+typedef struct MenuTextEntry {
+    const char *name;
+    const unsigned char *auxiliary;
+    const unsigned char *sortName;
+} MenuTextEntry;
+
+MenuTextEntry *MenuTextGet(int textId);
+int MenuSortGet(int listIndex, int entryIndex);
+
+void eMessageCpy(char *destination, const char *source);
+void eMessageCat(const char *source);
+char *MenuCharNameGet(int characterNo);
+char *MenuNumberTextGet(long long value, int width, int mode);
+
+void MenuTecInfoMain(void)
+{
+    MenuTecInfoWork **workSlot = &MenuTecInfo;
+    const char *characterHelp[] = {
+        "Choose a character.",
+        " cannot be chosen."
+    };
+    const char *menuHelp[] = {
+        "Set Tech Attack. \nNote: Attacks must be set to use.",
+        "Use T.Pts to improve Tech Attacks.",
+        "Cancel."
+    };
+    const char *upgradeHelp[] = {
+        "TECH",
+        "SPEED",
+        "WAIT",
+        "XX's level",
+        "is now XX.\037"
+    };
+    const char *limitHelp[] = {
+        "Level can be increased.",
+        "\n(Increases attack power)",
+        "\n(Enables Tech Attack to be set in HI Slot)",
+        "\n(Recover faster after using Tech Attack)",
+        "You do not have enough T.Pts.",
+        " cannot be improved any further."
+    };
+    const char *pointHelp[] = {
+        "XX",
+        " will be changed to ",
+        "HI",
+        "LW",
+        " is now "
+    };
+    const char *waitHelp[] = {
+        "\243\260",
+        "\243\261",
+        "\243\262",
+        "\243\263",
+        "\243\264",
+        "\243\265",
+        "\243\266",
+        "\243\267",
+        "\243\270",
+        "\243\271",
+        "\243\301"
+    };
+    const char *listHelp[] = {
+        "Set a HI SPEED Tech Attack in the HI Slot.",
+        "Set a LW or HI SPEED Tech Attack in the LW Slot."
+    };
+    const char *equipmentHelp[] = {
+        "Because this Tech Attack's SPEED is LW,\nit cannot be set in this slot.",
+        "Because this Tech Attack's SPEED is LW\nand it conflicts with the slot range,\nit cannot be set in this slot.",
+        "Because this Tech Attack conflicts with the slot range, it cannot be set here."
+    };
+    short targetY;
+    unsigned char wait;
+    MenuTecInfoWork *work = *workSlot;
+
+    switch (work->state) {
+    case 0:
+        work->color = 0x00fffff0;
+        WindowDXSet((WindowDX *)(void *)(&work->window));
+        work->window.x = -16;
+        work->window.color = work->color;
+        work->window.y = 480;
+        work->window.width = 544;
+        work->window.height = 54;
+        work->window.callbackArg = &work->detail;
+        work->window.callback = (void (*)(MenuTecInfoWindow *, MenuTecInfoDetail *))MenuInfoWindow;
+        work->detail.message = 0;
+        work->window.state = 1;
+        WindowDXMain((WindowDX *)(void *)(&work->window));
+        work->window.state = 3;
+        work->active = 1;
+        work->showCharacterHelp = 0;
+        work->showActionHelp = 0;
+        memset(work->message, 0, sizeof(work->message));
+        work->state = 2;
+    case 2:
+        targetY = 386;
+        if (work->showCharacterHelp == 0) {
+            if (PadData.half_2a & 0x20)
+                work->showCharacterHelp = 1;
+        } else if (PadData.mappedRepeat != 0) {
+            work->showCharacterHelp = 0;
+        }
+        switch (MenuWork.state) {
+        case 0x10:
+            eMessageCpy(work->message, characterHelp[0]);
+            if (work->showCharacterHelp && MenuWork.characterHelp != 0) {
+                eMessageCpy(work->message, MenuCharNameGet(MenuWork.characterNo));
+                eMessageCat(characterHelp[1]);
+            }
+            break;
+        case 0x20:
+            eMessageCpy(work->message, menuHelp[MenuWork.listCursor]);
+            break;
+        case 0x30:
+            if (MenuWork.mode < 2)
+                eMessageCpy(work->message, listHelp[0]);
+            else
+                eMessageCpy(work->message, listHelp[1]);
+            break;
+        case 0x32:
+            if (MenuWork.selectedTechnique >= 0) {
+                if (work->showActionHelp == 0) {
+                    eMessageCpy(work->message,
+                                MenuTextGet(MenuSortGet(0, MenuWork.selectedTechnique))->auxiliary);
+                    if (MenuWork.mode < 2) {
+                        if (MenuWork.resetFlags & 8) {
+                            if (MenuWork.resetFlags & 4)
+                                eMessageCpy(work->message, equipmentHelp[1]);
+                            else
+                                eMessageCpy(work->message, equipmentHelp[0]);
+                            work->showActionHelp = 1;
+                        } else if (MenuWork.resetFlags & 4) {
+                            eMessageCpy(work->message, equipmentHelp[2]);
+                            work->showActionHelp = 1;
+                        }
+                    } else if (MenuWork.resetFlags & 4) {
+                        eMessageCpy(work->message, equipmentHelp[2]);
+                        work->showActionHelp = 1;
+                    }
+                } else if (PadData.mappedRepeat & 0xfffd) {
+                    work->showActionHelp = 0;
+                }
+            }
+            break;
+        case 0x50:
+            if (MenuWork.selectedTechnique >= 0) {
+                if (work->showActionHelp == 0) {
+                    if (PadData.half_2a & 0x20) {
+                        if (MenuTecCharTLevUpCheck() || MenuTecCharSpeedUpCheck() ||
+                            MenuTecCharWaitUpCheck()) {
+                            eMessageCpy(work->message,
+                                        MenuTextGet(MenuSortGet(0, MenuWork.selectedTechnique))->auxiliary);
+                        } else {
+                            if (MenuTecTLevLimitCheck(MenuWork.characterNo, MenuWork.point) ||
+                                MenuTecSpeedLimitCheck(MenuWork.characterNo, MenuWork.point) ||
+                                MenuTecWaitLimitCheck(MenuWork.characterNo, MenuWork.point)) {
+                                eMessageCpy(work->message, limitHelp[4]);
+                                work->showActionHelp = 1;
+                            } else {
+                                eMessageCpy(work->message,
+                                            MenuTextGet(MenuSortGet(0, MenuWork.selectedTechnique))->name);
+                                eMessageCat(limitHelp[5]);
+                                work->showActionHelp = 1;
+                            }
+                        }
+                    } else {
+                        eMessageCpy(work->message,
+                                    MenuTextGet(MenuSortGet(0, MenuWork.selectedTechnique))->auxiliary);
+                    }
+                } else if (PadData.mappedRepeat & 0xfffd) {
+                    work->showActionHelp = 0;
+                }
+            }
+            break;
+        case 0x52:
+            switch (MenuWork.rowCursor) {
+            case 0:
+                if (MenuTecTLevLimitCheck(MenuWork.characterNo, MenuWork.point)) {
+                    if (MenuTecCharTLevUpCheck()) {
+                        eMessageCpy(work->message, limitHelp[0]);
+                        eMessageCat(limitHelp[1]);
+                    } else {
+                        eMessageCpy(work->message, limitHelp[4]);
+                    }
+                } else {
+                    eMessageCpy(work->message, upgradeHelp[0]);
+                    eMessageCat(limitHelp[5]);
+                }
+                break;
+            case 1:
+                if (MenuTecSpeedLimitCheck(MenuWork.characterNo, MenuWork.point)) {
+                    if (MenuTecCharSpeedUpCheck()) {
+                        eMessageCpy(work->message, limitHelp[0]);
+                        eMessageCat(limitHelp[2]);
+                    } else {
+                        eMessageCpy(work->message, limitHelp[4]);
+                    }
+                } else {
+                    eMessageCpy(work->message, upgradeHelp[1]);
+                    eMessageCat(limitHelp[5]);
+                }
+                break;
+            case 2:
+                if (MenuTecWaitLimitCheck(MenuWork.characterNo, MenuWork.point)) {
+                    if (MenuTecCharWaitUpCheck()) {
+                        eMessageCpy(work->message, limitHelp[0]);
+                        eMessageCat(limitHelp[3]);
+                    } else {
+                        eMessageCpy(work->message, limitHelp[4]);
+                    }
+                } else {
+                    eMessageCpy(work->message, upgradeHelp[2]);
+                    eMessageCat(limitHelp[5]);
+                }
+                break;
+            }
+            break;
+        case 0x54:
+        case 0x56:
+            if (MenuWork.resetFlags & 1) {
+                int improved;
+                long long level;
+                int selected = 1;
+                improved = MenuWork.state == 0x54 ? selected : 0;
+                eMessageCpy(work->message, upgradeHelp[MenuWork.rowCursor]);
+                eMessageCat(pointHelp[1]);
+                switch (MenuWork.rowCursor) {
+                case 0:
+                    level = (long long)improved + MenuTecSaveDataGet(MenuWork.characterNo)->level[MenuWork.point];
+                    eMessageCat(MenuNumberTextGet(level, -1, 0));
+                    break;
+                case 1:
+                    eMessageCat(pointHelp[2]);
+                    break;
+                case 2:
+                    wait = MenuTecSaveDataGet(MenuWork.characterNo)->wait[MenuWork.point];
+                    eMessageCat(waitHelp[10]);
+                    eMessageCat(waitHelp[wait - improved]);
+                    break;
+                }
+                if (MenuWork.state == 0x54)
+                    eMessageCat(D_004DB418);
+                else
+                    eMessageCat(D_004DB420);
+            }
+            break;
+        default:
+            targetY = 512;
+            break;
+        }
+        work->detail.message = work->message;
+        MoveSlide(&work->window.y, &targetY, 3.0f);
+        WindowDXMain((WindowDX *)(void *)(&work->window));
+        break;
+    }
+}
 
 void MenuTecMenuMain(void)
 {
@@ -1348,14 +1606,6 @@ typedef struct MenuTecList2MessageIds {
 
 extern const MenuTecList2MessageIds D_004C91D8;
 extern const MenuTecList2SpriteIds D_004C9210;
-
-typedef struct MenuTextEntry {
-    const char *name;
-    const unsigned char *auxiliary;
-    const unsigned char *sortName;
-} MenuTextEntry;
-
-MenuTextEntry *MenuTextGet(int textId);
 
 extern MenuTecList2Work *MenuTecList2;
 extern const char D_004C91F0[];
@@ -2259,9 +2509,3 @@ void MenuTec(void)
 /* Defined after MenuTec: the original .sdata holds it at 0x004DB518, after
  * every string literal of the TU's functions (MenuTec's ends at 0x004DB517). */
 MenuTecData *MenuTecDataBuf = 0;
-
-extern const char D_004C89E0[];
-extern const char D_004C89F8[];
-
-/* MenuTecInfoMain copies these two character-selection prompts together. */
-const char *D_004DB378[2] = { D_004C89E0, D_004C89F8 };

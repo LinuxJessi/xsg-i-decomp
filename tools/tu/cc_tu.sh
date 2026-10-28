@@ -1,5 +1,6 @@
 #!/bin/bash
 # cc_tu.sh <in.c> <out.o> <compiler -B dir> <assembler> <-G0|-G8> <unit-dir> <root>
+# (environment XENO_EE_AS_OPTIONS: the TU contract's assembler options, '' or -g)
 #
 # One original C TU under its own contract: the tools/match.py pipeline
 # (cpp -> cc1 -> as) with the same argv shapes.  The INCLUDE_ASM bodies are
@@ -17,6 +18,14 @@ IN="$1"; OUT="$2"; CCDIR="$3"; AS="$4"; G="$5"; UNIT="$6"; ROOT="$7"
 mkdir -p "$(dirname "$OUT")"
 ENV=(env -i PATH=/usr/bin:/bin LC_ALL=C)
 T=(timeout -k 5 30)
+# XENO_EE_AS_OPTIONS (set by the ninja `cc` rule from the TU contract, tools/tu/ninja_ovl.py):
+# the per-object assembler options; -g for every in-scope game C TU (user 2026-10-27).
+AS_OPTIONS=()
+case "${XENO_EE_AS_OPTIONS:-}" in
+    '') ;;
+    -g) AS_OPTIONS=(-g) ;;
+    *) echo "cc_tu.sh: unsupported assembler options: ${XENO_EE_AS_OPTIONS}" >&2; exit 2 ;;
+esac
 step_failed() {    # <step> <exit status>
     if [ "$2" -eq 124 ] || [ "$2" -eq 137 ]; then
         echo "cc_tu.sh: $1 timed out after 30 s (exit $2): $IN" >&2
@@ -39,7 +48,7 @@ fi
 "${T[@]}" "${ENV[@]}" "$CCDIR/ee-gcc" -B"$CCDIR/" -nostdinc -fno-builtin -S -O2 "$G" \
     "${OUT%.o}.i" -o "${OUT%.o}.s" || rc=$?
 if [ "$rc" -ne 0 ]; then step_failed "cc1 (ee-gcc -S)" "$rc"; exit "$rc"; fi
-( "${T[@]}" "${ENV[@]}" "$AS" -EL -m5900 -mabi=eabi "$G" -I . -I "$UNIT" -I "$ROOT" \
+( "${T[@]}" "${ENV[@]}" "$AS" -EL -m5900 -mabi=eabi "$G" "${AS_OPTIONS[@]}" -I . -I "$UNIT" -I "$ROOT" \
         -o "$OUT" "${OUT%.o}.s" > "$OUT.asmsg" 2>&1 ) || rc=$?
 if [ "$rc" -ne 0 ] || [ -s "$OUT.asmsg" ]; then
     cat "$OUT.asmsg" 2>/dev/null

@@ -688,12 +688,13 @@ typedef struct StudioLight StudioLight;
 
 
 
+typedef Vector4 EndouVector __attribute__((aligned(16)));
 typedef struct EndouModelActor {
     unsigned char unmodeled_00[0x10];
-    Vector4 position;
+    EndouVector position;
     unsigned char unmodeled_20[0x30];
-    Vector4 rotation;
-    Vector4 scale;
+    EndouVector rotation;
+    EndouVector scale;
     unsigned char unmodeled_70[0x16];
     short resource_kind;
     unsigned char unmodeled_88[0x8d0 - 0x88];
@@ -779,7 +780,6 @@ extern const char D_004C2658[];
 
 extern const char D_004C26F0[];
 
-extern const unsigned long long D_004C2710[2];
 
 extern const unsigned long long D_004C2720[8];
 
@@ -835,8 +835,8 @@ extern EndouModelLinePoint line11_8[7];
 extern EndouModelLinePoint line12_9[7];
 
 typedef struct EndouOrientationStorage {
-    Vector4 rotation;
-    Vector4 scale;
+    EndouVector rotation;
+    EndouVector scale;
 } EndouOrientationStorage;
 
 
@@ -1047,7 +1047,10 @@ extern const char D_004C2DB8[], D_004C2DD0[], D_004C2DE0[];
 #define NULL ((void *)0)
 
 typedef struct EndouModelPadState {
-    PadDataButtonView button_prefix;
+    unsigned char unmodeled_00[0x28];
+    unsigned short held;
+    unsigned short pressed;
+    unsigned char unmodeled_2c[4];
     unsigned char unmodeled_30[8];
     signed char stick_axis[4];
 } EndouModelPadState;
@@ -1352,7 +1355,486 @@ void SeisanTest(void)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/endou_test", ModelTest);
+void ModelTest(void) {
+    StudioLight *light;
+    u8 **work_end = &WorkEnd;
+    s32 *message_time = &time_10;
+    int motion;
+
+    motion = 1;
+    xglStudioChange((M2C_UNK) 0);
+    EndouApplyModelLighting(&light, D_004C25E0);
+    {
+    char sp70[128];
+    char spF0[128];
+    EndouTestLighting unused_lighting;
+    char sp1E0[128];
+    char sp260[128];
+    char sp2E0[128];
+    char sp360[128];
+    int point_index;
+    StudioCamera *temp_17_4;
+    StudioCamera *temp_2;
+    StudioCamera *temp_2_2;
+    f32 temp_f0_21;
+    f32 temp_f0_22;
+    f32 temp_f0_23;
+    f32 temp_f0_24;
+    f32 temp_f0_25;
+    f32 temp_f0_26;
+    f32 temp_f0_27;
+    f32 temp_f1;
+    f32 temp_f20;
+    f32 temp_f2;
+    s32 temp_2_11;
+    s32 temp_2_14;
+    s32 temp_2_16;
+    s32 temp_2_18;
+    s32 temp_2_20;
+    s32 temp_2_22;
+    s32 temp_2_24;
+    s32 temp_2_26;
+    s32 temp_2_5;
+    s32 temp_2_7;
+    s32 temp_2_9;
+    u16 temp_16;
+    u16 temp_4;
+    u16 var_3_2;
+    u8 *temp_3;
+    u8 *temp_3_10;
+    u8 *temp_3_11;
+    u8 *temp_3_2;
+    u8 *temp_3_3;
+    u8 *temp_3_4;
+    u8 *temp_3_5;
+    u8 *temp_3_6;
+    u8 *temp_3_7;
+    u8 *temp_3_8;
+    u8 *temp_3_9;
+    EndouModelActor *temp_23_9;
+    EndouModelActor *temp_2_12;
+    EndouModelActor *temp_2_3;
+    u8 *resource_buffer;
+    u8 *accessory_resource_buffer;
+
+    temp_2 = xglStudioGetCamera2(0);
+    temp_2->rotation.x = 0.0f;
+    temp_2->rotation.y = 0.0f;
+    temp_2->rotation.z = 0.0f;
+    endModelCameraPosition(temp_2, 0.0f, 1.0f, 4.0f);
+    temp_2->active = 1;
+    temp_2->state = 1;
+    temp_2_2 = xglStudioGetCamera2(1);
+    temp_2_2->state = 1;
+    endModelCameraPosition(temp_2_2, -1.0f, 1.0f, 4.0f);
+    temp_2_2->rotation.y = 0.0f;
+    temp_2_2->rotation.z = 0.0f;
+    temp_2_2->active = 0;
+    temp_2_2->rotation.x = 0.0f;
+    GameResourceInit(0x07000000U, 0x06000000);
+    ACT_init();
+    temp_2_3 = (EndouModelActor *)(void *)ACT_create(-1, 0x2101);
+    ACT_initMotion(temp_2_3);
+    __builtin_memcpy(sp70, D_004C2650, 2);
+    memset(&sp70[2], 0, 0x7EU);
+    __builtin_memcpy(spF0, D_004C2650, 2);
+    memset(&spF0[2], 0, 0x7EU);
+    RES_GetMdlFileName(sp70, temp_2_3->resource_kind);
+    resource_buffer = (u8 *)((u32)((*work_end) + 0x7f) & ~0x7fU);
+    strcpy(spF0, sp70);
+    strcat(spF0, D_004DA6C0);
+    temp_2_5 = xglCdReadFile(&spF0, resource_buffer, 0, 0);
+    temp_3 = (*work_end) + temp_2_5;
+    temp_2_3->model_resource = resource_buffer;
+    (*work_end) = temp_3;
+    resource_buffer = (u8 *)((u32)(temp_3 + 0x7f) & ~0x7fU);
+    strcpy(spF0, sp70);
+    strcat(spF0, D_004DA6C8);
+    temp_2_7 = xglCdReadFile(&spF0, resource_buffer, 0, 0);
+    temp_3_2 = (*work_end) + temp_2_7;
+    temp_2_3->matrix_resource = resource_buffer;
+    (*work_end) = temp_3_2;
+    resource_buffer = (u8 *)((u32)(temp_3_2 + 0x7f) & ~0x7fU);
+    strcpy(spF0, sp70);
+    strcat(spF0, D_004DA6D0);
+    temp_2_9 = xglCdReadFile(&spF0, resource_buffer, 0, 0);
+    temp_3_3 = ((*work_end) + temp_2_9);
+    temp_2_3->move = resource_buffer;
+    resource_buffer = (u8 *)((u32)(temp_3_3 + 0x7f) & ~0x7fU);
+    (*work_end) = temp_3_3;
+    temp_2_11 = xglCdReadFile(&D_004C2658, resource_buffer, 0, 0);
+    temp_3_4 = (*work_end) + temp_2_11;
+    temp_2_3->anim_pack_tables[0] = resource_buffer;
+    (*work_end) = temp_3_4;
+    ACT_allocMatrix((ActRecord *)(void *)temp_2_3, -1);
+    ACT_setModelWrapper(temp_2_3, 0);
+    ACT_setMotion(temp_2_3, (s32) 1);
+    temp_2_12 = (EndouModelActor *)(void *)ACT_create(-1, 1);
+    ACT_initMotion(temp_2_12);
+    __builtin_memcpy(sp1E0, D_004C2650, 2);
+    memset(&sp1E0[2], 0, 0x7EU);
+    __builtin_memcpy(sp260, D_004C2650, 2);
+    memset(&sp260[2], 0, 0x7EU);
+    RES_GetMdlFileName(sp1E0, temp_2_12->resource_kind);
+    resource_buffer = (u8 *)((u32)((*work_end) + 0x7f) & ~0x7fU);
+    strcpy(sp260, sp1E0);
+    strcat(sp260, D_004DA6C0);
+    temp_2_14 = xglCdReadFile(&sp260, resource_buffer, 0, 0);
+    temp_3_5 = (*work_end) + temp_2_14;
+    temp_2_12->model_resource = resource_buffer;
+    (*work_end) = temp_3_5;
+    resource_buffer = (u8 *)((u32)(temp_3_5 + 0x7f) & ~0x7fU);
+    strcpy(sp260, sp1E0);
+    strcat(sp260, D_004DA6C8);
+    temp_2_16 = xglCdReadFile(&sp260, resource_buffer, 0, 0);
+    temp_3_6 = (*work_end) + temp_2_16;
+    temp_2_12->matrix_resource = resource_buffer;
+    (*work_end) = temp_3_6;
+    resource_buffer = (u8 *)((u32)(temp_3_6 + 0x7f) & ~0x7fU);
+    strcpy(sp260, sp1E0);
+    strcat(sp260, D_004DA6D0);
+    temp_2_18 = xglCdReadFile(&sp260, resource_buffer, 0, 0);
+    temp_3_7 = (*work_end) + temp_2_18;
+    temp_2_12->move = resource_buffer;
+    resource_buffer = (u8 *)((u32)(temp_3_7 + 0x7f) & ~0x7fU);
+    (*work_end) = temp_3_7;
+    temp_2_20 = xglCdReadFile(&D_004C26F0, resource_buffer, 0, 0);
+    temp_3_8 = (*work_end) + temp_2_20;
+    temp_2_12->anim_pack_tables[0] = resource_buffer;
+    (*work_end) = temp_3_8;
+    ACT_allocMatrix((ActRecord *)(void *)temp_2_12, -1);
+    ACT_setModelWrapper(temp_2_12, 0);
+    ACT_setMotion(temp_2_12, (s32) 1);
+    temp_23_9 = (EndouModelActor *)(void *)ACT_create(-1, 0x3003);
+    __builtin_memcpy(sp2E0, D_004C2650, 2);
+    memset(&sp2E0[2], 0, 0x7EU);
+    __builtin_memcpy(sp360, D_004C2650, 2);
+    memset(&sp360[2], 0, 0x7EU);
+    RES_GetMdlFileName(sp2E0, temp_23_9->resource_kind);
+    accessory_resource_buffer = (u8 *)((u32)((*work_end) + 0x7f) & ~0x7fU);
+    strcpy(sp360, sp2E0);
+    strcat(sp360, D_004DA6C0);
+    temp_2_22 = xglCdReadFile(&sp360, accessory_resource_buffer, 0, 0);
+    temp_3_9 = (*work_end) + temp_2_22;
+    temp_23_9->model_resource = accessory_resource_buffer;
+    (*work_end) = temp_3_9;
+    accessory_resource_buffer = (u8 *)((u32)(temp_3_9 + 0x7f) & ~0x7fU);
+    strcpy(sp360, sp2E0);
+    strcat(sp360, D_004DA6C8);
+    temp_2_24 = xglCdReadFile(&sp360, accessory_resource_buffer, 0, 0);
+    temp_3_10 = (*work_end) + temp_2_24;
+    temp_23_9->matrix_resource = accessory_resource_buffer;
+    (*work_end) = temp_3_10;
+    accessory_resource_buffer = (u8 *)((u32)(temp_3_10 + 0x7f) & ~0x7fU);
+    strcpy(sp360, sp2E0);
+    strcat(sp360, D_004DA6D0);
+    if (xglCdGetFileSize(&sp360) < 0) {
+        temp_23_9->move = NULL;
+    } else {
+        temp_2_26 = xglCdReadFile(&sp360, accessory_resource_buffer, 0, 0);
+        temp_3_11 = (*work_end) + temp_2_26;
+        temp_23_9->move = accessory_resource_buffer;
+        (*work_end) = temp_3_11;
+    }
+    ACT_allocMatrix((ActRecord *)(void *)temp_23_9, -1);
+    ACT_setModelWrapper(temp_23_9, 0);
+    ACT_setArms(temp_23_9, temp_2_3, 0x108U, 0);
+    {
+        while ((PadData.buttons.button_state & 0x08000100) != 0x08000100) {
+            var_3_2 = ENDOU_MODEL_PAD->pressed;
+            if (var_3_2 & 8) {
+                ACT_setMotion(temp_2_3, ++motion);
+                var_3_2 = ENDOU_MODEL_PAD->pressed;
+            }
+            if (var_3_2 & 2) {
+                ACT_setMotion(temp_2_3, --motion);
+            }
+            temp_4 = ENDOU_MODEL_PAD->held;
+            if (temp_4 & 0x100) {
+                EndouVector reset_position = {0.0f, 0.0f, 0.0f, 1.0f};
+                EndouVector reset_rotation = {0.0f, 0.0f, 0.0f, 1.0f};
+                EndouVector reset_scale = {1.0f, 1.0f, 1.0f, 1.0f};
+                temp_4 = ENDOU_MODEL_PAD->held;
+                temp_2_3->position = reset_position;
+                temp_2_3->rotation = reset_rotation;
+                temp_2_3->scale = reset_scale;
+            }
+            {
+            Matrix4 camera_matrix;
+            float world_points[5][6][4];
+            EndouModelLineVertex screen_points[5][6];
+            Matrix4 projection_matrix;
+            unsigned char column_alphas[5];
+            unsigned char row_alphas[6];
+            unsigned long long quad_words[8];
+            if (temp_4 & 0x10) {
+                if (temp_4 & 0x2000) {
+                    temp_2_3->scale.x += 0.1f;
+                }
+                if (temp_4 & 0x8000) {
+                    temp_2_3->scale.x -= 0.1f;
+                }
+                if (temp_4 & 0x1000) {
+                    temp_2_3->scale.y += 0.1f;
+                }
+                if (temp_4 & 0x4000) {
+                    temp_2_3->scale.y -= 0.1f;
+                }
+                if (temp_4 & 4) {
+                    temp_2_3->scale.z += 0.1f;
+                }
+                if ((unsigned short)(temp_4 & 1)) {
+                    temp_2_3->scale.z -= 0.1f;
+                }
+            } else {
+                if (temp_4 & 0x2000) {
+                    temp_2_3->position.x += 0.1f;
+                }
+                if (temp_4 & 0x8000) {
+                    temp_2_3->position.x -= 0.1f;
+                }
+                if (temp_4 & 0x1000) {
+                    temp_2_3->position.y += 0.1f;
+                }
+                if (temp_4 & 0x4000) {
+                    temp_2_3->position.y -= 0.1f;
+                }
+                if (temp_4 & 4) {
+                    temp_2_3->position.z += 0.1f;
+                }
+                if ((unsigned short)(temp_4 & 1)) {
+                    temp_2_3->position.z -= 0.1f;
+                }
+            }
+            if (ENDOU_MODEL_PAD->stick_axis[0] < -0x40) {
+                temp_2_3->rotation.y += 0.04f;
+            }
+            if (ENDOU_MODEL_PAD->stick_axis[0] >= 0x41) {
+                temp_2_3->rotation.y -= 0.04f;
+            }
+            if (ENDOU_MODEL_PAD->stick_axis[1] < -0x40) {
+                temp_2_3->rotation.x += 0.04f;
+            }
+            if (ENDOU_MODEL_PAD->stick_axis[1] >= 0x41) {
+                temp_2_3->rotation.x -= 0.04f;
+            }
+            temp_17_4 = xglStudioGetCamera2(0);
+            if (ENDOU_MODEL_PAD->stick_axis[2] < -0x40) {
+                ang_0[1] += 0.04f;
+            }
+            if (ENDOU_MODEL_PAD->stick_axis[2] >= 0x41) {
+                ang_0[1] -= 0.04f;
+            }
+            if (ENDOU_MODEL_PAD->stick_axis[3] < -0x40) {
+                ang_0[0] += 0.04f;
+            }
+            if (ENDOU_MODEL_PAD->stick_axis[3] >= 0x41) {
+                ang_0[0] -= 0.04f;
+            }
+            xglMatrixStackUnit();
+            xglMatrixStackRotZ(ang_0[2]);
+            xglMatrixStackRotY(ang_0[1]);
+            xglMatrixStackRotX(ang_0[0]);
+            xglMatrixStackTrans(pos_1);
+            xglMatrixStackSave(camera_matrix);
+            temp_f0_21 = ang_0[0];
+            temp_16 = ENDOU_MODEL_PAD->held;
+            temp_17_4->rotation.x = temp_f0_21;
+            temp_f0_22 = ang_0[1];
+            temp_17_4->rotation.y = temp_f0_22;
+            temp_f1 = ang_0[2];
+            temp_17_4->rotation.z = temp_f1;
+            temp_f2 = camera_matrix[3][0];
+            temp_17_4->position.x = temp_f2;
+            temp_f0_23 = camera_matrix[3][1] + 1.0f;
+            temp_17_4->position.y = temp_f0_23;
+            temp_f20 = camera_matrix[3][2];
+            temp_17_4->position.z = temp_f20;
+            if (temp_16 & 8) {
+                temp_f0_24 = pipo_2 + 0.2;
+                pipo_2 = temp_f0_24;
+            }
+            if (temp_16 & 2) {
+                temp_f0_26 = pipo_2 - 0.2;
+                pipo_2 = temp_f0_26;
+            }
+            temp_f0_25 = pipo_2;
+            temp_f0_27 = temp_f20 + temp_f0_25;
+            temp_17_4->position.z = temp_f0_27;
+            temp_2_12->position = temp_2_3->position;
+            temp_2_12->position.x += 1.0f;
+            temp_2_12->rotation = temp_2_3->rotation;
+            temp_2_12->scale = temp_2_3->scale;
+            ACT_updateMotion(temp_2_3);
+            ACT_updateMotion(temp_2_12);
+            xglStudioGetActiveCamera()->active = 0;
+            xglStudioGetCamera2(0)->active = 1;
+            ACT_modelDraw(temp_2_3);
+            xglStudioGetActiveCamera()->active = 0;
+            xglStudioGetCamera2(0)->active = 1;
+            ACT_modelDraw(temp_2_12);
+            nmlModelFlush();
+            {
+                int row;
+
+                for (point_index = 0; point_index < 6; point_index++) {
+                    float x = point_index * 0.5f + -1.25f;
+
+                    for (row = 0; row < 5; row++) {
+                        world_points[row][point_index][0] = x;
+                        world_points[row][point_index][1] = 0.0f;
+                        world_points[row][point_index][3] = 1.0f;
+                        world_points[row][point_index][2] = row * 0.5f + -1.0f;
+                    }
+                }
+                {
+                    for (point_index = 0; point_index < 6; point_index++) {
+                        world_points[0][point_index][2] -= 0.5f;
+                        world_points[4][point_index][2] += 0.5f;
+                    }
+                    for (point_index = 0; point_index < 5; point_index++) {
+                        world_points[point_index][0][0] -= 0.5f;
+                        world_points[point_index][5][0] += 0.5f;
+                    }
+                }
+            }
+            __builtin_memcpy(column_alphas, D_004DA6E0,
+                             sizeof(column_alphas));
+            __builtin_memcpy(row_alphas, D_004DA6E8, sizeof(row_alphas));
+            xglMatrixStackUnit();
+            xglMatrixStackSave(projection_matrix);
+            xglRotTransPersN(screen_points, projection_matrix, world_points, 30, 0);
+            {
+                for (point_index = 0; point_index < 5; point_index++) {
+                    unsigned char *color;
+                    line00_3[point_index].vertex = screen_points[point_index][1];
+                    color = line00_3[point_index].color;
+                    color[0] = -0x80;
+                    color[2] = -0x10;
+                    color[1] = -0x10;
+                    color[3] = column_alphas[point_index];
+                    line00_3[point_index].vertex.terminator = 1;
+                }
+                line00_3[5].vertex.terminator = 0;
+
+                {
+                for (point_index = 0; point_index < 5; point_index++) {
+                    unsigned char *color;
+                    line01_4[point_index].vertex = screen_points[point_index][2];
+                    color = line01_4[point_index].color;
+                    color[0] = -0x80;
+                    color[2] = -0x10;
+                    color[1] = -0x10;
+                    color[3] = column_alphas[point_index];
+                    line01_4[point_index].vertex.terminator = 1;
+                }
+                (line01_4 + point_index)->vertex.terminator = 0;
+                }
+
+                {
+                for (point_index = 0; point_index < 5; point_index++) {
+                    unsigned char *color;
+                    line02_5[point_index].vertex = screen_points[point_index][3];
+                    color = line02_5[point_index].color;
+                    color[0] = -0x80;
+                    color[2] = -0x10;
+                    color[1] = -0x10;
+                    color[3] = column_alphas[point_index];
+                    line02_5[point_index].vertex.terminator = 1;
+                }
+                (line02_5 + point_index)->vertex.terminator = 0;
+                }
+
+                {
+                for (point_index = 0; point_index < 5; point_index++) {
+                    unsigned char *color;
+                    line03_6[point_index].vertex = screen_points[point_index][4];
+                    color = line03_6[point_index].color;
+                    color[0] = -0x80;
+                    color[2] = -0x10;
+                    color[1] = -0x10;
+                    color[3] = column_alphas[point_index];
+                    line03_6[point_index].vertex.terminator = 1;
+                }
+                (line03_6 + point_index)->vertex.terminator = 0;
+                }
+
+                {
+                for (point_index = 0; point_index < 6; point_index++) {
+                    unsigned char *color;
+                    line10_7[point_index].vertex = screen_points[1][point_index];
+                    color = line10_7[point_index].color;
+                    color[0] = -0x80;
+                    color[2] = -0x10;
+                    color[1] = -0x10;
+                    color[3] = row_alphas[point_index];
+                    line10_7[point_index].vertex.terminator = 1;
+                }
+                (line10_7 + point_index)->vertex.terminator = 0;
+                }
+
+                {
+                for (point_index = 0; point_index < 6; point_index++) {
+                    unsigned char *color;
+                    line11_8[point_index].vertex = screen_points[2][point_index];
+                    color = line11_8[point_index].color;
+                    color[0] = -0x80;
+                    color[2] = -0x10;
+                    color[1] = -0x10;
+                    color[3] = row_alphas[point_index];
+                    line11_8[point_index].vertex.terminator = 1;
+                }
+                (line11_8 + point_index)->vertex.terminator = 0;
+                }
+
+                {
+                for (point_index = 0; point_index < 6; point_index++) {
+                    unsigned char *color;
+                    line12_9[point_index].vertex = screen_points[3][point_index];
+                    color = line12_9[point_index].color;
+                    color[0] = -0x80;
+                    color[2] = -0x10;
+                    color[1] = -0x10;
+                    color[3] = row_alphas[point_index];
+                    line12_9[point_index].vertex.terminator = 1;
+                }
+                (line12_9 + point_index)->vertex.terminator = 0;
+                }
+            }
+            endPrintExtFunc(0xFFFFF0, 0xB, line00_3);
+            endPrintExtFunc(0xFFFFF1, 0xB, line01_4);
+            endPrintExtFunc(0xFFFFF2, 0xB, line02_5);
+            endPrintExtFunc(0xFFFFF3, 0xB, line03_6);
+            endPrintExtFunc(0xFFFFF4, 0xB, line10_7);
+            endPrintExtFunc(0xFFFFF5, 0xB, line11_8);
+            endPrintExtFunc(0xFFFFF6, 0xB, line12_9);
+            __builtin_memcpy(quad_words, D_004C2720, sizeof(quad_words));
+            endPrintExtFunc(0, 0x6A, NULL);
+            endPrintExtFunc(0, 0x6C, NULL);
+            if (*message_time == 0) {
+                eMessageSet(&msg_11, msg00_14[no_13]);
+                ENDOU_MODEL_MESSAGE->mode = 0x24;
+                *message_time = 0x40;
+                no_13 = (no_13 + 1) & 3;
+            }
+            (*message_time)--;
+            ENDOU_MODEL_MESSAGE->x = 0;
+            ENDOU_MODEL_MESSAGE->draw_parameter = 0xFFFFF0;
+            ENDOU_MODEL_MESSAGE->y = 0;
+            eMessageMain(&msg_11);
+            endPrintExtFunc(0, 0x6B, NULL);
+            bsp_12.uv[0] = 0.0f;
+            bsp_12.uv[2] = 0.234375f;
+            bsp_12.uv[3] = 0.046875f;
+            bsp_12.uv[1] = 0.0f;
+            xglRotTransPersN(bsp_12.vertices, NULL, (Vector4 *)quad_words, 4, 0);
+            endPrintExtFunc(0, 0x6D, &bsp_12);
+            xglSleep();
+            }
+        }
+    }
+    }
+}
 
 extern void eBattleWinOpen(EndouBattleWindowParams *params);
 extern int eBattleWinMain(EndouBattleWindowParams *params);
@@ -1917,7 +2399,97 @@ void JpegTest(void)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/endou_test", UmlTest);
+void UmlTest(void)
+{
+    unsigned int source_byte;
+    unsigned long character;
+    unsigned char *file_buffer;
+    const char *text;
+    unsigned char *output;
+    unsigned char *read_buffer;
+    const char *file_name;
+
+    xglRenderClearFrame();
+    xglSleep();
+    file_buffer = (unsigned char *)(((unsigned int)WorkEnd + 127) ^ 127);
+    WorkEnd = file_buffer + 0x20000;
+    buffer_72 = file_buffer;
+    memset(file_buffer, 0, 0x10000);
+    file_name = D_004C2DB8;
+    read_buffer = file_buffer;
+    xglCdReadFile(file_name, read_buffer, 0, 0);
+    output = (unsigned char *)mm_73;
+    text = (const char *)buffer_72;
+    source_byte = (unsigned char)*text;
+    goto test_character;
+    do {
+        character &= 0xffUL;
+        if (character == '\\') {
+            unsigned char digits[16];
+            unsigned char value;
+            int digit_count;
+            int place;
+            int index;
+            int trailing_index;
+            unsigned char trailing_count;
+            unsigned char trailing_fields;
+            unsigned char trailing_value;
+
+            ++text;
+            source_byte = (unsigned char)*text;
+            if (source_byte != 't')
+                goto test_character;
+            text += 2;
+            digit_count = 0;
+            value = 0;
+            while ((unsigned char)((unsigned char)*text - '0') < 10) {
+                digits[digit_count++] = (unsigned char)*text++ - '0';
+            }
+            place = 1;
+            for (index = 0; index < digit_count - 1; ++index)
+                place *= 10;
+            for (index = 0; index < digit_count; ++index) {
+                value += digits[index] * place;
+                place /= 10;
+            }
+            *output++ = value;
+            ++text;
+            *output++ = '\t';
+            trailing_fields = 2;
+            trailing_count = 0;
+            for (; trailing_fields != 0; --trailing_fields) {
+                while ((unsigned char)((unsigned char)*text - '0') < 10) {
+                    digits[trailing_count] = (unsigned char)*text - '0';
+                    ++trailing_count;
+                    ++text;
+                }
+                place = 1;
+                for (trailing_index = 0; trailing_index < trailing_count - 1; ++trailing_index)
+                    place *= 10;
+                trailing_value = 0;
+                for (trailing_index = 0; trailing_index < trailing_count; ++trailing_index) {
+                    trailing_value += digits[trailing_index] * place;
+                    place /= 10;
+                }
+                ++text;
+            }
+        } else {
+            *output = source_byte;
+            ++output;
+            ++text;
+        }
+        source_byte = (unsigned char)*text;
+test_character:
+        character = source_byte;
+    } while (character != 0);
+    *output = 0;
+    while ((PadData.buttons.button_state & 0x08000100U) != 0x08000100U) {
+        xglFontDebugPrintf(0, 0, D_004C2DD0);
+        xglFontPrint(0, 64, 0x00fffff0, D_004C2DE0);
+        xglFontPrint(0, 64, 0x00ffffff, mm_73);
+        xglSleep();
+    }
+}
 
 void PauseMenuPagePartyDebugTakeAgws(void)
 {

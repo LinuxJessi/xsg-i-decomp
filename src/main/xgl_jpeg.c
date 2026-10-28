@@ -24,23 +24,61 @@ typedef struct JpegImageDimensions {
 typedef struct JpegDecodeControl {
     u8 *source;
     u8 *destination;
-    u8 unmodeled_08[0x14 - 0x08];
+    u8 unmodeled_08[4];
+    short frameBufferBase;
+    short frameBufferWidth;
+    u16 originX;
+    u16 originY;
     JpegImageDimensions imageLimits;
     u8 luminancePercent;
     u8 chrominancePercent;
     u8 scaleMode;
-    u8 unmodeled_1b;
+    u8 pixelFormat;
     u8 redPercent;
     u8 greenPercent;
     u8 bluePercent;
     u8 unmodeled_1f;
 } JpegDecodeControl;
 
+typedef struct JpegEncodeRequest {
+    u8 unmodeled_00[4];
+    u8 *outputBuffer;
+    int outputSize;
+    short sourceX;
+    short sourceY;
+    short destinationX;
+    short destinationY;
+    short width;
+    short height;
+    u8 luminanceQuality;
+    u8 chrominanceQuality;
+    u8 samplingMode;
+    u8 unmodeled_1b;
+} JpegEncodeRequest;
+
+extern int sceGsSetDefStoreImage(void *image, short sourceX, short sourceY, short psm,
+                                 short destinationX, short destinationY, unsigned int width,
+                                 unsigned int height);
+
+extern int sceGsExecStoreImage(void *image, void *buffer);
+
+extern u8 headerALL[0x26F];
+
 extern u8 LQTableOrg_1[64];
 
 extern u8 CQTableOrg_2[64];
 
 extern float ffdct_0[8][8];
+
+extern u8 imm0_3[0x80];
+
+extern u8 imm1_4[0x60];
+
+extern void sceGsSetDefLoadImage(void *image, short fbp, short fbw, short psm, short x, short y, short w, short h);
+
+extern void sceGsExecLoadImage(void *image, void *data);
+
+extern void *memcpy(void *dest, const void *src, unsigned int size);
 
 extern const float D_004D8798;
 
@@ -483,7 +521,190 @@ static void ExtractHuffmanTableSub(JpegHuffCode *table, const u8 *symbols, int t
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/xgl_jpeg", xglJpegEncode);
+int xglJpegEncode(JpegEncodeRequest *request)
+{
+    u8 *header;
+    u8 *outputBuffer;
+    int y;
+    int x;
+    int row;
+    int column;
+    int i;
+    int mcuWidth;
+    int mcuHeight;
+    int quotient;
+
+    sw->rowBytes = request->width * 3;
+    RebuildQuantizeTable(sw->unmodeled_02d0, sw->luminanceQuantization, 0, request->luminanceQuality);
+    RebuildQuantizeTable(&sw->unmodeled_02d0[0x40], sw->chrominanceQuantization, 1, request->chrominanceQuality);
+    ExtractHuffmanTableSub((JpegHuffCode *) sw->luminanceDcCodes, headerALL + 0xB6, 16);
+    ExtractHuffmanTableSub((JpegHuffCode *) sw->chrominanceDcCodes, headerALL + 0x18E, 16);
+    ExtractHuffmanTableSub((JpegHuffCode *) sw->luminanceAcCodes, headerALL + 0xD7, 256);
+    ExtractHuffmanTableSub((JpegHuffCode *) sw->chrominanceAcCodes, headerALL + 0x1AF, 256);
+
+    sw->buffer = request->outputBuffer;
+    sw->bitsRemaining = 0;
+    sw->bufferedByte = 0;
+    __builtin_memcpy(sw->buffer, headerALL, 623);
+
+    sw->outputPosition = 623;
+    header = sw->buffer + 14;
+    quotient = 0xAF00 / request->height;
+    header[1] = quotient;
+    header[0] = quotient >> 8;
+    quotient = 0xFA00 / request->width;
+    header[3] = quotient;
+    header[2] = quotient >> 8;
+
+    header = sw->buffer + 25;
+    for (i = 0; i < 64; i++) {
+        *header = sw->unmodeled_02d0[ZigZag[i]];
+        header++;
+    }
+    header = sw->buffer + 94;
+    for (i = 0; i < 64; i++) {
+        *header = sw->unmodeled_02d0[0x40 + ZigZag[i]];
+        header++;
+    }
+
+    switch (request->samplingMode) {
+    case 0:
+        i = 0x11;
+        break;
+    case 1:
+        i = 0x21;
+        break;
+    case 2:
+    default:
+        i = 0x22;
+        break;
+    }
+    header = sw->buffer + 163;
+    header[0] = request->height >> 8;
+    header[1] = request->height;
+    header[2] = request->width >> 8;
+    header[3] = request->width;
+    header[6] = i;
+
+    sw->dcPredictors[2] = 0;
+    sw->dcPredictors[1] = 0;
+    sw->dcPredictors[0] = 0;
+
+    switch (request->samplingMode) {
+    case 0:
+        mcuWidth = 8;
+        mcuHeight = mcuWidth;
+        break;
+    case 1:
+        mcuWidth = 16;
+        mcuHeight = 8;
+        break;
+    case 2:
+    default:
+        mcuWidth = 16;
+        mcuHeight = mcuWidth;
+        break;
+    }
+
+    for (y = 0; y < request->height; y += mcuHeight) {
+        for (x = 0; x < request->width; x += mcuWidth) {
+            sceGsSetDefStoreImage(&sw->unmodeled_0000[0x60], request->sourceX, request->sourceY, 1,
+                                  request->destinationX + x, request->destinationY + y,
+                                  ((unsigned) mcuWidth << 16) >> 16, ((unsigned) mcuHeight << 16) >> 16);
+            sceGsExecStoreImage(&sw->unmodeled_0000[0x60], (void *) 0x70003000);
+
+            for (row = 0; row < mcuHeight; row++) {
+                u8 *rgb = (u8 *) 0x70003000 + row * mcuWidth * 3;
+                float *pixel = (float *) sw->decodedYuvPixels + row * 48;
+                for (column = 0; column < mcuWidth; column++) {
+                    float red = I2F(rgb[0]);
+                    float green = I2F(rgb[1]);
+                    float blue = I2F(rgb[2]);
+
+                    pixel[0] = red * 0.299f + green * 0.587f + blue * 0.114f;
+                    pixel[1] = red * -0.16874f + green * -0.33126f + blue * 0.5f;
+                    pixel[2] = red * 0.5f + green * -0.41869f + blue * -0.08131f;
+                    rgb += 3;
+                    pixel += 3;
+                }
+            }
+
+            ConvertYUV2MCU(sw->decodedMcuPlanes, (float *) sw->decodedYuvPixels, request->samplingMode);
+
+            switch (request->samplingMode) {
+        case 0:
+            FFDCT(sw->decodedMcuPlanes + 0);
+            FFDCT(sw->decodedMcuPlanes + 256);
+            FFDCT(sw->decodedMcuPlanes + 320);
+            Quantize(((int (*)[64]) sw->decodedYuvPixels)[0], sw->decodedMcuPlanes + 0, sw->luminanceQuantization);
+            Quantize(((int (*)[64]) sw->decodedYuvPixels)[4], sw->decodedMcuPlanes + 256, sw->chrominanceQuantization);
+            Quantize(((int (*)[64]) sw->decodedYuvPixels)[5], sw->decodedMcuPlanes + 320, sw->chrominanceQuantization);
+            HuffmanEncode(((int (*)[64]) sw->decodedYuvPixels)[0], (JpegHuffCode *) sw->luminanceDcCodes,
+                          (JpegHuffCode *) sw->luminanceAcCodes, &sw->dcPredictors[0]);
+            HuffmanEncode(((int (*)[64]) sw->decodedYuvPixels)[4], (JpegHuffCode *) sw->chrominanceDcCodes,
+                          (JpegHuffCode *) sw->chrominanceAcCodes, &sw->dcPredictors[1]);
+            HuffmanEncode(((int (*)[64]) sw->decodedYuvPixels)[5], (JpegHuffCode *) sw->chrominanceDcCodes,
+                          (JpegHuffCode *) sw->chrominanceAcCodes, &sw->dcPredictors[2]);
+            break;
+        case 1:
+            FFDCT(sw->decodedMcuPlanes + 0);
+            FFDCT(sw->decodedMcuPlanes + 64);
+            FFDCT(sw->decodedMcuPlanes + 256);
+            FFDCT(sw->decodedMcuPlanes + 320);
+            Quantize(((int (*)[64]) sw->decodedYuvPixels)[0], sw->decodedMcuPlanes + 0, sw->luminanceQuantization);
+            Quantize(((int (*)[64]) sw->decodedYuvPixels)[1], sw->decodedMcuPlanes + 64, sw->luminanceQuantization);
+            Quantize(((int (*)[64]) sw->decodedYuvPixels)[4], sw->decodedMcuPlanes + 256, sw->chrominanceQuantization);
+            Quantize(((int (*)[64]) sw->decodedYuvPixels)[5], sw->decodedMcuPlanes + 320, sw->chrominanceQuantization);
+            HuffmanEncode(((int (*)[64]) sw->decodedYuvPixels)[0], (JpegHuffCode *) sw->luminanceDcCodes,
+                          (JpegHuffCode *) sw->luminanceAcCodes, &sw->dcPredictors[0]);
+            HuffmanEncode(((int (*)[64]) sw->decodedYuvPixels)[1], (JpegHuffCode *) sw->luminanceDcCodes,
+                          (JpegHuffCode *) sw->luminanceAcCodes, &sw->dcPredictors[0]);
+            HuffmanEncode(((int (*)[64]) sw->decodedYuvPixels)[4], (JpegHuffCode *) sw->chrominanceDcCodes,
+                          (JpegHuffCode *) sw->chrominanceAcCodes, &sw->dcPredictors[1]);
+            HuffmanEncode(((int (*)[64]) sw->decodedYuvPixels)[5], (JpegHuffCode *) sw->chrominanceDcCodes,
+                          (JpegHuffCode *) sw->chrominanceAcCodes, &sw->dcPredictors[2]);
+            break;
+        case 2:
+        default:
+            FFDCT(sw->decodedMcuPlanes + 0);
+            FFDCT(sw->decodedMcuPlanes + 64);
+            FFDCT(sw->decodedMcuPlanes + 128);
+            FFDCT(sw->decodedMcuPlanes + 192);
+            FFDCT(sw->decodedMcuPlanes + 256);
+            FFDCT(sw->decodedMcuPlanes + 320);
+            Quantize(((int (*)[64]) sw->decodedYuvPixels)[0], sw->decodedMcuPlanes + 0, sw->luminanceQuantization);
+            Quantize(((int (*)[64]) sw->decodedYuvPixels)[1], sw->decodedMcuPlanes + 64, sw->luminanceQuantization);
+            Quantize(((int (*)[64]) sw->decodedYuvPixels)[2], sw->decodedMcuPlanes + 128, sw->luminanceQuantization);
+            Quantize(((int (*)[64]) sw->decodedYuvPixels)[3], sw->decodedMcuPlanes + 192, sw->luminanceQuantization);
+            Quantize(((int (*)[64]) sw->decodedYuvPixels)[4], sw->decodedMcuPlanes + 256, sw->chrominanceQuantization);
+            Quantize(((int (*)[64]) sw->decodedYuvPixels)[5], sw->decodedMcuPlanes + 320, sw->chrominanceQuantization);
+            HuffmanEncode(((int (*)[64]) sw->decodedYuvPixels)[0], (JpegHuffCode *) sw->luminanceDcCodes,
+                          (JpegHuffCode *) sw->luminanceAcCodes, &sw->dcPredictors[0]);
+            HuffmanEncode(((int (*)[64]) sw->decodedYuvPixels)[1], (JpegHuffCode *) sw->luminanceDcCodes,
+                          (JpegHuffCode *) sw->luminanceAcCodes, &sw->dcPredictors[0]);
+            HuffmanEncode(((int (*)[64]) sw->decodedYuvPixels)[2], (JpegHuffCode *) sw->luminanceDcCodes,
+                          (JpegHuffCode *) sw->luminanceAcCodes, &sw->dcPredictors[0]);
+            HuffmanEncode(((int (*)[64]) sw->decodedYuvPixels)[3], (JpegHuffCode *) sw->luminanceDcCodes,
+                          (JpegHuffCode *) sw->luminanceAcCodes, &sw->dcPredictors[0]);
+            HuffmanEncode(((int (*)[64]) sw->decodedYuvPixels)[4], (JpegHuffCode *) sw->chrominanceDcCodes,
+                          (JpegHuffCode *) sw->chrominanceAcCodes, &sw->dcPredictors[1]);
+            HuffmanEncode(((int (*)[64]) sw->decodedYuvPixels)[5], (JpegHuffCode *) sw->chrominanceDcCodes,
+                          (JpegHuffCode *) sw->chrominanceAcCodes, &sw->dcPredictors[2]);
+            break;
+            }
+        }
+    }
+
+    if (sw->bitsRemaining != 0) {
+        sw->buffer[sw->outputPosition] = sw->bufferedByte;
+        sw->outputPosition++;
+    }
+    sw->buffer[sw->outputPosition] = 0xFF;
+    sw->buffer[sw->outputPosition + 1] = 0xD9;
+    sw->outputPosition += 2;
+    request->outputSize = sw->outputPosition;
+    return 0;
+}
 
 static void *DefineRestartInterval(void *marker)
 {
@@ -945,7 +1166,176 @@ static void ConvertYUV2RGB(int width, int height)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/xgl_jpeg", StartOfScan);
+static u8 *StartOfScan(u8 *segment, void *requestAddress)
+{
+    JpegDecodeControl *request = requestAddress;
+    int mcuWidth;
+    int mcuHeight;
+    int mcuX;
+    int mcuY;
+    int texelRow;
+    u8 *destCursor;
+    u8 *stagedRgba;
+
+    /* VU0 setup: the I register is loaded with 0.125f through $2 (hence the clobber),
+     * vf1-vf8 are scaled into vf11-vf18 and vf21-vf26 are loaded. */
+    __asm__ __volatile__(
+        "lui $2,0x3e00\n\t"
+        "ctc2 $2,$vi21\n\t"
+        "lqc2 vf1,0(%0)\n\t"
+        "lqc2 vf2,16(%0)\n\t"
+        "lqc2 vf3,32(%0)\n\t"
+        "lqc2 vf4,48(%0)\n\t"
+        "lqc2 vf5,64(%0)\n\t"
+        "lqc2 vf6,80(%0)\n\t"
+        "lqc2 vf7,96(%0)\n\t"
+        "lqc2 vf8,112(%0)\n\t"
+        "vmuli.xyzw vf11xyzw,vf1xyzw,I\n\t"
+        "vmuli.xyzw vf12xyzw,vf2xyzw,I\n\t"
+        "vmuli.xyzw vf13xyzw,vf3xyzw,I\n\t"
+        "vmuli.xyzw vf14xyzw,vf4xyzw,I\n\t"
+        "vmuli.xyzw vf15xyzw,vf5xyzw,I\n\t"
+        "vmuli.xyzw vf16xyzw,vf6xyzw,I\n\t"
+        "vmuli.xyzw vf17xyzw,vf7xyzw,I\n\t"
+        "vmuli.xyzw vf18xyzw,vf8xyzw,I\n\t"
+        :
+        : "r"(imm0_3)
+        : "$2", "memory");
+    __asm__ __volatile__(
+        "lqc2 vf21,0(%0)\n\t"
+        "lqc2 vf22,16(%0)\n\t"
+        "lqc2 vf23,32(%0)\n\t"
+        "lqc2 vf24,48(%0)\n\t"
+        "lqc2 vf25,64(%0)\n\t"
+        "lqc2 vf26,80(%0)\n\t"
+        :
+        : "r"(imm1_4)
+        : "memory");
+
+    /* Skip the scan header (length, component count, selectors, spectral range). */
+    segment += 12;
+    sw->buffer = segment; /* cursor into the entropy-coded data */
+    sw->bitsRemaining = 0; /* bit reader starts byte-aligned */
+    sw->bufferedByte = 0; /* nothing buffered from the stream yet */
+    sw->dcPredictors[2] = 0;
+    sw->dcPredictors[1] = 0;
+    sw->dcPredictors[0] = 0;
+
+    /* MCU size: 8x8 (mode 0), 16x8 (mode 1) or 16x16 (mode 2). */
+    switch (sw->samplingMode) {
+    case 0:
+        mcuWidth = 8;
+        mcuHeight = 8;
+        break;
+    case 1:
+        mcuWidth = 16;
+        mcuHeight = 8;
+        break;
+    case 2:
+    default:
+        mcuWidth = 16;
+        mcuHeight = 16;
+        break;
+    }
+
+    /* Decode the image one MCU at a time, left to right, top to bottom. */
+    for (mcuY = 0; mcuY < sw->imageHeight; mcuY += mcuHeight) {
+        for (mcuX = 0; mcuX < sw->imageWidth; mcuX += mcuWidth) {
+            u32 restartPeriod = sw->restart_interval;
+            /* A restart interval resets the bit reader and the DC predictors. */
+            if (restartPeriod != 0 && --sw->restart_interval_plus_one == 0) {
+                sw->restart_interval_plus_one = restartPeriod; /* restart the interval countdown */
+                sw->buffer += 2; /* step over the RSTn marker */
+                sw->bitsRemaining = 0; /* no bits left in the current byte */
+                sw->dcPredictors[2] = 0;
+                sw->dcPredictors[1] = 0;
+                sw->dcPredictors[0] = 0;
+            }
+
+            /* Block order: component 0 (1, 2 or 4 blocks), then components 1 and 2. */
+            HuffmanDecode(sw->decodedMcuPlanes, 0);
+            if (sw->samplingMode > 0) {
+                HuffmanDecode(&sw->decodedMcuPlanes[64], 0);
+            }
+            if (sw->samplingMode == 2) {
+                HuffmanDecode(&sw->decodedMcuPlanes[128], 0);
+                HuffmanDecode(&sw->decodedMcuPlanes[192], 0);
+            }
+            HuffmanDecode(&sw->decodedMcuPlanes[256], 1);
+            HuffmanDecode(&sw->decodedMcuPlanes[320], 2);
+
+            /* MCUs outside the requested crop window are decoded but not converted or stored. */
+            if (mcuX <= sw->maximumX && mcuY <= sw->maximumY) {
+                /* Inverse DCT of each decoded 8x8 block, in decode order. */
+                FFIDCT((float (*)[8])sw->decodedMcuPlanes);
+                if (sw->samplingMode > 0) {
+                    FFIDCT((float (*)[8])&sw->decodedMcuPlanes[64]);
+                }
+                if (sw->samplingMode == 2) {
+                    FFIDCT((float (*)[8])&sw->decodedMcuPlanes[128]);
+                    FFIDCT((float (*)[8])&sw->decodedMcuPlanes[192]);
+                }
+                FFIDCT((float (*)[8])&sw->decodedMcuPlanes[256]);
+                FFIDCT((float (*)[8])&sw->decodedMcuPlanes[320]);
+                /* Gather the IDCT output into per-pixel YUV, then convert to RGBA at 0x70003000. */
+                ConvertMCU2YUV();
+                ConvertYUV2RGB(mcuWidth, mcuHeight);
+
+                /* No destination buffer: upload the MCU to the GS (frame buffer base and width come from the request). */
+                if (request->destination == 0) {
+                    /* The load-image packet lives in the work area; the MCU is read from 0x70003000. */
+                    sceGsSetDefLoadImage(sw, request->frameBufferBase, request->frameBufferWidth, 0,
+                                         (short)(request->originX + mcuX), /* GS x */
+                                         (short)(request->originY + mcuY), /* GS y */
+                                         (short)mcuWidth, (short)mcuHeight); /* upload size: one MCU */
+                    sceGsExecLoadImage(sw, (void *)0x70003000);
+                } else if (request->pixelFormat & 1) {
+                /* 16-bit RGB555 destination: pack each RGBA texel. */
+                    for (texelRow = 0; texelRow < mcuHeight; texelRow++) {
+                        int texelsLeft;
+
+                        stagedRgba = (u8 *)0x70003000 + texelRow * (mcuWidth * 4);
+                        destCursor = request->destination + ((mcuY + texelRow) * sw->imageWidth + mcuX) * 2;
+                        texelsLeft = sw->imageWidth < mcuX + mcuWidth ? sw->imageWidth - mcuX : mcuWidth;
+                        for (; texelsLeft > 0; texelsLeft--) {
+                            int green555 = (stagedRgba[1] >> 3) << 5;
+                            int blue555 = (stagedRgba[2] >> 3) << 10;
+
+                            *(u16 *)destCursor = (u16)((stagedRgba[0] >> 3) + (blue555 + green555));
+                            destCursor += 2; /* advance one RGB555 pixel (2 bytes) */
+                            stagedRgba += 4; /* advance one RGBA texel (4 bytes) */
+                        }
+                    }
+                } else {
+                    /* 32-bit destination: copy each MCU row with memcpy. */
+                    destCursor = request->destination + (mcuY * sw->imageWidth + mcuX) * 4;
+                    stagedRgba = (u8 *)0x70003000;
+
+                    for (texelRow = 0; texelRow < mcuHeight; texelRow++) {
+                        if (sw->imageWidth < mcuX + mcuWidth) {
+                            /* Clip the last MCU mcuX to the image width. */
+                            memcpy(destCursor, stagedRgba, (sw->imageWidth - mcuX) * 4);
+                        } else {
+                            memcpy(destCursor, stagedRgba, mcuWidth * 4);
+                        }
+                        destCursor += sw->imageWidth * 4; /* advance one destination row (imageWidth texels) */
+                        stagedRgba += mcuWidth * 4; /* advance one staged row (mcuWidth texels) */
+                    }
+                }
+            }
+        }
+    }
+
+    /* Scan for the next marker: a 0xFF that is not a stuffed 0x00 byte. The
+     * returned pointer addresses that 0xFF. */
+    for (;;) {
+        while (*segment++ != 0xFF) {
+        }
+        if (*segment != 0) {
+            return segment - 1; /* return the address of the marker byte */
+        }
+    }
+}
 
 int xglJpegDecode(void *requestAddress)
 {

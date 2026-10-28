@@ -3318,7 +3318,18 @@ void Java_xeno_util_Runtime_setMenuLock__(JThread *thread, void *arguments,
     SCRIPT_sceneChangeTimeSet(62);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/runtime", Java_xeno_util_Runtime_evsSetRetPoint__);
+void Java_xeno_util_Runtime_evsSetRetPoint__(RuntimeThreadState *thread, void *arguments,
+                                             unsigned int *result)
+{
+    RuntimeActor *player = GameLoopState.player;
+    unsigned long long first_pair = player->position.words[0];
+    unsigned long long last_pair;
+
+    GameLoopState.active_event_id = GameLoopState.current_event_id;
+    GameLoopState.saved_position.words[0] = first_pair;
+    last_pair = player->position.words[1];
+    GameLoopState.saved_position.words[1] = last_pair;
+}
 
 void Java_xeno_util_Runtime_evsExit__(RuntimeThreadState *thread, void *arguments,
                                       unsigned int *result)

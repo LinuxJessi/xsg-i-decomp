@@ -124,7 +124,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from elfinfo import Elf  # noqa: E402
-from toolchain import Toolchain  # noqa: E402
+from toolchain import Toolchain, tu_assembler_options  # noqa: E402
 
 REGISTRY = 'config/tu/data-carves.json'
 CANONICAL_ROOT = Path('/home/pc/xenosaga1-port/xenosaga-i-decomp')
@@ -419,7 +419,8 @@ def _case_backend(root, record):
     recipe = tc.contract(contract['id'])
     if (tc.relaxed or recipe['flags'] != contract['flags'] or
             recipe.get('driver_flags') != ['-nostdinc', '-fno-builtin'] or
-            recipe.get('assembler_argv') != ['-EL', '-m5900', '-mabi=eabi', contract['flags'][1], '-I', '.']):
+            recipe.get('assembler_argv') != ['-EL', '-m5900', '-mabi=eabi', contract['flags'][1],
+                                             *tu_assembler_options(contract), '-I', '.']):
         raise CarveError('case-vector selected contract differs')
     entry = tc.entry(recipe['compiler'])
     paths = [tc.dir(recipe['compiler']) / name for name in entry['files']]
@@ -1048,14 +1049,15 @@ def _character_tu_record(root, tu_id):
             flags not in (['-O2', '-G0'], ['-O2', '-G8'])):
         raise CarveError('unsupported public typed character TU contract')
     tc = Toolchain(root)
-    contract_id = 'ee-tu-c296-' + flags[1][1:]
+    options = tu_assembler_options(tu)
+    contract_id = 'ee-tu-c296-' + flags[1][1:] + ('-g' if options else '')
     recipe = tc.contract(contract_id)
     compiler = tc.entry(recipe['compiler'])
     assembler = tc.entry(recipe['assembler'])
     profile = manifest['toolchains'][tu['compiler_profile']]
     if (recipe['flags'] != flags or recipe.get('driver') != 'ee-gcc' or
             recipe.get('driver_flags') != ['-nostdinc', '-fno-builtin'] or
-            recipe.get('assembler_argv') != ['-EL', '-m5900', '-mabi=eabi', flags[1], '-I', '.'] or
+            recipe.get('assembler_argv') != ['-EL', '-m5900', '-mabi=eabi', flags[1], *options, '-I', '.'] or
             profile.get('cc_dir') != 'tool:' + recipe['compiler'] or
             profile.get('cc1_sha256') != compiler['files']['cc1']):
         raise CarveError('public typed character compile identities differ')
@@ -3859,6 +3861,10 @@ def split_plans(root, unit, unit_dir, tu_id, obj_elf, registry=None):
                                    and s.type not in (3, 4) and p['offset'] <= s.value < p['end']]
                     if p['credit'] == 'verified' and p['anonymous_emission']:
                         overlapping = [s for s in overlapping if not (s.bind == 0 and s.type == 0)]
+                    # Per-object `as -g` keeps compiler-local `$L` labels in
+                    # the symtab; they name no data and carry no bytes.
+                    overlapping = [s for s in overlapping
+                                   if not (s.bind == 0 and s.type == 0 and s.name.startswith('$L'))]
                     if overlapping:
                         raise CarveError(
                             f'{tu_id} {input_sec}: anonymous span contains named raw symbols '

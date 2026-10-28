@@ -18,6 +18,8 @@ void xglMatrixStackMul(const Matrix4 matrix);
 
 void xglMatrixStackReverse(void);
 
+void xglMatrixStackInverse(void);
+
 void xglMatrixStackScale(const float scale[4]);
 
 void xglMatrixStackTrans(const float translation[4]);
@@ -42,5 +44,7 @@ typedef union Matrix {
     float elements[16];
     XglQuadword quadwords[4];
 } Matrix;
+
+void xglVectorScale(Vector4 *destination, const Vector4 *source, float scale);
 
 #endif /* INCLUDE_MAIN_XGL_2_H */

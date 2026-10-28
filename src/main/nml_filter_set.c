@@ -6,7 +6,7 @@
 
 static void nmlModelSetFilterGunosys(const LayoutStore *model, int flags, int count);
 
-static void nmlModelSetFilterStealth(int *model, int flags);
+static void nmlModelSetFilterStealth(const LayoutStore *model, int flags);
 
 struct NmlFilterRenderView {
     u8 unmodeled_00[2];
@@ -44,6 +44,12 @@ extern void nmlPacketAddGsZbuf(int zBuffer);
 
 extern void nmlPacketAddGsFlushWide(void);
 
+struct NmlFilterCubeFaces {
+    int vertices[6][4];
+};
+
+extern const struct NmlFilterCubeFaces D_004D30E0;
+
 
 /* Six original cube faces, each containing four corner indices. */
 
@@ -77,8 +83,8 @@ extern void *nmlPacketSetAttributeAlloc16N(int records);
 
 extern void xglVectorNormal(Vector4 *destination, const Vector4 *source);
 
-extern void xglVectorScaleXYZ(float scale, Vector4 *destination,
-    const Vector4 *source);
+extern void xglVectorScaleXYZ(Vector4 *destination, const Vector4 *source,
+    float scale);
 
 extern float xglAtan2(float x, float y);
 
@@ -88,8 +94,7 @@ static void _CurSetMatrix(float matrix[4][4])
         "lqc2 $vf27,0(%0)\n\t"
         "lqc2 $vf28,16(%0)\n\t"
         "lqc2 $vf29,32(%0)\n\t"
-        "lqc2 $vf30,48(%0)\n\t"
-        "nop"
+        "lqc2 $vf30,48(%0)"
         :
         : "r"(matrix)
         : "memory"
@@ -100,8 +105,7 @@ static void _CurSetViewScaleTrans(const float viewScale[4], const float viewTran
 {
     __asm__ __volatile__(
         "lqc2 $vf25,0(%0)\n\t"
-        "lqc2 $vf26,0(%1)\n\t"
-        "nop"
+        "lqc2 $vf26,0(%1)"
         :
         : "r"(viewScale), "r"(viewTrans)
         : "memory"
@@ -291,19 +295,159 @@ static void nmlModelSetFilterGunosys(const LayoutStore *modelArg, int flags, int
 #undef NML_FILTER_VERTEX
 
 
+
+/* Base tint of the stealth outline (red, green, blue, unused). */
+struct NmlStealthTint {
+    float channels[4];
+} __attribute__((aligned(16)));
+
 /* Original read-only data remains scaffolding, with no recovery credit. */
+extern const struct NmlStealthTint D_004D30D0;
 
-#define NML_STEALTH_VERTEX(uvEntry, xyzEntry, vertexIndex, clipMask) do { \
-    (uvEntry)[1].value = 3; \
-    (uvEntry)[0].value = (u64)geometry->uv[vertexIndex].u | \
-        ((u64)geometry->uv[vertexIndex].v << 16); \
-    (xyzEntry)[0].value = (u64)geometry->xyz[vertexIndex].x | \
-        ((u64)geometry->xyz[vertexIndex].y << 16) | \
-        ((u64)geometry->xyz[vertexIndex].z << 32); \
-    (xyzEntry)[1].value = (clipMask); \
-} while (0)
+/* One strip vertex: its UV entry, then its XYZ entry whose register slot holds
+ * the clip flags of the vertex and of the two before it in the strip. */
+#define NML_STEALTH_VERTEX(vertex, entryIndex, clipFlags) { \
+    struct NmlFilterGsPair *uvEntry = &packet[entryIndex]; \
+    uvEntry->payload.value = (u64)geometry->uv[vertex].u | \
+        ((u64)geometry->uv[vertex].v << 16); \
+    uvEntry->registerSlot.value = 3; \
+    { \
+        u64 positionX = geometry->xyz[vertex].x; \
+        u64 positionY = geometry->xyz[vertex].y; \
+        struct NmlFilterGsPair *xyzEntry = &packet[(entryIndex) + 1]; \
+        xyzEntry->payload.value = positionX | (positionY << 16) | \
+            ((u64)geometry->xyz[vertex].z << 32); \
+        xyzEntry->registerSlot.value = (clipFlags); \
+    } \
+}
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_filter_set", nmlModelSetFilterStealth);
+#define NML_STEALTH_CLIP(vertex) (geometry->uv[vertex].clipFlags)
+
+static void nmlModelSetFilterStealth(const LayoutStore *model, int flags)
+{
+    struct NmlStealthTint baseTint = D_004D30D0;
+    float outlineColor[3];
+    struct NmlFilterGsPair *packet = (struct NmlFilterGsPair *)0x70000000;
+    struct NmlFilterGsPair *entry;
+    const struct NmlStealthGeometry *geometry;
+    int remaining;
+    int part;
+
+    packet[0].payload.value = 0;
+    packet[0].registerSlot.value = 0x3f;
+    {
+        struct NmlFilterGsPair *textureEntry = &packet[1];
+        textureEntry->payload.value = (u64)(0x24020000 | (sRender.framebufferPage << 5)) |
+            0x2000000640000000ULL;
+        textureEntry->registerSlot.value = 6;
+    }
+    {
+        struct NmlFilterGsPair *alphaEntry = &packet[2];
+        alphaEntry->payload.value = ((u64)(int)model->fields.filterAlpha << 32) | 100;
+        alphaEntry->registerSlot.value = 0x42;
+    }
+    {
+        struct NmlFilterGsPair *clampEntry = &packet[3];
+        clampEntry->payload.value = 0;
+        clampEntry->registerSlot.value = 8;
+    }
+    {
+        struct NmlFilterGsPair *testEntry = &packet[4];
+        testEntry->payload.value = 0x3f001;
+        testEntry->registerSlot.value = 0x47;
+    }
+    {
+        struct NmlFilterGsPair *colorEntry = &packet[5];
+        colorEntry->payload.value = 0x3f80000000808080ULL;
+        colorEntry->registerSlot.value = 1;
+    }
+    nmlPacketGsInit();
+    nmlPacketAddGsFrame(sRender.displayBufferBase, 0);
+    nmlPacketAddGsFBA(0);
+    entry = packet;
+    for (remaining = 6 - 1; remaining >= 0; remaining--, entry++) {
+        packet_gs_entry64(entry->registerSlot.words[0], &entry->payload.value);
+    }
+    nmlPacketAddGsFlushWide();
+
+    for (part = 0; part < model->fields.stealthPartCount; part++) {
+        geometry = model->fields.stealthParts[part];
+        packet[0].payload.value = 0x154;
+        packet[0].registerSlot.value = 0;
+        NML_STEALTH_VERTEX(13, 1, NML_STEALTH_CLIP(13));
+        NML_STEALTH_VERTEX(12, 3,
+            NML_STEALTH_CLIP(12) | NML_STEALTH_CLIP(13));
+        NML_STEALTH_VERTEX(9, 5,
+            NML_STEALTH_CLIP(9) | NML_STEALTH_CLIP(12) | NML_STEALTH_CLIP(13));
+        NML_STEALTH_VERTEX(8, 7,
+            NML_STEALTH_CLIP(8) | NML_STEALTH_CLIP(9) | NML_STEALTH_CLIP(12));
+        NML_STEALTH_VERTEX(11, 9,
+            NML_STEALTH_CLIP(11) | NML_STEALTH_CLIP(8) | NML_STEALTH_CLIP(9));
+        NML_STEALTH_VERTEX(10, 11,
+            NML_STEALTH_CLIP(10) | NML_STEALTH_CLIP(11) | NML_STEALTH_CLIP(8));
+        NML_STEALTH_VERTEX(1, 13,
+            NML_STEALTH_CLIP(1) | NML_STEALTH_CLIP(10) | NML_STEALTH_CLIP(11));
+        NML_STEALTH_VERTEX(0, 15,
+            NML_STEALTH_CLIP(0) | NML_STEALTH_CLIP(1) | NML_STEALTH_CLIP(10));
+        NML_STEALTH_VERTEX(5, 17,
+            NML_STEALTH_CLIP(5) | NML_STEALTH_CLIP(0) | NML_STEALTH_CLIP(1));
+        NML_STEALTH_VERTEX(4, 19,
+            NML_STEALTH_CLIP(4) | NML_STEALTH_CLIP(5) | NML_STEALTH_CLIP(0));
+        NML_STEALTH_VERTEX(3, 21,
+            NML_STEALTH_CLIP(3) | NML_STEALTH_CLIP(4) | NML_STEALTH_CLIP(5));
+        NML_STEALTH_VERTEX(2, 23,
+            NML_STEALTH_CLIP(2) | NML_STEALTH_CLIP(3) | NML_STEALTH_CLIP(4));
+        NML_STEALTH_VERTEX(7, 25,
+            NML_STEALTH_CLIP(7) | NML_STEALTH_CLIP(4) | NML_STEALTH_CLIP(5));
+        NML_STEALTH_VERTEX(6, 27,
+            NML_STEALTH_CLIP(6) | NML_STEALTH_CLIP(7) | NML_STEALTH_CLIP(4));
+        nmlPacketGsInit();
+        entry = packet;
+        for (remaining = 28; remaining >= 0; remaining--, entry++) {
+            packet_gs_entry64(entry->registerSlot.words[0], &entry->payload.value);
+        }
+        nmlPacketAddGsFlushWide();
+    }
+
+    outlineColor[0] = baseTint.channels[0] * 128.0f;
+    outlineColor[1] = baseTint.channels[1] * 128.0f;
+    outlineColor[2] = baseTint.channels[2] * 128.0f;
+    packet[0].payload.value = 0x3d001;
+    packet[0].registerSlot.value = 0x47;
+    {
+        struct NmlFilterGsPair *alphaEntry = &packet[1];
+        alphaEntry->payload.value = ((u64)(int)model->fields.filterAmplitude << 32) | 100;
+        alphaEntry->registerSlot.value = 0x42;
+    }
+    {
+        struct NmlFilterGsPair *colorEntry = &packet[2];
+        colorEntry->payload.value = (u64)(int)outlineColor[0] |
+            ((u64)(int)outlineColor[1] << 8) | ((u64)(int)outlineColor[2] << 16) | 0x3f80000000000000ULL;
+        colorEntry->registerSlot.value = 1;
+    }
+    {
+        struct NmlFilterGsPair *primEntry = &packet[3];
+        primEntry->payload.value = 0x46;
+        primEntry->registerSlot.value = 0;
+    }
+    {
+        struct NmlFilterGsPair *topCornerEntry = &packet[4];
+        topCornerEntry->payload.value = 0x72007000;
+        topCornerEntry->registerSlot.value = 4;
+    }
+    {
+        struct NmlFilterGsPair *bottomCornerEntry = &packet[5];
+        bottomCornerEntry->payload.value = 0x8e009000;
+        bottomCornerEntry->registerSlot.value = 4;
+    }
+    entry = packet;
+    for (remaining = 6 - 1; remaining >= 0; remaining--, entry++) {
+        packet_gs_entry64(entry->registerSlot.words[0], &entry->payload.value);
+    }
+    nmlPacketAddGsFlushWide();
+}
+
+#undef NML_STEALTH_CLIP
 
 #undef NML_STEALTH_VERTEX
 
@@ -313,8 +457,7 @@ static void _WeightToGlobalPlaceInit(float matrix[4][4])
         "lqc2 $vf10,0(%0)\n\t"
         "lqc2 $vf11,16(%0)\n\t"
         "lqc2 $vf12,32(%0)\n\t"
-        "lqc2 $vf13,48(%0)\n\t"
-        "nop"
+        "lqc2 $vf13,48(%0)"
         :
         : "r"(matrix)
         : "memory"
@@ -357,8 +500,7 @@ static void _WeightToGlobalPlaceVec(Vector4 *destination,
         "vmadday.xyzw ACC,$vf11,$vf31y\n\t"
         "vmaddaz.xyzw ACC,$vf12,$vf31z\n\t"
         "vmaddw.xyzw $vf31,$vf13,$vf0w\n\t"
-        "sqc2 $vf31,0(%0)\n\t"
-        "nop"
+        "sqc2 $vf31,0(%0)"
         :
         : "r"(destination), "r"(jointMatrix), "r"(jointAuxMatrix)
         : "$2", "$3", "$4", "$5", "$6", "$7", "$8", "$9",
@@ -513,7 +655,7 @@ void nmlFilterStealthMake(int partIndex, StudioCamera *camera,
         "vadd.xyz vf2xyz,vf2xyz,vf3xyz\n\t"
         "sqc2 $vf2,0(%2)"
         : : "r"(firstEndpoint), "r"(&geometry->endpoints[1]), "r"(&center) : "memory");
-    xglVectorScaleXYZ(0.5f, &center, &center);
+    xglVectorScaleXYZ(&center, &center, 0.5f);
     geometry->sortClass = (float)descriptor->sortClass;
     firstEndpoint->w = _VectorLengthSQ(&camera->position, &center);
     if (descriptor->firstExtension != 0.0f) {
@@ -1050,4 +1192,180 @@ void nmlFilterSetFlatRender(LayoutStore *model)
 
 INCLUDE_ASM("asm/main/nonmatchings/nml_filter_set", nmlFilterSetTexFillDraw);
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_filter_set", nmlFilterSetVolumeCubeRender);
+extern StudioCamera *xglStudioGetActiveCamera(void);
+
+typedef union NmlFilterPositionView {
+    Vector4 vector;
+    unsigned long long words[2];
+} NmlFilterPositionView;
+
+int nmlFilterSetVolumeCubeRender(Vector4 *minimum, Vector4 *maximum)
+{
+    int facingCamera[6];
+    Vector4 corners[8];
+    Vector4 *cornerBase;
+    int projected[8][4];
+    int vertexClip[8];
+    int faceClip[6];
+    struct NmlFilterCubeFaces faces;
+    int needsClipping;
+    StudioCamera *camera;
+    NmlFilterPositionView *cameraPosition;
+    struct NmlFilterGsPair *packet = (struct NmlFilterGsPair *)0x70000000;
+    int iteration;
+
+    camera = xglStudioGetActiveCamera();
+    needsClipping = 0;
+    memset(facingCamera, 0, sizeof(facingCamera));
+    cameraPosition = (NmlFilterPositionView *)&camera->position;
+    memset(faceClip, 0, sizeof(faceClip));
+    faces = D_004D30E0;
+
+    corners[0].z = corners[3].z = corners[4].z = corners[7].z = minimum->z;
+    corners[1].z = corners[2].z = corners[5].z = corners[6].z = maximum->z;
+    corners[0].x = corners[1].x = corners[4].x = corners[5].x = minimum->x;
+    corners[3].x = corners[2].x = corners[7].x = corners[6].x = maximum->x;
+    corners[4].y = corners[5].y = corners[6].y = corners[7].y = minimum->y;
+    corners[0].y = corners[1].y = corners[2].y = corners[3].y = maximum->y;
+
+    if (minimum->x < cameraPosition->vector.x)
+        facingCamera[0] = 1;
+    if (cameraPosition->vector.x < maximum->x)
+        facingCamera[1] = 1;
+    if (minimum->z < cameraPosition->vector.z)
+        facingCamera[2] = 1;
+    if (cameraPosition->vector.z < maximum->z)
+        facingCamera[3] = 1;
+    if (minimum->y < cameraPosition->vector.y)
+        facingCamera[5] = 1;
+    if (cameraPosition->vector.y < maximum->y)
+        facingCamera[4] = 1;
+
+    _CurSetMatrix(camera->viewMatrix);
+    _CurSetViewScaleTrans(&camera->screenScale.x, &camera->screenOffset.x);
+    cornerBase = &corners[0];
+    for (iteration = 0; iteration < 8; iteration++) {
+        vertexClip[iteration] = _CurRotTransPersClip(projected[iteration], &cornerBase[iteration]);
+    }
+    {
+        int *clipEntry = faceClip;
+        const int (*faceVertices)[4] = faces.vertices;
+        for (iteration = 5; iteration >= 0; iteration--, faceVertices++, clipEntry++) {
+            *clipEntry = vertexClip[(*faceVertices)[0]] +
+                         vertexClip[(*faceVertices)[1]] +
+                         vertexClip[(*faceVertices)[2]] +
+                         vertexClip[(*faceVertices)[3]];
+        }
+    }
+
+    packet->payload.value = ((u64)sRender.displayBufferBase |
+        ((u64)sRender.pixelStorageMode << 24 |
+         (u64)(sRender.frameWidth / 64) << 16)) | 0x00ffffff00000000ULL;
+    packet->registerSlot.value = 0x4c;
+    {
+        struct NmlFilterGsPair *alphaCorrection = &packet[1];
+        alphaCorrection->registerSlot.value = 0x4a;
+        alphaCorrection->payload.value = 0;
+    }
+    {
+        struct NmlFilterGsPair *color = &packet[2];
+        color->payload.value = 0x3f80000000000000ULL;
+        color->registerSlot.value = 1;
+    }
+    {
+        struct NmlFilterGsPair *test = &packet[3];
+        test->payload.value = 0x31001;
+        test->registerSlot.value = 0x47;
+    }
+    {
+        struct NmlFilterGsPair *primitive = &packet[4];
+        primitive->payload.value = 6;
+        primitive->registerSlot.value = 0;
+    }
+    {
+        struct NmlFilterGsPair *firstVertex = &packet[5];
+        firstVertex->payload.value = 0x72007000;
+        firstVertex->registerSlot.value = 4;
+    }
+    {
+        struct NmlFilterGsPair *lastVertex = &packet[6];
+        lastVertex->payload.value = 0x8e009000ULL;
+        lastVertex->registerSlot.value = 4;
+    }
+    {
+        struct NmlFilterGsPair *entry = packet;
+        for (iteration = 6; iteration >= 0; iteration--, entry++)
+            packet_gs_entry64(entry->registerSlot.words[0], &entry->payload.value);
+    }
+    nmlPacketAddGsFlush();
+
+    packet->payload.value = 0x51001;
+    packet->registerSlot.value = 0x47;
+    {
+        struct NmlFilterGsPair *alphaCorrection = (struct NmlFilterGsPair *)0x70000010;
+        struct NmlFilterGsPair *color = (struct NmlFilterGsPair *)0x70000020;
+        alphaCorrection->registerSlot.value = 0x4a;
+        alphaCorrection->payload.value = 1;
+        color->payload.value = 0x3f80000000000000ULL;
+        color->registerSlot.value = 1;
+    }
+    nmlPacketGsInit();
+    {
+        struct NmlFilterGsPair *entry = packet;
+        for (iteration = 2; iteration >= 0; iteration--, entry++)
+            packet_gs_entry64(entry->registerSlot.words[0], &entry->payload.value);
+    }
+    nmlPacketAddGsFlush();
+
+#define NML_CUBE_CORNER(indices, index) { \
+    struct NmlFilterGsPair *corner = &packet[1 + (index)]; \
+    int vertexIndex = (indices)[index]; \
+    u64 coordinates = (u64)projected[vertexIndex][0] | \
+        ((u64)projected[vertexIndex][1] << 16) | \
+        ((u64)projected[vertexIndex][2] << 32); \
+    corner->registerSlot.value = 4; \
+    corner->payload.value = coordinates; \
+}
+#define NML_CUBE_FACE(indices) { \
+    packet->payload.value = 4; \
+    packet->registerSlot.value = 0; \
+    NML_CUBE_CORNER(indices, 0); \
+    NML_CUBE_CORNER(indices, 1); \
+    NML_CUBE_CORNER(indices, 2); \
+    NML_CUBE_CORNER(indices, 3); \
+    { \
+        struct NmlFilterGsPair *entry = packet; \
+        int remaining; \
+        for (remaining = 4; remaining >= 0; remaining--) { \
+            packet_gs_entry64(entry->registerSlot.words[0], &entry->payload.value); \
+            entry += 1; \
+        } \
+    } \
+    nmlPacketAddGsFlush(); \
+}
+    for (iteration = 0; iteration < 6; iteration++) {
+        if (facingCamera[iteration] == 0) {
+            if (faceClip[iteration] != 0) {
+                needsClipping = 1;
+            } else {
+                NML_CUBE_FACE(faces.vertices[iteration]);
+            }
+        }
+    }
+    packet->registerSlot.value = 0x4a;
+    packet->payload.value = 0;
+    packet_gs_entry64(packet->registerSlot.words[0], &packet->payload.value);
+    nmlPacketAddGsFlush();
+    for (iteration = 0; iteration < 6; iteration++) {
+        if (facingCamera[iteration] != 0) {
+            if (faceClip[iteration] != 0) {
+                needsClipping = 1;
+            } else {
+                NML_CUBE_FACE(faces.vertices[iteration]);
+            }
+        }
+    }
+#undef NML_CUBE_FACE
+#undef NML_CUBE_CORNER
+    return needsClipping;
+}

@@ -1198,7 +1198,90 @@ void MenuShopModelDisp(AgwsModelUnit *unit)
 }
 
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_shop", MenuShopModelMain);
+typedef struct MenuShopModelTask {
+    TskObject base;
+    int modelId;
+} MenuShopModelTask;
+
+extern const float D_004C7390[4];
+extern int MenuModelOut[4];
+extern void xglCameraInit(StudioCamera *camera);
+extern void MenuModelCreate(int *slot, int partyId);
+extern void MenuModelExtFuncSet(int, void (*)(AgwsModelUnit *), int);
+
+static void MenuShopModelMain(TskObject *task, void *data)
+{
+    MenuShopModelTask *model = (MenuShopModelTask *)task;
+    s64 position[2];
+    s64 rotation[2];
+    StudioCamera *camera;
+    StudioCamera *camera2;
+    MenuShopWorkData *work;
+    int *modelId;
+    int category;
+    int enabled;
+
+    modelId = &model->modelId;
+    enabled = MenuShopWork->modelBreakPending;
+    work = MenuShopWork;
+    if (enabled == 0)
+        return;
+
+    switch (task->state) {
+    case 0:
+        *modelId = 0;
+        position[0] = ((s64 *)D_004C7390)[0];
+        position[1] = ((s64 *)D_004C7390)[1];
+        MenuModelOut[0] = 0;
+        memset(rotation, 0, 16);
+        ((float *)rotation)[3] = 1.0f;
+        camera = xglStudioGetCamera2(0);
+        xglCameraInit(camera);
+        camera->state = 1;
+        ((s64 *)&camera->rotation)[0] = rotation[0];
+        ((s64 *)&camera->rotation)[1] = rotation[1];
+        ((s64 *)&camera->position)[0] = position[0];
+        ((s64 *)&camera->position)[1] = position[1];
+        camera2 = xglStudioGetCamera2(2);
+        camera2->active = 1;
+        camera2->state = 1;
+        break;
+    case 2:
+        if (MenuShopWork->mode != 0)
+            break;
+        switch (MenuShopWork->state) {
+        case 0x30:
+        case 0xA0:
+        case 0xA2:
+        case 0xA4:
+            break;
+        default:
+            goto mark_pending;
+        }
+        category = MenuShopWork->category;
+        if (category != 7)
+            goto mark_pending;
+        if ((MenuShopWork->itemId >> 16) != category)
+            break;
+        if (*modelId != MenuShopWork->modelId) {
+            MenuShopWork->modelPending = 1;
+            *modelId = MenuShopWork->modelId;
+            work = MenuShopWorkRead();
+        }
+        if (work->modelId == 0)
+            break;
+        if (MenuModelOut[0] != 0)
+            break;
+        work->modelPending = 0;
+        MenuModelCreate(MenuModelOut, work->modelId);
+        MenuModelExtFuncSet(MenuModelOut[0], MenuShopModelDisp, 0);
+        *modelId = MenuShopWork->modelId;
+        break;
+mark_pending:
+        MenuShopWork->modelPending = 1;
+        break;
+    }
+}
 
 typedef struct MenuShopHelpWork {
     unsigned char unmodeled_00[4];
@@ -3370,7 +3453,7 @@ void MenuShopCore(void) {
             if (MenuShopWork->listIndex >= 0) {
                 MENU_SHOP_PREVIEW_ITEM(MenuShopWork->listIndex);
             } else {
-                MenuShopWork->itemId = *(unsigned int *)&MenuShopWork->modelId = 0;
+                MenuShopWork->itemId = MenuShopWork->modelId = 0;
             }
             if (PadData.mappedRepeat & 0xA000) {
                 u8 previousCategory;

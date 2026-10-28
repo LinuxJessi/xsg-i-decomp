@@ -60,6 +60,17 @@ extern int sceGsSyncPath(int mode, int timeout);
 
 #define DMAC_CTRL      ((volatile u32 *)0x1000E000)
 
+/* Layout of the DMAC_CTRL register. */
+typedef struct XglDmacControl {
+    u32 dma_enable : 1;
+    u32 cycle_steal_release : 1;
+    u32 drain_mode : 2;
+    u32 stall_source : 2;
+    u32 stall_drain : 2;
+    u32 release_cycle : 3;
+    u32 reserved : 21;
+} XglDmacControl;
+
 #define DMAC_STAT      ((volatile u32 *)0x1000E010)
 
 #define DMAC_RBSR      ((volatile u32 *)0x1000E040)
@@ -171,7 +182,28 @@ void xglDmaBufferRequest(XglDmaBuffer *buffer, u32 channel)
     buffer->current = buffer->start;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/xgl_dma", xglDmaMFIFOSetup);
+void xglDmaMFIFOSetup(u32 address, u32 size, int channel)
+{
+    XglDmaChannel *drain;
+    volatile u32 *rbor;
+    volatile u32 *rbsr;
+    volatile u32 *madr;
+
+    if (channel >= 3)
+        return;
+    rbor = DMAC_RBOR;
+    rbsr = DMAC_RBSR;
+    ((XglDmacControl *)DMAC_CTRL)->drain_mode = 3;
+    *rbor = address;
+    *rbsr = size - 16U;
+    drain = tbl[channel];
+    mfifo_drain = drain;
+    madr = D8_MADR;
+    *madr = address;
+    drain->tag_address = address;
+    drain->quadword_count = 0U;
+    drain->control = 260;
+}
 
 u32 xglDmaMFIFOKick(u32 spr_address, u32 count)
 {

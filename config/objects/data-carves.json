@@ -2378,95 +2378,293 @@
    ]
   },
   "main/tu097": {
-   ".sdata": [
-    {
-     "range": [
-      "0x004dc32c",
-      "0x004dc330"
-     ],
-     "generated": [
-      "0x004dc32c",
-      "0x004dc330"
-     ],
-     "generated_by": [
-      "DefineQuantizeTable",
-      "DefineRestartInterval",
-      "FFIDCT",
-      "Quantize"
-     ],
-     "c_owned_symbols": [
-      "sw"
-     ],
-     "also_referenced_by_c": []
-    }
-   ],
    ".lit4": [
     {
-     "also_referenced_by_c": [
-      "D_004D8798",
-      "D_004D879C",
-      "D_004D87A0",
-      "D_004D87A4",
-      "D_004D87A8",
-      "D_004D87AC",
-      "D_004D87B0",
-      "D_004D87B4",
-      "D_004D87B8",
-      "D_004D87BC",
-      "D_004D87C0",
-      "D_004D87C4"
+     "range": [
+      "0x004d87c8",
+      "0x004d87d0"
      ],
+     "generated": [
+      "0x004d87c8",
+      "0x004d87d0"
+     ],
+     "generated_by": [],
      "c_owned_symbols": [
       "D_004D87C8",
       "D_004D87CC"
      ],
-     "generated": [
-      "0x004d87c8",
-      "0x004d87d0"
-     ],
-     "generated_by": [
-      "RebuildQuantizeTable"
-     ],
-     "range": [
-      "0x004d87c8",
-      "0x004d87d0"
+     "c_input_spans": [
+      {
+       "section": ".lit4",
+       "range": [
+        "0x004d87c8",
+        "0x004d87d0"
+       ],
+       "symbols": [],
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        0,
+        8
+       ]
+      }
      ]
     },
     {
-     "also_referenced_by_c": [],
+     "range": [
+      "0x004d87d0",
+      "0x004d87d4"
+     ],
+     "generated": [
+      "0x004d87d0",
+      "0x004d87d4"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "D_004D87D0"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".lit4",
+       "range": [
+        "0x004d87d0",
+        "0x004d87d4"
+       ],
+       "symbols": [],
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        8,
+        12
+       ]
+      }
+     ]
+    },
+    {
+     "range": [
+      "0x004d87d4",
+      "0x004d87d8"
+     ],
+     "generated": [
+      "0x004d87d4",
+      "0x004d87d8"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "D_004D87D4"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".lit4",
+       "range": [
+        "0x004d87d4",
+        "0x004d87d8"
+       ],
+       "symbols": [],
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        12,
+        16
+       ]
+      }
+     ]
+    },
+    {
+     "range": [
+      "0x004d87d8",
+      "0x004d87dc"
+     ],
+     "generated": [
+      "0x004d87d8",
+      "0x004d87dc"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "D_004D87D8"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".lit4",
+       "range": [
+        "0x004d87d8",
+        "0x004d87dc"
+       ],
+       "symbols": [],
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        16,
+        20
+       ]
+      }
+     ]
+    },
+    {
+     "range": [
+      "0x004d87dc",
+      "0x004d87e0"
+     ],
+     "generated": [
+      "0x004d87dc",
+      "0x004d87e0"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "D_004D87DC"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".lit4",
+       "range": [
+        "0x004d87dc",
+        "0x004d87e0"
+       ],
+       "symbols": [],
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        20,
+        24
+       ]
+      }
+     ]
+    },
+    {
+     "range": [
+      "0x004d87e0",
+      "0x004d87e4"
+     ],
+     "generated": [
+      "0x004d87e0",
+      "0x004d87e4"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "D_004D87E0"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".lit4",
+       "range": [
+        "0x004d87e0",
+        "0x004d87e4"
+       ],
+       "symbols": [],
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        24,
+        28
+       ]
+      }
+     ]
+    },
+    {
+     "range": [
+      "0x004d87e4",
+      "0x004d87e8"
+     ],
+     "generated": [
+      "0x004d87e4",
+      "0x004d87e8"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "D_004D87E4"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".lit4",
+       "range": [
+        "0x004d87e4",
+        "0x004d87e8"
+       ],
+       "symbols": [],
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        28,
+        32
+       ]
+      }
+     ]
+    },
+    {
+     "range": [
+      "0x004d87e8",
+      "0x004d87ec"
+     ],
+     "generated": [
+      "0x004d87e8",
+      "0x004d87ec"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "D_004D87E8"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".lit4",
+       "range": [
+        "0x004d87e8",
+        "0x004d87ec"
+       ],
+       "symbols": [],
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        32,
+        36
+       ]
+      }
+     ]
+    },
+    {
+     "range": [
+      "0x004d87ec",
+      "0x004d87f4"
+     ],
+     "generated": [
+      "0x004d87ec",
+      "0x004d87f4"
+     ],
+     "generated_by": [],
      "c_owned_symbols": [
       "D_004D87EC",
       "D_004D87F0"
      ],
-     "generated": [
-      "0x004d87ec",
-      "0x004d87f4"
-     ],
-     "generated_by": [
-      "xglJpegDecode"
-     ],
-     "range": [
-      "0x004d87ec",
-      "0x004d87f4"
+     "c_input_spans": [
+      {
+       "section": ".lit4",
+       "range": [
+        "0x004d87ec",
+        "0x004d87f4"
+       ],
+       "symbols": [],
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        36,
+        44
+       ]
+      }
      ]
     }
    ],
    ".rodata": [
     {
-     "also_referenced_by_c": [],
-     "c_owned_symbols": [
-      "jtbl_004D25B0"
+     "range": [
+      "0x004d25b0",
+      "0x004d2628"
      ],
      "generated": [
       "0x004d25b0",
       "0x004d2628"
      ],
-     "generated_by": [
-      "xglJpegDecode"
-     ],
-     "range": [
-      "0x004d25b0",
-      "0x004d2628"
+     "generated_by": [],
+     "c_owned_symbols": [
+      "jtbl_004D25B0"
      ],
      "c_input_spans": [
       {
@@ -2482,6 +2680,38 @@
        "symbols": [],
        "anonymous_emission": true,
        "credit": "verified"
+      }
+     ]
+    }
+   ],
+   ".sdata": [
+    {
+     "range": [
+      "0x004dc32c",
+      "0x004dc330"
+     ],
+     "generated": [
+      "0x004dc32c",
+      "0x004dc330"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "sw"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".sdata",
+       "range": [
+        "0x004dc32c",
+        "0x004dc330"
+       ],
+       "object_range": [
+        0,
+        4
+       ],
+       "symbols": [
+        "sw"
+       ]
       }
      ]
     }
@@ -5880,12 +6110,7 @@
         "s_inLayout"
        ]
       }
-     ],
-     "basis": {
-      "kind": "user-directed-integration",
-      "task": "integrate-main-55-publish-20261025",
-      "note": "Actual compiled source data placement; ordinary whole-file gate required; no recovery acceptance"
-     }
+     ]
     }
    ],
    ".lit4": [
@@ -5926,12 +6151,247 @@
         40
        ]
       }
+     ]
+    },
+    {
+     "range": [
+      "0x004d8920",
+      "0x004d8924"
      ],
-     "basis": {
-      "kind": "user-directed-integration",
-      "task": "integrate-main-55-publish-20261025",
-      "note": "Actual compiled source data placement; ordinary whole-file gate required; no recovery acceptance"
-     }
+     "generated": [
+      "0x004d8920",
+      "0x004d8924"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "D_004D8920"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".lit4",
+       "range": [
+        "0x004d8920",
+        "0x004d8924"
+       ],
+       "symbols": [],
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        40,
+        44
+       ]
+      }
+     ]
+    },
+    {
+     "range": [
+      "0x004d8924",
+      "0x004d8928"
+     ],
+     "generated": [
+      "0x004d8924",
+      "0x004d8928"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "D_004D8924"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".lit4",
+       "range": [
+        "0x004d8924",
+        "0x004d8928"
+       ],
+       "symbols": [],
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        44,
+        48
+       ]
+      }
+     ]
+    },
+    {
+     "range": [
+      "0x004d8928",
+      "0x004d892c"
+     ],
+     "generated": [
+      "0x004d8928",
+      "0x004d892c"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "D_004D8928"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".lit4",
+       "range": [
+        "0x004d8928",
+        "0x004d892c"
+       ],
+       "symbols": [],
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        48,
+        52
+       ]
+      }
+     ]
+    },
+    {
+     "range": [
+      "0x004d892c",
+      "0x004d8930"
+     ],
+     "generated": [
+      "0x004d892c",
+      "0x004d8930"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "D_004D892C"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".lit4",
+       "range": [
+        "0x004d892c",
+        "0x004d8930"
+       ],
+       "symbols": [],
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        52,
+        56
+       ]
+      }
+     ]
+    },
+    {
+     "range": [
+      "0x004d8930",
+      "0x004d8934"
+     ],
+     "generated": [
+      "0x004d8930",
+      "0x004d8934"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "D_004D8930"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".lit4",
+       "range": [
+        "0x004d8930",
+        "0x004d8934"
+       ],
+       "symbols": [],
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        56,
+        60
+       ]
+      }
+     ]
+    },
+    {
+     "range": [
+      "0x004d8934",
+      "0x004d8938"
+     ],
+     "generated": [
+      "0x004d8934",
+      "0x004d8938"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "D_004D8934"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".lit4",
+       "range": [
+        "0x004d8934",
+        "0x004d8938"
+       ],
+       "symbols": [],
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        60,
+        64
+       ]
+      }
+     ]
+    },
+    {
+     "range": [
+      "0x004d8938",
+      "0x004d893c"
+     ],
+     "generated": [
+      "0x004d8938",
+      "0x004d893c"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "D_004D8938"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".lit4",
+       "range": [
+        "0x004d8938",
+        "0x004d893c"
+       ],
+       "symbols": [],
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        64,
+        68
+       ]
+      }
+     ]
+    },
+    {
+     "range": [
+      "0x004d893c",
+      "0x004d8940"
+     ],
+     "generated": [
+      "0x004d893c",
+      "0x004d8940"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "D_004D893C"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".lit4",
+       "range": [
+        "0x004d893c",
+        "0x004d8940"
+       ],
+       "symbols": [],
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        68,
+        72
+       ]
+      }
+     ]
     }
    ],
    ".rodata": [
@@ -5944,14 +6404,9 @@
       "0x004d2800",
       "0x004d2820"
      ],
-     "generated_by": [
-      "nmlModelSendSignalMovieFinish"
-     ],
+     "generated_by": [],
      "c_owned_symbols": [
       "jtbl_004D2800"
-     ],
-     "also_referenced_by_c": [
-      "D_004D2820"
      ],
      "c_input_spans": [
       {
@@ -5979,14 +6434,11 @@
       "0x004d2830",
       "0x004d2890"
      ],
-     "generated_by": [
-      "nmlModelDirectSend"
-     ],
+     "generated_by": [],
      "c_owned_symbols": [
       "jtbl_004D2830",
       "jtbl_004D2860"
      ],
-     "also_referenced_by_c": [],
      "c_input_spans": [
       {
        "section": ".rodata",
@@ -6013,13 +6465,10 @@
       "0x004d28a0",
       "0x004d28a9"
      ],
-     "generated_by": [
-      "nmlModelCalcSample"
-     ],
+     "generated_by": [],
      "c_owned_symbols": [
       "D_004D28A0"
      ],
-     "also_referenced_by_c": [],
      "c_input_spans": [
       {
        "section": ".rodata",
@@ -6050,9 +6499,12 @@
      ],
      "generated_by": [
       "AlphaGroupLastEntry",
+      "AlphaGroupSort",
       "AlphaGroupSortEntry",
       "CONSTRUCT_ALPHA_GROUP",
-      "FLUSH_ALPHA_GROUP"
+      "FLUSH_ALPHA_GROUP",
+      "nmlModelFlushSub",
+      "nmlModelFlushSubAlpha"
      ],
      "c_owned_symbols": [
       "s_nAlphaGroup"
@@ -6088,7 +6540,9 @@
      ],
      "generated_by": [
       "CONSTRUCT_ALPHA_GROUP",
-      "FLUSH_ALPHA_GROUP"
+      "FLUSH_ALPHA_GROUP",
+      "nmlModelFlushSub",
+      "nmlModelFlushSubNonAlpha"
      ],
      "c_owned_symbols": [
       "s_nNonAlphaGroup"
@@ -6141,12 +6595,7 @@
         "s_pMapLast"
        ]
       }
-     ],
-     "basis": {
-      "kind": "user-directed-integration",
-      "task": "integrate-main-55-publish-20261025",
-      "note": "Actual compiled source data placement; ordinary whole-file gate required; no recovery acceptance"
-     }
+     ]
     },
     {
      "range": [
@@ -6236,12 +6685,7 @@
         "s_fSortOffsetEntry"
        ]
       }
-     ],
-     "basis": {
-      "kind": "user-directed-integration",
-      "task": "integrate-main-55-publish-20261025",
-      "note": "Actual compiled source data placement; ordinary whole-file gate required; no recovery acceptance"
-     }
+     ]
     },
     {
      "range": [
@@ -6301,12 +6745,7 @@
         "s_nShapeNum"
        ]
       }
-     ],
-     "basis": {
-      "kind": "user-directed-integration",
-      "task": "integrate-main-55-publish-20261025",
-      "note": "Actual compiled source data placement; ordinary whole-file gate required; no recovery acceptance"
-     }
+     ]
     },
     {
      "range": [
@@ -6336,12 +6775,7 @@
         "s_nMapClip"
        ]
       }
-     ],
-     "basis": {
-      "kind": "user-directed-integration",
-      "task": "integrate-main-55-publish-20261025",
-      "note": "Actual compiled source data placement; ordinary whole-file gate required; no recovery acceptance"
-     }
+     ]
     },
     {
      "range": [
@@ -6371,12 +6805,7 @@
         "s_nPacketSignal"
        ]
       }
-     ],
-     "basis": {
-      "kind": "user-directed-integration",
-      "task": "integrate-main-55-publish-20261025",
-      "note": "Actual compiled source data placement; ordinary whole-file gate required; no recovery acceptance"
-     }
+     ]
     },
     {
      "range": [
@@ -6421,12 +6850,7 @@
         "s_nUseBackBuffer"
        ]
       }
-     ],
-     "basis": {
-      "kind": "user-directed-integration",
-      "task": "integrate-main-55-publish-20261025",
-      "note": "Actual compiled source data placement; ordinary whole-file gate required; no recovery acceptance"
-     }
+     ]
     },
     {
      "range": [
@@ -6531,12 +6955,7 @@
         "s_nFrameLockOff"
        ]
       }
-     ],
-     "basis": {
-      "kind": "user-directed-integration",
-      "task": "integrate-main-55-publish-20261025",
-      "note": "Actual compiled source data placement; ordinary whole-file gate required; no recovery acceptance"
-     }
+     ]
     },
     {
      "range": [
@@ -6566,12 +6985,7 @@
         "s_nRenderCancelOld"
        ]
       }
-     ],
-     "basis": {
-      "kind": "user-directed-integration",
-      "task": "integrate-main-55-publish-20261025",
-      "note": "Actual compiled source data placement; ordinary whole-file gate required; no recovery acceptance"
-     }
+     ]
     },
     {
      "range": [
@@ -6601,12 +7015,7 @@
         "g_nGsEntry"
        ]
       }
-     ],
-     "basis": {
-      "kind": "user-directed-integration",
-      "task": "integrate-main-55-publish-20261025",
-      "note": "Actual compiled source data placement; ordinary whole-file gate required; no recovery acceptance"
-     }
+     ]
     }
    ]
   },
@@ -50756,75 +51165,6 @@
    ]
   },
   "main/tu124": {
-   ".rodata": [
-    {
-     "range": [
-      "0x004c0200",
-      "0x004c028c"
-     ],
-     "generated": [
-      "0x004c0200",
-      "0x004c028c"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C0200",
-      "D_004C0228",
-      "jtbl_004C0260"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "range": [
-        "0x004c0200",
-        "0x004c028c"
-       ],
-       "symbols": [],
-       "anonymous_emission": true,
-       "credit": "verified",
-       "object_range": [
-        0,
-        140
-       ]
-      }
-     ]
-    }
-   ],
-   ".lit4": [
-    {
-     "range": [
-      "0x004d7c40",
-      "0x004d7c50"
-     ],
-     "generated": [
-      "0x004d7c40",
-      "0x004d7c50"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004D7C40",
-      "D_004D7C44",
-      "D_004D7C48",
-      "D_004D7C4C"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".lit4",
-       "range": [
-        "0x004d7c40",
-        "0x004d7c50"
-       ],
-       "symbols": [],
-       "anonymous_emission": true,
-       "credit": "verified",
-       "object_range": [
-        0,
-        16
-       ]
-      }
-     ]
-    }
-   ],
    ".data": [
     {
      "range": [
@@ -50884,33 +51224,6 @@
        }
       },
       {
-       "original_name": "TestPrim.1",
-       "address": "0x00366fc0",
-       "storage_owner": {
-        "name": "TestPrim_1",
-        "address": "0x00366fc0",
-        "size": 240
-       }
-      },
-      {
-       "original_name": "TestPrim.2",
-       "address": "0x003670b0",
-       "storage_owner": {
-        "name": "TestPrim_2",
-        "address": "0x003670b0",
-        "size": 144
-       }
-      },
-      {
-       "original_name": "TestPrim.3",
-       "address": "0x00367140",
-       "storage_owner": {
-        "name": "TestPrim_3",
-        "address": "0x00367140",
-        "size": 48
-       }
-      },
-      {
        "original_name": "Head.4",
        "address": "0x00367170",
        "storage_owner": {
@@ -50953,6 +51266,33 @@
         "name": "Head_8",
         "address": "0x003672e0",
         "size": 64
+       }
+      },
+      {
+       "original_name": "TestPrim.1",
+       "address": "0x00366fc0",
+       "storage_owner": {
+        "name": "TestPrim_1",
+        "address": "0x00366fc0",
+        "size": 240
+       }
+      },
+      {
+       "original_name": "TestPrim.2",
+       "address": "0x003670b0",
+       "storage_owner": {
+        "name": "TestPrim_2",
+        "address": "0x003670b0",
+        "size": 144
+       }
+      },
+      {
+       "original_name": "TestPrim.3",
+       "address": "0x00367140",
+       "storage_owner": {
+        "name": "TestPrim_3",
+        "address": "0x00367140",
+        "size": 48
        }
       },
       {
@@ -51094,29 +51434,30 @@
       }
      ]
     }
-   ]
-  },
-  "main/tu126": {
-   ".rodata": [
+   ],
+   ".lit4": [
     {
      "range": [
-      "0x004c0300",
-      "0x004c0310"
+      "0x004d7c40",
+      "0x004d7c50"
      ],
      "generated": [
-      "0x004c0300",
-      "0x004c0310"
+      "0x004d7c40",
+      "0x004d7c50"
      ],
      "generated_by": [],
      "c_owned_symbols": [
-      "D_004C0300"
+      "D_004D7C40",
+      "D_004D7C44",
+      "D_004D7C48",
+      "D_004D7C4C"
      ],
      "c_input_spans": [
       {
-       "section": ".rodata",
+       "section": ".lit4",
        "range": [
-        "0x004c0300",
-        "0x004c0310"
+        "0x004d7c40",
+        "0x004d7c50"
        ],
        "symbols": [],
        "anonymous_emission": true,
@@ -51127,1246 +51468,44 @@
        ]
       }
      ]
-    },
-    {
-     "range": [
-      "0x004c0310",
-      "0x004c0321"
-     ],
-     "generated": [
-      "0x004c0310",
-      "0x004c0321"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C0310"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        16,
-        33
-       ],
-       "range": [
-        "0x004c0310",
-        "0x004c0321"
-       ],
-       "symbols": [
-        "D_004C0310"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c0328",
-      "0x004c0339"
-     ],
-     "generated": [
-      "0x004c0328",
-      "0x004c0339"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C0328"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        40,
-        57
-       ],
-       "range": [
-        "0x004c0328",
-        "0x004c0339"
-       ],
-       "symbols": [
-        "D_004C0328"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c0340",
-      "0x004c0353"
-     ],
-     "generated": [
-      "0x004c0340",
-      "0x004c0353"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C0340"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        64,
-        83
-       ],
-       "range": [
-        "0x004c0340",
-        "0x004c0353"
-       ],
-       "symbols": [
-        "D_004C0340"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c0358",
-      "0x004c0365"
-     ],
-     "generated": [
-      "0x004c0358",
-      "0x004c0365"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C0358"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        88,
-        101
-       ],
-       "range": [
-        "0x004c0358",
-        "0x004c0365"
-       ],
-       "symbols": [
-        "D_004C0358"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c0368",
-      "0x004c037b"
-     ],
-     "generated": [
-      "0x004c0368",
-      "0x004c037b"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C0368"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        104,
-        123
-       ],
-       "range": [
-        "0x004c0368",
-        "0x004c037b"
-       ],
-       "symbols": [
-        "D_004C0368"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c0380",
-      "0x004c038f"
-     ],
-     "generated": [
-      "0x004c0380",
-      "0x004c038f"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C0380"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        128,
-        143
-       ],
-       "range": [
-        "0x004c0380",
-        "0x004c038f"
-       ],
-       "symbols": [
-        "D_004C0380"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c0390",
-      "0x004c03a3"
-     ],
-     "generated": [
-      "0x004c0390",
-      "0x004c03a3"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C0390"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        144,
-        163
-       ],
-       "range": [
-        "0x004c0390",
-        "0x004c03a3"
-       ],
-       "symbols": [
-        "D_004C0390"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c03a8",
-      "0x004c03c3"
-     ],
-     "generated": [
-      "0x004c03a8",
-      "0x004c03c3"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C03A8"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        168,
-        195
-       ],
-       "range": [
-        "0x004c03a8",
-        "0x004c03c3"
-       ],
-       "symbols": [
-        "D_004C03A8"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c03d0",
-      "0x004c03f0"
-     ],
-     "generated": [
-      "0x004c03d0",
-      "0x004c03f0"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "jtbl_004C03D0"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "range": [
-        "0x004c03d0",
-        "0x004c03f0"
-       ],
-       "symbols": [],
-       "anonymous_emission": true,
-       "credit": "verified",
-       "object_range": [
-        208,
-        240
-       ]
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c03f0",
-      "0x004c0410"
-     ],
-     "generated": [
-      "0x004c03f0",
-      "0x004c0410"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "jtbl_004C03F0"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "range": [
-        "0x004c03f0",
-        "0x004c0410"
-       ],
-       "symbols": [],
-       "anonymous_emission": true,
-       "credit": "verified",
-       "object_range": [
-        240,
-        272
-       ]
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c0410",
-      "0x004c041b"
-     ],
-     "generated": [
-      "0x004c0410",
-      "0x004c041b"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C0410"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        272,
-        283
-       ],
-       "range": [
-        "0x004c0410",
-        "0x004c041b"
-       ],
-       "symbols": [
-        "D_004C0410"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c0420",
-      "0x004c042d"
-     ],
-     "generated": [
-      "0x004c0420",
-      "0x004c042d"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C0420"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        288,
-        301
-       ],
-       "range": [
-        "0x004c0420",
-        "0x004c042d"
-       ],
-       "symbols": [
-        "D_004C0420"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c0430",
-      "0x004c0439"
-     ],
-     "generated": [
-      "0x004c0430",
-      "0x004c0439"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C0430"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        304,
-        313
-       ],
-       "range": [
-        "0x004c0430",
-        "0x004c0439"
-       ],
-       "symbols": [
-        "D_004C0430"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c0440",
-      "0x004c044f"
-     ],
-     "generated": [
-      "0x004c0440",
-      "0x004c044f"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C0440"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        320,
-        335
-       ],
-       "range": [
-        "0x004c0440",
-        "0x004c044f"
-       ],
-       "symbols": [
-        "D_004C0440"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c0450",
-      "0x004c045f"
-     ],
-     "generated": [
-      "0x004c0450",
-      "0x004c045f"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C0450"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        336,
-        351
-       ],
-       "range": [
-        "0x004c0450",
-        "0x004c045f"
-       ],
-       "symbols": [
-        "D_004C0450"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c0460",
-      "0x004c046f"
-     ],
-     "generated": [
-      "0x004c0460",
-      "0x004c046f"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C0460"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        352,
-        367
-       ],
-       "range": [
-        "0x004c0460",
-        "0x004c046f"
-       ],
-       "symbols": [
-        "D_004C0460"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c0470",
-      "0x004c0479"
-     ],
-     "generated": [
-      "0x004c0470",
-      "0x004c0479"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C0470"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        368,
-        377
-       ],
-       "range": [
-        "0x004c0470",
-        "0x004c0479"
-       ],
-       "symbols": [
-        "D_004C0470"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c0480",
-      "0x004c048b"
-     ],
-     "generated": [
-      "0x004c0480",
-      "0x004c048b"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C0480"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        384,
-        395
-       ],
-       "range": [
-        "0x004c0480",
-        "0x004c048b"
-       ],
-       "symbols": [
-        "D_004C0480"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c0490",
-      "0x004c049d"
-     ],
-     "generated": [
-      "0x004c0490",
-      "0x004c049d"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C0490"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        400,
-        413
-       ],
-       "range": [
-        "0x004c0490",
-        "0x004c049d"
-       ],
-       "symbols": [
-        "D_004C0490"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c04a0",
-      "0x004c04ab"
-     ],
-     "generated": [
-      "0x004c04a0",
-      "0x004c04ab"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C04A0"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        416,
-        427
-       ],
-       "range": [
-        "0x004c04a0",
-        "0x004c04ab"
-       ],
-       "symbols": [
-        "D_004C04A0"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c04b0",
-      "0x004c04c9"
-     ],
-     "generated": [
-      "0x004c04b0",
-      "0x004c04c9"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C04B0"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        432,
-        457
-       ],
-       "range": [
-        "0x004c04b0",
-        "0x004c04c9"
-       ],
-       "symbols": [
-        "D_004C04B0"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c04d0",
-      "0x004c0528"
-     ],
-     "generated": [
-      "0x004c04d0",
-      "0x004c0528"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C04D0",
-      "D_004C04E0",
-      "D_004C04F0",
-      "D_004C0500",
-      "D_004C0510"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "range": [
-        "0x004c04d0",
-        "0x004c04e0"
-       ],
-       "object_range": [
-        464,
-        480
-       ],
-       "symbols": [
-        "D_004C04D0"
-       ]
-      },
-      {
-       "section": ".rodata",
-       "range": [
-        "0x004c04e0",
-        "0x004c04f0"
-       ],
-       "object_range": [
-        480,
-        496
-       ],
-       "symbols": [
-        "D_004C04E0"
-       ]
-      },
-      {
-       "section": ".rodata",
-       "range": [
-        "0x004c04f0",
-        "0x004c0500"
-       ],
-       "object_range": [
-        496,
-        512
-       ],
-       "symbols": [
-        "D_004C04F0"
-       ]
-      },
-      {
-       "section": ".rodata",
-       "range": [
-        "0x004c0500",
-        "0x004c0510"
-       ],
-       "object_range": [
-        512,
-        528
-       ],
-       "symbols": [
-        "D_004C0500"
-       ]
-      },
-      {
-       "section": ".rodata",
-       "range": [
-        "0x004c0510",
-        "0x004c0528"
-       ],
-       "object_range": [
-        528,
-        552
-       ],
-       "symbols": [
-        "D_004C0510"
-       ]
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c0528",
-      "0x004c0534"
-     ],
-     "generated": [
-      "0x004c0528",
-      "0x004c0534"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C0528"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        552,
-        564
-       ],
-       "range": [
-        "0x004c0528",
-        "0x004c0534"
-       ],
-       "symbols": [
-        "D_004C0528"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c0538",
-      "0x004c0543"
-     ],
-     "generated": [
-      "0x004c0538",
-      "0x004c0543"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C0538"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        568,
-        579
-       ],
-       "range": [
-        "0x004c0538",
-        "0x004c0543"
-       ],
-       "symbols": [
-        "D_004C0538"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c0548",
-      "0x004c0557"
-     ],
-     "generated": [
-      "0x004c0548",
-      "0x004c0557"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C0548"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        584,
-        599
-       ],
-       "range": [
-        "0x004c0548",
-        "0x004c0557"
-       ],
-       "symbols": [
-        "D_004C0548"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c0558",
-      "0x004c0618"
-     ],
-     "generated": [
-      "0x004c0558",
-      "0x004c0618"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C0558",
-      "jtbl_004C0570",
-      "jtbl_004C05A0",
-      "jtbl_004C05D0",
-      "jtbl_004C0600"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "range": [
-        "0x004c0558",
-        "0x004c0618"
-       ],
-       "symbols": [],
-       "anonymous_emission": true,
-       "credit": "verified",
-       "object_range": [
-        600,
-        792
-       ]
-      }
-     ]
     }
    ],
-   ".sdata": [
+   ".rodata": [
     {
      "range": [
-      "0x004d9ef8",
-      "0x004d9f00"
+      "0x004c0200",
+      "0x004c028c"
      ],
      "generated": [
-      "0x004d9ef8",
-      "0x004d9f00"
+      "0x004c0200",
+      "0x004c028c"
      ],
      "generated_by": [],
      "c_owned_symbols": [
-      "D_004D9EF8"
+      "D_004C0200",
+      "D_004C0228",
+      "jtbl_004C0260"
      ],
      "c_input_spans": [
       {
-       "section": ".sdata",
+       "section": ".rodata",
        "range": [
-        "0x004d9ef8",
-        "0x004d9f00"
+        "0x004c0200",
+        "0x004c028c"
        ],
+       "symbols": [],
+       "anonymous_emission": true,
+       "credit": "verified",
        "object_range": [
         0,
-        8
-       ],
-       "symbols": [
-        "D_004D9EF8"
+        140
        ]
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004d9f00",
-      "0x004d9f03"
-     ],
-     "generated": [
-      "0x004d9f00",
-      "0x004d9f03"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004D9F00"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".sdata",
-       "object_range": [
-        8,
-        11
-       ],
-       "range": [
-        "0x004d9f00",
-        "0x004d9f03"
-       ],
-       "symbols": [
-        "D_004D9F00"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004d9f08",
-      "0x004d9f0c"
-     ],
-     "generated": [
-      "0x004d9f08",
-      "0x004d9f0c"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004D9F08"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".sdata",
-       "object_range": [
-        16,
-        20
-       ],
-       "range": [
-        "0x004d9f08",
-        "0x004d9f0c"
-       ],
-       "symbols": [
-        "D_004D9F08"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004d9f10",
-      "0x004d9f14"
-     ],
-     "generated": [
-      "0x004d9f10",
-      "0x004d9f14"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004D9F10"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".sdata",
-       "object_range": [
-        24,
-        28
-       ],
-       "range": [
-        "0x004d9f10",
-        "0x004d9f14"
-       ],
-       "symbols": [
-        "D_004D9F10"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004d9f18",
-      "0x004d9f1b"
-     ],
-     "generated": [
-      "0x004d9f18",
-      "0x004d9f1b"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004D9F18"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".sdata",
-       "object_range": [
-        32,
-        35
-       ],
-       "range": [
-        "0x004d9f18",
-        "0x004d9f1b"
-       ],
-       "symbols": [
-        "D_004D9F18"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004d9f20",
-      "0x004d9f22"
-     ],
-     "generated": [
-      "0x004d9f20",
-      "0x004d9f22"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004D9F20"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".sdata",
-       "object_range": [
-        40,
-        42
-       ],
-       "range": [
-        "0x004d9f20",
-        "0x004d9f22"
-       ],
-       "symbols": [
-        "D_004D9F20"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004d9f28",
-      "0x004d9f2f"
-     ],
-     "generated": [
-      "0x004d9f28",
-      "0x004d9f2f"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004D9F28"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".sdata",
-       "object_range": [
-        48,
-        55
-       ],
-       "range": [
-        "0x004d9f28",
-        "0x004d9f2f"
-       ],
-       "symbols": [
-        "D_004D9F28"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004d9f30",
-      "0x004d9f33"
-     ],
-     "generated": [
-      "0x004d9f30",
-      "0x004d9f33"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004D9F30"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".sdata",
-       "object_range": [
-        56,
-        59
-       ],
-       "range": [
-        "0x004d9f30",
-        "0x004d9f33"
-       ],
-       "symbols": [
-        "D_004D9F30"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004d9f38",
-      "0x004d9f3c"
-     ],
-     "generated": [
-      "0x004d9f38",
-      "0x004d9f3c"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004D9F38"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".sdata",
-       "object_range": [
-        64,
-        68
-       ],
-       "range": [
-        "0x004d9f38",
-        "0x004d9f3c"
-       ],
-       "symbols": [
-        "D_004D9F38"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004d9f40",
-      "0x004d9f47"
-     ],
-     "generated": [
-      "0x004d9f40",
-      "0x004d9f47"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004D9F40"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".sdata",
-       "range": [
-        "0x004d9f40",
-        "0x004d9f47"
-       ],
-       "symbols": [],
-       "anonymous_emission": true,
-       "credit": "verified",
-       "object_range": [
-        72,
-        79
-       ]
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004d9f48",
-      "0x004d9f4d"
-     ],
-     "generated": [
-      "0x004d9f48",
-      "0x004d9f4d"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004D9F48"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".sdata",
-       "object_range": [
-        80,
-        85
-       ],
-       "range": [
-        "0x004d9f48",
-        "0x004d9f4d"
-       ],
-       "symbols": [
-        "D_004D9F48"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004d9f50",
-      "0x004d9f54"
-     ],
-     "generated": [
-      "0x004d9f50",
-      "0x004d9f54"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "DebugMenuResourceSizeAdd"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".sdata",
-       "object_range": [
-        88,
-        92
-       ],
-       "range": [
-        "0x004d9f50",
-        "0x004d9f54"
-       ],
-       "symbols": [
-        "DebugMenuResourceSizeAdd"
-       ],
-       "credit": "verified"
       }
      ]
     }
-   ],
+   ]
+  },
+  "main/tu126": {
    ".data": [
     {
      "range": [
@@ -52377,27 +51516,13 @@
       "0x00367a50",
       "0x00367a6c"
      ],
-     "generated_by": [],
+     "generated_by": [
+      "PauseMenuPage2"
+     ],
      "c_owned_symbols": [
       "tbl_0_00367A50"
      ],
-     "c_input_spans": [
-      {
-       "section": ".data",
-       "object_range": [
-        0,
-        28
-       ],
-       "range": [
-        "0x00367a50",
-        "0x00367a6c"
-       ],
-       "symbols": [
-        "tbl_0_00367A50"
-       ],
-       "credit": "verified"
-      }
-     ],
+     "also_referenced_by_c": [],
      "c_storage_aliases": [
       {
        "original_name": "tbl.0",
@@ -52419,27 +51544,13 @@
       "0x00367a70",
       "0x00367a98"
      ],
-     "generated_by": [],
+     "generated_by": [
+      "PauseMenuPage3"
+     ],
      "c_owned_symbols": [
       "tbl_1_00367A70"
      ],
-     "c_input_spans": [
-      {
-       "section": ".data",
-       "object_range": [
-        32,
-        72
-       ],
-       "range": [
-        "0x00367a70",
-        "0x00367a98"
-       ],
-       "symbols": [
-        "tbl_1_00367A70"
-       ],
-       "credit": "verified"
-      }
-     ],
+     "also_referenced_by_c": [],
      "c_storage_aliases": [
       {
        "original_name": "tbl.1",
@@ -52451,6 +51562,94 @@
        }
       }
      ]
+    }
+   ],
+   ".rodata": [
+    {
+     "range": [
+      "0x004c0300",
+      "0x004c0618"
+     ],
+     "generated": [
+      "0x004c0300",
+      "0x004c0618"
+     ],
+     "generated_by": [
+      "GameDebugMenu",
+      "PauseMenuPage0",
+      "PauseMenuPage2",
+      "PauseMenuPage3"
+     ],
+     "c_owned_symbols": [
+      "D_004C0300",
+      "D_004C0310",
+      "D_004C0328",
+      "D_004C0340",
+      "D_004C0358",
+      "D_004C0368",
+      "D_004C0380",
+      "D_004C0390",
+      "D_004C03A8",
+      "jtbl_004C03D0",
+      "jtbl_004C03F0",
+      "D_004C0410",
+      "D_004C0420",
+      "D_004C0430",
+      "D_004C0440",
+      "D_004C0450",
+      "D_004C0460",
+      "D_004C0470",
+      "D_004C0480",
+      "D_004C0490",
+      "D_004C04A0",
+      "D_004C04B0",
+      "D_004C04D0",
+      "D_004C04E0",
+      "D_004C04F0",
+      "D_004C0500",
+      "D_004C0510",
+      "D_004C0528",
+      "D_004C0538",
+      "D_004C0548",
+      "D_004C0558",
+      "jtbl_004C0570",
+      "jtbl_004C05A0",
+      "jtbl_004C05D0",
+      "jtbl_004C0600"
+     ],
+     "also_referenced_by_c": []
+    }
+   ],
+   ".sdata": [
+    {
+     "range": [
+      "0x004d9ef8",
+      "0x004d9f54"
+     ],
+     "generated": [
+      "0x004d9ef8",
+      "0x004d9f54"
+     ],
+     "generated_by": [
+      "PauseMenuPage0",
+      "PauseMenuPage2",
+      "PauseMenuPage3"
+     ],
+     "c_owned_symbols": [
+      "D_004D9EF8",
+      "D_004D9F00",
+      "D_004D9F08",
+      "D_004D9F10",
+      "D_004D9F18",
+      "D_004D9F20",
+      "D_004D9F28",
+      "D_004D9F30",
+      "D_004D9F38",
+      "D_004D9F40",
+      "D_004D9F48",
+      "DebugMenuResourceSizeAdd"
+     ],
+     "also_referenced_by_c": []
     }
    ]
   },
@@ -52869,30 +52068,21 @@
      ],
      "c_storage_aliases": [
       {
-       "original_name": "TestEnv.0",
-       "address": "0x00369cc0",
-       "storage_owner": {
-        "name": "TestEnv_0_00369CC0",
-        "address": "0x00369cc0",
-        "size": 96
-       }
-      },
-      {
-       "original_name": "TransEnv.1",
-       "address": "0x00369d20",
-       "storage_owner": {
-        "name": "TransEnv_1_00369D20",
-        "address": "0x00369d20",
-        "size": 32
-       }
-      },
-      {
        "original_name": "FlushEnv.2",
        "address": "0x00369d40",
        "storage_owner": {
         "name": "FlushEnv_2_00369D40",
         "address": "0x00369d40",
         "size": 48
+       }
+      },
+      {
+       "original_name": "TestEnv.0",
+       "address": "0x00369cc0",
+       "storage_owner": {
+        "name": "TestEnv_0_00369CC0",
+        "address": "0x00369cc0",
+        "size": 96
        }
       },
       {
@@ -52920,6 +52110,15 @@
         "name": "TestEnv5",
         "address": "0x00369e70",
         "size": 96
+       }
+      },
+      {
+       "original_name": "TransEnv.1",
+       "address": "0x00369d20",
+       "storage_owner": {
+        "name": "TransEnv_1_00369D20",
+        "address": "0x00369d20",
+        "size": 32
        }
       }
      ]
@@ -53458,6 +52657,15 @@
      ],
      "c_storage_aliases": [
       {
+       "address": "0x0036AC40",
+       "original_name": "FlushEnv.2",
+       "storage_owner": {
+        "address": "0x0036AC40",
+        "name": "FlushEnv_2_0036AC40",
+        "size": 48
+       }
+      },
+      {
        "address": "0x0036ABC0",
        "original_name": "TestEnv.0",
        "storage_owner": {
@@ -53473,15 +52681,6 @@
         "address": "0x0036AC20",
         "name": "TransEnv_1_0036AC20",
         "size": 32
-       }
-      },
-      {
-       "address": "0x0036AC40",
-       "original_name": "FlushEnv.2",
-       "storage_owner": {
-        "address": "0x0036AC40",
-        "name": "FlushEnv_2_0036AC40",
-        "size": 48
        }
       }
      ]
@@ -53824,6 +53023,36 @@
     },
     {
      "range": [
+      "0x004c1860",
+      "0x004c1910"
+     ],
+     "generated": [
+      "0x004c1860",
+      "0x004c1910"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "jtbl_004C1860"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".rodata",
+       "range": [
+        "0x004c1860",
+        "0x004c1910"
+       ],
+       "symbols": [],
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        576,
+        752
+       ]
+      }
+     ]
+    },
+    {
+     "range": [
       "0x004c1910",
       "0x004c19b8"
      ],
@@ -53846,8 +53075,8 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        576,
-        744
+        752,
+        920
        ]
       }
      ]
@@ -53876,8 +53105,8 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        744,
-        848
+        920,
+        1024
        ]
       }
      ]
@@ -53906,8 +53135,8 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        848,
-        960
+        1024,
+        1136
        ]
       }
      ]
@@ -53936,8 +53165,8 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        960,
-        1060
+        1136,
+        1236
        ]
       }
      ]
@@ -56019,7 +55248,18 @@
      "c_owned_symbols": [
       "fname_67"
      ],
-     "also_referenced_by_c": [],
+     "also_referenced_by_c": [
+      "line00_3",
+      "line01_4",
+      "line02_5",
+      "line03_6",
+      "line10_7",
+      "line11_8",
+      "line12_9",
+      "msg_11",
+      "bsp_12",
+      "mm_73"
+     ],
      "c_input_spans": [
       {
        "section": ".bss",
@@ -56181,6 +55421,66 @@
    ".lit4": [
     {
      "range": [
+      "0x004d7d34",
+      "0x004d7d38"
+     ],
+     "generated": [
+      "0x004d7d34",
+      "0x004d7d38"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "D_004D7D34"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".lit4",
+       "range": [
+        "0x004d7d34",
+        "0x004d7d38"
+       ],
+       "symbols": [],
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        0,
+        4
+       ]
+      }
+     ]
+    },
+    {
+     "range": [
+      "0x004d7d38",
+      "0x004d7d3c"
+     ],
+     "generated": [
+      "0x004d7d38",
+      "0x004d7d3c"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "D_004D7D38"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".lit4",
+       "range": [
+        "0x004d7d38",
+        "0x004d7d3c"
+       ],
+       "symbols": [],
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        4,
+        8
+       ]
+      }
+     ]
+    },
+    {
+     "range": [
       "0x004d7d3c",
       "0x004d7d40"
      ],
@@ -56203,14 +55503,104 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        0,
-        4
+        8,
+        12
        ]
       }
      ]
     }
    ],
    ".rodata": [
+    {
+     "range": [
+      "0x004c2710",
+      "0x004c2720"
+     ],
+     "generated": [
+      "0x004c2710",
+      "0x004c2720"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "D_004C2710"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".rodata",
+       "range": [
+        "0x004c2710",
+        "0x004c2720"
+       ],
+       "symbols": [],
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        64,
+        80
+       ]
+      }
+     ]
+    },
+    {
+     "range": [
+      "0x004c27a0",
+      "0x004c27a8"
+     ],
+     "generated": [
+      "0x004c27a0",
+      "0x004c27a8"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "D_004C27A0"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".rodata",
+       "range": [
+        "0x004c27a0",
+        "0x004c27a8"
+       ],
+       "symbols": [],
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        80,
+        88
+       ]
+      }
+     ]
+    },
+    {
+     "range": [
+      "0x004c27a8",
+      "0x004c27b0"
+     ],
+     "generated": [
+      "0x004c27a8",
+      "0x004c27b0"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "D_004C27A8"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".rodata",
+       "range": [
+        "0x004c27a8",
+        "0x004c27b0"
+       ],
+       "symbols": [],
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        88,
+        96
+       ]
+      }
+     ]
+    },
     {
      "range": [
       "0x004c2ae8",
@@ -56322,8 +55712,8 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        64,
-        92
+        96,
+        124
        ],
        "range": [
         "0x004c2d60",
@@ -56358,8 +55748,8 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        96,
-        116
+        128,
+        148
        ]
       }
      ]
@@ -58734,42 +58124,50 @@
   "main/tu164": {
    ".bss": [
     {
+     "range": [
+      "0x00531a40",
+      "0x00532a40"
+     ],
+     "generated": [
+      "0x00531a40",
+      "0x00532a40"
+     ],
+     "generated_by": [
+      "PrintFlush",
+      "endPrintExtFuncPack",
+      "endPrintInit"
+     ],
+     "c_owned_symbols": [
+      "PrintFunc"
+     ],
+     "also_referenced_by_c": [],
      "c_input_spans": [
       {
-       "credit": "verified",
+       "section": ".bss",
+       "range": [
+        "0x00531a40",
+        "0x00532a40"
+       ],
        "object_range": [
         0,
         4096
        ],
-       "range": [
-        "0x00531A40",
-        "0x00532A40"
-       ],
-       "section": ".bss",
        "symbols": [
         "PrintFunc"
        ]
       }
      ],
-     "c_owned_symbols": [
-      "PrintFunc"
-     ],
      "c_storage_aliases": [
       {
-       "address": "0x00532A38",
+       "address": "0x00532a38",
        "original_name": "D_00532A38",
        "storage_owner": {
-        "address": "0x00531A40",
         "name": "PrintFunc",
+        "address": "0x00531a40",
         "size": 4096
        }
       }
-     ],
-     "range": [
-      "0x00531A40",
-      "0x00532A40"
-     ],
-     "generated_by": []
+     ]
     }
    ],
    ".data": [
@@ -59719,6 +59117,19 @@
    ],
    ".sbss": [
     {
+     "range": [
+      "0x004DC5D8",
+      "0x004DC5DC"
+     ],
+     "generated": [
+      "0x004DC5D8",
+      "0x004DC5DC"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "pPrintFuncTop"
+     ],
+     "also_referenced_by_c": [],
      "c_input_spans": [
       {
        "credit": "verified",
@@ -59735,15 +59146,7 @@
         "pPrintFuncTop"
        ]
       }
-     ],
-     "c_owned_symbols": [
-      "pPrintFuncTop"
-     ],
-     "range": [
-      "0x004DC5D8",
-      "0x004DC5DC"
-     ],
-     "generated_by": []
+     ]
     }
    ]
   },
@@ -61295,7 +60698,12 @@
      "c_owned_symbols": [
       "jtbl_004C4910"
      ],
-     "also_referenced_by_c": []
+     "also_referenced_by_c": [
+      "D_004C4D80",
+      "D_004C4D98",
+      "D_004C4DB0",
+      "D_004C4DC8"
+     ]
     }
    ],
    ".sdata": [
@@ -61310,10 +60718,12 @@
      ],
      "generated_by": [
       "FileJpegCheck",
+      "FileObjectAllLoad",
       "FileObjectJpegSet",
       "FileThumbnailDisp",
       "ListColorChage_3",
       "MenuFileInfo",
+      "MenuFileMain",
       "MenuFilePas",
       "tskFileData",
       "tskFileEx",
@@ -61331,7 +60741,10 @@
       "D_004DAA58",
       "D_004DAA60",
       "D_004DAA78",
-      "FileSaveData"
+      "FileTask",
+      "FileCardDataBuf",
+      "FileSaveData",
+      "FileExistCheckWork"
      ]
     },
     {
@@ -61350,7 +60763,8 @@
       "FileObjectDataInput",
       "FileObjectJpegDecChange",
       "FileSaveDataPush",
-      "FileThumbnailDisp"
+      "FileThumbnailDisp",
+      "MenuFileMain"
      ],
      "c_owned_symbols": [
       "FileJpegDec",
@@ -71514,13 +70928,7 @@
         "D_004C7390"
        ]
       }
-     ],
-     "basis": {
-      "kind": "user-directed-integration",
-      "task": "integrate-main-55-publish-20261025",
-      "source_submission": "543802d83393f6fa61991e34cfa314c6a852765bc6b94bb3c65dccc2b8933e7c",
-      "note": "Transported checkpoint rodata maps to account for all five selected functions; strict split_plans validated actual allocated compiler object against original bytes without normalization"
-     }
+     ]
     },
     {
      "range": [
@@ -71550,13 +70958,7 @@
        "section": ".rodata",
        "symbols": []
       }
-     ],
-     "basis": {
-      "kind": "user-directed-integration",
-      "task": "integrate-main-55-publish-20261025",
-      "source_submission": "543802d83393f6fa61991e34cfa314c6a852765bc6b94bb3c65dccc2b8933e7c",
-      "note": "Transported checkpoint rodata maps to account for all five selected functions; strict split_plans validated actual allocated compiler object against original bytes without normalization"
-     }
+     ]
     },
     {
      "range": [
@@ -71585,13 +70987,7 @@
        "section": ".rodata",
        "symbols": []
       }
-     ],
-     "basis": {
-      "kind": "user-directed-integration",
-      "task": "integrate-main-55-publish-20261025",
-      "source_submission": "543802d83393f6fa61991e34cfa314c6a852765bc6b94bb3c65dccc2b8933e7c",
-      "note": "Transported checkpoint rodata maps to account for all five selected functions; strict split_plans validated actual allocated compiler object against original bytes without normalization"
-     }
+     ]
     },
     {
      "range": [
@@ -71621,13 +71017,7 @@
         "D_004C7858"
        ]
       }
-     ],
-     "basis": {
-      "kind": "user-directed-integration",
-      "task": "integrate-main-55-publish-20261025",
-      "source_submission": "543802d83393f6fa61991e34cfa314c6a852765bc6b94bb3c65dccc2b8933e7c",
-      "note": "Transported checkpoint rodata maps to account for all five selected functions; strict split_plans validated actual allocated compiler object against original bytes without normalization"
-     }
+     ]
     },
     {
      "range": [
@@ -71657,13 +71047,7 @@
        "section": ".rodata",
        "symbols": []
       }
-     ],
-     "basis": {
-      "kind": "user-directed-integration",
-      "task": "integrate-main-55-publish-20261025",
-      "source_submission": "543802d83393f6fa61991e34cfa314c6a852765bc6b94bb3c65dccc2b8933e7c",
-      "note": "Transported checkpoint rodata maps to account for all five selected functions; strict split_plans validated actual allocated compiler object against original bytes without normalization"
-     }
+     ]
     },
     {
      "range": [
@@ -71693,13 +71077,7 @@
        "section": ".rodata",
        "symbols": []
       }
-     ],
-     "basis": {
-      "kind": "user-directed-integration",
-      "task": "integrate-main-55-publish-20261025",
-      "source_submission": "543802d83393f6fa61991e34cfa314c6a852765bc6b94bb3c65dccc2b8933e7c",
-      "note": "Transported checkpoint rodata maps to account for all five selected functions; strict split_plans validated actual allocated compiler object against original bytes without normalization"
-     }
+     ]
     },
     {
      "range": [
@@ -71729,13 +71107,7 @@
        "section": ".rodata",
        "symbols": []
       }
-     ],
-     "basis": {
-      "kind": "user-directed-integration",
-      "task": "integrate-main-55-publish-20261025",
-      "source_submission": "543802d83393f6fa61991e34cfa314c6a852765bc6b94bb3c65dccc2b8933e7c",
-      "note": "Transported checkpoint rodata maps to account for all five selected functions; strict split_plans validated actual allocated compiler object against original bytes without normalization"
-     }
+     ]
     },
     {
      "range": [
@@ -71765,13 +71137,7 @@
        "section": ".rodata",
        "symbols": []
       }
-     ],
-     "basis": {
-      "kind": "user-directed-integration",
-      "task": "integrate-main-55-publish-20261025",
-      "source_submission": "543802d83393f6fa61991e34cfa314c6a852765bc6b94bb3c65dccc2b8933e7c",
-      "note": "Transported checkpoint rodata maps to account for all five selected functions; strict split_plans validated actual allocated compiler object against original bytes without normalization"
-     }
+     ]
     },
     {
      "range": [
@@ -71800,13 +71166,7 @@
        "section": ".rodata",
        "symbols": []
       }
-     ],
-     "basis": {
-      "kind": "user-directed-integration",
-      "task": "integrate-main-55-publish-20261025",
-      "source_submission": "543802d83393f6fa61991e34cfa314c6a852765bc6b94bb3c65dccc2b8933e7c",
-      "note": "Transported checkpoint rodata maps to account for all five selected functions; strict split_plans validated actual allocated compiler object against original bytes without normalization"
-     }
+     ]
     }
    ],
    ".sbss": [
@@ -71820,6 +71180,7 @@
       "0x004dc5fc"
      ],
      "generated_by": [
+      "ListMake_3",
       "MenuShopCore",
       "MenuShopEx02",
       "MenuShopEx2",
@@ -71828,12 +71189,17 @@
       "MenuShopInfoSet",
       "MenuShopLine",
       "MenuShopList",
+      "MenuShopListChange00",
       "MenuShopListChange01",
       "MenuShopListColorChange",
+      "MenuShopMain",
       "MenuShopModelDisp",
       "MenuShopParaSet",
       "MenuShopParameter",
       "MenuShopPas",
+      "MenuShopSeisan",
+      "MenuShopSeisan02",
+      "MenuShopSelect",
       "subMenuShopEquipCheck",
       "subMenuShopNumerDec_12",
       "subMenuShopNumerInc_11",
@@ -71842,7 +71208,9 @@
      "c_owned_symbols": [
       "MenuShopWork"
      ],
-     "also_referenced_by_c": [],
+     "also_referenced_by_c": [
+      "MenuShopTask"
+     ],
      "c_input_spans": [
       {
        "object_range": [
@@ -71871,12 +71239,16 @@
      ],
      "generated_by": [
       "MenuShopCore",
-      "MenuShopListChange01"
+      "MenuShopListChange00",
+      "MenuShopListChange01",
+      "MenuShopMain"
      ],
      "c_owned_symbols": [
       "MenuShopWinSP"
      ],
-     "also_referenced_by_c": [],
+     "also_referenced_by_c": [
+      "ShopDataBufTop"
+     ],
      "c_input_spans": [
       {
        "object_range": [
@@ -71996,43 +71368,66 @@
     {
      "range": [
       "0x004c88c0",
-      "0x004c89e0"
+      "0x004c8ec0"
      ],
      "generated": [
       "0x004c88c0",
-      "0x004c89e0"
+      "0x004c8ec0"
      ],
      "generated_by": [
+      "MenuTecInfoMain",
       "MenuTecPasMain"
      ],
      "c_owned_symbols": [
-      "jtbl_004C88C0"
+      "jtbl_004C88C0",
+      "D_004C89E0",
+      "D_004C8A10",
+      "D_004C8A48",
+      "D_004C8A70",
+      "D_004C8A80",
+      "D_004C8A90",
+      "D_004C8AA0",
+      "D_004C8AB8",
+      "D_004C8AD0",
+      "D_004C8AF0",
+      "D_004C8B20",
+      "D_004C8B50",
+      "D_004C8B70",
+      "D_004C8B98",
+      "D_004C8BB0",
+      "D_004C8BC8",
+      "D_004C8BD8",
+      "D_004C8BF0",
+      "D_004C8C88",
+      "D_004C8CD0",
+      "D_004C8D40",
+      "D_004C8D90",
+      "jtbl_004C8DA0"
      ],
      "also_referenced_by_c": [],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        0,
-        288
-       ],
-       "range": [
-        "0x004c88c0",
-        "0x004c89e0"
-       ],
-       "symbols": [],
-       "anonymous_emission": true,
-       "credit": "verified"
-      }
-     ]
+     "reached_through": {
+      "D_004C89E0": "D_004DB378",
+      "D_004C8A10": "D_004C8A70",
+      "D_004C8A48": "D_004C8A70",
+      "D_004C8A80": "D_004C8AA0",
+      "D_004C8A90": "D_004C8AA0",
+      "D_004C8AB8": "D_004C8B98",
+      "D_004C8AD0": "D_004C8B98",
+      "D_004C8AF0": "D_004C8B98",
+      "D_004C8B20": "D_004C8B98",
+      "D_004C8B50": "D_004C8B98",
+      "D_004C8B70": "D_004C8B98",
+      "D_004C8BB0": "D_004C8BD8",
+      "D_004C8BC8": "D_004C8BD8",
+      "D_004C8C88": "D_004C8D90",
+      "D_004C8CD0": "D_004C8D90",
+      "D_004C8D40": "D_004C8D90"
+     }
     },
     {
-     "also_referenced_by_c": [
-      "D_004C90F0"
-     ],
-     "c_owned_symbols": [
-      "jtbl_004C8EF0",
-      "jtbl_004C8FD0"
+     "range": [
+      "0x004c8ef0",
+      "0x004c90f0"
      ],
      "generated": [
       "0x004c8ef0",
@@ -72042,36 +71437,18 @@
       "MenuTecExMain",
       "MenuTecStatusMain"
      ],
-     "range": [
-      "0x004c8ef0",
-      "0x004c90f0"
+     "c_owned_symbols": [
+      "jtbl_004C8EF0",
+      "jtbl_004C8FD0"
      ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        288,
-        800
-       ],
-       "range": [
-        "0x004c8ef0",
-        "0x004c90f0"
-       ],
-       "symbols": [],
-       "anonymous_emission": true,
-       "credit": "verified"
-      }
+     "also_referenced_by_c": [
+      "D_004C90F0"
      ]
     },
     {
-     "also_referenced_by_c": [
-      "D_004C91D8",
-      "D_004C91F0",
-      "D_004C9200",
-      "D_004C9210"
-     ],
-     "c_owned_symbols": [
-      "jtbl_004C9100"
+     "range": [
+      "0x004c9100",
+      "0x004c91a0"
      ],
      "generated": [
       "0x004c9100",
@@ -72080,31 +71457,20 @@
      "generated_by": [
       "MenuTecListMain"
      ],
-     "range": [
-      "0x004c9100",
-      "0x004c91a0"
+     "c_owned_symbols": [
+      "jtbl_004C9100"
      ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        800,
-        960
-       ],
-       "range": [
-        "0x004c9100",
-        "0x004c91a0"
-       ],
-       "symbols": [],
-       "anonymous_emission": true,
-       "credit": "verified"
-      }
+     "also_referenced_by_c": [
+      "D_004C91D8",
+      "D_004C91F0",
+      "D_004C9200",
+      "D_004C9210"
      ]
     },
     {
      "range": [
       "0x004c9238",
-      "0x004c9248"
+      "0x004c9250"
      ],
      "generated": [
       "0x004c9238",
@@ -72116,28 +71482,12 @@
      "c_owned_symbols": [
       "D_004C9238"
      ],
-     "also_referenced_by_c": [],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        960,
-        976
-       ],
-       "range": [
-        "0x004c9238",
-        "0x004c9248"
-       ],
-       "symbols": [],
-       "anonymous_emission": true,
-       "credit": "verified"
-      }
-     ]
+     "also_referenced_by_c": []
     },
     {
      "range": [
       "0x004c9250",
-      "0x004c92e4"
+      "0x004c92e8"
      ],
      "generated": [
       "0x004c9250",
@@ -72152,22 +71502,6 @@
      "also_referenced_by_c": [
       "D_004C92E8",
       "D_004C9308"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        976,
-        1124
-       ],
-       "range": [
-        "0x004c9250",
-        "0x004c92e4"
-       ],
-       "symbols": [],
-       "anonymous_emission": true,
-       "credit": "verified"
-      }
      ]
     }
    ],
@@ -72175,33 +71509,61 @@
     {
      "range": [
       "0x004db378",
-      "0x004db380"
+      "0x004db418"
      ],
      "generated": [
       "0x004db378",
-      "0x004db380"
+      "0x004db418"
      ],
-     "generated_by": [],
+     "generated_by": [
+      "MenuTecInfoMain"
+     ],
      "c_owned_symbols": [
-      "D_004DB378"
+      "D_004DB378",
+      "D_004DB380",
+      "D_004DB388",
+      "D_004DB390",
+      "D_004DB398",
+      "D_004DB3A0",
+      "D_004DB3A8",
+      "D_004DB3B0",
+      "D_004DB3B8",
+      "D_004DB3C0",
+      "D_004DB3C8",
+      "D_004DB3D0",
+      "D_004DB3D8",
+      "D_004DB3E0",
+      "D_004DB3E8",
+      "D_004DB3F0",
+      "D_004DB3F8",
+      "D_004DB400",
+      "D_004DB408",
+      "D_004DB410"
      ],
-     "c_input_spans": [
-      {
-       "section": ".sdata",
-       "object_range": [
-        32,
-        40
-       ],
-       "range": [
-        "0x004db378",
-        "0x004db380"
-       ],
-       "symbols": [
-        "D_004DB378"
-       ],
-       "credit": "verified"
-      }
-     ]
+     "also_referenced_by_c": [
+      "D_004DB418",
+      "D_004DB420"
+     ],
+     "reached_through": {
+      "D_004DB380": "D_004C8A70",
+      "D_004DB388": "D_004C8AA0",
+      "D_004DB390": "D_004C8AA0",
+      "D_004DB398": "D_004C8AA0",
+      "D_004DB3A0": "D_004C8BD8",
+      "D_004DB3A8": "D_004C8BD8",
+      "D_004DB3B0": "D_004C8BD8",
+      "D_004DB3B8": "D_004C8BF0",
+      "D_004DB3C0": "D_004C8BF0",
+      "D_004DB3C8": "D_004C8BF0",
+      "D_004DB3D0": "D_004C8BF0",
+      "D_004DB3D8": "D_004C8BF0",
+      "D_004DB3E0": "D_004C8BF0",
+      "D_004DB3E8": "D_004C8BF0",
+      "D_004DB3F0": "D_004C8BF0",
+      "D_004DB3F8": "D_004C8BF0",
+      "D_004DB400": "D_004C8BF0",
+      "D_004DB408": "D_004C8BF0"
+     }
     },
     {
      "range": [
@@ -72219,28 +71581,12 @@
       "D_004DB430",
       "D_004DB438"
      ],
-     "also_referenced_by_c": [],
-     "c_input_spans": [
-      {
-       "section": ".sdata",
-       "object_range": [
-        0,
-        16
-       ],
-       "range": [
-        "0x004db430",
-        "0x004db440"
-       ],
-       "symbols": [],
-       "anonymous_emission": true,
-       "credit": "verified"
-      }
-     ]
+     "also_referenced_by_c": []
     },
     {
      "range": [
       "0x004db448",
-      "0x004db454"
+      "0x004db458"
      ],
      "generated": [
       "0x004db448",
@@ -72261,22 +71607,6 @@
       "D_004DB500",
       "D_004DB508",
       "D_004DB510"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".sdata",
-       "object_range": [
-        16,
-        28
-       ],
-       "range": [
-        "0x004db448",
-        "0x004db454"
-       ],
-       "symbols": [],
-       "anonymous_emission": true,
-       "credit": "verified"
-      }
      ]
     },
     {
@@ -72305,23 +71635,6 @@
       "MenuTecList",
       "MenuTecList2",
       "MenuTecSetWin"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".sdata",
-       "object_range": [
-        28,
-        32
-       ],
-       "range": [
-        "0x004db518",
-        "0x004db51c"
-       ],
-       "symbols": [
-        "MenuTecDataBuf"
-       ],
-       "credit": "verified"
-      }
      ]
     }
    ]
@@ -79781,21 +79094,21 @@
        }
       },
       {
-       "address": "0x003B1FC0",
-       "original_name": "vec.1",
-       "storage_owner": {
-        "address": "0x003B1FC0",
-        "name": "vec_1",
-        "size": 72
-       }
-      },
-      {
        "address": "0x003B2008",
        "original_name": "rate.2",
        "storage_owner": {
         "address": "0x003B2008",
         "name": "rate_2_003B2008",
         "size": 16
+       }
+      },
+      {
+       "address": "0x003B1FC0",
+       "original_name": "vec.1",
+       "storage_owner": {
+        "address": "0x003B1FC0",
+        "name": "vec_1",
+        "size": 72
        }
       }
      ]
@@ -113289,6 +112602,70 @@
    ]
   },
   "main/tu255": {
+   ".bss": [
+    {
+     "range": [
+      "0x00880ea0",
+      "0x00880eac"
+     ],
+     "generated": [
+      "0x00880ea0",
+      "0x00880eac"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "min.0"
+     ],
+     "also_referenced_by_c": [],
+     "c_input_spans": [
+      {
+       "section": ".bss",
+       "range": [
+        "0x00880ea0",
+        "0x00880eac"
+       ],
+       "object_range": [
+        0,
+        12
+       ],
+       "symbols": [
+        "min.0"
+       ]
+      }
+     ]
+    },
+    {
+     "range": [
+      "0x00880eb0",
+      "0x00880ebc"
+     ],
+     "generated": [
+      "0x00880eb0",
+      "0x00880ebc"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "max.1"
+     ],
+     "also_referenced_by_c": [],
+     "c_input_spans": [
+      {
+       "section": ".bss",
+       "range": [
+        "0x00880eb0",
+        "0x00880ebc"
+       ],
+       "object_range": [
+        16,
+        28
+       ],
+       "symbols": [
+        "max.1"
+       ]
+      }
+     ]
+    }
+   ],
    ".data": [
     {
      "range": [
@@ -113354,6 +112731,216 @@
    ".lit4": [
     {
      "range": [
+      "0x004d845c",
+      "0x004d8460"
+     ],
+     "generated": [
+      "0x004d845c",
+      "0x004d8460"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "D_004D845C"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".lit4",
+       "range": [
+        "0x004d845c",
+        "0x004d8460"
+       ],
+       "symbols": [],
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        0,
+        4
+       ]
+      }
+     ]
+    },
+    {
+     "range": [
+      "0x004d8460",
+      "0x004d8464"
+     ],
+     "generated": [
+      "0x004d8460",
+      "0x004d8464"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "D_004D8460"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".lit4",
+       "range": [
+        "0x004d8460",
+        "0x004d8464"
+       ],
+       "symbols": [],
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        4,
+        8
+       ]
+      }
+     ]
+    },
+    {
+     "range": [
+      "0x004d8464",
+      "0x004d8468"
+     ],
+     "generated": [
+      "0x004d8464",
+      "0x004d8468"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "D_004D8464"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".lit4",
+       "range": [
+        "0x004d8464",
+        "0x004d8468"
+       ],
+       "symbols": [],
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        8,
+        12
+       ]
+      }
+     ]
+    },
+    {
+     "range": [
+      "0x004d8468",
+      "0x004d846c"
+     ],
+     "generated": [
+      "0x004d8468",
+      "0x004d846c"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "D_004D8468"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".lit4",
+       "range": [
+        "0x004d8468",
+        "0x004d846c"
+       ],
+       "symbols": [],
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        12,
+        16
+       ]
+      }
+     ]
+    },
+    {
+     "range": [
+      "0x004d846c",
+      "0x004d8470"
+     ],
+     "generated": [
+      "0x004d846c",
+      "0x004d8470"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "D_004D846C"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".lit4",
+       "range": [
+        "0x004d846c",
+        "0x004d8470"
+       ],
+       "symbols": [],
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        16,
+        20
+       ]
+      }
+     ]
+    },
+    {
+     "range": [
+      "0x004d8470",
+      "0x004d8474"
+     ],
+     "generated": [
+      "0x004d8470",
+      "0x004d8474"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "D_004D8470"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".lit4",
+       "range": [
+        "0x004d8470",
+        "0x004d8474"
+       ],
+       "symbols": [],
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        20,
+        24
+       ]
+      }
+     ]
+    },
+    {
+     "range": [
+      "0x004d8474",
+      "0x004d8478"
+     ],
+     "generated": [
+      "0x004d8474",
+      "0x004d8478"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "D_004D8474"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".lit4",
+       "range": [
+        "0x004d8474",
+        "0x004d8478"
+       ],
+       "symbols": [],
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        24,
+        28
+       ]
+      }
+     ]
+    },
+    {
+     "range": [
       "0x004d8478",
       "0x004d847c"
      ],
@@ -113376,20 +112963,32 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        0,
-        4
+        28,
+        32
        ]
       }
      ]
     },
     {
+     "range": [
+      "0x004d847c",
+      "0x004d8480"
+     ],
+     "generated": [
+      "0x004d847c",
+      "0x004d8480"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "D_004D847C"
+     ],
      "c_input_spans": [
       {
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        4,
-        8
+        32,
+        36
        ],
        "range": [
         "0x004d847c",
@@ -113398,18 +112997,6 @@
        "section": ".lit4",
        "symbols": []
       }
-     ],
-     "c_owned_symbols": [
-      "D_004D847C"
-     ],
-     "generated": [
-      "0x004d847c",
-      "0x004d8480"
-     ],
-     "generated_by": [],
-     "range": [
-      "0x004d847c",
-      "0x004d8480"
      ]
     }
    ],
@@ -113423,10 +113010,7 @@
       "0x004d1800",
       "0x004d1838"
      ],
-     "generated_by": [
-      "ACT_updateMotionSub",
-      "ACT_modelDrawSub"
-     ],
+     "generated_by": [],
      "c_owned_symbols": [
       "D_004D1800",
       "D_004D1810",
@@ -113460,9 +113044,7 @@
       "0x004dc230",
       "0x004dc236"
      ],
-     "generated_by": [
-      "ACT_updateMotionSub"
-     ],
+     "generated_by": [],
      "c_owned_symbols": [
       "D_004DC230"
      ],
@@ -113480,6 +113062,36 @@
        "symbols": [],
        "anonymous_emission": true,
        "credit": "verified"
+      }
+     ]
+    },
+    {
+     "range": [
+      "0x004dc238",
+      "0x004dc23e"
+     ],
+     "generated": [
+      "0x004dc238",
+      "0x004dc23e"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "D_004DC238"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".sdata",
+       "range": [
+        "0x004dc238",
+        "0x004dc23e"
+       ],
+       "symbols": [],
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        8,
+        14
+       ]
       }
      ]
     }
@@ -114739,12 +114351,7 @@
         32
        ]
       }
-     ],
-     "basis": {
-      "kind": "user-directed-integration",
-      "task": "integrate-main-55-publish-20261025",
-      "note": "Actual compiled source data placement; ordinary whole-file gate required; no recovery acceptance"
-     }
+     ]
     },
     {
      "range": [
@@ -114774,12 +114381,7 @@
         64
        ]
       }
-     ],
-     "basis": {
-      "kind": "user-directed-integration",
-      "task": "integrate-main-55-publish-20261025",
-      "note": "Actual compiled source data placement; ordinary whole-file gate required; no recovery acceptance"
-     }
+     ]
     },
     {
      "range": [
@@ -114839,12 +114441,37 @@
         128
        ]
       }
+     ]
+    },
+    {
+     "range": [
+      "0x004d1a80",
+      "0x004d1aa0"
      ],
-     "basis": {
-      "kind": "user-directed-provisional-integration",
-      "task": "jnt-branch-repair-integration-20261025",
-      "note": "Compiled jump-table placement for the user-requested 99.112% JNT_getVal2 body. No recovery acceptance or data credit; fresh linked comparison recorded in .work/jnt-branch-repair-20261025/provisional-publication.json."
-     }
+     "generated": [
+      "0x004d1a80",
+      "0x004d1aa0"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "jtbl_004D1A80"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".rodata",
+       "range": [
+        "0x004d1a80",
+        "0x004d1aa0"
+       ],
+       "symbols": [],
+       "anonymous_emission": true,
+       "credit": "verified",
+       "object_range": [
+        128,
+        160
+       ]
+      }
+     ]
     },
     {
      "range": [
@@ -114870,16 +114497,11 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        128,
-        156
+        160,
+        188
        ]
       }
-     ],
-     "basis": {
-      "kind": "user-directed-provisional-integration",
-      "task": "jnt-branch-repair-integration-20261025",
-      "note": "Compiled jump-table placement for the user-requested 99.112% JNT_getVal2 body. No recovery acceptance or data credit; fresh linked comparison recorded in .work/jnt-branch-repair-20261025/provisional-publication.json."
-     }
+     ]
     },
     {
      "range": [
@@ -114905,16 +114527,11 @@
        "anonymous_emission": true,
        "credit": "verified",
        "object_range": [
-        160,
-        188
+        192,
+        220
        ]
       }
-     ],
-     "basis": {
-      "kind": "user-directed-provisional-integration",
-      "task": "jnt-branch-repair-integration-20261025",
-      "note": "Compiled jump-table placement for the user-requested 99.112% JNT_getVal2 body. No recovery acceptance or data credit; fresh linked comparison recorded in .work/jnt-branch-repair-20261025/provisional-publication.json."
-     }
+     ]
     }
    ],
    ".sdata": [
@@ -114953,29 +114570,32 @@
   "main/tu263": {
    ".lit4": [
     {
-     "also_referenced_by_c": [],
+     "range": [
+      "0x004d8554",
+      "0x004d85c8"
+     ],
+     "generated": [
+      "0x004d8554",
+      "0x004d85c8"
+     ],
+     "generated_by": [
+      "LOOK_eyeL_cont",
+      "LOOK_eyeR_cont",
+      "LOOK_eye_cont",
+      "LOOK_head_cont",
+      "LOOK_sebo_cont",
+      "xglAsin"
+     ],
      "c_owned_symbols": [
       "xglAsin_cubic",
       "xglAsin_quadratic",
       "xglAsin_linear",
       "xglAsin_pi_over_two_approx",
-      "xglAsin_pi_over_two"
-     ],
-     "generated": [
-      "0x004d8554",
-      "0x004d8568"
-     ],
-     "generated_by": [
-      "xglAsin"
-     ],
-     "range": [
-      "0x004d8554",
-      "0x004d8568"
-     ]
-    },
-    {
-     "also_referenced_by_c": [],
-     "c_owned_symbols": [
+      "xglAsin_pi_over_two",
+      "D_004D8568",
+      "D_004D856C",
+      "D_004D8570",
+      "D_004D8574",
       "D_004D8578",
       "D_004D857C",
       "D_004D8580",
@@ -114989,65 +114609,65 @@
       "D_004D85A0",
       "D_004D85A4",
       "D_004D85A8",
-      "D_004D85AC"
+      "D_004D85AC",
+      "D_004D85B0",
+      "D_004D85B4",
+      "D_004D85B8",
+      "D_004D85BC",
+      "D_004D85C0",
+      "D_004D85C4"
      ],
-     "generated": [
-      "0x004d8578",
-      "0x004d85b0"
-     ],
-     "generated_by": [
-      "LOOK_eyeL_cont",
-      "LOOK_eyeR_cont",
-      "LOOK_head_cont"
-     ],
-     "range": [
-      "0x004d8578",
-      "0x004d85b0"
-     ]
-    }
-   ],
-   ".sdata": [
-    {
-     "also_referenced_by_c": [],
-     "c_owned_symbols": [
-      "s_fEyeOffset"
-     ],
-     "generated": [
-      "0x004dc250",
-      "0x004dc254"
-     ],
-     "generated_by": [
-      "LOOK_eyeL_cont",
-      "LOOK_eyeR_cont"
-     ],
-     "range": [
-      "0x004dc250",
-      "0x004dc254"
-     ]
+     "also_referenced_by_c": []
     }
    ],
    ".rodata": [
     {
      "range": [
       "0x004d1d40",
-      "0x004d1d60"
+      "0x004d1da0"
      ],
      "generated": [
       "0x004d1d40",
-      "0x004d1d54"
+      "0x004d1d9c"
      ],
      "generated_by": [
+      "LOOK_eye_cont",
       "look_get_place"
      ],
      "c_owned_symbols": [
-      "jtbl_004D1D40"
+      "jtbl_004D1D40",
+      "jtbl_004D1D60"
      ],
-     "also_referenced_by_c": [],
-     "basis": {
-      "kind": "user-directed-integration",
-      "task": "integrate-main-55-publish-20261025",
-      "note": "Derived from actual compiled source; no recovery acceptance; ordinary full-file gate still required"
-     }
+     "also_referenced_by_c": [
+      "s_aEyeIdling",
+      "s_aEyeControl",
+      "s_aEyeDefault"
+     ]
+    }
+   ],
+   ".sdata": [
+    {
+     "range": [
+      "0x004dc250",
+      "0x004dc254"
+     ],
+     "generated": [
+      "0x004dc250",
+      "0x004dc254"
+     ],
+     "generated_by": [
+      "LOOK_eyeL_cont",
+      "LOOK_eyeR_cont",
+      "LOOK_eye_cont"
+     ],
+     "c_owned_symbols": [
+      "s_fEyeOffset"
+     ],
+     "also_referenced_by_c": [
+      "D_004DC258",
+      "D_004DC260",
+      "D_004DC268"
+     ]
     }
    ]
   },
@@ -141367,6 +140987,178 @@
    ]
   },
   "main/tu208": {
+   ".bss": [
+    {
+     "range": [
+      "0x00585310",
+      "0x005853d0"
+     ],
+     "generated": [
+      "0x00585310",
+      "0x005853d0"
+     ],
+     "generated_by": [
+      "setPath"
+     ],
+     "c_owned_symbols": [
+      "path_0",
+      "name_1"
+     ],
+     "also_referenced_by_c": [
+      "prm_8",
+      "dmyActor_12",
+      "prm_13"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".bss",
+       "range": [
+        "0x00585310",
+        "0x005853d0"
+       ],
+       "symbols": [
+        "path_0",
+        "name_1"
+       ],
+       "object_range": [
+        0,
+        192
+       ]
+      }
+     ]
+    },
+    {
+     "range": [
+      "0x005853d0",
+      "0x005853f4"
+     ],
+     "generated": [
+      "0x005853d0",
+      "0x005853f4"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "prm_8"
+     ],
+     "also_referenced_by_c": [],
+     "c_input_spans": [
+      {
+       "section": ".bss",
+       "object_range": [
+        192,
+        228
+       ],
+       "range": [
+        "0x005853d0",
+        "0x005853f4"
+       ],
+       "symbols": [
+        "prm_8"
+       ],
+       "credit": "verified"
+      }
+     ]
+    },
+    {
+     "range": [
+      "0x00585400",
+      "0x00585e70"
+     ],
+     "generated": [
+      "0x00585400",
+      "0x00585e70"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "dmyActor_12"
+     ],
+     "also_referenced_by_c": [],
+     "c_input_spans": [
+      {
+       "section": ".bss",
+       "object_range": [
+        240,
+        2912
+       ],
+       "range": [
+        "0x00585400",
+        "0x00585e70"
+       ],
+       "symbols": [
+        "dmyActor_12"
+       ],
+       "credit": "verified"
+      }
+     ]
+    },
+    {
+     "range": [
+      "0x00585e70",
+      "0x00585e94"
+     ],
+     "generated": [
+      "0x00585e70",
+      "0x00585e94"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "prm_13"
+     ],
+     "also_referenced_by_c": [],
+     "c_input_spans": [
+      {
+       "section": ".bss",
+       "object_range": [
+        2912,
+        2948
+       ],
+       "range": [
+        "0x00585e70",
+        "0x00585e94"
+       ],
+       "symbols": [
+        "prm_13"
+       ],
+       "credit": "verified"
+      }
+     ]
+    },
+    {
+     "range": [
+      "0x00585e98",
+      "0x00586100"
+     ],
+     "generated": [
+      "0x00585e98",
+      "0x00586100"
+     ],
+     "generated_by": [
+      "execFileSelect",
+      "initFileSelect"
+     ],
+     "c_owned_symbols": [
+      "cfs"
+     ],
+     "also_referenced_by_c": [],
+     "c_input_spans": [
+      {
+       "section": ".bss",
+       "range": [
+        "0x00585e98",
+        "0x00586100"
+       ],
+       "object_range": [
+        2952,
+        3568
+       ],
+       "symbols": [
+        "cfs"
+       ],
+       "alignment": 8
+      }
+     ]
+    }
+   ],
    ".data": [
     {
      "range": [
@@ -141562,15 +141354,6 @@
      ],
      "c_storage_aliases": [
       {
-       "original_name": "pos.14",
-       "address": "0x003B2D90",
-       "storage_owner": {
-        "name": "pos_14",
-        "address": "0x003B2D90",
-        "size": 16
-       }
-      },
-      {
        "original_name": "caspos.15",
        "address": "0x003B2DA0",
        "storage_owner": {
@@ -141580,11 +141363,11 @@
        }
       },
       {
-       "original_name": "tgtpos.16",
-       "address": "0x003B2DB0",
+       "original_name": "pos.14",
+       "address": "0x003B2D90",
        "storage_owner": {
-        "name": "tgtpos_16",
-        "address": "0x003B2DB0",
+        "name": "pos_14",
+        "address": "0x003B2D90",
         "size": 16
        }
       },
@@ -141594,6 +141377,15 @@
        "storage_owner": {
         "name": "scale_17",
         "address": "0x003B2DC0",
+        "size": 16
+       }
+      },
+      {
+       "original_name": "tgtpos.16",
+       "address": "0x003B2DB0",
+       "storage_owner": {
+        "name": "tgtpos_16",
+        "address": "0x003B2DB0",
         "size": 16
        }
       }
@@ -142788,181 +142580,85 @@
       }
      ]
     }
-   ],
-   ".bss": [
-    {
-     "range": [
-      "0x00585310",
-      "0x005853d0"
-     ],
-     "generated": [
-      "0x00585310",
-      "0x005853d0"
-     ],
-     "generated_by": [
-      "setPath"
-     ],
-     "c_owned_symbols": [
-      "path_0",
-      "name_1"
-     ],
-     "also_referenced_by_c": [
-      "prm_8",
-      "dmyActor_12",
-      "prm_13"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".bss",
-       "range": [
-        "0x00585310",
-        "0x005853d0"
-       ],
-       "symbols": [
-        "path_0",
-        "name_1"
-       ],
-       "object_range": [
-        0,
-        192
-       ]
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x005853d0",
-      "0x005853f4"
-     ],
-     "generated": [
-      "0x005853d0",
-      "0x005853f4"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "prm_8"
-     ],
-     "also_referenced_by_c": [],
-     "c_input_spans": [
-      {
-       "section": ".bss",
-       "object_range": [
-        192,
-        228
-       ],
-       "range": [
-        "0x005853d0",
-        "0x005853f4"
-       ],
-       "symbols": [
-        "prm_8"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x00585400",
-      "0x00585e70"
-     ],
-     "generated": [
-      "0x00585400",
-      "0x00585e70"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "dmyActor_12"
-     ],
-     "also_referenced_by_c": [],
-     "c_input_spans": [
-      {
-       "section": ".bss",
-       "object_range": [
-        240,
-        2912
-       ],
-       "range": [
-        "0x00585400",
-        "0x00585e70"
-       ],
-       "symbols": [
-        "dmyActor_12"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x00585e70",
-      "0x00585e94"
-     ],
-     "generated": [
-      "0x00585e70",
-      "0x00585e94"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "prm_13"
-     ],
-     "also_referenced_by_c": [],
-     "c_input_spans": [
-      {
-       "section": ".bss",
-       "object_range": [
-        2912,
-        2948
-       ],
-       "range": [
-        "0x00585e70",
-        "0x00585e94"
-       ],
-       "symbols": [
-        "prm_13"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x00585e98",
-      "0x00586100"
-     ],
-     "generated": [
-      "0x00585e98",
-      "0x00586100"
-     ],
-     "generated_by": [
-      "execFileSelect",
-      "initFileSelect"
-     ],
-     "c_owned_symbols": [
-      "cfs"
-     ],
-     "also_referenced_by_c": [],
-     "c_input_spans": [
-      {
-       "section": ".bss",
-       "range": [
-        "0x00585e98",
-        "0x00586100"
-       ],
-       "object_range": [
-        2952,
-        3568
-       ],
-       "symbols": [
-        "cfs"
-       ],
-       "alignment": 8
-      }
-     ]
-    }
    ]
   },
   "main/tu148": {
+   ".bss": [
+    {
+     "range": [
+      "0x004dede0",
+      "0x004dee18"
+     ],
+     "generated": [
+      "0x004dede0",
+      "0x004dee18"
+     ],
+     "generated_by": [
+      "CallMethod",
+      "CallMethod_I",
+      "CallMethod_II",
+      "DB_evtMonitor",
+      "SCRIPT_exec",
+      "SCRIPT_exec2",
+      "SCRIPT_execEntered",
+      "SCRIPT_execTalkto",
+      "SCRIPT_execTouchto",
+      "SCRIPT_init",
+      "SCRIPT_load",
+      "SCRIPT_load2",
+      "SCRIPT_load_DBG",
+      "XTK_findFile",
+      "createTalkTask",
+      "funcObserver",
+      "sceneObserver"
+     ],
+     "c_owned_symbols": [
+      "scriptDB"
+     ],
+     "also_referenced_by_c": [
+      "evtDebug",
+      "lightActFlags",
+      "heapInfo",
+      "dbgWind"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".bss",
+       "range": [
+        "0x004dede0",
+        "0x004dee18"
+       ],
+       "object_range": [
+        0,
+        56
+       ],
+       "symbols": [
+        "scriptDB"
+       ]
+      }
+     ],
+     "c_storage_aliases": [
+      {
+       "original_name": "D_004DEDE8",
+       "address": "0x004dede8",
+       "storage_owner": {
+        "name": "scriptDB",
+        "address": "0x004dede0",
+        "size": 56
+       }
+      },
+      {
+       "original_name": "D_004DEDF0",
+       "address": "0x004dedf0",
+       "storage_owner": {
+        "name": "scriptDB",
+        "address": "0x004dede0",
+        "size": 56
+       }
+      }
+     ]
+    }
+   ],
    ".lit4": [
     {
      "range": [
@@ -142993,12 +142689,7 @@
         8
        ]
       }
-     ],
-     "basis": {
-      "kind": "user-directed-integration",
-      "task": "integrate-main-55-publish-20261025",
-      "note": "Derived from actual compiled source; no recovery acceptance; ordinary full-file gate still required"
-     }
+     ]
     },
     {
      "range": [
@@ -143028,12 +142719,7 @@
         12
        ]
       }
-     ],
-     "basis": {
-      "kind": "user-directed-integration",
-      "task": "integrate-main-55-publish-20261025",
-      "note": "Derived from actual compiled source; no recovery acceptance; ordinary full-file gate still required"
-     }
+     ]
     },
     {
      "range": [
@@ -143063,12 +142749,7 @@
         16
        ]
       }
-     ],
-     "basis": {
-      "kind": "user-directed-integration",
-      "task": "integrate-main-55-publish-20261025",
-      "note": "Derived from actual compiled source; no recovery acceptance; ordinary full-file gate still required"
-     }
+     ]
     },
     {
      "range": [
@@ -143098,12 +142779,7 @@
         20
        ]
       }
-     ],
-     "basis": {
-      "kind": "user-directed-integration",
-      "task": "integrate-main-55-publish-20261025",
-      "note": "Derived from actual compiled source; no recovery acceptance; ordinary full-file gate still required"
-     }
+     ]
     },
     {
      "range": [
@@ -143133,12 +142809,7 @@
         24
        ]
       }
-     ],
-     "basis": {
-      "kind": "user-directed-integration",
-      "task": "integrate-main-55-publish-20261025",
-      "note": "Derived from actual compiled source; no recovery acceptance; ordinary full-file gate still required"
-     }
+     ]
     }
    ],
    ".rodata": [
@@ -143425,6 +143096,97 @@
        "object_range": [
         208,
         236
+       ]
+      }
+     ]
+    }
+   ],
+   ".sbss": [
+    {
+     "range": [
+      "0x004dc594",
+      "0x004dc598"
+     ],
+     "generated": [
+      "0x004dc594",
+      "0x004dc598"
+     ],
+     "generated_by": [
+      "CallMethod",
+      "CallMethod_I",
+      "CallMethod_II",
+      "DB_evtMonitor",
+      "SCRIPT_exec",
+      "SCRIPT_exec2",
+      "SCRIPT_execEntered",
+      "SCRIPT_execTalkto",
+      "SCRIPT_execTouchto",
+      "SCRIPT_init",
+      "SCRIPT_load",
+      "SCRIPT_load2",
+      "SCRIPT_load_DBG",
+      "XTK_findFile",
+      "createTalkTask",
+      "funcObserver",
+      "sceneObserver"
+     ],
+     "c_owned_symbols": [
+      "currentScriptDB"
+     ],
+     "also_referenced_by_c": [
+      "fileSelect",
+      "heapUsed",
+      "lightFileNum"
+     ],
+     "c_input_spans": [
+      {
+       "credit": "verified",
+       "object_range": [
+        0,
+        4
+       ],
+       "range": [
+        "0x004dc594",
+        "0x004dc598"
+       ],
+       "section": ".sbss",
+       "symbols": [
+        "currentScriptDB"
+       ]
+      }
+     ]
+    },
+    {
+     "range": [
+      "0x004dc5a4",
+      "0x004dc5a8"
+     ],
+     "generated": [
+      "0x004dc5a4",
+      "0x004dc5a8"
+     ],
+     "generated_by": [
+      "XTK_getResourceID",
+      "XTK_setResourceID"
+     ],
+     "c_owned_symbols": [
+      "resourceID"
+     ],
+     "also_referenced_by_c": [],
+     "c_input_spans": [
+      {
+       "credit": "verified",
+       "object_range": [
+        4,
+        8
+       ],
+       "range": [
+        "0x004dc5a4",
+        "0x004dc5a8"
+       ],
+       "section": ".sbss",
+       "symbols": [
+        "resourceID"
        ]
       }
      ]
@@ -143893,163 +143655,6 @@
        "symbols": [
         "windowOwner"
        ]
-      }
-     ]
-    }
-   ],
-   ".sbss": [
-    {
-     "range": [
-      "0x004dc594",
-      "0x004dc598"
-     ],
-     "generated": [
-      "0x004dc594",
-      "0x004dc598"
-     ],
-     "generated_by": [
-      "CallMethod",
-      "CallMethod_I",
-      "CallMethod_II",
-      "DB_evtMonitor",
-      "SCRIPT_exec2",
-      "SCRIPT_execEntered",
-      "SCRIPT_execTalkto",
-      "SCRIPT_execTouchto",
-      "SCRIPT_load",
-      "SCRIPT_load2",
-      "XTK_findFile",
-      "createTalkTask",
-      "funcObserver"
-     ],
-     "c_owned_symbols": [
-      "currentScriptDB"
-     ],
-     "also_referenced_by_c": [
-      "fileSelect",
-      "lightFileNum"
-     ],
-     "c_input_spans": [
-      {
-       "credit": "verified",
-       "object_range": [
-        0,
-        4
-       ],
-       "range": [
-        "0x004dc594",
-        "0x004dc598"
-       ],
-       "section": ".sbss",
-       "symbols": [
-        "currentScriptDB"
-       ]
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004dc5a4",
-      "0x004dc5a8"
-     ],
-     "generated": [
-      "0x004dc5a4",
-      "0x004dc5a8"
-     ],
-     "generated_by": [
-      "XTK_getResourceID",
-      "XTK_setResourceID"
-     ],
-     "c_owned_symbols": [
-      "resourceID"
-     ],
-     "also_referenced_by_c": [],
-     "c_input_spans": [
-      {
-       "credit": "verified",
-       "object_range": [
-        4,
-        8
-       ],
-       "range": [
-        "0x004dc5a4",
-        "0x004dc5a8"
-       ],
-       "section": ".sbss",
-       "symbols": [
-        "resourceID"
-       ]
-      }
-     ]
-    }
-   ],
-   ".bss": [
-    {
-     "range": [
-      "0x004dede0",
-      "0x004dee18"
-     ],
-     "generated": [
-      "0x004dede0",
-      "0x004dee18"
-     ],
-     "generated_by": [
-      "CallMethod",
-      "CallMethod_I",
-      "CallMethod_II",
-      "DB_evtMonitor",
-      "SCRIPT_exec2",
-      "SCRIPT_execEntered",
-      "SCRIPT_execTalkto",
-      "SCRIPT_execTouchto",
-      "SCRIPT_load",
-      "SCRIPT_load2",
-      "XTK_findFile",
-      "createTalkTask",
-      "funcObserver"
-     ],
-     "c_owned_symbols": [
-      "scriptDB"
-     ],
-     "also_referenced_by_c": [
-      "evtDebug",
-      "lightActFlags",
-      "dbgWind"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".bss",
-       "range": [
-        "0x004dede0",
-        "0x004dee18"
-       ],
-       "object_range": [
-        0,
-        56
-       ],
-       "symbols": [
-        "scriptDB"
-       ]
-      }
-     ],
-     "c_storage_aliases": [
-      {
-       "original_name": "D_004DEDE8",
-       "address": "0x004dede8",
-       "storage_owner": {
-        "name": "scriptDB",
-        "address": "0x004dede0",
-        "size": 56
-       }
-      },
-      {
-       "original_name": "D_004DEDF0",
-       "address": "0x004dedf0",
-       "storage_owner": {
-        "name": "scriptDB",
-        "address": "0x004dede0",
-        "size": 56
-       }
       }
      ]
     }
@@ -191115,21 +190720,21 @@
      ],
      "c_storage_aliases": [
       {
-       "original_name": "waitHandlerTbl.0",
-       "address": "0x004228d0",
-       "storage_owner": {
-        "name": "waitHandlerTbl.0",
-        "address": "0x004228d0",
-        "size": 24
-       }
-      },
-      {
        "original_name": "moveHandlerTbl.1",
        "address": "0x004228e8",
        "storage_owner": {
         "name": "moveHandlerTbl.1",
         "address": "0x004228e8",
         "size": 8
+       }
+      },
+      {
+       "original_name": "waitHandlerTbl.0",
+       "address": "0x004228d0",
+       "storage_owner": {
+        "name": "waitHandlerTbl.0",
+        "address": "0x004228d0",
+        "size": 24
        }
       }
      ]
@@ -194671,34 +194276,36 @@
   "main/tu089": {
    ".bss": [
     {
-     "also_referenced_by_c": [],
-     "c_input_spans": [
-      {
-       "object_range": [
-        0,
-        512
-       ],
-       "range": [
-        "0x0093CA00",
-        "0x0093CC00"
-       ],
-       "section": ".bss",
-       "symbols": [
-        "PadDmaBuffer"
-       ]
-      }
+     "range": [
+      "0x0093ca00",
+      "0x0093cc00"
+     ],
+     "generated": [
+      "0x0093ca00",
+      "0x0093cc00"
+     ],
+     "generated_by": [
+      "xglPadInitial"
      ],
      "c_owned_symbols": [
       "PadDmaBuffer"
      ],
-     "generated": [
-      "0x0093CA00",
-      "0x0093CC00"
-     ],
-     "generated_by": [],
-     "range": [
-      "0x0093CA00",
-      "0x0093CC00"
+     "also_referenced_by_c": [],
+     "c_input_spans": [
+      {
+       "section": ".bss",
+       "range": [
+        "0x0093ca00",
+        "0x0093cc00"
+       ],
+       "object_range": [
+        0,
+        512
+       ],
+       "symbols": [
+        "PadDmaBuffer"
+       ]
+      }
      ]
     }
    ]
@@ -198429,6 +198036,7 @@
      ],
      "generated_by": [
       "sefDrawParticleList",
+      "sefDrawSchedulerEffect",
       "svDrawScheduler",
       "svDrawScheduler2D",
       "svDrawScheduler3D",
@@ -207979,17 +207587,19 @@
     {
      "range": [
       "0x004d7cb4",
-      "0x004d7cb8"
+      "0x004d7cbc"
      ],
      "generated": [
       "0x004d7cb4",
-      "0x004d7cb8"
+      "0x004d7cbc"
      ],
      "generated_by": [
-      "drawCircle2"
+      "drawCircle2",
+      "drawCircle3"
      ],
      "c_owned_symbols": [
-      "D_004D7CB4"
+      "D_004D7CB4",
+      "D_004D7CB8"
      ],
      "also_referenced_by_c": [
       "D_004D7CBC"
@@ -222808,32 +222418,25 @@
     {
      "range": [
       "0x0036dc00",
-      "0x0036dc18"
+      "0x0036dc34"
      ],
      "generated": [
       "0x0036dc00",
-      "0x0036dc18"
+      "0x0036dc34"
      ],
-     "generated_by": [],
+     "generated_by": [
+      "MenuEtherExMain",
+      "MenuEtherMenuMain",
+      "MenuEtherPasMain"
+     ],
      "c_owned_symbols": [
+      "msg00_1_0036DC18",
+      "msg00_3_0036DC28",
+      "msg01_2_0036DC20",
+      "msg01_4_0036DC30",
       "msg_0_0036DC00"
      ],
-     "c_input_spans": [
-      {
-       "object_range": [
-        0,
-        24
-       ],
-       "range": [
-        "0x0036dc00",
-        "0x0036dc18"
-       ],
-       "section": ".data",
-       "symbols": [
-        "msg_0_0036DC00"
-       ]
-      }
-     ],
+     "also_referenced_by_c": [],
      "c_storage_aliases": [
       {
        "original_name": "msg.0",
@@ -222843,40 +222446,7 @@
         "name": "msg_0_0036DC00",
         "size": 24
        }
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x0036dc18",
-      "0x0036dc20"
-     ],
-     "generated": [
-      "0x0036dc18",
-      "0x0036dc20"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "msg00_1_0036DC18"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".data",
-       "object_range": [
-        24,
-        32
-       ],
-       "range": [
-        "0x0036dc18",
-        "0x0036dc20"
-       ],
-       "symbols": [
-        "msg00_1_0036DC18"
-       ],
-       "credit": "verified"
-      }
-     ],
-     "c_storage_aliases": [
+      },
       {
        "original_name": "msg00.1",
        "address": "0x0036dc18",
@@ -222885,82 +222455,7 @@
         "address": "0x0036dc18",
         "size": 8
        }
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x0036dc20",
-      "0x0036dc28"
-     ],
-     "generated": [
-      "0x0036dc20",
-      "0x0036dc28"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "msg01_2_0036DC20"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".data",
-       "object_range": [
-        32,
-        40
-       ],
-       "range": [
-        "0x0036dc20",
-        "0x0036dc28"
-       ],
-       "symbols": [
-        "msg01_2_0036DC20"
-       ],
-       "credit": "verified"
-      }
-     ],
-     "c_storage_aliases": [
-      {
-       "original_name": "msg01.2",
-       "address": "0x0036dc20",
-       "storage_owner": {
-        "name": "msg01_2_0036DC20",
-        "address": "0x0036dc20",
-        "size": 8
-       }
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x0036dc28",
-      "0x0036dc30"
-     ],
-     "generated": [
-      "0x0036dc28",
-      "0x0036dc30"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "msg00_3_0036DC28"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".data",
-       "object_range": [
-        40,
-        48
-       ],
-       "range": [
-        "0x0036dc28",
-        "0x0036dc30"
-       ],
-       "symbols": [
-        "msg00_3_0036DC28"
-       ],
-       "credit": "verified"
-      }
-     ],
-     "c_storage_aliases": [
+      },
       {
        "original_name": "msg00.3",
        "address": "0x0036dc28",
@@ -222969,40 +222464,16 @@
         "address": "0x0036dc28",
         "size": 8
        }
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x0036dc30",
-      "0x0036dc34"
-     ],
-     "generated": [
-      "0x0036dc30",
-      "0x0036dc34"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "msg01_4_0036DC30"
-     ],
-     "c_input_spans": [
+      },
       {
-       "section": ".data",
-       "object_range": [
-        48,
-        52
-       ],
-       "range": [
-        "0x0036dc30",
-        "0x0036dc34"
-       ],
-       "symbols": [
-        "msg01_4_0036DC30"
-       ],
-       "credit": "verified"
-      }
-     ],
-     "c_storage_aliases": [
+       "original_name": "msg01.2",
+       "address": "0x0036dc20",
+       "storage_owner": {
+        "name": "msg01_2_0036DC20",
+        "address": "0x0036dc20",
+        "size": 8
+       }
+      },
       {
        "original_name": "msg01.4",
        "address": "0x0036dc30",
@@ -223023,2648 +222494,164 @@
       "0x0036dc38",
       "0x0036dc58"
      ],
-     "generated_by": [],
+     "generated_by": [
+      "MenuEther",
+      "MenuEtherInfoMain",
+      "MenuEtherStatusMain",
+      "MenuEtherStatusMain2"
+     ],
      "c_owned_symbols": [
       "MenuEtherParty"
      ],
-     "c_input_spans": [
-      {
-       "section": ".data",
-       "object_range": [
-        56,
-        88
-       ],
-       "range": [
-        "0x0036dc38",
-        "0x0036dc58"
-       ],
-       "symbols": [
-        "MenuEtherParty"
-       ],
-       "credit": "verified"
-      }
-     ]
+     "also_referenced_by_c": []
     }
    ],
    ".rodata": [
     {
      "range": [
       "0x004c7ad0",
-      "0x004c7ae0"
+      "0x004c88c0"
      ],
      "generated": [
       "0x004c7ad0",
-      "0x004c7ae0"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C7AD0"
-     ],
-     "c_input_spans": [
-      {
-       "anonymous_emission": true,
-       "credit": "verified",
-       "object_range": [
-        0,
-        16
-       ],
-       "range": [
-        "0x004c7ad0",
-        "0x004c7ae0"
-       ],
-       "section": ".rodata",
-       "symbols": []
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c7ae0",
-      "0x004c7af0"
-     ],
-     "generated": [
-      "0x004c7ae0",
-      "0x004c7af0"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C7AE0"
-     ],
-     "c_input_spans": [
-      {
-       "anonymous_emission": true,
-       "credit": "verified",
-       "object_range": [
-        16,
-        32
-       ],
-       "range": [
-        "0x004c7ae0",
-        "0x004c7af0"
-       ],
-       "section": ".rodata",
-       "symbols": []
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c7af0",
-      "0x004c7cd0"
-     ],
-     "generated": [
-      "0x004c7af0",
-      "0x004c7cd0"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "jtbl_004C7AF0"
-     ],
-     "c_input_spans": [
-      {
-       "anonymous_emission": true,
-       "credit": "verified",
-       "object_range": [
-        32,
-        512
-       ],
-       "range": [
-        "0x004c7af0",
-        "0x004c7cd0"
-       ],
-       "section": ".rodata",
-       "symbols": []
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c7cd0",
-      "0x004c7d00"
-     ],
-     "generated": [
-      "0x004c7cd0",
-      "0x004c7d00"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C7CD0"
-     ],
-     "c_input_spans": [
-      {
-       "object_range": [
-        512,
-        560
-       ],
-       "range": [
-        "0x004c7cd0",
-        "0x004c7d00"
-       ],
-       "section": ".rodata",
-       "symbols": [
-        "D_004C7CD0"
-       ]
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c7d00",
-      "0x004c7d1c"
-     ],
-     "generated": [
-      "0x004c7d00",
-      "0x004c7d1c"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C7D00"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        560,
-        588
-       ],
-       "range": [
-        "0x004c7d00",
-        "0x004c7d1c"
-       ],
-       "symbols": [
-        "D_004C7D00"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c7d20",
-      "0x004c7d75"
-     ],
-     "generated": [
-      "0x004c7d20",
-      "0x004c7d75"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C7D20"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        592,
-        677
-       ],
-       "range": [
-        "0x004c7d20",
-        "0x004c7d75"
-       ],
-       "symbols": [
-        "D_004C7D20"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c7d78",
-      "0x004c7dc7"
-     ],
-     "generated": [
-      "0x004c7d78",
-      "0x004c7dc7"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C7D78"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        680,
-        759
-       ],
-       "range": [
-        "0x004c7d78",
-        "0x004c7dc7"
-       ],
-       "symbols": [
-        "D_004C7D78"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c7dc8",
-      "0x004c7ddc"
-     ],
-     "generated": [
-      "0x004c7dc8",
-      "0x004c7ddc"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C7DC8"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        760,
-        780
-       ],
-       "range": [
-        "0x004c7dc8",
-        "0x004c7ddc"
-       ],
-       "symbols": [
-        "D_004C7DC8"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c7de0",
-      "0x004c7e06"
-     ],
-     "generated": [
-      "0x004c7de0",
-      "0x004c7e06"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C7DE0"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        784,
-        822
-       ],
-       "range": [
-        "0x004c7de0",
-        "0x004c7e06"
-       ],
-       "symbols": [
-        "D_004C7DE0"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c7e08",
-      "0x004c7e50"
-     ],
-     "generated": [
-      "0x004c7e08",
-      "0x004c7e50"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C7E08"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        824,
-        896
-       ],
-       "range": [
-        "0x004c7e08",
-        "0x004c7e50"
-       ],
-       "symbols": [
-        "D_004C7E08"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c7e50",
-      "0x004c7e5c"
-     ],
-     "generated": [
-      "0x004c7e50",
-      "0x004c7e5c"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C7E50"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        896,
-        908
-       ],
-       "range": [
-        "0x004c7e50",
-        "0x004c7e5c"
-       ],
-       "symbols": [
-        "D_004C7E50"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c7e60",
-      "0x004c7e7a"
-     ],
-     "generated": [
-      "0x004c7e60",
-      "0x004c7e7a"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C7E60"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        912,
-        938
-       ],
-       "range": [
-        "0x004c7e60",
-        "0x004c7e7a"
-       ],
-       "symbols": [
-        "D_004C7E60"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c7e80",
-      "0x004c7e8e"
-     ],
-     "generated": [
-      "0x004c7e80",
-      "0x004c7e8e"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C7E80"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        944,
-        958
-       ],
-       "range": [
-        "0x004c7e80",
-        "0x004c7e8e"
-       ],
-       "symbols": [
-        "D_004C7E80"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c7e90",
-      "0x004c7ea2"
-     ],
-     "generated": [
-      "0x004c7e90",
-      "0x004c7ea2"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C7E90"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        960,
-        978
-       ],
-       "range": [
-        "0x004c7e90",
-        "0x004c7ea2"
-       ],
-       "symbols": [
-        "D_004C7E90"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c7ea8",
-      "0x004c7ed0"
-     ],
-     "generated": [
-      "0x004c7ea8",
-      "0x004c7ed0"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C7EA8"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        984,
-        1024
-       ],
-       "range": [
-        "0x004c7ea8",
-        "0x004c7ed0"
-       ],
-       "symbols": [
-        "D_004C7EA8"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c7ed0",
-      "0x004c7eeb"
-     ],
-     "generated": [
-      "0x004c7ed0",
-      "0x004c7eeb"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C7ED0"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        1024,
-        1051
-       ],
-       "range": [
-        "0x004c7ed0",
-        "0x004c7eeb"
-       ],
-       "symbols": [
-        "D_004C7ED0"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c7ef0",
-      "0x004c7f35"
-     ],
-     "generated": [
-      "0x004c7ef0",
-      "0x004c7f35"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C7EF0"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        1056,
-        1125
-       ],
-       "range": [
-        "0x004c7ef0",
-        "0x004c7f35"
-       ],
-       "symbols": [
-        "D_004C7EF0"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c7f38",
-      "0x004c7f6a"
-     ],
-     "generated": [
-      "0x004c7f38",
-      "0x004c7f6a"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C7F38"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        1128,
-        1178
-       ],
-       "range": [
-        "0x004c7f38",
-        "0x004c7f6a"
-       ],
-       "symbols": [
-        "D_004C7F38"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c7f70",
-      "0x004c7f98"
-     ],
-     "generated": [
-      "0x004c7f70",
-      "0x004c7f98"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C7F70"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        1184,
-        1224
-       ],
-       "range": [
-        "0x004c7f70",
-        "0x004c7f98"
-       ],
-       "symbols": [
-        "D_004C7F70"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c7f98",
-      "0x004c7fbc"
-     ],
-     "generated": [
-      "0x004c7f98",
-      "0x004c7fbc"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C7F98"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        1224,
-        1260
-       ],
-       "range": [
-        "0x004c7f98",
-        "0x004c7fbc"
-       ],
-       "symbols": [
-        "D_004C7F98"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c7fc0",
-      "0x004c7fca"
-     ],
-     "generated": [
-      "0x004c7fc0",
-      "0x004c7fca"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C7FC0"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        1264,
-        1274
-       ],
-       "range": [
-        "0x004c7fc0",
-        "0x004c7fca"
-       ],
-       "symbols": [
-        "D_004C7FC0"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c7fd0",
-      "0x004c7fe7"
-     ],
-     "generated": [
-      "0x004c7fd0",
-      "0x004c7fe7"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C7FD0"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        1280,
-        1303
-       ],
-       "range": [
-        "0x004c7fd0",
-        "0x004c7fe7"
-       ],
-       "symbols": [
-        "D_004C7FD0"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c7fe8",
-      "0x004c800d"
-     ],
-     "generated": [
-      "0x004c7fe8",
-      "0x004c800d"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C7FE8"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        1304,
-        1341
-       ],
-       "range": [
-        "0x004c7fe8",
-        "0x004c800d"
-       ],
-       "symbols": [
-        "D_004C7FE8"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c8010",
-      "0x004c803b"
-     ],
-     "generated": [
-      "0x004c8010",
-      "0x004c803b"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C8010"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        1344,
-        1387
-       ],
-       "range": [
-        "0x004c8010",
-        "0x004c803b"
-       ],
-       "symbols": [
-        "D_004C8010"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c8040",
-      "0x004c805c"
-     ],
-     "generated": [
-      "0x004c8040",
-      "0x004c805c"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C8040"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        1392,
-        1420
-       ],
-       "range": [
-        "0x004c8040",
-        "0x004c805c"
-       ],
-       "symbols": [
-        "D_004C8040"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c8060",
-      "0x004c809a"
-     ],
-     "generated": [
-      "0x004c8060",
-      "0x004c809a"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C8060"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        1424,
-        1482
-       ],
-       "range": [
-        "0x004c8060",
-        "0x004c809a"
-       ],
-       "symbols": [
-        "D_004C8060"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c80a0",
-      "0x004c80ad"
-     ],
-     "generated": [
-      "0x004c80a0",
-      "0x004c80ad"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C80A0"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        1488,
-        1501
-       ],
-       "range": [
-        "0x004c80a0",
-        "0x004c80ad"
-       ],
-       "symbols": [
-        "D_004C80A0"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c80b0",
-      "0x004c8290"
-     ],
-     "generated": [
-      "0x004c80b0",
-      "0x004c8290"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "jtbl_004C80B0"
-     ],
-     "c_input_spans": [
-      {
-       "anonymous_emission": true,
-       "credit": "verified",
-       "object_range": [
-        1504,
-        1984
-       ],
-       "range": [
-        "0x004c80b0",
-        "0x004c8290"
-       ],
-       "section": ".rodata",
-       "symbols": []
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c8290",
-      "0x004c82a7"
-     ],
-     "generated": [
-      "0x004c8290",
-      "0x004c82a7"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C8290"
-     ],
-     "c_input_spans": [
-      {
-       "object_range": [
-        1984,
-        2007
-       ],
-       "range": [
-        "0x004c8290",
-        "0x004c82a7"
-       ],
-       "section": ".rodata",
-       "symbols": [
-        "D_004C8290"
-       ]
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c82a8",
-      "0x004c82c1"
-     ],
-     "generated": [
-      "0x004c82a8",
-      "0x004c82c1"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C82A8"
-     ],
-     "c_input_spans": [
-      {
-       "object_range": [
-        2008,
-        2033
-       ],
-       "range": [
-        "0x004c82a8",
-        "0x004c82c1"
-       ],
-       "section": ".rodata",
-       "symbols": [
-        "D_004C82A8"
-       ]
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c82c8",
-      "0x004c82d7"
-     ],
-     "generated": [
-      "0x004c82c8",
-      "0x004c82d7"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C82C8"
-     ],
-     "c_input_spans": [
-      {
-       "object_range": [
-        2040,
-        2055
-       ],
-       "range": [
-        "0x004c82c8",
-        "0x004c82d7"
-       ],
-       "section": ".rodata",
-       "symbols": [
-        "D_004C82C8"
-       ]
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c82d8",
-      "0x004c82ec"
-     ],
-     "generated": [
-      "0x004c82d8",
-      "0x004c82ec"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C82D8"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        2056,
-        2076
-       ],
-       "range": [
-        "0x004c82d8",
-        "0x004c82ec"
-       ],
-       "symbols": [
-        "D_004C82D8"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c82f0",
-      "0x004c8490"
-     ],
-     "generated": [
-      "0x004c82f0",
-      "0x004c8490"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "jtbl_004C82F0"
-     ],
-     "c_input_spans": [
-      {
-       "anonymous_emission": true,
-       "credit": "verified",
-       "object_range": [
-        2080,
-        2496
-       ],
-       "range": [
-        "0x004c82f0",
-        "0x004c8490"
-       ],
-       "section": ".rodata",
-       "symbols": []
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c8490",
-      "0x004c8670"
-     ],
-     "generated": [
-      "0x004c8490",
-      "0x004c8670"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "jtbl_004C8490"
-     ],
-     "c_input_spans": [
-      {
-       "anonymous_emission": true,
-       "credit": "verified",
-       "object_range": [
-        2496,
-        2976
-       ],
-       "range": [
-        "0x004c8490",
-        "0x004c8670"
-       ],
-       "section": ".rodata",
-       "symbols": []
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c8670",
-      "0x004c8679"
-     ],
-     "generated": [
-      "0x004c8670",
-      "0x004c8679"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C8670"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        2976,
-        2985
-       ],
-       "range": [
-        "0x004c8670",
-        "0x004c8679"
-       ],
-       "symbols": [
-        "D_004C8670"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c8680",
-      "0x004c8689"
-     ],
-     "generated": [
-      "0x004c8680",
-      "0x004c8689"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C8680"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        2992,
-        3001
-       ],
-       "range": [
-        "0x004c8680",
-        "0x004c8689"
-       ],
-       "symbols": [
-        "D_004C8680"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c8690",
-      "0x004c869c"
-     ],
-     "generated": [
-      "0x004c8690",
-      "0x004c869c"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C8690"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        3008,
-        3020
-       ],
-       "range": [
-        "0x004c8690",
-        "0x004c869c"
-       ],
-       "symbols": [
-        "D_004C8690"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c86a0",
-      "0x004c86ac"
-     ],
-     "generated": [
-      "0x004c86a0",
-      "0x004c86ac"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C86A0"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        3024,
-        3036
-       ],
-       "range": [
-        "0x004c86a0",
-        "0x004c86ac"
-       ],
-       "symbols": [
-        "D_004C86A0"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c86b0",
-      "0x004c8810"
-     ],
-     "generated": [
-      "0x004c86b0",
-      "0x004c8810"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "jtbl_004C86B0"
-     ],
-     "c_input_spans": [
-      {
-       "anonymous_emission": true,
-       "credit": "verified",
-       "object_range": [
-        3040,
-        3392
-       ],
-       "range": [
-        "0x004c86b0",
-        "0x004c8810"
-       ],
-       "section": ".rodata",
-       "symbols": []
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c8810",
-      "0x004c881e"
-     ],
-     "generated": [
-      "0x004c8810",
-      "0x004c881e"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C8810"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        3392,
-        3406
-       ],
-       "range": [
-        "0x004c8810",
-        "0x004c881e"
-       ],
-       "symbols": [
-        "D_004C8810"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c8820",
-      "0x004c8870"
-     ],
-     "generated": [
-      "0x004c8820",
-      "0x004c8870"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "jtbl_004C8820"
-     ],
-     "c_input_spans": [
-      {
-       "anonymous_emission": true,
-       "credit": "verified",
-       "object_range": [
-        3408,
-        3488
-       ],
-       "range": [
-        "0x004c8820",
-        "0x004c8870"
-       ],
-       "section": ".rodata",
-       "symbols": []
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c8870",
-      "0x004c8890"
-     ],
-     "generated": [
-      "0x004c8870",
-      "0x004c8890"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C8870"
-     ],
-     "c_input_spans": [
-      {
-       "object_range": [
-        3488,
-        3520
-       ],
-       "range": [
-        "0x004c8870",
-        "0x004c8890"
-       ],
-       "section": ".rodata",
-       "symbols": [
-        "D_004C8870"
-       ]
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c8890",
-      "0x004c889c"
-     ],
-     "generated": [
-      "0x004c8890",
-      "0x004c889c"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C8890"
-     ],
-     "c_input_spans": [
-      {
-       "anonymous_emission": true,
-       "credit": "verified",
-       "object_range": [
-        3520,
-        3532
-       ],
-       "range": [
-        "0x004c8890",
-        "0x004c889c"
-       ],
-       "section": ".rodata",
-       "symbols": []
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c88a0",
-      "0x004c88ab"
-     ],
-     "generated": [
-      "0x004c88a0",
-      "0x004c88ab"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004C88A0"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        3536,
-        3547
-       ],
-       "range": [
-        "0x004c88a0",
-        "0x004c88ab"
-       ],
-       "symbols": [
-        "D_004C88A0"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004c88b0",
       "0x004c88bd"
      ],
-     "generated": [
-      "0x004c88b0",
-      "0x004c88bd"
+     "generated_by": [
+      "MenuEther",
+      "MenuEtherExMain",
+      "MenuEtherInfoMain",
+      "MenuEtherListMain",
+      "MenuEtherListMain2",
+      "MenuEtherPasMain",
+      "MenuEtherStatusMain"
      ],
-     "generated_by": [],
      "c_owned_symbols": [
+      "D_004C7AD0",
+      "D_004C7AE0",
+      "jtbl_004C7AF0",
+      "D_004C7CD0",
+      "D_004C7D00",
+      "D_004C7D20",
+      "D_004C7D78",
+      "D_004C7DC8",
+      "D_004C7DE0",
+      "D_004C7E08",
+      "D_004C7E50",
+      "D_004C7E60",
+      "D_004C7E80",
+      "D_004C7E90",
+      "D_004C7EA8",
+      "D_004C7ED0",
+      "D_004C7EF0",
+      "D_004C7F38",
+      "D_004C7F70",
+      "D_004C7F98",
+      "D_004C7FC0",
+      "D_004C7FD0",
+      "D_004C7FE8",
+      "D_004C8010",
+      "D_004C8040",
+      "D_004C8060",
+      "D_004C80A0",
+      "jtbl_004C80B0",
+      "D_004C8290",
+      "D_004C82A8",
+      "D_004C82C8",
+      "D_004C82D8",
+      "jtbl_004C82F0",
+      "jtbl_004C8490",
+      "D_004C8670",
+      "D_004C8680",
+      "D_004C8690",
+      "D_004C86A0",
+      "jtbl_004C86B0",
+      "D_004C8810",
+      "jtbl_004C8820",
+      "D_004C8870",
+      "D_004C8890",
+      "D_004C88A0",
       "D_004C88B0"
      ],
-     "c_input_spans": [
-      {
-       "section": ".rodata",
-       "object_range": [
-        3552,
-        3565
-       ],
-       "range": [
-        "0x004c88b0",
-        "0x004c88bd"
-       ],
-       "symbols": [
-        "D_004C88B0"
-       ],
-       "credit": "verified"
-      }
-     ]
+     "also_referenced_by_c": [],
+     "reached_through": {
+      "D_004C7AD0": "msg_0_0036DC00",
+      "D_004C7AE0": "msg_0_0036DC00"
+     }
     }
    ],
    ".sdata": [
     {
      "range": [
       "0x004db258",
-      "0x004db260"
+      "0x004db378"
      ],
      "generated": [
       "0x004db258",
-      "0x004db260"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004DB258"
-     ],
-     "c_input_spans": [
-      {
-       "anonymous_emission": true,
-       "credit": "verified",
-       "object_range": [
-        0,
-        8
-       ],
-       "range": [
-        "0x004db258",
-        "0x004db260"
-       ],
-       "section": ".sdata",
-       "symbols": []
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004db260",
-      "0x004db268"
-     ],
-     "generated": [
-      "0x004db260",
-      "0x004db268"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004DB260"
-     ],
-     "c_input_spans": [
-      {
-       "anonymous_emission": true,
-       "credit": "verified",
-       "object_range": [
-        8,
-        16
-       ],
-       "range": [
-        "0x004db260",
-        "0x004db268"
-       ],
-       "section": ".sdata",
-       "symbols": []
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004db268",
-      "0x004db270"
-     ],
-     "generated": [
-      "0x004db268",
-      "0x004db270"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004DB268"
-     ],
-     "c_input_spans": [
-      {
-       "anonymous_emission": true,
-       "credit": "verified",
-       "object_range": [
-        16,
-        24
-       ],
-       "range": [
-        "0x004db268",
-        "0x004db270"
-       ],
-       "section": ".sdata",
-       "symbols": []
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004db270",
-      "0x004db278"
-     ],
-     "generated": [
-      "0x004db270",
-      "0x004db278"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004DB270"
-     ],
-     "c_input_spans": [
-      {
-       "anonymous_emission": true,
-       "credit": "verified",
-       "object_range": [
-        24,
-        32
-       ],
-       "range": [
-        "0x004db270",
-        "0x004db278"
-       ],
-       "section": ".sdata",
-       "symbols": []
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004db278",
-      "0x004db280"
-     ],
-     "generated": [
-      "0x004db278",
-      "0x004db280"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004DB278"
-     ],
-     "c_input_spans": [
-      {
-       "object_range": [
-        32,
-        40
-       ],
-       "range": [
-        "0x004db278",
-        "0x004db280"
-       ],
-       "section": ".sdata",
-       "symbols": [
-        "D_004DB278"
-       ]
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004db280",
-      "0x004db288"
-     ],
-     "generated": [
-      "0x004db280",
-      "0x004db288"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004DB280"
-     ],
-     "c_input_spans": [
-      {
-       "object_range": [
-        40,
-        48
-       ],
-       "range": [
-        "0x004db280",
-        "0x004db288"
-       ],
-       "section": ".sdata",
-       "symbols": [
-        "D_004DB280"
-       ]
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004db288",
-      "0x004db290"
-     ],
-     "generated": [
-      "0x004db288",
-      "0x004db290"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004DB288"
-     ],
-     "c_input_spans": [
-      {
-       "object_range": [
-        48,
-        56
-       ],
-       "range": [
-        "0x004db288",
-        "0x004db290"
-       ],
-       "section": ".sdata",
-       "symbols": [
-        "D_004DB288"
-       ]
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004db290",
-      "0x004db298"
-     ],
-     "generated": [
-      "0x004db290",
-      "0x004db298"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004DB290"
-     ],
-     "c_input_spans": [
-      {
-       "object_range": [
-        56,
-        64
-       ],
-       "range": [
-        "0x004db290",
-        "0x004db298"
-       ],
-       "section": ".sdata",
-       "symbols": [
-        "D_004DB290"
-       ]
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004db298",
-      "0x004db2a0"
-     ],
-     "generated": [
-      "0x004db298",
-      "0x004db2a0"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004DB298"
-     ],
-     "c_input_spans": [
-      {
-       "object_range": [
-        64,
-        72
-       ],
-       "range": [
-        "0x004db298",
-        "0x004db2a0"
-       ],
-       "section": ".sdata",
-       "symbols": [
-        "D_004DB298"
-       ]
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004db2a0",
-      "0x004db2a8"
-     ],
-     "generated": [
-      "0x004db2a0",
-      "0x004db2a8"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004DB2A0"
-     ],
-     "c_input_spans": [
-      {
-       "object_range": [
-        72,
-        80
-       ],
-       "range": [
-        "0x004db2a0",
-        "0x004db2a8"
-       ],
-       "section": ".sdata",
-       "symbols": [
-        "D_004DB2A0"
-       ]
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004db2a8",
-      "0x004db2b0"
-     ],
-     "generated": [
-      "0x004db2a8",
-      "0x004db2b0"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004DB2A8"
-     ],
-     "c_input_spans": [
-      {
-       "object_range": [
-        80,
-        88
-       ],
-       "range": [
-        "0x004db2a8",
-        "0x004db2b0"
-       ],
-       "section": ".sdata",
-       "symbols": [
-        "D_004DB2A8"
-       ]
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004db2b0",
-      "0x004db2b8"
-     ],
-     "generated": [
-      "0x004db2b0",
-      "0x004db2b8"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004DB2B0"
-     ],
-     "c_input_spans": [
-      {
-       "object_range": [
-        88,
-        96
-       ],
-       "range": [
-        "0x004db2b0",
-        "0x004db2b8"
-       ],
-       "section": ".sdata",
-       "symbols": [
-        "D_004DB2B0"
-       ]
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004db2b8",
-      "0x004db2c0"
-     ],
-     "generated": [
-      "0x004db2b8",
-      "0x004db2c0"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004DB2B8"
-     ],
-     "c_input_spans": [
-      {
-       "object_range": [
-        96,
-        104
-       ],
-       "range": [
-        "0x004db2b8",
-        "0x004db2c0"
-       ],
-       "section": ".sdata",
-       "symbols": [
-        "D_004DB2B8"
-       ]
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004db2c0",
-      "0x004db2c8"
-     ],
-     "generated": [
-      "0x004db2c0",
-      "0x004db2c8"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004DB2C0"
-     ],
-     "c_input_spans": [
-      {
-       "object_range": [
-        104,
-        112
-       ],
-       "range": [
-        "0x004db2c0",
-        "0x004db2c8"
-       ],
-       "section": ".sdata",
-       "symbols": [
-        "D_004DB2C0"
-       ]
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004db2c8",
-      "0x004db2cd"
-     ],
-     "generated": [
-      "0x004db2c8",
-      "0x004db2cd"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004DB2C8"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".sdata",
-       "object_range": [
-        112,
-        117
-       ],
-       "range": [
-        "0x004db2c8",
-        "0x004db2cd"
-       ],
-       "symbols": [
-        "D_004DB2C8"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004db2d0",
-      "0x004db2d7"
-     ],
-     "generated": [
-      "0x004db2d0",
-      "0x004db2d7"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004DB2D0"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".sdata",
-       "object_range": [
-        120,
-        127
-       ],
-       "range": [
-        "0x004db2d0",
-        "0x004db2d7"
-       ],
-       "symbols": [
-        "D_004DB2D0"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004db2d8",
-      "0x004db2e0"
-     ],
-     "generated": [
-      "0x004db2d8",
-      "0x004db2e0"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004DB2D8"
-     ],
-     "c_input_spans": [
-      {
-       "object_range": [
-        128,
-        136
-       ],
-       "range": [
-        "0x004db2d8",
-        "0x004db2e0"
-       ],
-       "section": ".sdata",
-       "symbols": [
-        "D_004DB2D8"
-       ]
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004db2e0",
-      "0x004db2e8"
-     ],
-     "generated": [
-      "0x004db2e0",
-      "0x004db2e8"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004DB2E0"
-     ],
-     "c_input_spans": [
-      {
-       "object_range": [
-        136,
-        144
-       ],
-       "range": [
-        "0x004db2e0",
-        "0x004db2e8"
-       ],
-       "section": ".sdata",
-       "symbols": [
-        "D_004DB2E0"
-       ]
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004db2e8",
-      "0x004db2ec"
-     ],
-     "generated": [
-      "0x004db2e8",
-      "0x004db2ec"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004DB2E8"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".sdata",
-       "object_range": [
-        144,
-        148
-       ],
-       "range": [
-        "0x004db2e8",
-        "0x004db2ec"
-       ],
-       "symbols": [
-        "D_004DB2E8"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004db2f0",
-      "0x004db2f2"
-     ],
-     "generated": [
-      "0x004db2f0",
-      "0x004db2f2"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004DB2F0"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".sdata",
-       "object_range": [
-        152,
-        154
-       ],
-       "range": [
-        "0x004db2f0",
-        "0x004db2f2"
-       ],
-       "symbols": [
-        "D_004DB2F0"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004db2f8",
-      "0x004db300"
-     ],
-     "generated": [
-      "0x004db2f8",
-      "0x004db300"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004DB2F8"
-     ],
-     "c_input_spans": [
-      {
-       "object_range": [
-        160,
-        168
-       ],
-       "range": [
-        "0x004db2f8",
-        "0x004db300"
-       ],
-       "section": ".sdata",
-       "symbols": [
-        "D_004DB2F8"
-       ]
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004db300",
-      "0x004db308"
-     ],
-     "generated": [
-      "0x004db300",
-      "0x004db308"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004DB300"
-     ],
-     "c_input_spans": [
-      {
-       "anonymous_emission": true,
-       "credit": "verified",
-       "object_range": [
-        168,
-        176
-       ],
-       "range": [
-        "0x004db300",
-        "0x004db308"
-       ],
-       "section": ".sdata",
-       "symbols": []
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004db308",
-      "0x004db310"
-     ],
-     "generated": [
-      "0x004db308",
-      "0x004db310"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004DB308"
-     ],
-     "c_input_spans": [
-      {
-       "anonymous_emission": true,
-       "credit": "verified",
-       "object_range": [
-        176,
-        184
-       ],
-       "range": [
-        "0x004db308",
-        "0x004db310"
-       ],
-       "section": ".sdata",
-       "symbols": []
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004db310",
-      "0x004db318"
-     ],
-     "generated": [
-      "0x004db310",
-      "0x004db318"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004DB310"
-     ],
-     "c_input_spans": [
-      {
-       "anonymous_emission": true,
-       "credit": "verified",
-       "object_range": [
-        184,
-        192
-       ],
-       "range": [
-        "0x004db310",
-        "0x004db318"
-       ],
-       "section": ".sdata",
-       "symbols": []
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004db318",
-      "0x004db320"
-     ],
-     "generated": [
-      "0x004db318",
-      "0x004db320"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004DB318"
-     ],
-     "c_input_spans": [
-      {
-       "anonymous_emission": true,
-       "credit": "verified",
-       "object_range": [
-        192,
-        200
-       ],
-       "range": [
-        "0x004db318",
-        "0x004db320"
-       ],
-       "section": ".sdata",
-       "symbols": []
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004db320",
-      "0x004db328"
-     ],
-     "generated": [
-      "0x004db320",
-      "0x004db328"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004DB320"
-     ],
-     "c_input_spans": [
-      {
-       "anonymous_emission": true,
-       "credit": "verified",
-       "object_range": [
-        200,
-        208
-       ],
-       "range": [
-        "0x004db320",
-        "0x004db328"
-       ],
-       "section": ".sdata",
-       "symbols": []
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004db328",
-      "0x004db330"
-     ],
-     "generated": [
-      "0x004db328",
-      "0x004db330"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004DB328"
-     ],
-     "c_input_spans": [
-      {
-       "anonymous_emission": true,
-       "credit": "verified",
-       "object_range": [
-        208,
-        216
-       ],
-       "range": [
-        "0x004db328",
-        "0x004db330"
-       ],
-       "section": ".sdata",
-       "symbols": []
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004db330",
-      "0x004db338"
-     ],
-     "generated": [
-      "0x004db330",
-      "0x004db338"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004DB330"
-     ],
-     "c_input_spans": [
-      {
-       "anonymous_emission": true,
-       "credit": "verified",
-       "object_range": [
-        216,
-        224
-       ],
-       "range": [
-        "0x004db330",
-        "0x004db338"
-       ],
-       "section": ".sdata",
-       "symbols": []
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004db338",
-      "0x004db340"
-     ],
-     "generated": [
-      "0x004db338",
-      "0x004db340"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004DB338"
-     ],
-     "c_input_spans": [
-      {
-       "anonymous_emission": true,
-       "credit": "verified",
-       "object_range": [
-        224,
-        232
-       ],
-       "range": [
-        "0x004db338",
-        "0x004db340"
-       ],
-       "section": ".sdata",
-       "symbols": []
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004db340",
-      "0x004db348"
-     ],
-     "generated": [
-      "0x004db340",
-      "0x004db348"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "D_004DB340"
-     ],
-     "c_input_spans": [
-      {
-       "anonymous_emission": true,
-       "credit": "verified",
-       "object_range": [
-        232,
-        240
-       ],
-       "range": [
-        "0x004db340",
-        "0x004db348"
-       ],
-       "section": ".sdata",
-       "symbols": []
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004db348",
-      "0x004db34c"
-     ],
-     "generated": [
-      "0x004db348",
-      "0x004db34c"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "MenuEtherDataBuf"
-     ],
-     "c_input_spans": [
-      {
-       "section": ".sdata",
-       "object_range": [
-        240,
-        244
-       ],
-       "range": [
-        "0x004db348",
-        "0x004db34c"
-       ],
-       "symbols": [
-        "MenuEtherDataBuf"
-       ],
-       "credit": "verified"
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004db34c",
-      "0x004db350"
-     ],
-     "generated": [
-      "0x004db34c",
-      "0x004db350"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "MenuEtherPas"
-     ],
-     "c_input_spans": [
-      {
-       "object_range": [
-        244,
-        248
-       ],
-       "range": [
-        "0x004db34c",
-        "0x004db350"
-       ],
-       "section": ".sdata",
-       "symbols": [
-        "MenuEtherPas"
-       ]
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004db350",
-      "0x004db354"
-     ],
-     "generated": [
-      "0x004db350",
-      "0x004db354"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "MenuEtherInfo"
-     ],
-     "c_input_spans": [
-      {
-       "object_range": [
-        248,
-        252
-       ],
-       "range": [
-        "0x004db350",
-        "0x004db354"
-       ],
-       "section": ".sdata",
-       "symbols": [
-        "MenuEtherInfo"
-       ]
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004db354",
-      "0x004db358"
-     ],
-     "generated": [
-      "0x004db354",
-      "0x004db358"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "MenuEtherMenu"
-     ],
-     "c_input_spans": [
-      {
-       "object_range": [
-        252,
-        256
-       ],
-       "range": [
-        "0x004db354",
-        "0x004db358"
-       ],
-       "section": ".sdata",
-       "symbols": [
-        "MenuEtherMenu"
-       ]
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004db358",
-      "0x004db35c"
-     ],
-     "generated": [
-      "0x004db358",
-      "0x004db35c"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "MenuEtherEx"
-     ],
-     "c_input_spans": [
-      {
-       "object_range": [
-        256,
-        260
-       ],
-       "range": [
-        "0x004db358",
-        "0x004db35c"
-       ],
-       "section": ".sdata",
-       "symbols": [
-        "MenuEtherEx"
-       ]
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004db35c",
-      "0x004db360"
-     ],
-     "generated": [
-      "0x004db35c",
-      "0x004db360"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "MenuEtherL1R1"
-     ],
-     "c_input_spans": [
-      {
-       "object_range": [
-        260,
-        264
-       ],
-       "range": [
-        "0x004db35c",
-        "0x004db360"
-       ],
-       "section": ".sdata",
-       "symbols": [
-        "MenuEtherL1R1"
-       ]
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004db360",
-      "0x004db364"
-     ],
-     "generated": [
-      "0x004db360",
-      "0x004db364"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "MenuEtherStatus"
-     ],
-     "c_input_spans": [
-      {
-       "object_range": [
-        264,
-        268
-       ],
-       "range": [
-        "0x004db360",
-        "0x004db364"
-       ],
-       "section": ".sdata",
-       "symbols": [
-        "MenuEtherStatus"
-       ]
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004db364",
-      "0x004db368"
-     ],
-     "generated": [
-      "0x004db364",
-      "0x004db368"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "MenuEtherStatus2"
-     ],
-     "c_input_spans": [
-      {
-       "object_range": [
-        268,
-        272
-       ],
-       "range": [
-        "0x004db364",
-        "0x004db368"
-       ],
-       "section": ".sdata",
-       "symbols": [
-        "MenuEtherStatus2"
-       ]
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004db368",
-      "0x004db36c"
-     ],
-     "generated": [
-      "0x004db368",
-      "0x004db36c"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "MenuEtherList"
-     ],
-     "c_input_spans": [
-      {
-       "object_range": [
-        272,
-        276
-       ],
-       "range": [
-        "0x004db368",
-        "0x004db36c"
-       ],
-       "section": ".sdata",
-       "symbols": [
-        "MenuEtherList"
-       ]
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004db36c",
-      "0x004db370"
-     ],
-     "generated": [
-      "0x004db36c",
-      "0x004db370"
-     ],
-     "generated_by": [],
-     "c_owned_symbols": [
-      "MenuEtherList2"
-     ],
-     "c_input_spans": [
-      {
-       "object_range": [
-        276,
-        280
-       ],
-       "range": [
-        "0x004db36c",
-        "0x004db370"
-       ],
-       "section": ".sdata",
-       "symbols": [
-        "MenuEtherList2"
-       ]
-      }
-     ]
-    },
-    {
-     "range": [
-      "0x004db370",
       "0x004db375"
      ],
-     "generated": [
-      "0x004db370",
-      "0x004db375"
+     "generated_by": [
+      "MenuEther",
+      "MenuEtherDataGet",
+      "MenuEtherExMain",
+      "MenuEtherInfoMain",
+      "MenuEtherL1R1Main",
+      "MenuEtherListMain",
+      "MenuEtherListMain2",
+      "MenuEtherMenuMain",
+      "MenuEtherPasMain",
+      "MenuEtherStatusMain",
+      "MenuEtherStatusMain2"
      ],
-     "generated_by": [],
      "c_owned_symbols": [
+      "D_004DB258",
+      "D_004DB260",
+      "D_004DB268",
+      "D_004DB270",
+      "D_004DB278",
+      "D_004DB280",
+      "D_004DB288",
+      "D_004DB290",
+      "D_004DB298",
+      "D_004DB2A0",
+      "D_004DB2A8",
+      "D_004DB2B0",
+      "D_004DB2B8",
+      "D_004DB2C0",
+      "D_004DB2C8",
+      "D_004DB2D0",
+      "D_004DB2D8",
+      "D_004DB2E0",
+      "D_004DB2E8",
+      "D_004DB2F0",
+      "D_004DB2F8",
+      "D_004DB300",
+      "D_004DB308",
+      "D_004DB310",
+      "D_004DB318",
+      "D_004DB320",
+      "D_004DB328",
+      "D_004DB330",
+      "D_004DB338",
+      "D_004DB340",
+      "MenuEtherDataBuf",
+      "MenuEtherPas",
+      "MenuEtherInfo",
+      "MenuEtherMenu",
+      "MenuEtherEx",
+      "MenuEtherL1R1",
+      "MenuEtherStatus",
+      "MenuEtherStatus2",
+      "MenuEtherList",
+      "MenuEtherList2",
       "D_004DB370"
      ],
-     "c_input_spans": [
-      {
-       "section": ".sdata",
-       "object_range": [
-        280,
-        285
-       ],
-       "range": [
-        "0x004db370",
-        "0x004db375"
-       ],
-       "symbols": [
-        "D_004DB370"
-       ],
-       "credit": "verified"
-      }
-     ]
+     "also_referenced_by_c": [],
+     "reached_through": {
+      "D_004DB258": "msg_0_0036DC00",
+      "D_004DB260": "msg_0_0036DC00",
+      "D_004DB268": "msg_0_0036DC00",
+      "D_004DB270": "msg_0_0036DC00"
+     }
     }
    ]
   },

@@ -1493,7 +1493,6 @@ void Java_xeno_Chr_getState__(JThread *thread, ChrObjectCall *arguments,
     ChrFieldValue *field_value;
     JavaField *peer_field;
     Actor *peer;
-    SequenceState *entry;
     unsigned char slot;
     u8 *object;
 
@@ -1503,8 +1502,7 @@ void Java_xeno_Chr_getState__(JThread *thread, ChrObjectCall *arguments,
     field_value = (void *)(object + peer_field->offset);
     peer = field_value->actor;
     slot = ((u8 *)peer)[ACTOR_SLOT_NUMBER_OFFSET];
-    entry = &actSequence[slot].state;
-    *failure_result = entry->state_flags;
+    *failure_result = actSequence[slot].state.state_flags;
 }
 
 /* Name interning and class-field resolution are the two VM operations

@@ -54,11 +54,13 @@ struct SchedulerState {
     Vector4 vectors[3]; /* +0x80 */
     unsigned char effects[32][0x30];
     int inUse;                       /* +0x6b0 */
-    unsigned char unmodeled_6b4[0x6bc - 0x6b4];
+    unsigned char unmodeled_6b4[0x6b8 - 0x6b4];
+    int savedActive;                 /* +0x6b8 */
     struct SefActor *targetActor;   /* +0x6bc */
     struct SefActor *sourceActor;   /* +0x6c0 */
     struct SefParentRecord *parentRecord; /* +0x6c4 */
-    unsigned char unmodeled_6c8[0x6e0 - 0x6c8];
+    int savedParameter;              /* +0x6c8 */
+    unsigned char unmodeled_6cc[0x6e0 - 0x6cc];
     int soundId;                    /* +0x6e0 */
     unsigned char unmodeled_6e4[0x9e6 - 0x6e4];
     short scriptParameter;          /* +0x9e6 */

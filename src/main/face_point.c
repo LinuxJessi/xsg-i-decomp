@@ -286,15 +286,9 @@ int strcmp(const char *, const char *);
  * (0x0023f468).
  *
  * Eight lqc2 loads, nothing else: no branch, no stack frame, no other memory
- * access. The final statement appends a bare nop after the eighth lqc2, in
- * the same asm block, as the delay-slot filler this route's pinned assembler
- * needs: cc1 leaves a leaf function's bare `j $31` delay slot to the
- * assembler, and in reorder mode the assembler fills it by moving the
- * previous instruction there unless a real one already occupies it -- and
- * among the instruction kinds this route emits, only lqc2/sqc2 get moved.
- * The original toolchain did not do this (74 of 79 comparable sites in
- * SLUS_204.69 keep `jr $31; nop`), so the nop restores the original extent
- * and instruction order
+ * access. cc1 leaves the bare `j $31` delay slot to the assembler; this object
+ * is assembled with -g, which disables delay-slot filling, so the return keeps
+ * the original `jr $31; nop`.
  */
 
 s32 xglStudioGetActiveCamera(void);
@@ -610,8 +604,8 @@ extern void xglMatrixStackInverse(void);
 
 extern void xglVectorNormal(Vector4 *destination, const Vector4 *source);
 
-extern void xglVectorScaleXYZ(float scale, Vector4 *destination,
-                              const Vector4 *source);
+extern void xglVectorScaleXYZ(Vector4 *destination, const Vector4 *source,
+                              float scale);
 
 typedef struct CullingMapNameSource {
     u8 unmodeled_000[0x10];
@@ -760,8 +754,7 @@ void _FacePoint(Vector4 *destination, const Vector4 *lineStart, const Vector4 *l
         "vmulq.x vf16, vf16, Q\n\t"
         "vmulx.xyz vf15, vf19, vf16x\n\t"
         "vsub.xyz vf15, vf21, vf15\n\t"
-        "sqc2 vf15, 0(%4)\n\t"
-        "nop\n\t"
+        "sqc2 vf15, 0(%4)"
         :
         : "r"(normal), "r"(lineStart), "r"(lineEnd), "r"(planePoint), "r"(destination)
         : "memory"
@@ -778,10 +771,10 @@ float _CheckLine(const Vector4 *offsetStart, const Vector4 *offsetEnd,
     Vector4 pointFromStart;
     Vector4 normalOffset;
 
-    xglVectorScaleXYZ(planeNormal->w * planePoint->w * 0.5f,
-                      &normalOffset, planeNormal);
-    xglVectorScaleXYZ(planePoint->w * 0.5f, &adjustedStart, offsetStart);
-    xglVectorScaleXYZ(planePoint->w * 0.5f, &adjustedEnd, offsetEnd);
+    xglVectorScaleXYZ(&normalOffset, planeNormal,
+                      planeNormal->w * planePoint->w * 0.5f);
+    xglVectorScaleXYZ(&adjustedStart, offsetStart, planePoint->w * 0.5f);
+    xglVectorScaleXYZ(&adjustedEnd, offsetEnd, planePoint->w * 0.5f);
 
     __asm__ __volatile__(
         "lqc2 vf3, 0(%0)\n\t"
@@ -1204,8 +1197,7 @@ static void _ModelCalcClipInit(const Matrix4 clip[2])
     __asm__ __volatile__("lqc2 vf16, 64(%0)"  :: "r"(clip) : "memory");
     __asm__ __volatile__("lqc2 vf17, 80(%0)"  :: "r"(clip) : "memory");
     __asm__ __volatile__("lqc2 vf18, 96(%0)"  :: "r"(clip) : "memory");
-    __asm__ __volatile__("lqc2 vf19, 112(%0)\n\t"
-                         "nop"                 :: "r"(clip) : "memory");
+    __asm__ __volatile__("lqc2 vf19, 112(%0)" :: "r"(clip) : "memory");
 }
 
 /*
@@ -1667,8 +1659,7 @@ void _ApplyMatrix33(Vector4 *destination, const Matrix4 matrix, const Vector4 *v
         "vmulax.xyz ACC, vf27, vf31x\n\t"
         "vmadday.xyz ACC, vf28, vf31y\n\t"
         "vmaddz.xyz vf31, vf29, vf31z\n\t"
-        "sqc2 vf31, 0(%2)\n\t"
-        "nop\n\t"
+        "sqc2 vf31, 0(%2)"
         :
         : "r"(vector), "r"(matrix), "r"(destination)
         : "memory"
@@ -1686,8 +1677,7 @@ void _ApplyMatrix(Vector4 *destination, const Matrix4 matrix, const Vector4 *vec
         "vmadday.xyz ACC, vf28, vf31y\n\t"
         "vmaddaz.xyz ACC, vf29, vf31z\n\t"
         "vmaddw.xyz vf31, vf30, vf0w\n\t"
-        "sqc2 vf31, 0(%2)\n\t"
-        "nop\n\t"
+        "sqc2 vf31, 0(%2)"
         :
         : "r"(vector), "r"(matrix), "r"(destination)
         : "memory"
@@ -1713,8 +1703,7 @@ void _ApplyMatrix2Mat(Vector4 *destination, const Matrix4 matrix1, const Matrix4
         "vmadday.xyz ACC, vf28, vf31y\n\t"
         "vmaddaz.xyz ACC, vf29, vf31z\n\t"
         "vmaddw.xyz vf31, vf30, vf0w\n\t"
-        "sqc2 vf31, 0(%3)\n\t"
-        "nop\n\t"
+        "sqc2 vf31, 0(%3)"
         :
         : "r"(vector), "r"(matrix1), "r"(matrix2), "r"(destination)
         : "memory"

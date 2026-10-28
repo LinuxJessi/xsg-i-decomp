@@ -728,8 +728,7 @@ static int sdvTransOffset(SdvScreenPoint *screen, SdvScreenPoint *offset,
         "sqc2 vf1, 48(%1)\n\t"
         "sqc2 vf2, 32(%1)\n\t"
         "sqc2 vf3, 16(%1)\n\t"
-        "sqc2 vf4, 0(%1)\n\t"
-        "nop"
+        "sqc2 vf4, 0(%1)"
         :
         : "r"(&position), "r"(local_matrix)
         : "memory");

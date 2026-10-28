@@ -624,7 +624,7 @@ def main():
         "# any header the TU includes, one created after configure too, recompiles it. The",
         "# unit and root directories stay the last two arguments (tools/tu_audit.py reads them).",
         "rule cc",
-        f"  command = XENO_TU_DEPFILE=$out.d $cc $in $out $ccdir $cas $gflag {unit_dir} {ROOT}",
+        f"  command = XENO_EE_AS_OPTIONS='$asopts' XENO_TU_DEPFILE=$out.d $cc $in $out $ccdir $cas $gflag {unit_dir} {ROOT}",
         "  depfile = $out.d",
         "  deps = gcc",
         "  description = CC $in",
@@ -663,6 +663,17 @@ def main():
     if not compile_input.is_file():
         compile_input = ROOT / 'config/objects/overlays.compile.json'
 
+    def assembler_options(t):
+        """The TU contract's assembler options beyond `-EL -m5900 -mabi=eabi <G> ... -I .`
+        (user 2026-10-27: -g for every in-scope game C TU)."""
+        argv = t['assembler']['argv'].split()
+        if argv[:4] != ['-EL', '-m5900', '-mabi=eabi', '<G>'] or argv[-2:] != ['-I', '.']:
+            raise SystemExit(f"{t['name']}: unsupported assembler argv {t['assembler']['argv']!r}")
+        options = argv[4:-2]
+        if options not in ([], ['-g']):
+            raise SystemExit(f"{t['name']}: unsupported assembler options {options}")
+        return ' '.join(options)
+
     def emit_cc(raw_obj, name):
         if raw_obj in emitted_cc:
             return
@@ -680,7 +691,8 @@ def main():
         lines.extend([f"build {raw_obj}: cc {source} | {deps}",
                       f"  ccdir = {ROOT / t['compiler']['dir']}",
                       f"  cas = {ROOT / t['assembler']['path']}",
-                      f"  gflag = {t['flags'][1]}"])
+                      f"  gflag = {t['flags'][1]}",
+                      f"  asopts = {assembler_options(t)}"])
 
     for obj in objs:
         split = split_objects.get(obj)
@@ -733,7 +745,8 @@ def main():
             lines += [f"build {compiled_obj}: cc {source} | {deps}",
                       f"  ccdir = {ROOT / t['compiler']['dir']}",
                       f"  cas = {ROOT / t['assembler']['path']}",
-                      f"  gflag = {t['flags'][1]}"]
+                      f"  gflag = {t['flags'][1]}",
+                      f"  asopts = {assembler_options(t)}"]
             emitted_cc.add(compiled_obj)
             if split:
                 compile_input = ROOT / 'config/tu-build.json'

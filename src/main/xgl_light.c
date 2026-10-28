@@ -167,8 +167,7 @@ void xglLightCalcMatrix(XglLightSet *lightSet)
         "sqc2 vf24,176(%1)\n\t"
         "sqc2 vf25,192(%1)\n\t"
         "sqc2 vf26,208(%1)\n\t"
-        "sqc2 vf27,224(%1)\n\t"
-        "nop"
+        "sqc2 vf27,224(%1)"
         :
         : "r"((unsigned int)Vu0CallLightCalcMatrix / 8), "r"(lightSet)
         : "memory"

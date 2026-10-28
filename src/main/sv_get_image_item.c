@@ -860,9 +860,9 @@ int svLoadImageList(SvTypeList *typeList)
     return textureCount;
 }
 
-s16 svLoadMapperList(void)
+int svLoadMapperList(void)
 {
-    s16 result;
+    int result;
     int type;
     SvTypeList *typeLists = _imageMapper.typeLists;
 
@@ -1487,7 +1487,7 @@ void SGsRestoreEnv(void)
 }
 
 static void sefInitClipViewVolume(void *view) {
-    __asm__ __volatile__("lqc2 vf12, 0(%0)\n\tlqc2 vf13, 16(%0)\n\tlqc2 vf14, 32(%0)\n\tlqc2 vf15, 48(%0)\n\tlqc2 vf16, 64(%0)\n\tlqc2 vf17, 80(%0)\n\tlqc2 vf18, 96(%0)\n\tlqc2 vf19, 112(%0)\n\tnop" :  : "r"(view) : "memory");
+    __asm__ __volatile__("lqc2 vf12, 0(%0)\n\tlqc2 vf13, 16(%0)\n\tlqc2 vf14, 32(%0)\n\tlqc2 vf15, 48(%0)\n\tlqc2 vf16, 64(%0)\n\tlqc2 vf17, 80(%0)\n\tlqc2 vf18, 96(%0)\n\tlqc2 vf19, 112(%0)" :  : "r"(view) : "memory");
 }
 
 int sefClipViewVolumeA(void *scheduler)
@@ -1680,8 +1680,7 @@ static void svRotMatrixScale(void *dst, const void *src)
         "sqc2 vf9, 0(%0)\n\t"
         "sqc2 vf10, 16(%0)\n\t"
         "sqc2 vf11, 32(%0)\n\t"
-        "sqc2 vf12, 48(%0)\n\t"
-        "nop"
+        "sqc2 vf12, 48(%0)"
         : : "r"(dst), "r"(base), "r"(contrib), "r"(scale) : "memory");
 }
 

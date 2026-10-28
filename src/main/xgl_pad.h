@@ -1,5 +1,23 @@
 typedef struct XglPadRecord {
-    unsigned char unmodeled_00[0x48];
+    unsigned char packet[0x20];
+    unsigned char mode;
+    unsigned char actuator_count;
+    short mode_id;
+    unsigned char unmodeled_24[2];
+    unsigned char connection_state;
+    unsigned char setup_state;
+    unsigned short buttons;
+    unsigned short pressed;
+    unsigned short repeated;
+    unsigned short released;
+    unsigned short directions;
+    unsigned short direction_pressed;
+    unsigned short direction_repeated;
+    unsigned short direction_released;
+    signed char position[4];
+    short horizontal_pressure;
+    short vertical_pressure;
+    signed char pressure[8];
     signed char repeat_delay;       /* +0x48 */
     signed char repeat_interval;    /* +0x49 */
     unsigned short repeat_mask;    /* +0x4a */
@@ -27,3 +45,14 @@ void xglPadSetRepeat(int port, unsigned short mask, int delay, int interval);
 
 int scePadInit(int mode);
 int scePadPortOpen(int port, int slot, unsigned char *dma_buffer);
+int scePadGetState(int port, int slot);
+int scePadInfoMode(int port, int slot, int term, int offset);
+int scePadSetMainMode(int port, int slot, int mode, int lock);
+int scePadGetReqState(int port, int slot);
+int scePadInfoAct(int port, int slot, int actuator, int term);
+int scePadSetActAlign(int port, int slot, unsigned char *alignment);
+int scePadInfoPressMode(int port, int slot);
+int scePadEnterPressMode(int port, int slot);
+int scePadRead(int port, int slot, unsigned char *packet);
+int scePadSetActDirect(int port, int slot, unsigned char *actuator);
+extern unsigned char act_align_0[6];

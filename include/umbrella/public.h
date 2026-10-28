@@ -93,7 +93,6 @@ int MenuScenarioNoGet(void);
 int MenuEquipStealMaskCheck(void);
 const unsigned char *MenuSaveMapNameGet(int mapId);
 int MenuMainCharCheck(int charId);
-int MenuSortGet(int listIndex, int entryIndex);
 
 int MenuEtherWhoCheck(int etherId);
 
@@ -186,6 +185,7 @@ void MenuBgTaskMain(void);
 extern void xglVectorLength(float *destination, const Vector4 *vector);
 extern void xglMatrixStackUnit(void);
 void xglMatrixStackReverse(void);
+void xglMatrixStackInverse(void);
 void xglMatrixStackScale(const float scale[4]);
 void xglMatrixStackTrans(const float translation[4]);
 extern void xglMatrixStackRotX(float angle);
@@ -195,6 +195,7 @@ extern void xglMatrixStackSave(float matrix[4][4]);
 unsigned short xglSRand(void);
 float xglSin(float angle);
 float xglCos(float angle);
+void xglVectorScale(Vector4 *destination, const Vector4 *source, float scale);
 
 extern int xglCdReadFile(const char *name, void *buffer, int mode, int flags);
 void xglClockRead(XglClock *clock);

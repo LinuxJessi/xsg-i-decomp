@@ -974,7 +974,7 @@ typedef struct SefPtAllocatorState {
 
 /* Original TU-local scheduler storage, kept named for its recovered users. */
 
-static unsigned char _scheduler[0x55800];
+static SchedulerState _scheduler[128];
 
 void sefLerpIVectorA(const void *keys, void *vector);
 
@@ -1150,7 +1150,8 @@ typedef struct SefLineData {
     SefKey5 *size_vector_keys;
     SefKey3Table *float_keys;
     SefKey5 *light_keys;
-    unsigned char unmodeled_020[0x10];
+    unsigned short script_parameters[2];
+    unsigned char unmodeled_024[0x0c];
     Vector4 global_position;                 /* +0x30 */
     unsigned char unmodeled_040[0x10];
     Vector4 parent_position;                 /* +0x50 */
@@ -1319,33 +1320,6 @@ typedef struct SefEffectDescriptor {
 } SefEffectDescriptor;
 
 extern int _nowScriptAdr;
-
-static inline void sefInitializeDescriptorEffect(EffectData *effect,
-                                                  SefEffectDescriptor *entry,
-                                                  int scheduler_index,
-                                                  ScriptBinding *binding,
-                                                  SefEffectDescriptor *descriptors)
-{
-    int owner;
-    owner = scGetImmAdrImmIdx2(_nowScriptAdr, (unsigned short *)entry, 1);
-
-    if (owner == 0) {
-        owner = 1;
-    }
-    sefInitEffectData(effect, owner, scheduler_index, entry->category);
-    if (entry->setting >= 0) {
-        binding->link_id = descriptors[entry->setting].category;
-    }
-}
-
-static inline void sefApplyDescriptorCommand(EffectData *effect, short command)
-{
-    if (command == -0x200) {
-        effect->active |= 0x10;
-    } else if (command == -0x201) {
-        effect->active |= 0x20;
-    }
-}
 
 static int sefFreeLocalData(unsigned char *line_data, unsigned int index);
 
@@ -1630,8 +1604,7 @@ static void sefLerpVectorA(void *keys, Vector4 *dest)
         "pextlh $10, $10, $9\n\t"
         "qmtc2 $10, $vf1\n\t"
         "vitof0.xyz $vf2xyz, $vf1xyz\n\t"
-        "sqc2 $vf2, 0(%1)\n\t"
-        "nop"
+        "sqc2 $vf2, 0(%1)"
         :
         : "r"(keys), "r"(dest)
         : "$9", "$10", "memory"
@@ -2411,7 +2384,7 @@ void sefGetVecMatrix(Matrix4 *dest, Vector4 *source_a, Vector4 *source_b)
 }
 
 static void sefGetDirVector(void *dest, void *source) {
-    __asm__ __volatile__("lqc2 vf1, 0(%0)\n\tvsub.z vf1, vf0, vf1\n\tvmulax.xyzw ACC, vf7, vf1x\n\tvmadday.xyzw ACC, vf8, vf1y\n\tvmaddaz.xyzw ACC, vf3, vf1z\n\tvmaddw.xyzw vf1, vf4, vf1w\n\tsqc2 vf1, 0(%1)\n\tnop" :  : "r"(source), "r"(dest) : "memory");
+    __asm__ __volatile__("lqc2 vf1, 0(%0)\n\tvsub.z vf1, vf0, vf1\n\tvmulax.xyzw ACC, vf7, vf1x\n\tvmadday.xyzw ACC, vf8, vf1y\n\tvmaddaz.xyzw ACC, vf3, vf1z\n\tvmaddw.xyzw vf1, vf4, vf1w\n\tsqc2 vf1, 0(%1)" :  : "r"(source), "r"(dest) : "memory");
 }
 
 static void sefGetStartPos(Vector4 *position, SefParticleOffset *record) {
@@ -2969,7 +2942,174 @@ static void sefDestroyLocalData(SefLocalData *data)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/sef", sefInitLineData);
+extern const float D_004D8320;
+extern const float D_004D8324;
+extern const float D_004D8328;
+extern const float D_004D832C;
+extern const float D_004D8330;
+
+static void sefAnalyzeAnim(unsigned char *object);
+
+static __inline__ float sefLineRandomOffset(short *range_word)
+{
+    int range = *range_word;
+    unsigned int seed;
+    int sample;
+
+    if (range != 0) {
+        seed = sefRandSeed * 0x41C64E6Du + 0x3039u;
+        sefRandSeed = seed;
+        sample = (seed >> 16) & 0x7fff;
+        return (float)(sample % range - range / 2);
+    }
+    return 0.0f;
+}
+
+static void sefInitLineData(SefLineData *line_data, int start_time, int frame,
+                            unsigned short *script_table, int link_index,
+                            int global_data_count, int has_line_flag)
+{
+    struct SefLineScriptHeader {
+        unsigned short table_indices[2];
+        short gravity;
+        short collision;
+        short height;
+    };
+    struct SefLineScriptHeader *line_script = (struct SefLineScriptHeader *)script_table;
+    unsigned short *key_table;
+    unsigned short *line_table;
+    short *scale_words;
+    short gravity_input;
+    short height_input;
+    short collision_input;
+    Vector4 *initial_position;
+    int source_mode;
+    SchedulerState *const *current_scheduler = &_nowScheduler;
+    float vector_scale;
+
+    key_table = (unsigned short *)scGetImmAdrImmIdx2(_nowScriptAdr, line_script->table_indices, 0);
+    line_table = (unsigned short *)scGetImmAdrImmIdx2(_nowScriptAdr, line_script->table_indices, 1);
+    gravity_input = line_script->gravity;
+    collision_input = line_script->collision;
+    height_input = line_script->height;
+
+    sefMemZero(line_data, 0x820);
+    memset(line_data->local_point_handles, -1, 0x200);
+
+    if (start_time == 0x1000) {
+        start_time = 0;
+    }
+    if (has_line_flag != 0) {
+        line_data->line_flags = 0x401;
+    } else {
+        line_data->line_flags = 1;
+    }
+
+    line_data->timer = frame - start_time;
+    line_data->link_index = link_index;
+    line_data->start_time = start_time;
+    line_data->loop_mode = frame;
+    line_data->global_data_count = global_data_count;
+    line_data->gravity = (float)gravity_input * D_004D8320;
+    line_data->collision_progress = collision_input;
+    line_data->height = (float)height_input * D_004D8324;
+    line_data->field_80E = 0;
+    line_data->local_result = 0;
+    line_data->frame = 0;
+
+    if ((*current_scheduler)->flags & 0x400) {
+        line_data->line_flags |= 0x400;
+    }
+
+    line_data->scale_keys = (unsigned char *)scGetImmAdrImmIdx2(_nowScriptAdr, key_table, 0);
+    line_data->first_vector_keys = (struct SefKey5Table *)scGetImmAdrImmIdx2(_nowScriptAdr, key_table, 1);
+    line_data->rotation_keys = (unsigned char *)scGetImmAdrImmIdx2(_nowScriptAdr, key_table, 2);
+    line_data->second_vector_keys = (struct SefKey5Table *)scGetImmAdrImmIdx2(_nowScriptAdr, key_table, 3);
+    line_data->key_1E0 = (SefModeKeyTable *)scGetImmAdrImmIdx2(_nowScriptAdr, key_table, 4);
+    line_data->key_1E4 = (unsigned char *)scGetImmAdrImmIdx2(_nowScriptAdr, key_table, 5);
+    line_data->position_keys = (short *)scGetImmAdrImmIdx2(_nowScriptAdr, key_table, 6);
+    line_data->first_integer_keys = (struct SefKey3 *)scGetImmAdrImmIdx2(_nowScriptAdr, key_table, 7);
+    line_data->second_integer_keys = (struct SefKey3 *)scGetImmAdrImmIdx2(_nowScriptAdr, key_table, 8);
+    line_data->key_1F0 = (unsigned char *)scGetImmAdrImmIdx2(_nowScriptAdr, key_table, 9);
+
+    scale_words = (short *)line_data->scale_keys;
+    line_data->origin_offset.x = sefLineRandomOffset(&scale_words[1]);
+    line_data->origin_offset.y = sefLineRandomOffset(&scale_words[2]);
+    line_data->origin_offset.z = sefLineRandomOffset(&scale_words[3]);
+
+    if (line_data->first_vector_keys != 0 &&
+        line_data->first_vector_keys->keys[1].end_frame == 0x400) {
+        sefLerpIVectorA(line_data->first_vector_keys->keys[0].vector,
+                        &line_data->first_vector_progress.vector);
+    }
+    if (line_data->second_vector_keys != 0 &&
+        line_data->second_vector_keys->keys[1].end_frame == 0x400) {
+        sefLerpIVectorA(line_data->second_vector_keys->keys[0].vector,
+                        &line_data->second_vector_progress.vector);
+    }
+
+    if (line_data->scale_keys != 0 && ((short *)line_data->scale_keys)[9] == 0x400) {
+        sefLerpVectorA(line_data->scale_keys + 8, &line_data->global_position_source);
+        vector_scale = D_004D8328;
+        __asm__ __volatile__(
+            "lqc2 $vf1, 0(%0)\n\t"
+            "mfc1 $8, %1\n\t"
+            "qmtc2.ni $8, $vf2\n\t"
+            "vmulx.xyz $vf1, $vf1, $vf2x\n\t"
+            "sqc2 $vf1, 0(%0)"
+            :
+            : "r"(&line_data->global_position_source), "f"(vector_scale)
+            : "$8", "memory");
+    }
+    if (line_data->rotation_keys != 0 && ((short *)line_data->rotation_keys)[9] == 0x400) {
+        sefLerpVectorA(line_data->rotation_keys + 8, &line_data->parent_position_source);
+        vector_scale = D_004D832C;
+        __asm__ __volatile__(
+            "lqc2 $vf1, 0(%0)\n\t"
+            "mfc1 $8, %1\n\t"
+            "qmtc2.ni $8, $vf2\n\t"
+            "vmulx.xyz $vf1, $vf1, $vf2x\n\t"
+            "sqc2 $vf1, 0(%0)"
+            :
+            : "r"(&line_data->parent_position_source), "f"(vector_scale)
+            : "$8", "memory");
+    }
+    if (line_data->position_keys != 0 && line_data->position_keys[9] == 0x400) {
+        sefLerpVectorA(line_data->position_keys + 4,
+                       (Vector4 *)line_data->position_source);
+        vector_scale = D_004D8330;
+        __asm__ __volatile__(
+            "lqc2 $vf1, 0(%0)\n\t"
+            "mfc1 $8, %1\n\t"
+            "qmtc2.ni $8, $vf2\n\t"
+            "vmulx.xyz $vf1, $vf1, $vf2x\n\t"
+            "sqc2 $vf1, 0(%0)"
+            :
+            : "r"((Vector4 *)line_data->position_source), "f"(vector_scale)
+            : "$8", "memory");
+    }
+
+    line_data->script_parameters[0] = line_table[0];
+    line_data->script_parameters[1] = line_table[1];
+    line_data->initial_vector_keys = (SefKey5Prefix8 *)scGetImmAdrImmIdx2(_nowScriptAdr, line_table, 2);
+    line_data->rotation_vector_keys = (SefModeKeyTable *)scGetImmAdrImmIdx2(_nowScriptAdr, line_table, 3);
+    line_data->position_vector_keys = (SefKey5 *)scGetImmAdrImmIdx2(_nowScriptAdr, line_table, 4);
+    line_data->first_integer_keys_local = (SefKey3Table *)scGetImmAdrImmIdx2(_nowScriptAdr, line_table, 5);
+    line_data->size_vector_keys = (SefKey5 *)scGetImmAdrImmIdx2(_nowScriptAdr, line_table, 6);
+    line_data->second_integer_keys_local = (SefKey3 *)scGetImmAdrImmIdx2(_nowScriptAdr, line_table, 7);
+    line_data->light_keys = (SefKey5 *)scGetImmAdrImmIdx2(_nowScriptAdr, line_table, 8);
+    line_data->float_keys = (SefKey3Table *)scGetImmAdrImmIdx2(_nowScriptAdr, key_table, 5);
+
+    sefAnalyzeAnim((unsigned char *)line_data);
+
+    initial_position = &line_data->global_position;
+    source_mode = ((short *)line_data->scale_keys)[0];
+    if (source_mode != 4) {
+        sefGetPosition(initial_position,
+                       (unsigned char *)&line_data->global_position_source,
+                       source_mode);
+    }
+}
 
 static int sefAllocLineData(void)
 {
@@ -3554,7 +3694,198 @@ static void sefCheckFinish(int effect_no, int condition) {
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/sef", sefExecEffectData);
+/* One 12-byte command of an effect's script table, read by sefExecEffectData. */
+typedef struct SefEffectCommand {
+    short start_time;                /* +0x0 */
+    short frame;                     /* +0x2 */
+    unsigned short data_offset;      /* +0x4 */
+    short link_index;                /* +0x6 */
+    short count;                     /* +0x8 */
+    short flags;                     /* +0xa */
+} SefEffectCommand;
+
+extern const char D_004CBF38[];
+
+extern void func_A2C408(int value);
+
+extern void func_A2C430(int value);
+
+static void sefInitLineData(SefLineData *line, int start_time, int frame,
+                            unsigned short *script_table, int link_index,
+                            int count, int flags);
+
+static void sefSetHitSignal(SefActor *actor);
+
+static void sefSetSeSignal(SefActor *actor);
+
+int sefExecEffectData(EffectData *effect, int frame, short *active_count)
+{
+    SefEffectRequest *battle;
+    SefLineData *line;
+    SefLineData *linked;
+    int running;
+    int index;
+    int j;
+    int link_index;
+    unsigned int category_word;
+    int category;
+    short finish_condition;
+    unsigned char battle_active;
+
+    effect->frame = 0;
+    if (effect->owner == 0) {
+        return 0;
+    }
+
+    if (frame == (effect->category & 0x3ff)) {
+        if ((effect->active & 0x10) != 0) {
+            func_A2C408(0);
+        } else if ((effect->active & 0x20) != 0) {
+            func_A2C430(0);
+            _nowScheduler->flags |= 0x4000;
+        }
+    }
+
+    if ((effect->category & 0x1000) != 0) {
+        if ((unsigned char)((SefEffectRequest *)_battleData)->special == 0) {
+            sefDestroyEffectData((unsigned char *)effect);
+            effect->frame = 1;
+            return 0;
+        }
+        if (*active_count != 0) {
+            sefCheckFinish(frame, effect->category);
+            effect->category = (short)frame;
+            *active_count = 0;
+        }
+    }
+
+    category = effect->category;
+    finish_condition = category;
+    if ((effect->category & 0x2800) != 0 && frame >= (category & 0x3ff)) {
+        battle = (SefEffectRequest *)_battleData;
+        battle_active = (unsigned char)battle->special;
+        sefCheckFinish(frame, finish_condition);
+        if ((effect->category & 0x2000) != 0) {
+            _hitSignal = 1;
+            sefSetHitSignal((SefActor *)battle->target);
+        }
+        if ((effect->category & 0x800) != 0) {
+            _seSignal = 1;
+            sefSetSeSignal((SefActor *)battle->target);
+        }
+        if (battle_active == 0) {
+            sefDestroyEffectData((unsigned char *)effect);
+            effect->frame = 1;
+            return 0;
+        }
+        effect->category = (short)frame;
+        *active_count = 0;
+    }
+
+    category_word = *(unsigned int *)&effect->category;
+    if ((category_word & 0x7000) == 0x4000 && frame == (effect->category & 0x3ff)) {
+        effect->category = (short)frame;
+        _nowScheduler->flags |= 0x40;
+    }
+    if (frame >= effect->category) {
+        frame -= effect->category;
+        if ((unsigned int)effect->owner < 3U) {
+            sefDestroyEffectData((unsigned char *)effect);
+            effect->frame = 1;
+            return 0;
+        }
+
+        running = 0;
+        for (;;) {
+            SefEffectCommand *command;
+            unsigned short *line_script;
+            int script_index;
+            int start_time;
+            int command_frame;
+            short count;
+            short command_flags;
+
+            script_index = effect->flags;
+            command = (SefEffectCommand *)effect->owner + script_index;
+            start_time = command->start_time;
+            command_frame = command->frame;
+            count = command->count;
+            command_flags = command->flags;
+            link_index = command->link_index;
+
+            if (start_time < 1024) {
+                if (frame >= start_time) {
+                    if (script_index < 32) {
+                        line_script = (unsigned short *)scGetImmAdrImmIdx2(_nowScriptAdr,
+                            (unsigned short *)effect->owner, script_index * 6 + 2);
+                        if (line_script != 0) {
+                            line = (SefLineData *)sefAllocEffectData(effect);
+                            if (line != 0) {
+                                sefInitLineData(line, start_time, command_frame, line_script,
+                                                link_index, count, command_flags);
+                                if (start_time != 0x1000) {
+                                    continue;
+                                }
+                            } else {
+                                tracePrint(D_004CBF38);
+                            }
+                        }
+                    }
+                } else if (start_time != 0x400) {
+                    running = 1;
+                }
+            }
+            break;
+        }
+
+        effect->frame = 1;
+        for (index = 0; index < 32; index++) {
+            int handle;
+
+            handle = effect->lineHandles[index];
+            if (handle < 0) {
+                continue;
+            }
+            line = (SefLineData *)&_lineData[handle * SEF_LINE_DATA_RECORD_SIZE];
+            link_index = line->link_index;
+            if (link_index >= 0) {
+                link_index = effect->lineHandles[link_index];
+            }
+            _parentLine = link_index;
+            if (((int (*)(SefLineData *, int))sefExecLineData)(line, frame) != 0) {
+                running++;
+                continue;
+            }
+            sefFreeEffectData((unsigned char *)effect, index);
+            if (line->global_data_count != 0) {
+                continue;
+            }
+            for (j = 0; j < 32; j++) {
+                int handle;
+
+                if (j == index) {
+                    continue;
+                }
+                handle = effect->lineHandles[j];
+                if (handle < 0) {
+                    continue;
+                }
+                linked = (SefLineData *)&_lineData[handle * SEF_LINE_DATA_RECORD_SIZE];
+                if (linked->link_index == index) {
+                    sefFreeEffectData((unsigned char *)effect, j);
+                }
+            }
+        }
+
+        if (running == 0) {
+            sefDestroyEffectData((unsigned char *)effect);
+            effect->frame = 1;
+            return 0;
+        }
+        return effect->owner != 0;
+    }
+    return 1;
+}
 
 void sefInitScheduler(void)
 {
@@ -3581,7 +3912,42 @@ void sefInitScheduler(void)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/sef", sefAllocScheduler);
+extern int _schridx_1;
+extern const int _nowScript;
+extern const int _nowEvent;
+
+static int sefAllocScheduler(void *table)
+{
+    int start = _schridx_1;
+    int end = (start + 127) % 128;
+    int index = start;
+
+    while (index != end) {
+            int record_offset;
+            unsigned int marker_offset;
+            int binding_offset;
+            int *inUse;
+            ScriptBinding *binding;
+
+            index %= 128;
+            record_offset = index * SEF_SCHEDULER_RECORD_SIZE;
+            marker_offset = record_offset + offsetof(SchedulerState, inUse);
+            inUse = (int *)(marker_offset + (int)_scheduler);
+            if (*inUse == 0) {
+                binding_offset = record_offset + offsetof(SchedulerState, scriptBinding);
+                binding = (ScriptBinding *)(binding_offset + (int)_scheduler);
+                binding->link_id = -1;
+                binding->script_id = (unsigned short)_nowScript;
+                binding->task_id = (unsigned short)_nowEvent;
+                *inUse = (int)table;
+                _schridx_1 = (index + 1) % 128;
+                binding->state = 0;
+                return index;
+            }
+            index++;
+    }
+    return -1;
+}
 
 void sefFreeSchedulerCf(SchedulerState *scheduler)
 {
@@ -3607,7 +3973,67 @@ void sefFreeSchedulerCf(SchedulerState *scheduler)
   }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/sef", sefFreeScheduler);
+/* _scriptWork has 16 script records of 0x450 bytes; its active-task
+ * counter is the halfword at +0x448. */
+typedef struct SefScriptStatus {
+    unsigned char unmodeled_00[8];
+    short active_tasks;
+    unsigned char unmodeled_0a[6];
+} SefScriptStatus;
+
+typedef struct SefScriptReference {
+    unsigned char unmodeled_000[0x440];
+    SefScriptStatus status;
+} SefScriptReference;
+
+extern SefScriptReference _scriptWork[16];
+
+void sefFreeScheduler(unsigned int scheduler_index)
+{
+    enum {
+        scheduler_stride = sizeof(SchedulerState),
+        binding_offset = 0xa90
+    };
+    int byte_offset;
+    int script_id;
+    int i;
+    unsigned char (*effect)[0x30];
+    SefScriptStatus *status;
+    ScriptBinding *binding;
+    SchedulerState *scheduler;
+    SchedulerState *entry;
+
+    if (scheduler_index >= 128) {
+        return;
+    }
+    if (_scheduler[scheduler_index].inUse == 0) {
+        return;
+    }
+    scheduler = &_scheduler[scheduler_index];
+    if ((scheduler->flags & 0x202) != 0) {
+        sefFreeSchedulerCf(scheduler);
+        return;
+    }
+    effect = (unsigned char (*)[0x30])((unsigned char *)_scheduler
+        + 0xb0
+        + scheduler_index * scheduler_stride);
+    for (i = 31; i >= 0; i--, effect++) {
+        sefDestroyEffectData(*effect);
+    }
+    byte_offset = scheduler_index * scheduler_stride;
+    binding = (ScriptBinding *)((unsigned int)_scheduler
+        + (byte_offset + binding_offset));
+    script_id = binding->script_id;
+    if (script_id >= 0) {
+        status = &_scriptWork[script_id].status;
+        --status->active_tasks;
+    }
+    entry = (SchedulerState *)((unsigned int)_scheduler + byte_offset);
+    entry->inUse = 0;
+    binding->script_id = -1;
+    binding->task_id = -1;
+    binding->state = 0;
+}
 
 void sefDestroyScriptScheduler(int script_index)
 {
@@ -3643,6 +4069,33 @@ void sefDestroyScriptScheduler2(int script_index, int task_index)
         index++;
         record = (ScriptBinding *)((unsigned char *)record + 0xab0);
     } while (index < 0x80);
+}
+
+static inline void sefInitializeDescriptorEffect(EffectData *effect,
+                                                  SefEffectDescriptor *entry,
+                                                  int scheduler_index,
+                                                  ScriptBinding *binding,
+                                                  SefEffectDescriptor *descriptors)
+{
+    int owner;
+    owner = scGetImmAdrImmIdx2(_nowScriptAdr, (unsigned short *)entry, 1);
+
+    if (owner == 0) {
+        owner = 1;
+    }
+    sefInitEffectData(effect, owner, scheduler_index, entry->category);
+    if (entry->setting >= 0) {
+        binding->link_id = descriptors[entry->setting].category;
+    }
+}
+
+static inline void sefApplyDescriptorCommand(EffectData *effect, short command)
+{
+    if (command == -0x200) {
+        effect->active |= 0x10;
+    } else if (command == -0x201) {
+        effect->active |= 0x20;
+    }
 }
 
 static void sefInitEffectTbl(SefEffectDescriptor *entry, int scheduler_index, int init_flags)
@@ -4474,6 +4927,7 @@ void sefDeleteEffectWait(int character_id)
 {
     SefEffectRequest request;
     SchedulerState *schedulers;
+    int *in_use_slot;
     SchedulerState *scheduler;
     unsigned int table_address;
     short *effect_no_cursor;
@@ -4777,7 +5231,7 @@ void sefKillEffect(int effect_no)
     int index;
 
     record_offset = (unsigned char *)&schedulers->effect - (unsigned char *)schedulers;
-    control = (void *)(_scheduler + record_offset);
+    control = (void *)((unsigned char *)_scheduler + record_offset);
     index = 0;
     do {
         record = (void *)((unsigned char *)control - record_offset);
@@ -4796,7 +5250,69 @@ void sefHitEffect(void) {
     _hitFlag = 1;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/sef", sefPushEffect);
+/* sefPushEffect walks both tables with byte cursors anchored on SchedulerState.sourceActor (+0x6c0) and
+ * SefSavePrm.saved_words[3] (+0x40); the *_REL macros give a member offset relative to that anchor. */
+#define SEF_REL_FIELD(type, cursor, offset) (*(type *)((cursor) + (offset)))
+#define SEF_BACK_FIELD(type, cursor, distance) (*(type *)((cursor) - (distance)))
+#define SEF_SAVE_REL(member) ((int)offsetof(SefSavePrm, member) - (int)offsetof(SefSavePrm, saved_words[3]))
+#define SEF_SCHED_REL(member) ((int)offsetof(SchedulerState, member) - (int)offsetof(SchedulerState, sourceActor))
+
+void sefPushEffect(void)
+{
+    int index;
+    Vector4 *destination_position;
+    Vector4 *destination_orientation;
+    Vector4 *destination_vector;
+    unsigned char *scheduler;
+    unsigned char *scheduler_vector0;
+    unsigned char *scheduler_vector1;
+    unsigned char *scheduler_vector2;
+    unsigned char *save_cursor;
+    unsigned char *scheduler_cursor;
+    unsigned char *scheduler_base;
+    unsigned char *save_base;
+    int scheduler_offset;
+    int save_offset;
+
+    sefMemZero(_savePrm, sizeof(_savePrm));
+    scheduler = _scheduler;
+    scheduler_base = (unsigned char *)&((SchedulerState *)scheduler)->sourceActor;
+    save_base = (unsigned char *)&_savePrm[0].saved_words[3];
+    for (index = 0; index < SEF_SAVE_PRM_COUNT; index++) {
+        scheduler_offset = index * sizeof(SchedulerState);
+        save_offset = index * sizeof(SefSavePrm);
+        scheduler_cursor = scheduler_base + scheduler_offset;
+        save_cursor = save_base + save_offset;
+        if (SEF_REL_FIELD(int, scheduler_cursor, SEF_SCHED_REL(inUse)) != 0) {
+            destination_position = &_savePrm[index].position;
+            scheduler_vector0 = scheduler + 0x80;
+            __asm__ __volatile__(
+                "lq $8, 0(%1)\n\t"
+                "sq $8, 0(%0)"
+                : : "r"(destination_position), "r"(scheduler_offset + (int)scheduler_vector0) : "$8", "memory");
+            destination_orientation = &_savePrm[index].orientation;
+            scheduler_vector1 = scheduler + 0x90;
+            __asm__ __volatile__(
+                "lq $8, 0(%1)\n\t"
+                "sq $8, 0(%0)"
+                : : "r"(destination_orientation), "r"(scheduler_offset + (int)scheduler_vector1) : "$8", "memory");
+            destination_vector = &_savePrm[index].saved_vector;
+            scheduler_vector2 = scheduler + 0xA0;
+            __asm__ __volatile__(
+                "lq $8, 0(%1)\n\t"
+                "sq $8, 0(%0)"
+                : : "r"(destination_vector), "r"(scheduler_offset + (int)scheduler_vector2) : "$8", "memory");
+            SEF_BACK_FIELD(SefSaveActive, save_cursor, -SEF_SAVE_REL(active)) = SEF_BACK_FIELD(SefSaveActive, scheduler_cursor, -SEF_SCHED_REL(savedActive));
+            SEF_REL_FIELD(int, save_cursor, SEF_SAVE_REL(saved_words[0])) = SEF_REL_FIELD(int, scheduler_cursor, SEF_SCHED_REL(targetActor));
+            SEF_REL_FIELD(int, save_cursor, SEF_SAVE_REL(saved_words[1])) = SEF_REL_FIELD(int, scheduler_cursor, 0);
+            SEF_REL_FIELD(int, save_cursor, SEF_SAVE_REL(saved_words[2])) = SEF_REL_FIELD(int, scheduler_cursor, SEF_SCHED_REL(parentRecord));
+            SEF_REL_FIELD(int, save_cursor, 0) = SEF_REL_FIELD(int, scheduler_cursor, SEF_SCHED_REL(savedParameter));
+            SEF_REL_FIELD(SefSaveTail, save_cursor, SEF_SAVE_REL(saved_words[4])) = SEF_REL_FIELD(SefSaveTail, scheduler_cursor, SEF_SCHED_REL(flags));
+            SEF_REL_FIELD(unsigned short, save_cursor, SEF_SAVE_REL(effect_no)) = SEF_REL_FIELD(unsigned short, scheduler_cursor, SEF_SCHED_REL(effectNo));
+            save_cursor[SEF_SAVE_REL(saved_flags)] = scheduler_cursor[SEF_SCHED_REL(extraByte)];
+        }
+    }
+}
 
 void sefPopEffect(void)
 {
@@ -4875,7 +5391,7 @@ unsigned char *sefGetLineAdr(int line_index)
 
 unsigned char *sefGetScheduler(void)
 {
-    return _scheduler;
+    return (unsigned char *)_scheduler;
 }
 
 SchedulerState *sefGetNowScheduler(void)
@@ -4892,7 +5408,7 @@ unsigned char *sefGetParentLine(int line, int parent_local)
 }
 
 void sefScaleIVectorAdd(void *dest, void *scale_source, void *addend, float scale) {
-    __asm__ __volatile__("lqc2 vf1, 0(%0)\n\tlqc2 vf3, 0(%1)\n\tvitof0.xyzw vf1, vf1\n\tqmtc2.ni %2, vf2\n\tvmulx.xyz vf1, vf1, vf2x\n\tvadd.xyz vf3, vf1, vf3\n\tsqc2 vf3, 0(%3)\n\tnop" :  : "r"(scale_source), "r"(addend), "r"(scale), "r"(dest) : "memory");
+    __asm__ __volatile__("lqc2 vf1, 0(%0)\n\tlqc2 vf3, 0(%1)\n\tvitof0.xyzw vf1, vf1\n\tqmtc2.ni %2, vf2\n\tvmulx.xyz vf1, vf1, vf2x\n\tvadd.xyz vf3, vf1, vf3\n\tsqc2 vf3, 0(%3)" :  : "r"(scale_source), "r"(addend), "r"(scale), "r"(dest) : "memory");
 }
 
 void sefDeg2RadVector(Vector4 *dst, Vector4 *src)
@@ -4906,8 +5422,7 @@ void sefDeg2RadVector(Vector4 *dst, Vector4 *src)
             "mfc1 $8, %1\n\t"
             "qmtc2.ni $8, $vf1\n\t"
             "vmulx.xyz $vf2, $vf2, $vf1x\n\t"
-            "sqc2 $vf2, 0(%0)\n\t"
-            "nop"
+            "sqc2 $vf2, 0(%0)"
             :
             : "r"(dst), "f"(degToRad)
             : "$8", "memory"
@@ -4956,8 +5471,7 @@ void sefLerpVectorB(void *first, Vector4 *dest, float factor)
         "vsub.xyz $vf2, $vf2, $vf1\n\t"
         "vmulx.xyz $vf2, $vf2, $vf3x\n\t"
         "vadd.xyz $vf2, $vf2, $vf1\n\t"
-        "sqc2 $vf2, 0(%2)\n\t"
-        "nop"
+        "sqc2 $vf2, 0(%2)"
         :
         : "r"(first), "r"(second), "r"(dest), "f"(factor)
         : "$8", "$9", "$10", "$11", "memory"
@@ -4987,8 +5501,7 @@ void sefLerpIVectorB(void *first, Vector4 *dest, float factor)
         "vmulx.xyz $vf2, $vf2, $vf3x\n\t"
         "vadd.xyz $vf2, $vf2, $vf1\n\t"
         "vftoi0.xyzw $vf2, $vf2\n\t"
-        "sqc2 $vf2, 0(%2)\n\t"
-        "nop"
+        "sqc2 $vf2, 0(%2)"
         :
         : "r"(first), "r"(second), "r"(dest), "f"(factor)
         : "$8", "$9", "$10", "$11", "memory"

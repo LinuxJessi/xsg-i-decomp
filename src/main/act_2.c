@@ -905,8 +905,7 @@ static void ACT_modelDrawSub(Actor *actor)
             "lqc2 vf3, 0(%0)\n\t"
             "lqc2 vf2, 0(%1)\n\t"
             "vmul.xyz vf2, vf2, vf3\n\t"
-            "sqc2 vf2, 0(%0)\n\t"
-            "nop"
+            "sqc2 vf2, 0(%0)"
             :
             : "r"(scaleVector), "r"(&parent->scale)
             : "memory");
@@ -1083,7 +1082,89 @@ void ACT_resourceInit(void)
 {
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/act_2", ACT_initMotion);
+void *JNT_computeMatrix(JntWork *work, JntStaticChannel *channels, int argument);
+void *LOOK_eyeL_cont(JntWork *work, JntStaticChannel *channels, int argument);
+void *LOOK_eyeR_cont(JntWork *work, JntStaticChannel *channels, int argument);
+void *LOOK_sebo_cont(JntWork *work, JntStaticChannel *channels, int argument);
+void *LOOK_head_cont(JntWork *work, JntStaticChannel *channels, int argument);
+
+typedef struct ActorEnemyLookTarget {
+    unsigned char unmodeled_00[8];
+    float control;
+    float *point;
+} ActorEnemyLookTarget;
+
+typedef struct ActorEnemyLookLimits {
+    float *minimum;
+    float *maximum;
+} ActorEnemyLookLimits;
+
+void ACT_initMotion(Actor *actor)
+{
+    static float min[3];
+    static float max[3];
+    ActorAnimationState *animation = &actor->animation;
+    ActorAnimSlot *slot = &animation->slot;
+    int enemyIndex;
+    int stride;
+    int limitsOffset;
+    int targetOffset;
+    int anglesOffset;
+    ActorEnemyLookTarget *target;
+    float *angles;
+    ActorEnemyLookLimits *limits;
+    Vector4 *cleared = actor->cleared600;
+    unsigned short channelMask = 0x1ff;
+    int flags = 8;
+
+    slot->currentDataId = 0xffff;
+    slot->nextDataId = 0xffff;
+    slot->flags = flags;
+    slot->channelMask = channelMask;
+    slot->speed = 0.033333335f;
+    animation->blendDuration = 0.26666668f;
+    animation->blendWork[2] = 0;
+    animation->blendWork[0] = 0;
+    animation->blendWork[1] = 0;
+    animation->blendWork[3] = 0;
+    animation->animData = 0;
+    __asm__ __volatile__("sq $0, 0(%0)" : : "r" (&cleared[0]) : "memory");
+    __asm__ __volatile__("sq $0, 0(%0)" : : "r" (&cleared[1]) : "memory");
+    actor->attachmentCount = 0;
+    JNT_initProducer((struct JntProducer *)actor->jointProducer);
+    JNT_addConsumer((JntProducer *)actor->jointProducer, 0, JNT_computeMatrix, 0);
+
+    do {
+        if (actor->modelResource != 0 && strstr((char *)actor->modelResource + 0x10, "_face") != 0) {
+            JNT_addConsumer((JntProducer *)actor->jointProducer, 5, LOOK_eyeL_cont, (int)actor);
+            JNT_addConsumer((JntProducer *)actor->jointProducer, 8, LOOK_eyeR_cont, (int)actor);
+            break;
+        }
+
+        enemyIndex = actor->enemyIndex;
+        if (enemyIndex < 16) {
+            stride = enemyIndex * 14512;
+            targetOffset = stride + 0x3860;
+            anglesOffset = stride + 0x3870;
+            limitsOffset = stride + 0x3880;
+            target = (ActorEnemyLookTarget *)((char *)enepc + targetOffset);
+            angles = (float *)((char *)enepc + anglesOffset);
+            limits = (ActorEnemyLookLimits *)((char *)enepc + limitsOffset);
+            target->point = 0;
+            target->control = 0;
+            limits->minimum = min;
+            angles[0] = angles[1] = angles[2] = 0.0f;
+            limits->maximum = max;
+            min[0] = -0.52359879f;
+            min[1] = -1.39626348f;
+            min[2] = max[0] = 0.52359879f;
+            max[1] = 1.39626348f;
+            max[2] = 1.91986215f;
+        }
+        JNT_addConsumer((JntProducer *)actor->jointProducer, 36, LOOK_sebo_cont, (int)actor);
+        JNT_addConsumer((JntProducer *)actor->jointProducer, 48, LOOK_head_cont, (int)actor);
+    } while (0);
+}
 
 void ACT_setMotion(Actor *actor, int motionId)
 {

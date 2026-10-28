@@ -68,9 +68,9 @@ void xglVectorDivSubXYZ(Vector4 *destination, const Vector4 *numerator,
 
 extern void xglMatrixMul(Matrix *destination, Matrix *left, Matrix *right);
 
-void xglVectorScale(float scale, Vector4 *destination, const Vector4 *source);
+void xglVectorScale(Vector4 *destination, const Vector4 *source, float scale);
 
-void xglVectorScaleXYZ(float scale, Vector4 *destination, const Vector4 *source);
+void xglVectorScaleXYZ(Vector4 *destination, const Vector4 *source, float scale);
 
 void xglVectorScaleAdd(float scale, Vector4 *destination,
                        const Vector4 *source, const Vector4 *other);

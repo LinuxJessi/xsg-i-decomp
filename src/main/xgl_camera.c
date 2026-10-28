@@ -297,8 +297,7 @@ static void xglCameraTravelManual(XglCamera *camera)
     __asm__ __volatile__("lqc2 vf3, 0(%1)\n\t"
                          "lqc2 vf2, 0(%0)\n\t"
                          "vadd.xyz vf2, vf2, vf3\n\t"
-                         "sqc2 vf2, 0(%0)\n\t"
-                         "nop"
+                         "sqc2 vf2, 0(%0)"
                          : : "r"(&travel->angle_velocity), "r"(&travel->angle_delta)
                          : "memory");
     xglMatrixStackUnit();
@@ -540,8 +539,7 @@ static void xglCameraViewTravel(StudioCamera *studio, Vector4 *offset)
     __asm__ __volatile__("lqc2 vf3, 0(%1)\n\t"
                          "lqc2 vf2, 0(%0)\n\t"
                          "vsub.xyz vf2, vf2, vf3\n\t"
-                         "sqc2 vf2, 0(%2)\n\t"
-                         "nop"
+                         "sqc2 vf2, 0(%2)"
                          : : "r"(&travel->position), "r"(offset), "r"(&shift) : "memory");
     xglMatrixStackTrans(&shift.x);
     xglMatrixStackRotY(travel->rotation.y);

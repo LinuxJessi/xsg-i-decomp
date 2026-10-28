@@ -87,7 +87,7 @@ ROOT = TOOL_ROOT
 SCHEMA = 'tu-audit/2'
 TIMEOUT = 30
 CLASSES = ('ordinary', 'hardware', 'runtime-verbatim', 'native-ti', 'gnu-nested-function', 'ee-mmi',
-           'ee-asm-leaf', 'ee-fpu', 'ee-vu-clip', 'ee-assert-break')
+           'ee-asm-leaf', 'ee-fpu', 'ee-vu-clip', 'ee-assert-break', 'ee-retaddr-store', 'ee-asm-sort')
 # Classes whose functions may carry admitted inline assembly and are reported
 # `exact_c_with_asm` when they do: `hardware` (the ee-vu-cop2 route), `ee-mmi`
 # (constrained inline EE MMI, user decision 2026-10-10, docs/ee-mmi.md), and
@@ -96,8 +96,35 @@ CLASSES = ('ordinary', 'hardware', 'runtime-verbatim', 'native-ti', 'gnu-nested-
 # `ee-vu-clip` (the same decision extended on 2026-10-11 to the main/tu109 VU0
 # lane-test blocks, docs/ee-hand-asm.md), and `ee-assert-break` (the assert
 # macros' bare `break` trap through include/debug_break.h, user decision
-# 2026-10-11 on main/tu121, docs/ee-hand-asm.md).
-INLINE_ASM_CLASSES = ('hardware', 'ee-mmi', 'ee-asm-leaf', 'ee-fpu', 'ee-vu-clip', 'ee-assert-break')
+# 2026-10-11 on main/tu121, docs/ee-hand-asm.md), and `ee-retaddr-store` (the
+# one entry `sw $31,0($sp)` return-address store of UnduCheck, user decision
+# 2026-10-27 on main/tu273, docs/ee-hand-asm.md; that identity only), and
+# `ee-asm-sort` (the whole-body hand-written bubble sort of AlphaGroupSort, user
+# decision 2026-10-28 on main/tu106, docs/ee-hand-asm.md; that identity only).
+INLINE_ASM_CLASSES = ('hardware', 'ee-mmi', 'ee-asm-leaf', 'ee-fpu', 'ee-vu-clip', 'ee-assert-break',
+                      'ee-retaddr-store', 'ee-asm-sort')
+# The one function identity `ee-retaddr-store` admits (user decision 2026-10-27).
+RETADDR_STORE_IDENTITY = ('main', 'main/tu273', 'UnduCheck')
+# The one function identity `ee-asm-sort` admits (user decision 2026-10-28).
+ASM_SORT_IDENTITY = ('main', 'main/tu106', 'AlphaGroupSort')
+# The one `hardware` function whose COP2 block may open with the VU0 I-register
+# immediate `lui $2,0x3e00` -> `ctc2 $2,$vi21` (user decision 2026-10-28,
+# tools/match.py `vu0_i_immediate_c`, docs/ee-hand-asm.md).
+VU0_I_IMMEDIATE_IDENTITY = ('main', 'main/tu097', 'StartOfScan')
+# The one function identity whose TU may spell `__attribute__((packed))` on its
+# TU-local byte enum typedefs (user decision 2026-10-28 on main/tu125): the gp
+# byte stores GameMovieInit makes through pointer locals need a non-char,
+# non-zero alias set, which a packed enum gives and `unsigned char` does not.
+# Only the attribute of a whole `typedef enum [Tag] { ENUMERATORS }
+# __attribute__((packed)) Name;` declaration in the TU source itself (never a
+# header, a function body or any other declaration) is masked for admission,
+# and only when the TU defines GameMovieInit as C. Never a precedent.
+PACKED_ENUM_IDENTITY = ('main', 'main/tu125', 'GameMovieInit')
+_PACKED_ENUM_TYPEDEF = re.compile(
+    r'\s*typedef\s+enum\s+(?:[A-Za-z_]\w*\s*)?\{(?P<body>[^{}]*)\}\s*'
+    r'(?P<attribute>__attribute__\s*\(\s*\(\s*packed\s*\)\s*\))\s*'
+    r'(?P<name>[A-Za-z_]\w*)\s*;\s*')
+_PACKED_ENUM_BODY = re.compile(r'[A-Za-z_0-9\s=,+\-|<>()~]*')
 SOURCE_CLASS = {'game_c': 'ordinary', 'sdk_c': 'ordinary', 'runtime_c': 'ordinary', 'hand_asm': 'ordinary'}
 TU_MAPS = ('.work/tu-migration/map-main/tu-map-main.json', '.work/tu-migration/map-ovl/tu-map-ovl.json')
 BIND = {0: 'LOCAL', 1: 'GLOBAL', 2: 'WEAK'}
@@ -778,7 +805,7 @@ def debug_break_header_ok(text):
     """(ok, reason): include/debug_break.h, the one header that spells the
     `ee-assert-break` trap (docs/ee-hand-asm.md): its guard and the single
     DEBUG_BREAK() definition, nothing else. A function only gains the trap by
-    declaring `ee-assert-break`; `audit_c` refuses its #APP block otherwise."""
+    declaring `ee-assert-break` (or, for main/tu273 UnduCheck, `ee-retaddr-store`); `audit_c` refuses its #APP block otherwise."""
     code = re.sub(r'/\*.*?\*/|//[^\n]*', ' ', text, flags=re.S)
     lines = [re.sub(r'\s+', ' ', line).strip() for line in code.splitlines()]
     lines = [line for line in lines if line]
@@ -872,6 +899,12 @@ def admission(cls, tu_class=None, *, unit=None, tu_id=None, function=None):
         if (unit, tu_id, function) == ('main', 'main/tu211', 'sefCreateParticle'):
             return (match.sef_particle_scale_native_ti_c if tu_class == 'native-ti'
                     else match.sef_particle_scale_c)
+        # User decision 2026-10-28: StartOfScan's hand-written VU0 setup block may
+        # open with `lui $2,0x3e00` feeding `ctc2 $2,$vi21` (0.125f into I), for this
+        # identity only; every other scalar line keeps the ordinary hardware refusal.
+        if (unit, tu_id, function) == VU0_I_IMMEDIATE_IDENTITY:
+            return (match.vu0_i_immediate_native_ti_c if tu_class == 'native-ti'
+                    else match.vu0_i_immediate_c)
         # User decision 2026-10-18: compose the existing MMI and COP2 guards
         # only for these two original NML identities, not for hardware generally.
         if (unit, tu_id, function) in {
@@ -910,7 +943,52 @@ def admission(cls, tu_class=None, *, unit=None, tu_id=None, function=None):
         # The assert macros' bare debugger trap, spelled only as DEBUG_BREAK() of
         # include/debug_break.h (user decision 2026-10-11 on main/tu121, docs/ee-hand-asm.md).
         return match.assert_break_native_ti_c if tu_class == 'native-ti' else match.assert_break_c
+    if cls == 'ee-retaddr-store':
+        # One `sw $31,0($sp)` return-address store statement at entry, for main/tu273
+        # UnduCheck only (user decision 2026-10-27, docs/ee-hand-asm.md); never a precedent.
+        if (unit, tu_id, function) != RETADDR_STORE_IDENTITY:
+            def refused(*_args, **_kwargs):
+                raise ValueError('ee-retaddr-store is admitted only for %s %s' % RETADDR_STORE_IDENTITY[1:])
+            return refused
+        return match.retaddr_store_native_ti_c if tu_class == 'native-ti' else match.retaddr_store_c
+    if cls == 'ee-asm-sort':
+        # The whole-body hand-written bubble sort (lq/sq swap) of main/tu106 AlphaGroupSort
+        # only (user decision 2026-10-28, docs/ee-hand-asm.md); never a precedent.
+        if (unit, tu_id, function) != ASM_SORT_IDENTITY:
+            def refused(*_args, **_kwargs):
+                raise ValueError('ee-asm-sort is admitted only for %s %s' % ASM_SORT_IDENTITY[1:])
+            return refused
+        return match.asm_sort_native_ti_c if tu_class == 'native-ti' else match.asm_sort_c
     raise AuditError(f'unknown source class {cls!r}')
+
+
+def packed_enum_admission_items(unit, tu_id, tu, tu_text):
+    """({item.start: admission text}, [typedef names]) for PACKED_ENUM_IDENTITY.
+
+    Masks, for admission only (the compiled source is untouched), the single
+    `__attribute__((packed))` of each whole TU-local `typedef enum` declaration
+    of main/tu125 when that TU defines GameMovieInit as C (user decision
+    2026-10-28). Every other attribute, declaration, TU and header stays under
+    the ordinary refusal."""
+    if (unit, tu_id) != PACKED_ENUM_IDENTITY[:2] or not any(
+            b.key == PACKED_ENUM_IDENTITY[2] and b.state == 'c' for b in tu.blocks):
+        return {}, []
+    lexical_tokens = r'"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'|/\*.*?\*/|//[^\n]*'
+    items, names = {}, []
+    for item in tu.free_items():
+        if item.kind != 'decl' or item.conditional:
+            continue
+        text = item.text(tu_text)
+        lexical = re.sub(lexical_tokens, lambda m: ''.join('\n' if c == '\n' else ' ' for c in m[0]),
+                         text, flags=re.S)
+        found = _PACKED_ENUM_TYPEDEF.fullmatch(lexical)
+        if found is None or not _PACKED_ENUM_BODY.fullmatch(found['body']) or re.search(
+                r'\b(?:asm|__asm|__asm__|__attribute|__attribute__|_Pragma)\b', found['body']):
+            continue
+        start, end = found.span('attribute')
+        items[item.start] = text[:start] + ' ' * (end - start) + text[end:]
+        names.append(found['name'])
+    return items, names
 
 
 def included_names(text):
@@ -5718,6 +5796,13 @@ def _audit_body(args, result, checks, unit_dir, tu_c, tu_rel, contract, source_c
                                     deferred_source_attributes=deferred_attributes)
         checks.add('inherited_data_section_attributes', True, informational=True,
                    deferred=True, attributes=deferred_attributes)
+    packed_items, packed_names = packed_enum_admission_items(args.unit, args.tu_id, tu, tu_text)
+    if packed_names:
+        admission_items.update(packed_items)
+        checks.add('packed_enum_typedefs', True, informational=True,
+                   identity='%s %s %s' % PACKED_ENUM_IDENTITY, typedefs=packed_names,
+                   detail='user decision 2026-10-28: __attribute__((packed)) admitted on these TU-local '
+                          'enum typedefs only (GameMovieInit gp byte-store alias set); never a precedent')
     prelude_end = tu.prelude_end()
     prelude = ''.join(admission_items.get(i.start, tu_text[i.start:i.end]) + '\n' for i in tu.items
                       if i.end <= prelude_end and i.kind != 'rodata')
@@ -8154,6 +8239,27 @@ def matching_data_section_attributes(tu, tu_rel, obj, elf, required=False, data_
     return replacements, deferred, verified
 
 
+def _asm_sort_lines(lines):
+    """The non-empty #APP lines of a block, whitespace-normalised (`ee-asm-sort`)."""
+    out = []
+    for _, line in lines:
+        line = re.sub(r'\s*,\s*', ',', re.sub(r'\s+', ' ', line.strip()))
+        if line:
+            out.append(line)
+    return out
+
+
+# What the one admitted `ee-asm-sort` block assembles from: the template of
+# tools/match.py ASM_SORT_TEMPLATE with its two operands printed by cc1.
+def _asm_sort_emitted():
+    from tools import match
+    return [line.replace('%%', '%').replace('%0', 's_nAlphaGroup').replace('%1', 's_aAlphaGroup')
+            for line in match.ASM_SORT_TEMPLATE]
+
+
+ASM_SORT_EMITTED = _asm_sort_emitted()
+
+
 def audit_c(b, tu, prelude, tu_rel, header_set, regions, scaffold_names, obj_funcs, pool, start, cls,
             asm_contract, word_sites, unit=None, tu_id=None, adaptations=(), tu_repo=None,
             tu_class=None, contract_lost=None, storage_view_context=None):
@@ -8181,8 +8287,23 @@ def audit_c(b, tu, prelude, tu_rel, header_set, regions, scaffold_names, obj_fun
             elif cls == 'ee-assert-break' and [line.strip() for _, line in app['lines']
                                                if line.strip()] != ['break']:
                 prov.append(f'an ee-assert-break #APP block (line {app["line"]}) must be exactly `break`')
+            elif cls == 'ee-retaddr-store' and [line.strip() for _, line in app['lines']
+                                                if line.strip()] not in (['sw $31,0($sp)'], ['break']):
+                prov.append(f'an ee-retaddr-store #APP block (line {app["line"]}) must be exactly '
+                            f'`sw $31,0($sp)` (or the DEBUG_BREAK() `break`)')
+            elif cls == 'ee-asm-sort' and _asm_sort_lines(app['lines']) != ASM_SORT_EMITTED:
+                prov.append(f'an ee-asm-sort #APP block (line {app["line"]}) must be exactly the '
+                            f'AlphaGroupSort bubble sort of docs/ee-hand-asm.md')
             elif bad:
                 prov.append(f'inline asm emits data/sections: {bad[:3]}')
+        if cls == 'ee-asm-sort' and len(r['app']) != 1:
+            prov.append(f'an ee-asm-sort function emits exactly one #APP block, not {len(r["app"])}')
+        if cls == 'ee-retaddr-store':
+            stores = sum(1 for app in r['app'] if [line.strip() for _, line in app['lines']
+                                                   if line.strip()] == ['sw $31,0($sp)'])
+            if stores != 1:
+                prov.append(f'an ee-retaddr-store function emits exactly one `sw $31,0($sp)` #APP block, '
+                            f'not {stores}')
         for d in r['data']:
             if d['section'] in TEXT_SECTIONS:
                 prov.append(f'{d["directive"]} {d["operands"][:40]} in .text at line {d["line"]}')

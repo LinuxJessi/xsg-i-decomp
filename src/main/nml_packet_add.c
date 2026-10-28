@@ -552,8 +552,7 @@ static void _CurMatrixSet(const Matrix4 matrix)
         "lqc2 vf27, 0(%0)\n\t"
         "lqc2 vf28, 16(%0)\n\t"
         "lqc2 vf29, 32(%0)\n\t"
-        "lqc2 vf30, 48(%0)\n\t"
-        "nop"
+        "lqc2 vf30, 48(%0)"
         :
         : "r"(matrix)
         : "memory"
@@ -566,8 +565,7 @@ static void _CurMatrixGet(Matrix4 matrix)
         "sqc2 vf27, 0(%0)\n\t"
         "sqc2 vf28, 16(%0)\n\t"
         "sqc2 vf29, 32(%0)\n\t"
-        "sqc2 vf30, 48(%0)\n\t"
-        "nop"
+        "sqc2 vf30, 48(%0)"
         :
         : "r"(matrix)
         : "memory"
@@ -599,8 +597,7 @@ static void _CurMatrixMul(const Matrix4 matrix)
         "vmaddw.xyzw vf30, vf30, vf5w\n\t"
         "vmulw.xyzw vf27, vf2, vf0w\n\t"
         "vmulw.xyzw vf28, vf3, vf0w\n\t"
-        "vmulw.xyzw vf29, vf4, vf0w\n\t"
-        "nop"
+        "vmulw.xyzw vf29, vf4, vf0w"
         :
         : "r"(matrix)
         : "memory"
@@ -615,8 +612,7 @@ static void _CurApplyMatrix(Vector4 *destination, const Vector4 *source)
         "vmadday.xyzw ACC, vf28, vf31y\n\t"
         "vmaddaz.xyzw ACC, vf29, vf31z\n\t"
         "vmaddw.xyzw vf31, vf30, vf0w\n\t"
-        "sqc2 vf31, 0(%1)\n\t"
-        "nop"
+        "sqc2 vf31, 0(%1)"
         :
         : "r"(source), "r"(destination)
         : "memory"
@@ -671,8 +667,7 @@ static void _CurMatrixMul33norm(Vector4 *destination, const Vector4 *source)
         "vmulq.z vf25, vf25, Q\n\t"
         "sqc2 vf23, 0(%1)\n\t"
         "sqc2 vf24, 16(%1)\n\t"
-        "sqc2 vf25, 32(%1)\n\t"
-        "nop"
+        "sqc2 vf25, 32(%1)"
         :
         : "r"(source), "r"(destination)
         : "memory"
@@ -683,8 +678,7 @@ static void _CurSetViewScaleTrans(const Vector4 *view_scale, const Vector4 *view
 {
     __asm__ __volatile__(
         "lqc2 vf25, 0(%0)\n\t"
-        "lqc2 vf26, 0(%1)\n\t"
-        "nop"
+        "lqc2 vf26, 0(%1)"
         :
         : "r"(view_scale), "r"(view_translation)
         : "memory"
@@ -744,8 +738,7 @@ static void _CurSetMatrix(const Matrix4 matrix)
         "lqc2 vf27, 0(%0)\n\t"
         "lqc2 vf28, 16(%0)\n\t"
         "lqc2 vf29, 32(%0)\n\t"
-        "lqc2 vf30, 48(%0)\n\t"
-        "nop"
+        "lqc2 vf30, 48(%0)"
         :
         : "r"(matrix)
         : "memory"

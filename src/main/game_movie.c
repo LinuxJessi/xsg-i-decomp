@@ -8,6 +8,10 @@ extern int xglMovieClose(void *movie);
 
 static MovieInfo mi;
 
+extern void xglMovieInfoInit(MovieInfo *movie);
+
+extern void *GameResourceAlloc(int size);
+
 /* Defined in src/main/xgl_1.c, still INCLUDE_ASM there. */
 
 extern int xglMovieOpen(void *movie, char *name);
@@ -50,9 +54,20 @@ extern MovieRenderState sRender;
 
 extern PadPrefix PadData;
 
-extern unsigned char GameMovieTransparent;
+/* Byte-sized settings the Java class xeno.Movie writes through its
+ * "transparent" and "alpha" fields. */
+typedef enum MovieTransparency {
+    MOVIE_TRANSPARENCY_OFF = 0,
+    MOVIE_TRANSPARENCY_ON = 1
+} __attribute__((packed)) MovieTransparency;
 
-extern unsigned char GameMovieAlpha;
+typedef enum MovieAlpha {
+    MOVIE_ALPHA_OPAQUE = 0x80
+} __attribute__((packed)) MovieAlpha;
+
+extern MovieTransparency GameMovieTransparent;
+
+extern MovieAlpha GameMovieAlpha;
 
 extern short GameMovieFrame;
 
@@ -439,4 +454,26 @@ finish_movie_pause:
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/game_movie", GameMovieInit);
+void GameMovieInit(int size)
+{
+    unsigned int span;
+    unsigned char *buffer;
+    MovieAlpha *alpha = &GameMovieAlpha;
+    MovieTransparency *transparent = &GameMovieTransparent;
+
+    span = size * 2;
+    buffer = GameResourceAlloc(span + 0x10000);
+    xglMovieInfoInit(&mi);
+    mi.source_data = buffer;
+    buffer += span;
+    mi.display_base = buffer;
+    buffer += 0x8000;
+    mi.opened = 1;
+    mi.source_size = size;
+    mi.display_end = buffer;
+    mi.copy_mode = 0;
+    mi.threshold1 = 0;
+    mi.transparent = 0;
+    *alpha = MOVIE_ALPHA_OPAQUE;
+    *transparent = MOVIE_TRANSPARENCY_OFF;
+}

@@ -31,6 +31,4 @@ int MenuMainCharCheck(int charId);
 
 unsigned short MenuFaceEpidGet(int charId, int smallPortrait);
 
-int MenuSortGet(int listIndex, int entryIndex);
-
 #endif /* INCLUDE_MAIN_MENU_1_H */

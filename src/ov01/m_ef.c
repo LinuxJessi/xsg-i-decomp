@@ -440,15 +440,11 @@ Vector4 *MEfScatterXY(Vector4 *out, const Vector4 *source, const Vector4 *actor,
     MMathRotateMatrixYX(matrix, (const Vector4 *)0, &angles);
 
     /* Put actor at the translation row of the matrix, forcing that row's w
-       lane to the architectural VF0.w = 1 rather than keeping actor's own w.
-       The trailing nop is the delay-slot filler the original assembler left
-       before the call below: without it the assembler in reorder mode moves
-       this sqc2 into that call's delay slot. */
+       lane to the architectural VF0.w = 1 rather than keeping actor's own w. */
     __asm__ __volatile__(
         "lqc2 $vf1,0(%1)\n\t"
         "vmove.w $vf1w,$vf0w\n\t"
-        "sqc2 $vf1,48(%0)\n\t"
-        "nop"
+        "sqc2 $vf1,48(%0)"
         :
         : "r"(matrix), "r"(actor)
         : "memory"

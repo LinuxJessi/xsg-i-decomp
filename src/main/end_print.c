@@ -1426,7 +1426,153 @@ static void PrintNumber(EndPrintContext *context, PrintNumberInfo *number)
 }
 
 
-INCLUDE_ASM("asm/main/nonmatchings/end_print", PrintWindow);
+typedef struct PrintFrameInfo {
+    short x, y;
+    int depth;
+    short width, height;
+    unsigned char color[4];
+} PrintFrameInfo;
+
+static void PrintWindow(EndPrintContext *context, PrintFrameInfo *frame)
+{
+    short left[8];
+    short top[8];
+    short width[8];
+    short height[8];
+    int count;
+    int *words;
+    int *command;
+    int i;
+    short windowHeight;
+    unsigned short frameHeight;
+    unsigned short frameX;
+    unsigned short frameY;
+    unsigned short frameWidth;
+    int innerX;
+    int innerY;
+    int right;
+    int bottom;
+    int innerWidth;
+    int innerHeight;
+    int depth;
+    int strip;
+
+    command = (int *)context->scratch;
+    endPrintInfoSet(context, 0xfde00, 1);
+    words = command;
+    words[1] = 0x10000000;
+    words[2] = words[0] = 1;
+    count = 2;
+    words[3] = 0;
+    windowHeight = frame->height;
+    words += 4;
+    words[0] = frame->color[0];
+    frameHeight = frame->height;
+    words[1] = frame->color[2];
+    words[2] = frame->color[1];
+    words[3] = frame->color[3];
+    words += 4;
+    if (windowHeight >= 7) {
+        int remaining = windowHeight - 6;
+        int strips;
+
+        strips = remaining / 128 + 1;
+        words[0] = strips;
+        words[1] = 0x40ab4000;
+        words[2] = 0x5353;
+        words[3] = 0;
+        words += 4;
+        for (strip = 0; strip < strips; strip++) {
+            int textureV;
+            int depthWord;
+            int stripWidth;
+            const SpriteUv *interiorUv = (const SpriteUv *)win_uv;
+            unsigned short windowX = frame->x;
+            unsigned short windowY = frame->y;
+            unsigned short windowWidth = frame->width;
+
+            words[0] = interiorUv[8].u * 16;
+            textureV = interiorUv[8].v * 16;
+            words[4] = ((short)windowX + 3) * 16 + 0x6ff8;
+            words[1] = textureV;
+            words[2] = 0;
+            words[3] = 0;
+            words[5] = ((short)windowY + 3 + strip * 128) * 16 + 0x71f8;
+            depthWord = frame->depth;
+            words[7] = 0;
+            words[6] = depthWord & 0xffffff;
+            if (remaining > 128) {
+                words[13] = words[5] + 0x800;
+                words[9] = words[1] + interiorUv[8].height * 16;
+            } else {
+                words[9] = textureV + remaining * 16;
+                words[13] = words[5] + remaining * 16;
+            }
+            remaining -= 128;
+            words[10] = 0;
+            words[11] = 0;
+            words[15] = 0;
+            words[8] = words[0] + interiorUv[8].width * 16;
+            stripWidth = ((short)windowWidth - 6) * 16;
+            words[12] = words[4] + stripWidth;
+            words[14] = words[6];
+            words += 16;
+        }
+        count = strips * 4 + 3;
+    }
+    frameX = frame->x;
+    frameY = frame->y;
+    frameWidth = frame->width;
+    words[0] = 0x8008;
+    left[5] = left[3] = left[0] = frameX;
+    innerX = frameX + 3;
+    left[6] = left[1] = innerX;
+    right = innerX + frameWidth - 6;
+    left[2] = right;
+    left[4] = right;
+    innerWidth = frameWidth - 6;
+    top[2] = top[1] = top[0] = frameY;
+    innerY = frameY + 3;
+    top[3] = innerY;
+    left[7] = right;
+    top[4] = innerY;
+    bottom = innerY + frameHeight - 6;
+    top[5] = bottom;
+    innerHeight = frameHeight - 6;
+    top[6] = bottom;
+    top[7] = bottom;
+    width[0] = 3;
+    width[2] = 3;
+    width[7] = width[5] = width[4] = width[3] = 3;
+    width[6] = width[1] = innerWidth;
+    height[6] = height[5] = height[2] = height[1] = height[0] = 3;
+    height[7] = 3;
+    height[4] = height[3] = innerHeight;
+    words[1] = 0x40ab4000;
+    words[2] = 0x5353;
+    words[3] = 0;
+    words += 4;
+    for (i = 0; i < 8; i++) {
+        words[0] = ((const short *)win_uv)[i * 4] * 16;
+        words[1] = ((const short *)win_uv)[i * 4 + 1] * 16;
+        words[4] = left[i] * 16 + 0x6ff8;
+        words[5] = top[i] * 16 + 0x71f8;
+        words[2] = 0;
+        words[3] = 0;
+        depth = frame->depth & 0xffffff;
+        words[8] = words[0] + ((const short *)win_uv)[i * 4 + 2] * 16;
+        words[9] = words[1] + ((const short *)win_uv)[i * 4 + 3] * 16;
+        words[12] = words[4] + width[i] * 16;
+        words[13] = words[5] + height[i] * 16;
+        words[14] = words[6] = depth;
+        words[7] = 0;
+        words[10] = 0;
+        words[11] = 0;
+        words[15] = 0;
+        words += 16;
+    }
+    xglPrimAddGifTagDirect(context->packet, command, count + i * 4 + 1);
+}
 
 typedef struct PrintUnsignedFrameInfo {
     unsigned short x, y;

@@ -65,6 +65,14 @@ typedef struct LookCharacter {
     unsigned int headFlags;
 } LookCharacter;
 
+/* The character's look rows and eye states viewed as float rows (0x600 and 0x640). */
+typedef struct LookAngleView {
+    unsigned char unmodeled_000[0x600];
+    float lookAngles[2][4];
+    unsigned char unmodeled_620[0x20];
+    float eyeAngles[2][4];
+} LookAngleView;
+
 typedef struct LookModelRecord {
     unsigned char unmodeled_00[0x11];
     char name[0x48 - 0x11];
@@ -96,6 +104,10 @@ float xglAtan2(float x, float y);
 #define D_004D859C 0.0872664675116539f
 #define D_004D85A0 0.1745329350233078f
 #define D_004D85A4 0.0872664675116539f
+#define D_004D8568 0.0001f
+#define D_004D856C 0.13962633907794952f
+#define D_004D8570 0.13962633907794952f
+#define D_004D8574 0.2f
 
 void CUR_MATRIX_Set(Matrix4 matrix);
 void CUR_MATRIX_Txyz4s(const float *displacement);
@@ -136,5 +148,13 @@ void LOOK_eyeR_cont(int model, int target, int step);
 
 /* MARK provisional: .lit4 0x004d85ac */
 #define D_004D85AC (-0.03999999911f)
+
+/* Eye scale, step and rotation constants. */
+#define D_004D85B0 0.4f
+#define D_004D85B4 0.005235988f
+#define D_004D85B8 0.13962634f
+#define D_004D85BC 0.13962634f
+#define D_004D85C0 0.3f
+#define D_004D85C4 0.6f
 
 #endif /* SRC_MAIN_LOOK_H */

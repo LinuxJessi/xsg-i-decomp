@@ -6,6 +6,7 @@
 
 #include "nml_model_set.h"
 #include "main/xgl_studio.h"
+#include "main/get.h"
 
 extern unsigned char s_aDispVisible[];
 
@@ -97,8 +98,8 @@ typedef struct NmlProRealFields {
      * whole-qword copy destinations. Their base is 0x0095B940 and every
      * access is at a 16-byte slot in the corresponding function.s; model
      * each owned qword directly, without an overlay. */
-    Vector4 unmodeled_080[4];
-    Vector4 unmodeled_0c0[4];
+    NmlVector4Overlay unmodeled_080[4];
+    NmlVector4Overlay unmodeled_0c0[4];
     int unmodeled_100;
     int unmodeled_104;
     int unmodeled_108;
@@ -120,14 +121,17 @@ typedef struct NmlProRealFields {
     float textureVScale;
     Vector4 transformOrigin;
     Vector4 unmodeled_160;
-    Vector4 unmodeled_170[2];
-    Vector4 unmodeled_190[3];
+    NmlVector4Overlay unmodeled_170[2];
+    NmlVector4Overlay unmodeled_190[3];
 } NmlProRealFields;
 
 typedef struct NmlProRealState {
     NmlProRealFields fields;
     int projection_entry;
-    unsigned char unmodeled_1c4[0x1e0 - 0x1c4];
+    unsigned char unmodeled_1c4[0x1c8 - 0x1c4];
+    u64 unmodeled_1c8;
+    u64 unmodeled_1d0;
+    unsigned char unmodeled_1d8[0x1e0 - 0x1d8];
 } NmlProRealState;
 
 
@@ -615,7 +619,7 @@ extern int s_nRenderCancel;
 
 extern int g_nPacketOver;
 
-extern void AlphaGroupSort(void);
+static void AlphaGroupSort(void);
 
 extern void nmlPacketAddTransMicrocodeInit(void);
 
@@ -859,8 +863,7 @@ static void _CurSetMatrix(float matrix[4][4])
         "lqc2 $vf27,0(%0)\n\t"
         "lqc2 $vf28,16(%0)\n\t"
         "lqc2 $vf29,32(%0)\n\t"
-        "lqc2 $vf30,48(%0)\n\t"
-        "nop"
+        "lqc2 $vf30,48(%0)"
         :
         : "r"(matrix)
         : "memory"
@@ -871,8 +874,7 @@ static void _CurSetViewScaleTrans(const float viewScale[4], const float viewTran
 {
     __asm__ __volatile__(
         "lqc2 $vf25,0(%0)\n\t"
-        "lqc2 $vf26,0(%1)\n\t"
-        "nop"
+        "lqc2 $vf26,0(%1)"
         :
         : "r"(viewScale), "r"(viewTrans)
         : "memory"
@@ -933,8 +935,7 @@ static void _CurRotTransPersFog(Vector4 *destination, const Vector4 *vector, con
         "vmaddq.w vf31, vf4, Q\n\t"
         "vmaxx.w vf31, vf31, vf4x\n\t"
         "vminiy.w vf31, vf31, vf4y\n\t"
-        "sqc2 vf31, 0(%0)\n\t"
-        "nop"
+        "sqc2 vf31, 0(%0)"
         :
         : "r"(destination), "r"(vector), "r"(fog)
         : "memory"
@@ -948,8 +949,7 @@ static void _CurApplyMatrix(Vector4 *destination, const Vector4 *vector) {
         "vmadday.xyzw ACC, vf28, vf31y\n\t"
         "vmaddaz.xyzw ACC, vf29, vf31z\n\t"
         "vmaddw.xyzw vf31, vf30, vf0w\n\t"
-        "sqc2 vf31, 0(%1)\n\t"
-        "nop"
+        "sqc2 vf31, 0(%1)"
         :
         : "r"(vector), "r"(destination)
         : "memory"
@@ -999,8 +999,7 @@ static void _WeightToGlobalVec(Vector4 *destination, const Matrix4 matrix, const
         "vmadday.xyzw ACC, vf28, vf2y\n\t"
         "vmaddaz.xyzw ACC, vf29, vf2z\n\t"
         "vmaddw.xyzw vf30, vf30, vf2w\n\t"
-        "sqc2 vf30, 0(%0)\n\t"
-        "nop"
+        "sqc2 vf30, 0(%0)"
         :
         : "r"(destination), "r"(matrix), "r"(weights)
         : "$2", "$3", "$4", "$5", "$6", "$7", "$8", "$9", "memory");
@@ -1013,8 +1012,7 @@ static void _MinMaxSort(Vector4 *min, Vector4 *max) {
         "vmini.xyz vf22, vf20, vf21\n\t"
         "vmax.xyz vf23, vf20, vf21\n\t"
         "sqc2 vf22, 0(%0)\n\t"
-        "sqc2 vf23, 0(%1)\n\t"
-        "nop"
+        "sqc2 vf23, 0(%1)"
         :
         : "r"(min), "r"(max)
         : "memory"
@@ -1896,7 +1894,7 @@ void nmlModelSetGlobalPointLight(int index, const Vector4 *position, const Vecto
             : "r"(point), "r"(position)
             : "$2", "memory"
         );
-        xglVectorScaleXYZ(128.0f, &s_inGblPointC[index], color);
+        xglVectorScaleXYZ(&s_inGblPointC[index], color, 128.0f);
         s_inLayout.fields.render_status |= 0x02000000;
     }
 }
@@ -1904,7 +1902,7 @@ void nmlModelSetGlobalPointLight(int index, const Vector4 *position, const Vecto
 void nmlModelSetGlobalPointLightCol(int index, const Vector4 *color)
 {
     if (index < 3U) {
-        xglVectorScaleXYZ(128.0f, &s_inGblPointC[index], color);
+        xglVectorScaleXYZ(&s_inGblPointC[index], color, 128.0f);
         s_inLayout.fields.render_status |= 0x02000000;
     }
 }
@@ -1938,7 +1936,7 @@ void nmlModelSetPointLight(unsigned int index, const Vector4 *position, const Ve
             "sq $2, 0(%0)\n"
             : : "r" (&s_inLayout.fields.pointPosition[index]), "r" (position)
             : "$2", "memory");
-        xglVectorScaleXYZ(128.0f, &s_inLayout.fields.pointColor[index], color);
+        xglVectorScaleXYZ(&s_inLayout.fields.pointColor[index], color, 128.0f);
         s_inLayout.fields.render_status |= 0x1000;
     }
 }
@@ -2805,7 +2803,49 @@ static void AlphaGroupLastEntry(void)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", AlphaGroupSort);
+/* Sorts the s_nAlphaGroup alpha groups by descending sortDistance. The
+ * original is hand-written assembly: a bubble sort that swaps neighbouring
+ * 16-byte records with one lq/sq pair and repeats the pass until it makes no
+ * swap. */
+static void AlphaGroupSort(void)
+{
+    __asm__ __volatile__(
+        ".set noreorder\n\t"
+        "lw $8,%0\n\t"
+        "slti $2,$8,2\n\t"
+        "bne $2,$0,3f\n\t"
+        "lui $7,%%hi(%1)\n\t"
+        "addiu $7,$7,%%lo(%1)\n"
+        "1:\n\t"
+        "move $5,$0\n\t"
+        "move $4,$8\n\t"
+        "addi $4,$4,-1\n\t"
+        "move $6,$7\n"
+        "2:\n\t"
+        "lwc1 $f1,4($6)\n\t"
+        "lwc1 $f0,20($6)\n\t"
+        "c.le.s $f0,$f1\n\t"
+        "nop\n\t"
+        "bc1t 4f\n\t"
+        "nop\n\t"
+        "lq $2,0($6)\n\t"
+        "lq $3,16($6)\n\t"
+        "sq $3,0($6)\n\t"
+        "sq $2,16($6)\n\t"
+        "addi $5,$5,1\n"
+        "4:\n\t"
+        "addi $6,$6,16\n\t"
+        "addi $4,$4,-1\n\t"
+        "bne $0,$4,2b\n\t"
+        "nop\n\t"
+        "bne $0,$5,1b\n\t"
+        "nop\n"
+        "3:\n\t"
+        ".set reorder"
+        :
+        : "m"(s_nAlphaGroup), "i"(s_aAlphaGroup)
+        : "$2", "$3", "$4", "$5", "$6", "$7", "$8", "$f0", "$f1", "memory");
+}
 
 static int is_shadow_map_parts(const LayoutStore *layout, int partId)
 {
@@ -3364,11 +3404,404 @@ static void nmlModelCalcDropShadow(void)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", nmlModelCalcEntryProjectCircle);
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", nmlModelCalcEntryProjectMap);
+static void nmlModelCalcEntryProjectCircle(NmlModel *model)
+{
+    extern void nmlModelSetProreal(NmlProRealState *);
+    extern void xglMatrixStackInverse(void);
+    extern void xglVectorNormal(Vector4 *, const Vector4 *);
+    extern void xglVectorScaleXYZ(Vector4 *, const Vector4 *, float);
+    typedef union { Vector4 v; u64 q[2]; } ProjectionQuad;
+    extern ProjectionQuad D_004D28B0;
+    extern ProjectionQuad D_004D28C0;
+    extern ProjectionQuad D_004D28D0;
+    Vector3 projectionAngles;
+    Matrix savedMatrix;
+    ProjectionQuad screenScaleStorage = D_004D28B0;
+    ProjectionQuad screenCenter = D_004D28C0;
+    ProjectionQuad screenOffsetStorage = D_004D28D0;
+    Vector4 cameraTranslation;
+    Vector4 normal;
+    Vector4 spare;
+    float scale;
+    float inverseScale;
+    float modelScale;
+    float offset;
+    float value;
+    float one;
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", nmlModelCalcEntryPartsClip);
+    s_inProReal[0].fields.unmodeled_190[0].q = s_inLayout.fields.unmodeled_1f0.q;
+    inverseScale = 0.9f;
+    modelScale = model->entryTranslation.w * inverseScale;
+    scale = 1.0f;
+    one = 1.0f;
+    scale /= modelScale;
+
+    screenScaleStorage.v.x *= scale;
+    screenScaleStorage.v.y *= scale;
+    projectionAngles.x = 1.5707964f;
+    cameraTranslation.x = 0.0f;
+    cameraTranslation.y = one;
+    cameraTranslation.z = 0.0f;
+    cameraTranslation.w = one;
+    projectionAngles.z = 0.0f;
+    projectionAngles.y = 0.0f;
+    __asm__ __volatile__(
+        "lqc2 vf3, 0(%0)\n\t"
+        "lqc2 vf2, 0(%1)\n\t"
+        "vadd.xyz vf2, vf2, vf3\n\t"
+        "sqc2 vf2, 0(%1)"
+        :
+        : "r"(&s_inProReal[0].fields.unmodeled_190[0].v), "r"(&cameraTranslation)
+        : "memory");
+
+    xglMatrixStackUnit();
+    xglMatrixStackTrans(&cameraTranslation.x);
+    xglMatrixStackRotY(projectionAngles.y);
+    xglMatrixStackRotX(projectionAngles.x);
+    xglMatrixStackSave(s_inProReal[0].fields.matrix_000);
+    xglMatrixStackInverse();
+    xglMatrixStackSave((float (*)[4])savedMatrix.elements);
+    xglMatrixStackUnit();
+
+    screenOffsetStorage.v.x -= ((float)sRender.reso.frame_width - screenCenter.v.x) * 0.5f;
+    screenOffsetStorage.v.y -= ((float)*(short *)((char *)&sRender + 0x6) - screenCenter.v.y) * 0.5f;
+    xglMatrixStackTrans(&screenOffsetStorage.v.x);
+    xglMatrixStackScale(&screenScaleStorage.v.x);
+    xglMatrixStackMul((const float (*)[4])savedMatrix.elements);
+    xglMatrixStackSave(s_inLayout.fields.projectionMatrix);
+
+    *(u64 *)((char *)s_inProReal + 0x1c8) = 0x89;
+    *(u64 *)((char *)s_inProReal + 0x1d0) = 0x3200000062LL;
+    s_inProReal[0].fields.unmodeled_100 = 0;
+    s_inProReal[0].fields.unmodeled_104 = 0;
+    s_inProReal[0].fields.unmodeled_108 = 0x40;
+    s_inProReal[0].fields.unmodeled_10c = 0x40;
+    s_inProReal[0].fields.unmodeled_116 = sRender.texture_buffer_base;
+    s_inProReal[0].fields.unmodeled_118 = 0x80;
+    s_inProReal[0].fields.unmodeled_114 = 0x13;
+    s_inProReal[0].fields.unmodeled_110 = 0;
+    s_inProReal[0].fields.unmodeled_112 = 0;
+    s_inProReal[0].fields.unmodeled_120 = 64.0f / (scale * 64.0f);
+    s_inProReal[0].fields.unmodeled_124 = 64.0f / (scale * 64.0f);
+    s_inProReal[0].fields.unmodeled_170[0].v.x =
+        s_inProReal[0].fields.unmodeled_170[0].v.y =
+        s_inProReal[0].fields.unmodeled_170[0].v.z = 0.0f;
+    s_inProReal[0].fields.unmodeled_170[0].v.w = one;
+    s_inProReal[0].fields.unmodeled_170[1].v.x =
+        s_inProReal[0].fields.unmodeled_170[1].v.y =
+        s_inProReal[0].fields.unmodeled_170[1].v.z = one;
+    s_inProReal[0].fields.unmodeled_170[1].v.w = one;
+    s_inProReal[0].projection_entry = 0;
+    nmlModelSetProreal(s_inProReal);
+    s_inProReal[0].fields.unmodeled_11c = 1;
+
+    __asm__ __volatile__("sq $0, 0(%0)\n\tsq $0, 16(%0)\n\tsq $0, 32(%0)\n\tsq $0, 48(%0)"
+                         : : "r"(&s_inProReal[0].fields.unmodeled_0c0[0]) : "memory");
+    __asm__ __volatile__("lq $2, 0(%1)\n\tsq $2, 0(%0)"
+                         : : "r"(&s_inProReal[0].fields.unmodeled_0c0[0]),
+                             "r"(&s_inProReal[0].fields.unmodeled_170[0]) : "$2", "memory");
+    __asm__ __volatile__("lq $2, 0(%1)\n\tsq $2, 0(%0)"
+                         : : "r"(&s_inProReal[0].fields.unmodeled_0c0[3]),
+                             "r"(&s_inProReal[0].fields.unmodeled_170[1]) : "$2", "memory");
+    xglVectorScaleXYZ(&s_inProReal[0].fields.unmodeled_160,
+                      &s_inProReal[0].fields.unmodeled_160, -1.0f);
+    __asm__ __volatile__("lq $2, 0(%1)\n\tsq $2, 0(%0)"
+                         : : "r"(&s_inProReal[0].fields.unmodeled_080[0]),
+                             "r"(&s_inProReal[0].fields.unmodeled_160) : "$2", "memory");
+
+    s_inProReal[0].fields.unmodeled_190[1].q = s_inProReal[0].fields.unmodeled_190[0].q;
+    s_inProReal[0].fields.unmodeled_190[2].q = s_inProReal[0].fields.unmodeled_190[0].q;
+    s_inLayout.fields.render_status &= ~0x800;
+    s_inProReal[0].fields.unmodeled_080[0].v.x = 0.0f;
+    s_inProReal[0].fields.unmodeled_080[1].v.x = one;
+    s_inProReal[0].fields.unmodeled_080[2].v.x = 0.0f;
+    offset = (s_inLayout.slots[0x9d].f * 0.8f) / scale;
+    s_inProReal[0].fields.unmodeled_190[2].v.x += offset;
+    s_inProReal[0].fields.unmodeled_190[2].v.z += offset;
+    s_inProReal[0].fields.unmodeled_190[1].v.x -= offset;
+    s_inProReal[0].fields.unmodeled_190[1].v.z -= offset;
+    value = s_inProReal[0].fields.unmodeled_190[1].v.y -
+            (model->entryTranslation.w * s_inLayout.slots[0x9d].f + 0.5f);
+    s_inProReal[0].fields.unmodeled_190[1].v.y = value;
+    if (s_inLayout.slots[0x2d].f < value) {
+        s_inProReal[0].fields.unmodeled_190[1].v.y = s_inLayout.slots[0x2d].f - 0.5f;
+    }
+
+    normal.x = 0.0f;
+    normal.y = one;
+    normal.z = 0.0f;
+    xglVectorNormal(&normal, &normal);
+    inverseScale = one / scale;
+    xglVectorScaleXYZ(&normal, &normal, inverseScale);
+    if (normal.x < 0.0f) {
+        s_inProReal[0].fields.unmodeled_190[1].v.x += normal.x;
+    } else {
+        s_inProReal[0].fields.unmodeled_190[2].v.x += normal.x;
+    }
+    if (normal.z < 0.0f) {
+        s_inProReal[0].fields.unmodeled_190[1].v.z += normal.z;
+    } else {
+        s_inProReal[0].fields.unmodeled_190[2].v.z += normal.z;
+    }
+}
+
+static void nmlModelCalcEntryProjectMap(NmlModel *model, StudioCamera *camera)
+{
+    extern void nmlModelSetProreal(NmlProRealState *);
+    extern void xglMatrixStackInverse(void);
+    extern void xglVectorNormal(Vector4 *, const Vector4 *);
+    extern void xglVectorScale(Vector4 *, const Vector4 *, float);
+    extern void xglVectorScaleXYZ(Vector4 *, const Vector4 *, float);
+    extern float atan2f(float, float);
+    extern const NmlVector4Overlay D_004D28E0;
+    extern const NmlVector4Overlay D_004D28F0;
+    extern const NmlVector4Overlay D_004D2900;
+    Vector3 angles;
+    Matrix savedMatrix;
+    NmlVector4Overlay projectionScale;
+    NmlVector4Overlay screenCenter;
+    NmlVector4Overlay screenOffset;
+    Vector4 surfaceDir;
+    Vector4 normal;
+    float distance;
+    float denom;
+    float scale;
+    float offset;
+    /* Never accessed: the original frame keeps this 16-byte slot (frame 272). */
+    Vector4 unusedFrameSlot;
+
+    /* Empty loop kept from the original: its loop notes order the prologue
+     * (callee saves before the projection constant loads). */
+    do { } while (0);
+    projectionScale = D_004D28E0;
+    screenCenter = D_004D28F0;
+    screenOffset = D_004D2900;
+    denom = model->entryTranslation.w;
+    if (5.0f + camera->position.y < s_inLayout.slots[0x7d].f) {
+        if (5.0f + camera->position.y < s_inLayout.slots[0x2d].f) {
+            s_inLayout.fields.render_status &= ~0x4000;
+            return;
+        }
+    }
+
+    __asm__ __volatile__("lq $2, 0(%1)\n\tsq $2, 0(%0)"
+                         : : "r"(&s_inProReal[0].fields.unmodeled_190[0]),
+                             "r"(&s_inLayout.fields.unmodeled_1f0) : "$2", "memory");
+    s_inProReal[0].fields.unmodeled_190[0].v.y -= 0.2f;
+    distance = __builtin_fabsf(s_inProReal[0].fields.unmodeled_190[0].v.y - s_inLayout.slots[0x2d].f);
+    if (distance > model->entryTranslation.w) {
+        denom = distance;
+    }
+    if (denom < 0.968f) {
+        denom = 0.968f;
+    }
+    scale = 0.968f / denom;
+    projectionScale.v.x *= scale;
+    projectionScale.v.y *= scale;
+    surfaceDir.x = s_inLayout.slots[0x10].f;
+    surfaceDir.y = 1.5f;
+    surfaceDir.z = s_inLayout.slots[0x18].f;
+    surfaceDir.w = 1.0f;
+    if (s_nShadowVec != 0) {
+        surfaceDir.x = s_inShadowVec.x;
+        surfaceDir.z = s_inShadowVec.z;
+    }
+    angles.z = __builtin_sqrtf(surfaceDir.x * surfaceDir.x + surfaceDir.z * surfaceDir.z);
+    angles.y = -atan2f(surfaceDir.x, -surfaceDir.z);
+    angles.x = atan2f(surfaceDir.y, angles.z);
+
+    xglVectorNormal(&surfaceDir, &surfaceDir);
+    xglVectorScale(&surfaceDir, &surfaceDir, 3.0f);
+    __asm__ __volatile__("lqc2 vf3, 0(%1)\n\t"
+                         "lqc2 vf2, 0(%0)\n\t"
+                         "vadd.xyz vf2, vf2, vf3\n\t"
+                         "sqc2 vf2, 0(%0)"
+                         : : "r"(&surfaceDir), "r"(&s_inProReal[0].fields.unmodeled_190[0].v)
+                         : "memory");
+
+    xglMatrixStackUnit();
+    xglMatrixStackTrans(&surfaceDir.x);
+    xglMatrixStackRotY(angles.y);
+    xglMatrixStackRotX(angles.x);
+    xglMatrixStackRotZ(1.5707964f);
+    xglMatrixStackSave(s_inProReal[0].fields.matrix_000);
+    xglMatrixStackInverse();
+    xglMatrixStackSave((float (*)[4])savedMatrix.elements);
+    xglMatrixStackUnit();
+
+    screenOffset.v.x -= ((float)sRender.reso.frame_width - screenCenter.v.x) * 0.5f;
+    screenOffset.v.y -= ((float)*(short *)((char *)&sRender + 0x6) - screenCenter.v.y) * 0.5f;
+    xglMatrixStackTrans(&screenOffset.v.x);
+    xglMatrixStackScale(&projectionScale.v.x);
+    xglMatrixStackMul((const float (*)[4])savedMatrix.elements);
+    xglMatrixStackSave(s_inLayout.fields.projectionMatrix);
+
+    s_inProReal[0].unmodeled_1c8 = 0x89;
+    s_inProReal[0].unmodeled_1d0 = 0x3200000062LL;
+    s_inProReal[0].fields.unmodeled_100 = 0;
+    s_inProReal[0].fields.unmodeled_104 = 0;
+    s_inProReal[0].fields.unmodeled_108 = 0x100;
+    s_inProReal[0].fields.unmodeled_10c = 0xe0;
+    s_inProReal[0].fields.unmodeled_116 = sRender.texture_buffer_base;
+    s_inProReal[0].fields.unmodeled_110 = 0;
+    s_inProReal[0].fields.unmodeled_112 = 0;
+    s_inProReal[0].fields.unmodeled_120 = 64.0f / (scale * 128.0f);
+    s_inProReal[0].fields.unmodeled_124 = s_inProReal[0].fields.unmodeled_120;
+    s_inProReal[0].fields.unmodeled_170[0].v.x = s_inProReal[0].fields.unmodeled_170[0].v.y =
+        s_inProReal[0].fields.unmodeled_170[0].v.z = 0.0f;
+    s_inProReal[0].fields.unmodeled_170[0].v.w = 1.0f;
+    s_inProReal[0].fields.unmodeled_170[1].v.x = s_inProReal[0].fields.unmodeled_170[1].v.y =
+        s_inProReal[0].fields.unmodeled_170[1].v.z = 1.0f;
+    s_inProReal[0].fields.unmodeled_170[1].v.w = 1.0f;
+    s_inProReal[0].projection_entry = 0;
+    s_inProReal[0].fields.unmodeled_118 = 0;
+    s_inProReal[0].fields.unmodeled_114 = 0;
+    nmlModelSetProreal(s_inProReal);
+    s_inProReal[0].fields.unmodeled_11c = 1;
+
+    __asm__ __volatile__("sq $0, 0(%0)\n\tsq $0, 16(%0)\n\tsq $0, 32(%0)\n\tsq $0, 48(%0)"
+                         : : "r"(&s_inProReal[0].fields.unmodeled_0c0[0]) : "memory");
+    __asm__ __volatile__("lq $2, 0(%1)\n\tsq $2, 0(%0)"
+                         : : "r"(&s_inProReal[0].fields.unmodeled_0c0[0]),
+                             "r"(&s_inProReal[0].fields.unmodeled_170[0]) : "$2", "memory");
+    __asm__ __volatile__("lq $2, 0(%1)\n\tsq $2, 0(%0)"
+                         : : "r"(&s_inProReal[0].fields.unmodeled_0c0[3]),
+                             "r"(&s_inProReal[0].fields.unmodeled_170[1]) : "$2", "memory");
+    xglVectorScaleXYZ(&s_inProReal[0].fields.unmodeled_160,
+                      &s_inProReal[0].fields.unmodeled_160, -1.0f);
+    __asm__ __volatile__("lq $2, 0(%1)\n\tsq $2, 0(%0)"
+                         : : "r"(&s_inProReal[0].fields.unmodeled_080[0]),
+                             "r"(&s_inProReal[0].fields.unmodeled_160) : "$2", "memory");
+
+    s_inLayout.fields.render_status &= ~0x800;
+    __asm__ __volatile__("lq $2, 0(%1)\n\tsq $2, 0(%0)"
+                         : : "r"(&s_inProReal[0].fields.unmodeled_190[1]),
+                             "r"(&s_inProReal[0].fields.unmodeled_190[0]) : "$2", "memory");
+    __asm__ __volatile__("lq $2, 0(%1)\n\tsq $2, 0(%0)"
+                         : : "r"(&s_inProReal[0].fields.unmodeled_190[2]),
+                             "r"(&s_inProReal[0].fields.unmodeled_190[0]) : "$2", "memory");
+
+    offset = s_inLayout.slots[0x9d].f * 0.8f;
+    s_inProReal[0].fields.unmodeled_190[2].v.x += offset;
+    s_inProReal[0].fields.unmodeled_190[2].v.z += offset;
+    s_inProReal[0].fields.unmodeled_190[1].v.x -= offset;
+    s_inProReal[0].fields.unmodeled_190[1].v.z -= offset;
+    s_inProReal[0].fields.unmodeled_190[2].v.y += model->entryTranslation.w * s_inLayout.slots[0x9d].f;
+    s_inProReal[0].fields.unmodeled_190[1].v.y -= model->entryTranslation.w * s_inLayout.slots[0x9d].f;
+
+    normal.x = -s_inLayout.slots[0x10].f;
+    normal.y = 0.0f;
+    normal.z = -s_inLayout.slots[0x18].f;
+    if (s_nShadowVec != 0) {
+        normal.x = -s_inShadowVec.x;
+        normal.z = -s_inShadowVec.z;
+    }
+    xglVectorNormal(&normal, &normal);
+    xglVectorScaleXYZ(&normal, &normal, 1.0f / scale);
+    if (normal.x < 0.0f) {
+        s_inProReal[0].fields.unmodeled_190[1].v.x += normal.x;
+    } else {
+        s_inProReal[0].fields.unmodeled_190[2].v.x += normal.x;
+    }
+    if (normal.z < 0.0f) {
+        s_inProReal[0].fields.unmodeled_190[1].v.z += normal.z;
+    } else {
+        s_inProReal[0].fields.unmodeled_190[2].v.z += normal.z;
+    }
+    if (s_inProReal[0].fields.unmodeled_190[1].v.y > s_inLayout.slots[0x2d].f) {
+        s_inProReal[0].fields.unmodeled_190[1].v.y = s_inLayout.slots[0x2d].f - 0.5f;
+    }
+    if ((s_inLayout.fields.texMapMode & 0x40000) != 0) {
+        if (0.0f < s_inProReal[0].fields.unmodeled_190[1].v.y) {
+            s_inProReal[0].fields.unmodeled_190[1].v.y = -0.2f;
+        }
+    }
+}
+
+static inline void nmlModelWeightAttributeVector(
+    Vector4 *destination,
+    const struct NmlPartFlagData *transform,
+    const struct NmlPartFlagData *weights)
+{
+    _WeightToGlobalVec(destination, (const void *)transform, (const void *)weights);
+}
+
+extern float D_004D8940;
+extern int nmlModelCalcClip(Vector4 *);
+extern int nmlModelCalcClipNoCulling(Vector4 *);
+extern void _ApplyMatrix(Vector4 *, const Matrix4, const Vector4 *);
+
+static void nmlModelCalcEntryPartsClip(NmlModel *model, LayoutStore *layout)
+{
+    /* Four original initialized words have no observed subsequent reader. */
+    unsigned int initializedWords[4];
+    int *partOffsets = model->blockOffsets;
+    int vertexIndex;
+    int partIndex;
+
+    initializedWords[3] = 255;
+    initializedWords[2] = 255;
+    initializedWords[1] = 255;
+    initializedWords[0] = 255;
+    if (layout->fields.clipMasks != 0) {
+        for (vertexIndex = 0; vertexIndex < model->sampleCount; ++vertexIndex) {
+            Vector4 *weightedVector = &((Vector4 *)0x70000000)[vertexIndex];
+            int firstMatrix = model->partCount * 2 + vertexIndex;
+            int secondMatrix = model->partCount * 2 + model->sampleCount
+                             + vertexIndex;
+            NmlPartFlagData *matrixRecords = (NmlPartFlagData *)layout->fields.weightedMatrices;
+
+            nmlModelWeightAttributeVector(weightedVector, &matrixRecords[firstMatrix],
+                                          &matrixRecords[secondMatrix]);
+            if ((s_inLayout.slots[0x230 / 4].i & 1) != 0) {
+                weightedVector->y = s_inLayout.slots[0x230 / 4].f
+                                  - weightedVector->y;
+            }
+            _ApplyMatrix(weightedVector, layout->fields.place, weightedVector);
+        }
+        for (partIndex = 0; partIndex < model->blockCount; ++partIndex) {
+            NmlModelBlock *block = (NmlModelBlock *)((char *)model + partOffsets[partIndex]);
+
+            if ((block->flags & 1) == 0) {
+                Vector4 partClipBounds;
+
+                _ApplyMatrix(&partClipBounds,
+                             (const void *)(((NmlPartFlagData *)layout->fields.weightedMatrices) + block->matrixIndices[0] - 1),
+                             (const void *)block->clipBounds);
+                _ApplyMatrix(&partClipBounds, layout->fields.place, &partClipBounds);
+                layout->fields.clipMasks[partIndex] =
+                    (unsigned char)nmlModelCalcClip(&partClipBounds);
+            } else {
+                int weightedIndex = 0;
+                unsigned char passingCount = 0;
+
+                for (;; ++weightedIndex) {
+                    int partCount;
+                    unsigned int firstWeightedMatrix;
+                    unsigned int clipIndex;
+                    Vector4 *clipBounds;
+
+                    if (block->matrixIndices[weightedIndex + 1] == 0) {
+                        break;
+                    }
+                    __builtin_memcpy(&partCount, &model->partCount, sizeof partCount);
+                    firstWeightedMatrix = partCount * 2u;
+                    clipIndex = block->matrixIndices[weightedIndex + 1]
+                              - firstWeightedMatrix - 1;
+                    clipBounds = &((Vector4 *)0x70000000)[clipIndex];
+                    clipBounds->w = block->clipBounds[3] * D_004D8940;
+                    if (nmlModelCalcClipNoCulling(clipBounds) != 0) {
+                        ++passingCount;
+                    }
+                }
+                if (passingCount != 0 && passingCount == weightedIndex) {
+                    layout->fields.clipMasks[partIndex] = 1;
+                }
+            }
+        }
+    }
+}
 
 INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", nmlModelEntry);
 
@@ -3897,7 +4330,167 @@ static int nmlModelFlushSubAlpha(int viewport, StudioCamera *camera)
     return result;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/nml_model_set", nmlModelFlushSub);
+/* Measurement proxy only: stands in for the StudioCamera scissor members
+ * (float at +0x60 x0, +0x64 y0, +0x68 x1, +0x6c y1) until the owner adds them. */
+#define SCISSOR_F(c, i) (*(float *)((char *)(c) + 0x60 + 4 * (i)))
+
+static int nmlModelFlushSub(int viewport)
+{
+    int result;
+    StudioCamera *camera;
+    int index;
+    int result_clear;
+
+    camera = xglStudioSelectGetActiveCamera(viewport);
+    if (camera == 0) {
+        return 0;
+    }
+    nmlPacketAddScreen((NmlModelRenderState *)camera);
+    nmlPacketGsInit();
+    nmlPacketAddGsScissor(
+        ((u64)(int)SCISSOR_F(camera, 0) |
+         ((u64)(int)SCISSOR_F(camera, 1) << 32)) |
+        (((u64)((int)SCISSOR_F(camera, 3) - 1) << 48) |
+         ((u64)((int)SCISSOR_F(camera, 2) - 1) << 16)));
+    nmlPacketAddGsScissor1(
+        ((u64)(int)SCISSOR_F(camera, 0) |
+         ((u64)(int)SCISSOR_F(camera, 1) << 32)) |
+        (((u64)((int)SCISSOR_F(camera, 3) - 1) << 48) |
+         ((u64)((int)SCISSOR_F(camera, 2) - 1) << 16)));
+    nmlPacketAddGsFlush();
+    if (viewport != 0) {
+        nmlPacketAddScreenClear();
+        if (s_nAnotherStudio == 0) {
+            return 0;
+        }
+    }
+    result = nmlModelFlushSubNonAlpha(viewport, camera);
+    if (result == 0 && viewport == 0) {
+        for (index = 0; index < s_nDirect; index++) {
+            NmlDirectRecord *record = &s_aDirect[index];
+            if ((u16)record->attribute == 1) {
+                result = nmlPacketDirectData(record->data, (u16)record->count);
+                if (result != 0) {
+                    break;
+                }
+            }
+        }
+    }
+    nmlPacketClrModelCache();
+    result_clear = (result == 0);
+    if (result_clear) {
+        nmlFilterSetFrameAlphaClear();
+        index = result;
+        for (; index < s_nNonAlphaGroup; index++) {
+            unsigned int flags = s_aNonAlphaGroup[index].flags;
+            if (flags & 1) {
+                result = nmlModelRenderTexture(&s_aNonAlphaGroup[index], 1, viewport);
+                if (result != 0) {
+                    break;
+                }
+                continue;
+            }
+            if (flags & 0x100) {
+                result = nmlModelRenderCircle((const NmlCircleOrigin *)&s_aNonAlphaGroup[index], 1, viewport);
+                if (result != 0) {
+                    break;
+                }
+                continue;
+            }
+            if (flags & 0x200) {
+                result = nmlModelRenderDropCircle(&s_aNonAlphaGroup[index], 1, camera);
+                if (result != 0) {
+                    break;
+                }
+                continue;
+            }
+            if (flags & 0x80) {
+                result = (int)nmlModelRenderDrop((struct NmlModelRenderRange *)&s_aNonAlphaGroup[index], 1, camera, viewport);
+                if (result != 0) {
+                    break;
+                }
+            }
+            if (result != 0) {
+                break;
+            }
+        }
+        {
+            int callback_mode = -1;
+            for (index = 0; index < s_nAlphaGroup && result == 0; index++) {
+                if (s_aAlphaGroup[index].status & 0x20) {
+                    if (s_aAlphaGroup[index].status & 1) {
+                        result = nmlModelRenderTexture(&s_aAlphaGroup[index], callback_mode, viewport);
+                        if (result != 0) {
+                            break;
+                        }
+                        continue;
+                    } else if (s_aAlphaGroup[index].status & 0x100) {
+                        result = nmlModelRenderCircle((const NmlCircleOrigin *)&s_aAlphaGroup[index], callback_mode, viewport);
+                        if (result != 0) {
+                            break;
+                        }
+                        continue;
+                    } else if (s_aAlphaGroup[index].status & 0x200) {
+                        result = nmlModelRenderDropCircle(&s_aAlphaGroup[index], callback_mode, camera);
+                        if (result != 0) {
+                            break;
+                        }
+                        continue;
+                    } else if ((s_aAlphaGroup[index].status & 0x80) == 0) {
+                        continue;
+                    } else {
+                        result = (int)nmlModelRenderDrop((struct NmlModelRenderRange *)&s_aAlphaGroup[index], callback_mode, camera, viewport);
+                        if (result != 0) {
+                            break;
+                        }
+                        continue;
+                    }
+                }
+            }
+        }
+        if (result == 0) {
+            if (viewport == 0 && s_nEffectWrite == 0) {
+                nmlPacketGsInit();
+                nmlPacketAddGsZbuf(0);
+                nmlPacketAddGsPixeltest(0x50000);
+                nmlPacketAddGsFrame(sRender.display_buffer_base, 0);
+                nmlPacketAddGsFlush();
+                sefDrawEffect();
+            }
+        }
+        if (result == 0) {
+            if (viewport == 0 && s_nUseStealth != 0 && s_nMapAlphaEntry == 0) {
+                nmlFilterSetFrameToBuffer(sRender.display_buffer_base);
+            }
+        }
+        if (result == 0) {
+            nmlPacketGsInit();
+            nmlPacketAddGsPixeltest(0x50000);
+            nmlPacketAddGsFlush();
+            nmlFilterSetFrameAlphaClear();
+            nmlPacketClrTextureCache();
+            result = nmlModelFlushSubAlpha(viewport, camera);
+            if (result == 0) {
+                for (index = 0; index < s_nDirect; index++) {
+                    NmlDirectRecord *record = &s_aDirect[index];
+                    if (((u16)record->attribute == 2 && viewport == 0) ||
+                        (u16)record->attribute - 3 == viewport) {
+                        result = nmlPacketDirectData(record->data, (u16)record->count);
+                        if (result != 0) {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    nmlPacketGsInit();
+    nmlPacketAddGsScissor(((u64)0x01BF << 48) | ((u64)0x01FF << 16));
+    nmlPacketAddGsScissor1(((u64)0x01BF << 48) | ((u64)0x01FF << 16));
+    nmlPacketAddGsFlush();
+    nmlPacketClrTextureCache();
+    return result;
+}
 
 void nmlModelConstruct(void)
 {

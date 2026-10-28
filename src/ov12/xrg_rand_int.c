@@ -285,8 +285,7 @@ void XrgApplyVector(RgVector destination, RgMatrix matrix, RgVector vector)
         "vmadday.xyzw ACC, vf28, vf31y\n\t"
         "vmaddaz.xyzw ACC, vf29, vf31z\n\t"
         "vmaddw.xyzw vf31, vf30, vf31w\n\t"
-        "sqc2 vf31, 0(%2)\n\t"
-        "nop"
+        "sqc2 vf31, 0(%2)"
         :
         : "r"(vector), "r"(matrix), "r"(destination)
         : "memory"
@@ -307,8 +306,7 @@ void XrgRotVector(RgVector destination, RgMatrix matrix, RgVector vector)
         "vmadday.xyz ACC, vf28, vf31y\n\t"
         "vmaddaz.xyz ACC, vf29, vf31z\n\t"
         "vmaddw.xyz vf31, vf30, vf0w\n\t"
-        "sqc2 vf31, 0(%2)\n\t"
-        "nop"
+        "sqc2 vf31, 0(%2)"
         :
         : "r"(vector), "r"(matrix), "r"(destination)
         : "memory"

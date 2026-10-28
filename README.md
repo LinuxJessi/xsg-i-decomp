@@ -13,14 +13,14 @@ The Sony SDK and public libraries do not need to be recovered.
 
 ## Progress
 
-Published source coverage: 6,825 of 7,645 in-scope game functions (89.274%).
+Published source coverage: 6,862 of 7,645 in-scope game functions (89.758%).
 
 | Version | Target | Functions | Progress |
 | --- | --- | ---: | ---: |
-| NTSC-U | `SLUS_204.69` | 3,621 / 3,671 | 98.638% |
-| NTSC-U | `OV01.OVL` | 801 / 1,081 | 74.098% |
+| NTSC-U | `SLUS_204.69` | 3,655 / 3,671 | 99.564% |
+| NTSC-U | `OV01.OVL` | 802 / 1,081 | 74.191% |
 | NTSC-U | `OV02.OVL` | 66 / 110 | 60.000% |
-| NTSC-U | `OV10.OVL` | 197 / 361 | 54.571% |
+| NTSC-U | `OV10.OVL` | 199 / 361 | 55.125% |
 | NTSC-U | `OV11.OVL` | 118 / 139 | 84.892% |
 | NTSC-U | `OV12.OVL` | 1,527 / 1,788 | 85.403% |
 | NTSC-U | `SSD.IRX` | 442 / 442 | 100.000% |
@@ -53,13 +53,13 @@ assembler it gives the version, the SHA-256 of each payload, and the provenance
 needed to obtain or rebuild it. Two of the tools are patched, and both patches
 are recorded there in full:
 
-| Tool | What the build uses it for | Where it comes from |
-| --- | --- | --- |
-| `ee-gcc2.96-realconv-lp7` | `cc1` for the game code (Monolith) and the C runtime (newlib/libgcc) | the published `ee-gcc2.96` archive, with fifteen documented patches to `cc1` (six single bytes that restore the original decimal-literal rounding, two that restore the R5900 short-loop padding, five multi-byte alias-analysis patches, fsv1, fsv3 and fsv4 (`%lo`-addressed global scalars and struct-field accesses may be reordered in either direction, a non-small-data global's memory reference gets its type's alias set, and gcse load-PRE keeps a fixed scalar load across an in-struct store through a varying pointer), and the two fsv5 (qisi) patches (a `char` sign-extended to 64 bits is `lb` plus a separate in-place `extendsidi2`, never one `extendqidi2_insn`)) |
-| `ee-gcc2.9-991111` | `cc1` for the SCE SDK libraries (Sony's own compiler; out of recovery scope, built from original assembly) | the published `ee-gcc2.9-991111` archive, unmodified |
-| `ee-as-la29-vsqrt` | assembler for every game and runtime object | GNU as 2.9-ee-991111 built from the pinned `ps2-ee-toolchain` commit with the recorded four-change diff (an overlap-safe `memmove`, the `vsqrt` opcode's bits 21-22, labels left before the hazard nops `append_insn` inserts, and `la` of a base register plus a 16-bit constant as one `addiu`) |
-| `ee-as-2.9-plain` | assembler for the SCE SDK objects | the same commit, unpatched |
-| `ps2dev-binutils` | linker and objcopy of every image, and modern GAS for data objects and retail blobs | ps2dev binutils 2.45.1, the linker, objcopy and modern GAS |
+| Tool | What the build uses it for                                                                                | Where it comes from |
+| --- |-----------------------------------------------------------------------------------------------------------| --- |
+| `ee-gcc2.96-realconv-lp7` | `cc1` for the game code (Monolith) and the C runtime (newlib/libgcc)                                      | the published `ee-gcc2.96` archive, with twenty-four documented patches to `cc1` (six single bytes that restore the original decimal-literal rounding, two that restore the R5900 short-loop padding, five multi-byte alias-analysis patches, fsv1, fsv3 and fsv4 (`%lo`-addressed global scalars and struct-field accesses may be reordered in either direction, a non-small-data global's memory reference gets its type's alias set, and gcse load-PRE keeps a fixed scalar load across an in-struct store through a varying pointer), the two fsv5 (qisi) patches (a `char` sign-extended to 64 bits is `lb` plus a separate in-place `extendsidi2`, never one `extendqidi2_insn`), the three fsv6 patches (symbolic `sym(reg)` addresses are always legitimate and an address-taken variable gets alias set 0, instead of depending on host heap garbage), the four fsv7 patches (gcse load-PRE: a struct store through a pointer loaded from global `S` kills a later load of `S`), and the two fsv8 patches (a small-data global with a non-zero initializer gets its type's alias set, as a non-small-data global does)) |
+| `ee-gcc2.9-991111` | `cc1` for the SCE SDK scaffold objects only (out of recovery scope, INCLUDE_ASM of the original assembly. | the published `ee-gcc2.9-991111` archive, unmodified |
+| `ee-as-la29-vsqrt` | assembler for every game and runtime object                                                               | GNU as 2.9-ee-991111 built from the pinned `ps2-ee-toolchain` commit with the recorded four-change diff (an overlap-safe `memmove`, the `vsqrt` opcode's bits 21-22, labels left before the hazard nops `append_insn` inserts, and `la` of a base register plus a 16-bit constant as one `addiu`) |
+| `ee-as-2.9-plain` | assembler for the SCE SDK objects                                                                         | the same commit, unpatched |
+| `ps2dev-binutils` | linker and objcopy of every image, and modern GAS for data objects and retail blobs                       | ps2dev binutils 2.45.1, the linker, objcopy and modern GAS |
 
 Lay them out under one directory as `config/toolchain-identity.json`'s
 `tools.<id>.dir` / `.path` say. Then:

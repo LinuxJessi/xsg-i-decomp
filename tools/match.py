@@ -40,12 +40,23 @@ NOSIBCALL_FLAGS = [['-O2', '-G0', '-fno-optimize-sibling-calls'],
 # canon_true_dependence in gcse load-PRE transparency (reports/cc1-fsv4-gcse-transp.md).
 # Since the user decision of 2026-10-10 it is fsv5 (qisi): a QI->DI sign extension is
 # lb plus a separate in-place extendsidi2, never one extendqidi2_insn (reports/cc1-fsv5-qisi.md).
-GCC296_PAYLOAD = '.work/toolchains/ee-gcc2.96-lp7-fsv5-v1/bin'
+# Since the user decision of 2026-10-27 ("no debería haber ninguna variante de cc1 más. Solo debería usarse el mismo cc1 en todos lados") the only EE cc1 is
+# ee-gcc2.96-realconv-lp7-fsv6-v2 (realconv + lp7 + fsv1..fsv6, reports/cc1-fsv6-legit-addr.md),
+# since the user decision of 2026-10-27 ("sí, adopta fsv7-v2 y reescribe MenuShopCore natural")
+# ee-gcc2.96-realconv-lp7-fsv7-v2 (+ fsv7-v2 SameG gcse transparency, reports/cc1-fsv7-transp-argreg.md),
+# since the user decision of 2026-10-28 ("Adaptamos fsv8")
+# ee-gcc2.96-realconv-lp7-fsv8-v1 (+ fsv8 NZ-init small-data alias sets, reports/cc1-fsv8-nzinit.md):
+# config/toolchains.json names it, and the profiles below are retired.
+GCC296_PAYLOAD = '.work/toolchains/ee-gcc2.96-realconv-lp7-fsv8-v1/bin'
 GCC296_PAYLOAD_SHA256 = {
-    'cc1': '9eb76bf8ae053125501a1988be22797f041a5c0e47ae757928ac6cc7c15c6c19',
+    'cc1': '575db2bbef59132765136aa2525722501d717abe8381bf706645962af6c6188f',
     'cpp0': 'f6f6b598f39649edfe171d6da8c7f91d07f2b87c2aeeffffbc5f566bfb1a39a9',
     'ee-gcc': 'b8c284d16c9c0a0e8788e9522c46881e224ad01fa1c732aed43f821cc32f168b',
 }
+# Profiles retired by the user decision of 2026-10-27 (single cc1): each selected
+# another cc1 (GCC 2.9-ee-990721) or a cc1-only variant route; match() refuses them.
+RETIRED_PROFILES = ('ee-gcc2_9-990721', NOSIBCALL)
+RETIRED_REASON = "user 2026-10-27: single cc1 (\"no debería haber ninguna variante de cc1 más. Solo debería usarse el mismo cc1 en todos lados\"); the only EE cc1 is ee-gcc2.96-realconv-lp7-fsv8-v1 (cc1 sha 575db2bb...)"
 
 
 def require(ok, message):
@@ -867,6 +878,81 @@ _MMI_SHIFT = re.compile(r'(?P<op>dsrl)' + _WS + r'\$(?P<d>[0-9]|[12][0-9]|3[01])
                         r'\$(?P<s>[0-9]|[12][0-9]|3[01])' + _SEP +
                         r'(?P<imm>0[xX][0-9a-fA-F]+|[0-9]+)')
 
+# The VU0 colour-clamp tail of main/tu097 ConvertYUV2RGB: after the VU0
+# conversion, `qmfc2` moves the result and the clamp bounds to GPRs and the
+# block ends
+#
+#     pmaxw $3,$2,$8     ; clamp each word lane below (parallel max word)
+#     pminw $2,$3,$9     ; clamp each word lane above (parallel min word)
+#     ppach $3,$0,$2     ; pack the four words to halfwords
+#     ppacb $2,$0,$3     ; pack the halfwords to bytes
+#     sw    $2,0(%1)     ; store the RGBA pixel through the C pointer operand
+#
+# Admitted in this calibrated table by user decisions of 2026-10-28: `pmaxw`
+# first ("Actualiza el pin y acepta esa instrucción pmaxw"), then the other four
+# lines ("Vale, acepta esas otras instrucciones"). They are admitted for every
+# `hardware` function, but each entry is only as wide as this evidence.
+#
+# Calibration against the original (SLUS_204.69 0x002252cc..0x002252dc, the
+# only `pmaxw`/`pminw`/`ppach` sites of the main ELF; no `pmaxw` in the
+# overlays): the contract assembler (ee-legacy-binutils-la29-vsqrt-nolabel-
+# laimm-v1 and its -swap twin, `-EL -m5900 -mabi=eabi`) encodes the five lines
+# to 0x704818c8, 0x706910e8, 0x70021dc8, 0x700316c8 and, with `%1` allocated to
+# $10 as the published object does, 0xad420000 -- word for word the original.
+# Evidence: .work/tool-edit-pmaxw-20261028/calib/ and
+# .work/tool-edit-pmmi2-20261028/calib/.
+#
+# The spellings follow the other MMI entries of this table:
+#
+#   * `mmiminmax` (`pmaxw`/`pminw`): three hard-coded `$N` GPRs, never `%N`;
+#   * `mmipack` (`ppach`/`ppacb`): hard-coded `$N`, and the first source is
+#     `$0`, which is the evidenced use (the upper half of the packed result is
+#     zero); any other first source stays refused;
+#   * `gprstore` (`sw`): the data register is a hard-coded `$N` other than
+#     `$0`, the base is a `%N` C pointer operand (never a hard-coded base:
+#     a scalar store through a register the compiler did not compute is
+#     compiler output, not hardware), and the displacement is a literal,
+#     non-negative, word-aligned 16-bit offset. COP2 blocks already must
+#     declare `"memory"`.
+#
+# For all three, a written destination is a hard-coded scratch that
+# `_cop2_quadword_scratch` requires in the clobber list (never `$0`), and
+# `_cop2_block_scratch_reads` requires every hard-coded register they READ to
+# have been written earlier in the same block, so they only ever consume the
+# block's own values (e.g. what `qmfc2` brought out of VU0), never live
+# compiler state. None of them is one of `_MMI_KINDS` (the packed-halfword
+# widening), and a block made only of them is not COP2 content. The rest of the
+# MMI P* family and every other scalar line stay outside this table (MMI is
+# admitted generally only under the `ee-mmi` class, docs/ee-mmi.md); the gate
+# stays the authority on bytes.
+_GPR_NUM = r'([0-9]|[12][0-9]|3[01])'
+_MMI_MINMAX = re.compile(r'(?P<op>pmaxw|pminw)' + _WS + r'\$(?P<d>' + _GPR_NUM + r')' + _SEP +
+                         r'\$(?P<s>' + _GPR_NUM + r')' + _SEP + r'\$(?P<t>' + _GPR_NUM + r')')
+_MMI_PACK = re.compile(r'(?P<op>ppach|ppacb)' + _WS + r'\$(?P<d>' + _GPR_NUM + r')' + _SEP +
+                       r'\$(?P<s>0)' + _SEP + r'\$(?P<t>' + _GPR_NUM + r')')
+_GPR_STORE = re.compile(r'(?P<op>sw)' + _WS + r'\$(?P<t>' + _GPR_NUM + r')' + _SEP +
+                        r'(?P<off>0[xX][0-9a-fA-F]+|[0-9]+)' + _WS + r'\(' + _WS +
+                        r'(?P<base>%[0-9])' + _WS + r'\)')
+# Calibrated entries that are not COP2/VU instructions and not part of the
+# widening idiom; like `gprquad`, they never make a block COP2 content on
+# their own. The hard-coded registers they read must be block-local scratch.
+_MMI_ARITH_KINDS = ('mmiminmax', 'mmipack', 'gprstore')
+
+
+def _gpr_store_check(m):
+    """`sw $N,OFF(%N)`: a real data register and a word-aligned literal offset."""
+    if m.group('t') == '0':
+        return 'the admitted sw stores a block-computed register, never $0'
+    try:
+        v = int(m.group('off'), 0)
+    except ValueError:
+        return 'sw displacement is not numeric'
+    if v > 0x7fff:
+        return 'sw displacement out of 16-bit range'
+    if v % 4:
+        return 'sw displacement must be word aligned'
+    return None
+
 
 def _mmi_load_off(op, token):
     """Displacement of an `ldl`/`ldr`: the little-endian doubleword convention.
@@ -929,6 +1015,8 @@ _GPR_DEST_GROUP = {
     'clipw': None, 'rinit': None, 'rnext': None,
     'gprquad': 'gpr',    # lq writes the GPR; sq reads it
     'mmiload': 'gpr', 'mmicmp': 'd', 'mmiext': 'd', 'mmishift': 'd',
+    'mmiminmax': 'd', 'mmipack': 'd',   # pmaxw/pminw, ppach/ppacb (user decisions 2026-10-28)
+    'gprstore': None,    # sw writes only memory; its data GPR is read (_GPR_READ_ONLY)
 }
 
 
@@ -955,7 +1043,9 @@ def _line_patterns():
     What the same sources contain and this table still refuses is everything
     else that is not a hardware operation: the rest of the scalar code (`sw`,
     `lw`, `addu`, `sll`, `daddu`, a bare `lui`/`addiu`/`movz`/`movn`), all the
-    other MMI and `ldl`/`ldr`/`sdl`/`sdr`, the standalone spelling of `lq`/`sq`
+    other MMI (the widening idiom's lines and, since 2026-10-28, ConvertYUV2RGB's
+    `pmaxw`/`pminw`/`ppach`/`ppacb` and its `sw $N,OFF(%N)` store -- `mmiminmax`,
+    `mmipack`, `gprstore` -- are the only MMI/scalar entries) and `ldl`/`ldr`/`sdl`/`sdr`, the standalone spelling of `lq`/`sq`
     with a hard-coded base (that is the compiler-emitted 128-bit copy, and it
     stays on the native-TI source route), the branches and labels, the
     assembler mode directives (`.set noreorder`, `.set nomacro`, `.set noat`)
@@ -1101,6 +1191,11 @@ def _line_patterns():
                   lambda m: (_mmi_dest(m.group('d')) or
                              _mmi_same(m.group('d'), m.group('s'), 'dsrl') or
                              _mmi_shift_amount(m.group('imm')))))
+    # ConvertYUV2RGB's clamp/pack/store tail, calibrated against the original
+    # (user decisions 2026-10-28). See `_MMI_MINMAX`.
+    table.append(('mmiminmax', _MMI_MINMAX, lambda m: _mmi_dest(m.group('d'))))
+    table.append(('mmipack', _MMI_PACK, lambda m: _mmi_dest(m.group('d'))))
+    table.append(('gprstore', _GPR_STORE, _gpr_store_check))
     table.append(('callmsr',
                   re.compile(r'vcallmsr' + _WS + r'\$?vi(?P<vi>[0-9]+)'),
                   lambda m: _cop2_vi(m.group('vi'))))
@@ -1475,6 +1570,36 @@ def _cop2_null_default(body, outputs, clobbers):
     return rest
 
 
+def _cop2_block_scratch_reads(body):
+    """The 2026-10-28 MMI/store entries consume only the block's own scratch.
+
+    Every hard-coded register read by an `_MMI_ARITH_KINDS` line (other than
+    `$0`) must have been written by an earlier admitted line of the same block
+    -- `qmfc2`, `cfc2`, `mfc1`, `lq`, or another MMI line. A hard-coded register
+    the block did not write would be reading compiler-allocated state, which is
+    what the `%N` operands are for.
+    """
+    written = set()
+    for line in body:
+        found = _cop2_match_line(line)
+        if found is None:
+            continue
+        kind, m = found[0], found[1]
+        if kind in _MMI_ARITH_KINDS:
+            names = m.groupdict()
+            reads = [names.get(k) for k in ('s', 't') if names.get(k) is not None]
+            for reg in reads:
+                require(reg == '0' or reg in written,
+                        'hard-coded $%s is read before this block writes it: the admitted '
+                        'MMI/store lines consume only block-local scratch: %s' % (reg, line[:120]))
+        group = _GPR_DEST_GROUP.get(kind)
+        if group is None or (kind, m.groupdict().get('op')) in _GPR_READ_ONLY:
+            continue
+        value = m.group(group)
+        if value is not None and not value.startswith('%'):
+            written.add(value.lstrip('$'))
+
+
 def _cop2_quadword_scratch(body, clobbers):
     """Every hard-coded scratch GPR an admitted line writes must be clobbered.
 
@@ -1584,7 +1709,7 @@ _GPR_READING = {('move', 'qmtc2')}
 # by a pair, overwritten by `mfc1`/`qmfc2`/`cfc2`/`lq`, and then consumed by
 # `pcgth` as if it still held the packed halfwords. Traceable-but-stale is not
 # traceable.
-_GPR_READ_ONLY = {('move', 'qmtc2'), ('control', 'ctc2'), ('fpmove', 'mtc1'),
+_GPR_READ_ONLY = {('move', 'qmtc2'), ('control', 'ctc2'), ('fpmove', 'mtc1'), ('gprstore', 'sw'),
                   ('gprquad', 'sq'), ('transfer', 'lqc2'), ('transfer', 'sqc2')}
 _GPR_TOKEN = re.compile(r'\$(3[01]|[12][0-9]|[0-9])\b')
 def _mmi_block_shape(body):
@@ -1729,7 +1854,44 @@ def _sef_particle_scale_block(lines, outputs, inputs, input_section, clobber_sec
             _cop2_check_line(line)
 
 
-def _cop2_parse_construct(text, start, *, mmi_transpose=False, sef_particle_scale=False):
+# StartOfScan VU0 I-register immediate (user decision 2026-10-28 on main/tu097,
+# "Aceptalo como c con asm, ya que podemos suponer que es codigo en asm que
+# escribio un humano"). The original StartOfScan (main VA 0x00225310) opens its
+# hand-written VU0 setup block with `lui v0,0x3e00` (0x0022534c) immediately
+# followed by `ctc2 v0,$vi21` (0x00225350) and the block's `lqc2 $vf1..`: it
+# loads 0.125f (0x3e000000) into the VU0 I register through $2, the usual
+# hand-written VU0 idiom. Only this pair is admitted, only as the first two
+# lines of a block that goes on to perform calibrated COP2 operations, only
+# with the block declaring its "$2" clobber, at most once per function, and only
+# for the identity tools/tu_audit.py selects (`vu0_i_immediate_c`). The load is
+# never admitted on its own, with another register, value or VI target, or
+# anywhere else in the hardware route. Not a precedent.
+_VU0_I_IMMEDIATE_LOAD = re.compile(r'(?:lui' + _WS + r'\$2' + _SEP + r'0x3e00'
+                                   r'|li' + _WS + r'\$2' + _SEP + r'0x3e000000)')
+_VU0_I_IMMEDIATE_CTC2 = re.compile(r'ctc2' + _WS + r'\$2' + _SEP + r'\$vi21')
+
+
+def _vu0_i_immediate(body, clobbers):
+    """Consume StartOfScan's leading `lui $2,0x3e00` feeding `ctc2 $2,$vi21`.
+
+    Returns (rest, used). `rest` keeps the `ctc2`, which the ordinary table
+    still checks; only the immediate load itself is consumed here.
+    """
+    if not body or not _VU0_I_IMMEDIATE_LOAD.fullmatch(body[0]):
+        return body, False
+    require(len(body) >= 3 and _VU0_I_IMMEDIATE_CTC2.fullmatch(body[1]),
+            'the StartOfScan I-register immediate must be consumed by the very next '
+            '`ctc2 $2,$vi21` of a block that performs COP2/VU operations: ' + body[0][:120])
+    require('$2' in clobbers,
+            'the StartOfScan I-register immediate writes $2: the block must declare "$2"')
+    for line in body[2:]:
+        require(not _VU0_I_IMMEDIATE_LOAD.fullmatch(line),
+                'one StartOfScan I-register immediate per hardware block: ' + line[:120])
+    return body[1:], True
+
+
+def _cop2_parse_construct(text, start, *, mmi_transpose=False, sef_particle_scale=False,
+                          vu0_i_immediate=False):
     # Advance by the keyword actually written, not by a fixed len('__asm__').
     # The permuter's vendored pycparser reprints `__asm__ __volatile__(...)` as
     # `asm __volatile__(...)`, and skipping seven characters past a three-letter
@@ -1790,16 +1952,22 @@ def _cop2_parse_construct(text, start, *, mmi_transpose=False, sef_particle_scal
         _COP2_SPANS.append(dict(kind='cop2', start=start))
         return i + 1
     body = _cop2_null_default(body, outputs, clobbers)
+    i_immediate = False
+    if vu0_i_immediate:
+        body, i_immediate = _vu0_i_immediate(body, clobbers)
     for line in body:
         _cop2_check_line(line)
     _cop2_quadword_scratch(body, clobbers)
+    _cop2_block_scratch_reads(body)
     _mmi_block_shape(body)
     for ref in re.findall(r'%([0-9])', '\n'.join(lines)):
         require(int(ref) < operands, 'hardware operand reference out of range: %' + ref)
     _COP2_SPANS.append(dict(
         kind=('cop2' if any((_cop2_match_line(line) or ('',))[0]
-                            not in ('', 'gprquad') + _MMI_KINDS for line in body)
+                            not in ('', 'gprquad') + _MMI_KINDS + _MMI_ARITH_KINDS
+                            for line in body)
               else 'other'),
+        vu0_i_immediate=i_immediate,
         start=start))
     return i + 1
 
@@ -1813,7 +1981,8 @@ def _cop2_parse_construct(text, start, *, mmi_transpose=False, sef_particle_scal
 _COP2_SPANS = []
 
 
-def _cop2_inline_spans(text, *, mmi_transpose=False, sef_particle_scale=False):
+def _cop2_inline_spans(text, *, mmi_transpose=False, sef_particle_scale=False,
+                       vu0_i_immediate=False):
     """Locate calibrated COP2 inline statements; raise with exact errors."""
     del _COP2_SPANS[:]
     found = []
@@ -1829,7 +1998,8 @@ def _cop2_inline_spans(text, *, mmi_transpose=False, sef_particle_scale=False):
         if m.group(0) not in ('__asm__', '__asm', 'asm'):
             continue
         end = _cop2_parse_construct(text, m.start(), mmi_transpose=mmi_transpose,
-                                    sef_particle_scale=sef_particle_scale)
+                                    sef_particle_scale=sef_particle_scale,
+                                    vu0_i_immediate=vu0_i_immediate)
         if end is not None:
             found.append((m.start(), end))
     return found
@@ -1995,7 +2165,7 @@ def _hardware_line_continuations_ok(text):
 
 
 def hardware_c(text, staged=None, headers=(), inner=None, *, mmi_transpose=False,
-               sef_particle_scale=False):
+               sef_particle_scale=False, vu0_i_immediate=False):
     """Only calibrated barriers/interrupt operations and an allowlisted
     COP2/VU0-macro spelling set are admitted inline (EE caller side).
 
@@ -2061,12 +2231,16 @@ def hardware_c(text, staged=None, headers=(), inner=None, *, mmi_transpose=False
 
     masked = re.sub(tokens, replace, text, flags=re.S)
     spans = _cop2_inline_spans(masked, mmi_transpose=mmi_transpose,
-                               sef_particle_scale=sef_particle_scale)
+                               sef_particle_scale=sef_particle_scale,
+                               vu0_i_immediate=vu0_i_immediate)
     if mmi_transpose:
         require(count == 0 and len(spans) == 1, 'the bounded MMI/COP2 transpose is one inline block')
     if sef_particle_scale:
         require(sum(span.get('sef_particle_scale', False) for span in _COP2_SPANS) <= 1,
                 'sefCreateParticle admits at most one bounded COP1 scale block per function')
+    if vu0_i_immediate:
+        require(sum(span.get('vu0_i_immediate', False) for span in _COP2_SPANS) <= 1,
+                'StartOfScan admits at most one I-register immediate per function')
     # The scheduling barrier emits nothing, so on its own it is not a hardware
     # operation and cannot make a candidate hardware-eligible. docs/ps2-
     # capabilities.md makes actual COP2/VU instructions in the pinned original
@@ -2608,6 +2782,17 @@ def sef_particle_scale_c(text, staged=None, headers=(), inner=None):
 def sef_particle_scale_native_ti_c(text, staged=None, headers=()):
     from tools import native_ti
     return sef_particle_scale_c(text, staged, headers, inner=native_ti.hardware_source)
+
+
+def vu0_i_immediate_c(text, staged=None, headers=(), inner=None):
+    """Identity-scoped StartOfScan `lui $2,0x3e00` -> `ctc2 $2,$vi21` admission,
+    selected only by TU audit admission (main/tu097 StartOfScan, 2026-10-28)."""
+    return hardware_c(text, staged, headers, inner=inner, vu0_i_immediate=True)
+
+
+def vu0_i_immediate_native_ti_c(text, staged=None, headers=()):
+    from tools import native_ti
+    return vu0_i_immediate_c(text, staged, headers, inner=native_ti.hardware_source)
 
 
 # ---------------------------------------------------------------------------
@@ -3207,6 +3392,164 @@ def assert_break_native_ti_c(text, staged=None, headers=()):
     return assert_break_c(text, staged, headers, inner=native_ti.source)
 
 
+# `ee-retaddr-store` (user decision 2026-10-27 on main/tu273, for UnduCheck at
+# 0x003236f8 only; reports/cc1-study-20261027.md family B) -- the original
+# stores its return address into the caller-visible frame slot with one inline
+# asm statement at entry, `sw $31,0($sp)` at +0x28, and its out-of-range assert
+# later prints that word. It occurs once in all of MAIN, and
+# `__builtin_return_address` does not reproduce it. The class admits exactly one
+# volatile asm statement performing that store, spelled
+#     __asm__ __volatile__("sw $31,%0" : "=m"(LOCAL));   or
+#     __asm__ __volatile__("sw $31,0($sp)");
+# each with an optional "memory" clobber, inside otherwise ordinary (or
+# native-TI) C. The same function's assert trap stays admitted only as the
+# `ee-assert-break` statement `DEBUG_BREAK();` under that class's own rules.
+# tools/tu_audit.py additionally requires exactly one #APP block of the function
+# to be `sw $31,0($sp)` and every other one to be `break`, and admits the class
+# for that one identity only. Not a precedent for any other function.
+_RETADDR_STORE = re.compile(
+    r'\b__asm__\s+__volatile__\s*\(\s*'
+    r'(?:"sw \$31,%0"\s*:\s*"=m"\s*\(\s*[A-Za-z_]\w*\s*\)(?:\s*:\s*:\s*"memory")?'
+    r'|"sw \$31,0\(\$sp\)"(?:\s*:\s*:\s*:\s*"memory")?)'
+    r'\s*\)\s*;')
+
+
+def retaddr_store_c(text, staged=None, headers=(), inner=None):
+    """`ee-retaddr-store` (see the comment above): ordinary (or native-TI) C
+    with exactly one return-address store statement, plus any `ee-assert-break`
+    DEBUG_BREAK(); statements. Returns 1 (one admitted asm statement); the audit
+    reports the function `exact_c_with_asm`."""
+    label = 'ee-retaddr-store'
+    if staged is None:
+        # Preprocessed text: fold the DEBUG_BREAK() expansion back, as assert_break_c does.
+        text = _DEBUG_BREAK_EXPANSION.sub('DEBUG_BREAK()', text)
+    require(text.isascii() and '\x00' not in text and '??' not in text and '%:' not in text
+            and _hardware_line_continuations_ok(text), '%s C encoding or preprocessing escape' % label)
+    require(not re.search(r'^\s*#.*\b(?:asm|__asm|__asm__)\b', text, re.M),
+            'inline assembly cannot be supplied by a preprocessor directive')
+    tokens = r'"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'|/\*.*?\*/|//[^\n]*'
+    masked = re.sub(tokens, lambda m: ' ' if m[0].startswith(('/*', '//')) else m[0], text, flags=re.S)
+    stores = list(_RETADDR_STORE.finditer(masked))
+    require(len(stores) == 1, 'an %s function holds exactly one statement '
+            '`__asm__ __volatile__("sw $31,%%0" : "=m"(LOCAL));` or '
+            '`__asm__ __volatile__("sw $31,0($sp)");` (optional "memory" clobber)' % label)
+    store = stores[0]
+    remainder = (masked[:store.start()] + re.sub(r'[^\n]', ' ', store.group(0)) +
+                 masked[store.end():])
+    # Every other asm token, attribute or pragma is refused by the ordinary grammar below.
+    bare = re.sub(r'"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'', ' ', remainder)
+    uses = len(_DEBUG_BREAK_USE.findall(bare))
+    require(len(_DEBUG_BREAK_STATEMENT.findall(bare)) == uses,
+            'DEBUG_BREAK is admitted in %s C only as the statement `DEBUG_BREAK();`' % label)
+    require(not re.search(r'^\s*#\s*(?:define|undef)\s+DEBUG_BREAK\b', bare, re.M),
+            'DEBUG_BREAK is defined only by include/%s' % DEBUG_BREAK_HEADER)
+    (inner or ordinary_c)(remainder, staged, headers)
+    return 1
+
+
+def retaddr_store_native_ti_c(text, staged=None, headers=()):
+    """An `ee-retaddr-store` function inside a `native-ti` TU; neither route widened."""
+    from tools import native_ti          # imports ordinary_c from this module
+    return retaddr_store_c(text, staged, headers, inner=native_ti.source)
+
+
+# `ee-asm-sort` (user decision 2026-10-28 on main/tu106, for AlphaGroupSort at
+# 0x00230d68, 0x70 bytes, only) -- the original is hand-written assembly: the
+# trapping `addi` for its counters and pointer, `bne $0,$4` operand order, the
+# `lui` scheduled into the `bnez` delay slot with the hazard and delay-slot
+# `nop`s written out, and splat marks it "Handwritten function". It bubble-sorts
+# the s_nAlphaGroup 16-byte NmlAlphaGroup records of s_aAlphaGroup by descending
+# sortDistance (+4), swapping neighbours with one lq/sq pair, until a pass makes
+# no swap. The class admits a function whose WHOLE body is one
+# `__asm__ __volatile__` statement with exactly the template below (whitespace
+# around operands aside), no outputs, the inputs `"m"(s_nAlphaGroup)` and
+# `"i"(s_aAlphaGroup)`, and exactly the clobbers below, inside an otherwise
+# ordinary (or native-TI) C function shell without parameters.
+# tools/tu_audit.py additionally requires the function to emit exactly that one
+# #APP block, and admits the class for that one identity only. Not a precedent.
+ASM_SORT_TEMPLATE = (
+    '.set noreorder',
+    'lw $8,%0',
+    'slti $2,$8,2',
+    'bne $2,$0,3f',
+    'lui $7,%%hi(%1)',
+    'addiu $7,$7,%%lo(%1)',
+    '1:',
+    'move $5,$0',
+    'move $4,$8',
+    'addi $4,$4,-1',
+    'move $6,$7',
+    '2:',
+    'lwc1 $f1,4($6)',
+    'lwc1 $f0,20($6)',
+    'c.le.s $f0,$f1',
+    'nop',
+    'bc1t 4f',
+    'nop',
+    'lq $2,0($6)',
+    'lq $3,16($6)',
+    'sq $3,0($6)',
+    'sq $2,16($6)',
+    'addi $5,$5,1',
+    '4:',
+    'addi $6,$6,16',
+    'addi $4,$4,-1',
+    'bne $0,$4,2b',
+    'nop',
+    'bne $0,$5,1b',
+    'nop',
+    '3:',
+    '.set reorder',
+)
+ASM_SORT_INPUTS = [('m', 's_nAlphaGroup'), ('i', 's_aAlphaGroup')]
+ASM_SORT_CLOBBERS = {'$2', '$3', '$4', '$5', '$6', '$7', '$8', '$f0', '$f1', 'memory'}
+
+
+def asm_sort_c(text, staged=None, headers=(), inner=None):
+    """`ee-asm-sort` (see the comment above): a parameterless C function whose
+    whole body is the one admitted bubble-sort block. Returns 1 (one admitted
+    asm statement); the audit reports the function `exact_c_with_asm`."""
+    label = 'ee-asm-sort'
+    require(text.isascii() and '\x00' not in text and '??' not in text and '%:' not in text
+            and _hardware_line_continuations_ok(text), '%s C encoding or preprocessing escape' % label)
+    require(not re.search(r'^\s*#.*\b(?:asm|__asm|__asm__)\b', text, re.M),
+            'inline assembly cannot be supplied by a preprocessor directive')
+    tokens = r'"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'|/\*.*?\*/|//[^\n]*'
+    masked = re.sub(tokens, lambda m: ' ' if m[0].startswith(('/*', '//')) else m[0], text, flags=re.S)
+    spans = []
+    for m in _COP2_FIND.finditer(masked):
+        if m.group(0) not in ('__asm__', '__asm', 'asm'):
+            continue
+        found = _inline_construct(masked, m.start(), label)
+        require(found is not None, 'an %s asm statement must be `__asm__ __volatile__(...)`' % label)
+        spans.append((m.start(), found))
+    require(len(spans) == 1, 'an %s function holds exactly one asm statement' % label)
+    start, (end, lines, sections) = spans[0]
+    out_section, in_section, clobber_section = sections[:3]
+    require(not out_section.strip(), 'an %s block has no output operands' % label)
+    inputs = _inline_operand_pairs(in_section, 'input', ('m', 'i'), label)
+    require(inputs == ASM_SORT_INPUTS,
+            'an %s block takes exactly the inputs "m"(s_nAlphaGroup), "i"(s_aAlphaGroup)' % label)
+    clobbers = _inline_clobber_names(clobber_section, label, lambda name: name in ASM_SORT_CLOBBERS)
+    require(clobbers == ASM_SORT_CLOBBERS,
+            'an %s block clobbers exactly %s' % (label, ', '.join(sorted(ASM_SORT_CLOBBERS))))
+    normalised = [re.sub(r'\s*,\s*', ',', re.sub(r'[ \t]+', ' ', line.strip())) for line in lines]
+    require(normalised == list(ASM_SORT_TEMPLATE),
+            'an %s block is exactly the AlphaGroupSort template of docs/ee-hand-asm.md' % label)
+    parameters = _leaf_function_parameters(masked, start, end)
+    require(parameters <= {'void'}, 'an %s function takes no parameters' % label)
+    remainder = masked[:start] + re.sub(r'[^\n]', ' ', masked[start:end]) + masked[end:]
+    # Every other asm token, attribute or pragma is refused by the ordinary grammar below.
+    (inner or ordinary_c)(remainder, staged, headers)
+    return 1
+
+
+def asm_sort_native_ti_c(text, staged=None, headers=()):
+    """An `ee-asm-sort` function inside a `native-ti` TU; neither route widened."""
+    from tools import native_ti          # imports ordinary_c from this module
+    return asm_sort_c(text, staged, headers, inner=native_ti.source)
+
+
 def ee_assembly(text, functions):
     """Audit directives and code/data boundaries, not an EE mnemonic allowlist.
 
@@ -3478,6 +3821,8 @@ def match(root, packet_path, output, profile_path=PROFILE):
         require(path.parts[0] in ('lib', 'lib64'), 'unsupported host library directory')
         lock['pins'].append(dict(path=str(Path('/') / path), sha256=pin['sha256']))
     require(profile['revision'] == packet['revision'] == lock['revision'] == cal.REVISION, 'revision mismatch')
+    require(lock['profile'] not in RETIRED_PROFILES and profile['selected'] not in RETIRED_PROFILES,
+            f"retired compiler profile {lock['profile']}: {RETIRED_REASON}")
     require(profile['selected'] == lock['profile'] and lock['profile'] in ('ee-gcc2_96', 'ee-gcc2_9-990721', NOSIBCALL),
             'unapproved compiler')
     legacy = lock['profile'] == 'ee-gcc2_9-990721'
@@ -3758,7 +4103,9 @@ def match(root, packet_path, output, profile_path=PROFILE):
             require(run([*cmd, *flags, 'candidate.i', '-o', 'candidate.s'], 'compile') == 0, 'compile failed')
         inputs[str(output / 'candidate.s')] = cal.digest(output / 'candidate.s')
         tools = lock['tools']
-        require(run([tools['assembler'], '-EL', '-m5900', '-mabi=eabi', flags[1], '-o', 'candidate.o', 'candidate.s'], 'assemble') == 0, 'assemble failed')
+        # Single EE assembler for game code (user 2026-10-27): the lock's swap-mask GNU as
+        # with -g, as every in-scope game C TU contract assembles (no delay-slot swapping).
+        require(run([tools['assembler'], '-EL', '-m5900', '-mabi=eabi', flags[1], '-g', '-o', 'candidate.o', 'candidate.s'], 'assemble') == 0, 'assemble failed')
         inputs[str(output / 'candidate.o')] = cal.digest(output / 'candidate.o')
         if text_alignment:
             # --noinhibit-exec may return zero for a failed ld assertion. Check
