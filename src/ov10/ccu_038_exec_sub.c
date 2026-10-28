@@ -627,7 +627,7 @@ s32 CardPlayCommandCondition(u16 side, u16 command, CardGameWork *work) {
         /* 0x00a139f8: lbu reads the card definition byte at +0x13 and compares it
          * with 1; the field has no name yet, so the unmodeled span is read here. */
         for (i = 0; i < 4; i++) {
-            if (own->battle[i].battle.layers[0].cardId >= 0 && work->definitions[own->battle[i].battle.layers[0].cardId].unmodeled_13 == 1) {
+            if (own->battle[i].battle.layers[0].cardId >= 0 && work->definitions[own->battle[i].battle.layers[0].cardId].attackType == 1) {
                 met = 1;
                 break;
             }

@@ -2282,7 +2282,7 @@ s32 CGPCalcPowerPlus(CardGameWork *work, CardPowerCard *card, s32 power)
     } else {
         power += card->powerPlus[0];
         power += card->powerPlus[1];
-        if (CardChkAttackType(work->definitions, card) == 4) {
+        if (CardChkAttackType(work->definitions, (CardLayerStack *) card) == 4) {
             card->boostCount = 0;
         }
         boosts = card->boostCount;

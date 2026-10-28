@@ -34,7 +34,9 @@ typedef struct CardDefinition {
     u8 reserveCost;               /* +0x10: cards this command reserves from the draw pile */
     u8 playCost;                   /* +0x11: points required to play this card */
     u8 operationDuration;          /* +0x12 */
-    u8 unmodeled_13;
+    u8 attackType;                 /* +0x13: CardChkAttackType returns it (lbu at
+                                    * 0x00a0cefc); type 4 spends a card's boosts
+                                    * (CGPCalcPowerPlus), CCC38ExecSub tests type 1 */
     u8 attackPower;                /* +0x14 */
     u8 basePower;                  /* +0x15 */
     u8 unmodeled_16;

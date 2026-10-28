@@ -40,7 +40,9 @@ typedef struct CardDefinition {
     u8 reserveCost;               /* +0x10: cards this command reserves from the draw pile */
     u8 playCost;                   /* +0x11: points required to play this card */
     u8 operationDuration;          /* +0x12 */
-    u8 unmodeled_13;
+    u8 attackType;                 /* +0x13: CardChkAttackType returns it (lbu at
+                                    * 0x00a0cefc); type 4 spends a card's boosts
+                                    * (CGPCalcPowerPlus), CCC38ExecSub tests type 1 */
     u8 attackPower;                /* +0x14 */
     u8 basePower;                  /* +0x15 */
     u8 unmodeled_16;
@@ -457,9 +459,12 @@ typedef struct CardPowerCard {
 } CardPowerCard;
 
 /*
- * Attack type of a card in play (ov10/tu002, 0x00a0cec0, still assembler);
- * type 4 spends the card's boosts instead of doubling its power.
+ * Attack type of a card in play (ov10/tu002, 0x00a0cec0): the attackType of
+ * the topmost layer of the stack that holds a card other than 0x2F or 0x2C.
+ * It walks CardLayerStack.layers (lh at +0x194 = layers[39].cardId, stride
+ * -0x0A), so it takes the stack; type 4 spends the card's boosts instead of
+ * doubling its power.
  */
-extern s32 CardChkAttackType(CardDefinition *definitions, CardPowerCard *card);
+extern s32 CardChkAttackType(CardDefinition *definitions, CardLayerStack *card);
 
 #endif
