@@ -194,7 +194,7 @@ void CardListDisp(void *list, CardGameWork *work);
 int CardGetDeckCardCnt(int cardId, void *deck);
 int CardAddDeck(void *deck, int cardId);
 void CardDelDeck(void *deck, int cardId);
-s16 CardMakeDispList(void *rows, int mask, void *definitions, u16 cardCount);
+int CardMakeDispList(void *rows, u16 mask, void *definitions, int cardCount);
 void nmlModelSetPlace(float matrix[4][4]);
 void nmlModelSetTexture(int texture);
 void nmlModelSetRenderLevel(int level);
