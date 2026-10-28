@@ -19,4 +19,14 @@ typedef struct CardDeckRecord {
     u16 checksum;                /* +0x2A */
 } CardDeckRecord;
 
+/*
+ * One line of a card list window as CardMakeDispList writes it: the card id
+ * (sh at +0x00, stride 4). Same layout and name as the copies in
+ * card_view_proc.h and card_play_sound1.h, whose TUs read the lists back.
+ */
+typedef struct CardListEntry {
+    s16 cardId;
+    u16 count;
+} CardListEntry;
+
 #endif /* SRC_OV10_CARD_FREAD_H */

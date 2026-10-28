@@ -75,7 +75,36 @@ void CardFadeOut(CardGameWork *work)
 
 INCLUDE_ASM("asm/nonmatchings/ov10/card_fread", CardFadeIn);
 
-INCLUDE_ASM("asm/nonmatchings/ov10/card_fread", CardMakeDispList);
+/*
+ * Fill entries with the ids of the cards that pass filter and return how many
+ * did. The high byte of filter masks CardDefinition.kind; a card of kind 1
+ * must also share a bit of its flags with the low byte. filter arrives as a
+ * u16 (andi 0xFFFF at entry) and cardCount as a plain int (slt, no
+ * extension); the count is returned unextended, so the result is an int.
+ */
+int CardMakeDispList(CardListEntry *entries, u16 filter, CardDefinition *definitions, int cardCount)
+{
+    int kindMask;
+    int flagMask;
+    int i;
+    int count;
+
+    kindMask = filter >> 8;
+    flagMask = filter & 0xFF;
+    count = 0;
+    for (i = 0; i < cardCount; i++, definitions++) {
+        if (!(definitions->kind & kindMask)) {
+            continue;
+        }
+        if (definitions->kind == 1 && !(definitions->flags & flagMask)) {
+            continue;
+        }
+        entries->cardId = i;
+        entries++;
+        count++;
+    }
+    return count;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov10/card_fread", CardCopyDeckWork);
 

@@ -135,7 +135,7 @@ extern void nmlModelEntry(unsigned int model);
 extern void nmlModelEntryCard(unsigned int model);
 extern void CardListDisp(CardListWindow *list, CardGameWork *work);
 extern int CardCntList(CardGameWork *work, int index);
-extern s16 CardMakeDispList(CardListEntry *entries, int filter, CardDefinition *definitions,
+extern int CardMakeDispList(CardListEntry *entries, u16 filter, CardDefinition *definitions,
                             int cardCount);
 extern void CardDisp(Matrix4 matrix, s16 cardId, int owned, int selected);
 extern void CardDispCard(Matrix4 matrix, s16 card, int enabled);
