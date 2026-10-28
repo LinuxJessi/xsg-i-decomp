@@ -127,7 +127,7 @@ int unitCidGet(ObjectTask *unit)
     return cid;
 }
 
-extern int unitAgwsPilotGet(s16 charaId);
+extern int unitAgwsPilotGet(int agwsId);
 extern int printf(const char *format, ...);
 void unitPlFunc(ObjectTask *unit);
 
@@ -194,7 +194,47 @@ ObjectTask *unitEnCreate(s16 *pl)
     return unit;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitAgwsPilotGet);
+/*
+ * The player-character origin record dataUnitOrgGet (src/ov01/data_unit_org_get.c)
+ * returns, as far as unitAgwsPilotGet reads it: the equipped AGWS at +0x54
+ * (`lh $3,0x54($2)`, 0x00a012a8), CalcCharParaData.agwsId in src/ov01/calc.h.
+ */
+typedef struct UnitOrgAgws {
+    unsigned char unmodeled_00[0x54];
+    short agwsId; /* +0x54 */
+} UnitOrgAgws;
+
+extern UnitOrgAgws *dataUnitOrgGet(int charaId);
+
+/*
+ * The AGWS character ids (`addiu $2,$17,-0x11`/`sltiu $2,$2,0x10`) and the
+ * player characters that can pilot one (`slti $2,$16,0x11`).
+ */
+#define UNIT_AGWS_FIRST  0x11
+#define UNIT_AGWS_COUNT  0x10
+#define UNIT_PILOT_FIRST 1
+#define UNIT_PILOT_LAST  0x10
+
+/*
+ * The player character whose origin record has AGWS agwsId equipped, or 0
+ * when agwsId is not an AGWS or no character pilots it. The parameter is a
+ * full int: the original reads $a0 without the sign extension an s16
+ * parameter would add.
+ */
+int unitAgwsPilotGet(int agwsId)
+{
+    int charaId;
+
+    if (agwsId < UNIT_AGWS_FIRST || agwsId >= UNIT_AGWS_FIRST + UNIT_AGWS_COUNT) {
+        return 0;
+    }
+    for (charaId = UNIT_PILOT_FIRST; charaId <= UNIT_PILOT_LAST; charaId++) {
+        if (dataUnitOrgGet(charaId)->agwsId == agwsId) {
+            return charaId;
+        }
+    }
+    return 0;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitCreate);
 
