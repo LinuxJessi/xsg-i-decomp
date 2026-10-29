@@ -169,9 +169,8 @@ typedef struct CardEnemyOpeArg {
     s16 slot;
 } CardEnemyOpeArg;
 
-/* True when the side may still play the operation card; defined in ov10/cgp.c
- * (still assembler). */
-extern int CGPChkOpePlayable(int side, CardGameWork *work, int cardId);
+/* True when the side may still play the operation card; defined in ov10/cgp.c. */
+extern int CGPChkOpePlayable(int side, CardGameWork *work, s16 command);
 
 /* Damage-command searches over the board; both defined in
  * ov10/battle_area_check_enemy.c (still assembler). CheckDamageCommand answers

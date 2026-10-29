@@ -125540,6 +125540,223 @@
    ]
   },
   "ov10/tu008": {
+   ".bss": [
+    {
+     "range": [
+      "0x00A57DE8",
+      "0x00A57DF0"
+     ],
+     "generated": [
+      "0x00A57DE8",
+      "0x00A57DF0"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "D_00A57DE8"
+     ],
+     "also_referenced_by_c": [],
+     "c_input_spans": [
+      {
+       "section": ".bss",
+       "range": [
+        "0x00A57DE8",
+        "0x00A57DF0"
+       ],
+       "object_range": [
+        0,
+        8
+       ],
+       "symbols": [
+        "cursor.0"
+       ],
+       "credit": "verified"
+      }
+     ],
+     "c_storage_aliases": [
+      {
+       "address": "0x00A57DEA",
+       "original_name": "D_00A57DEA",
+       "storage_owner": {
+        "name": "cursor.0",
+        "address": "0x00A57DE8",
+        "size": 8
+       }
+      }
+     ]
+    },
+    {
+     "range": [
+      "0x00A57DF0",
+      "0x00A57DF4"
+     ],
+     "generated": [
+      "0x00A57DF0",
+      "0x00A57DF4"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "D_00A57DF0"
+     ],
+     "also_referenced_by_c": [],
+     "c_input_spans": [
+      {
+       "section": ".bss",
+       "range": [
+        "0x00A57DF0",
+        "0x00A57DF4"
+       ],
+       "object_range": [
+        8,
+        12
+       ],
+       "symbols": [
+        "card0.1",
+        "card1.2"
+       ],
+       "credit": "verified"
+      }
+     ]
+    },
+    {
+     "range": [
+      "0x00A57DF8",
+      "0x00A57E00"
+     ],
+     "generated": [
+      "0x00A57DF8",
+      "0x00A57E00"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "D_00A57DF8"
+     ],
+     "also_referenced_by_c": [],
+     "c_input_spans": [
+      {
+       "section": ".bss",
+       "range": [
+        "0x00A57DF8",
+        "0x00A57E00"
+       ],
+       "object_range": [
+        16,
+        24
+       ],
+       "symbols": [
+        "handCursor.3"
+       ],
+       "credit": "verified"
+      }
+     ],
+     "c_storage_aliases": [
+      {
+       "address": "0x00A57DFA",
+       "original_name": "D_00A57DFA",
+       "storage_owner": {
+        "name": "handCursor.3",
+        "address": "0x00A57DF8",
+        "size": 8
+       }
+      }
+     ]
+    },
+    {
+     "range": [
+      "0x00A57E00",
+      "0x00A57E04"
+     ],
+     "generated": [
+      "0x00A57E00",
+      "0x00A57E04"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "D_00A57E00"
+     ],
+     "also_referenced_by_c": [],
+     "c_input_spans": [
+      {
+       "section": ".bss",
+       "range": [
+        "0x00A57E00",
+        "0x00A57E04"
+       ],
+       "object_range": [
+        24,
+        28
+       ],
+       "symbols": [
+        "NowNo.4"
+       ],
+       "credit": "verified"
+      }
+     ]
+    },
+    {
+     "range": [
+      "0x00A57E04",
+      "0x00A57E08"
+     ],
+     "generated": [
+      "0x00A57E04",
+      "0x00A57E08"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "D_00A57E04"
+     ],
+     "also_referenced_by_c": [],
+     "c_input_spans": [
+      {
+       "section": ".bss",
+       "range": [
+        "0x00A57E04",
+        "0x00A57E08"
+       ],
+       "object_range": [
+        28,
+        32
+       ],
+       "symbols": [
+        "lp.5"
+       ],
+       "credit": "verified"
+      }
+     ]
+    },
+    {
+     "range": [
+      "0x00A57E08",
+      "0x00A57E0C"
+     ],
+     "generated": [
+      "0x00A57E08",
+      "0x00A57E0C"
+     ],
+     "generated_by": [],
+     "c_owned_symbols": [
+      "D_00A57E08"
+     ],
+     "also_referenced_by_c": [],
+     "c_input_spans": [
+      {
+       "section": ".bss",
+       "range": [
+        "0x00A57E08",
+        "0x00A57E0C"
+       ],
+       "object_range": [
+        32,
+        36
+       ],
+       "symbols": [
+        "timer.6"
+       ],
+       "credit": "verified"
+      }
+     ]
+    }
+   ],
    ".data": [
     {
      "range": [
@@ -127239,8 +127456,8 @@
         "0x00a4e540"
        ],
        "object_range": [
-        392,
-        472
+        2376,
+        2456
        ],
        "symbols": [
         "D_00A4E4F0",
@@ -127292,12 +127509,44 @@
     },
     {
      "range": [
+      "0x00a4e560",
+      "0x00a4e5a0"
+     ],
+     "generated": [
+      "0x00a4e560",
+      "0x00a4e5a0"
+     ],
+     "generated_by": [
+      "CGPChkFaseLock"
+     ],
+     "c_owned_symbols": [
+      "jtbl_00A4E560"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".rodata",
+       "range": [
+        "0x00a4e560",
+        "0x00a4e5a0"
+       ],
+       "object_range": [
+        32,
+        96
+       ],
+       "symbols": [],
+       "anonymous_emission": true
+      }
+     ],
+     "also_referenced_by_c": []
+    },
+    {
+     "range": [
       "0x00a4e5a0",
-      "0x00a4e690"
+      "0x00a4e688"
      ],
      "generated": [
       "0x00a4e5a0",
-      "0x00a4e690"
+      "0x00a4e688"
      ],
      "generated_by": [
       "CardSetEffect"
@@ -127311,11 +127560,160 @@
        "section": ".rodata",
        "range": [
         "0x00a4e5a0",
-        "0x00a4e690"
+        "0x00a4e688"
        ],
        "object_range": [
-        32,
-        272
+        96,
+        328
+       ],
+       "symbols": [],
+       "anonymous_emission": true
+      }
+     ],
+     "also_referenced_by_c": []
+    },
+    {
+     "range": [
+      "0x00a4e690",
+      "0x00a4e758"
+     ],
+     "generated": [
+      "0x00a4e690",
+      "0x00a4e758"
+     ],
+     "generated_by": [
+      "CardDispEffect"
+     ],
+     "c_owned_symbols": [
+      "jtbl_00A4E690",
+      "jtbl_00A4E720",
+      "jtbl_00A4E740"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".rodata",
+       "range": [
+        "0x00a4e690",
+        "0x00a4e758"
+       ],
+       "object_range": [
+        336,
+        536
+       ],
+       "symbols": [],
+       "anonymous_emission": true
+      }
+     ],
+     "also_referenced_by_c": []
+    },
+    {
+     "range": [
+      "0x00a4e758",
+      "0x00a4eda8"
+     ],
+     "generated": [
+      "0x00a4e758",
+      "0x00a4eda8"
+     ],
+     "generated_by": [
+      "CardGameInit"
+     ],
+     "c_owned_symbols": [
+      "D_00A4E758",
+      "D_00A4E768",
+      "D_00A4E778",
+      "D_00A4E788",
+      "D_00A4E798",
+      "D_00A4E7A8",
+      "D_00A4E7B8",
+      "D_00A4E7D0",
+      "D_00A4E7E0",
+      "D_00A4E7F0",
+      "D_00A4E800",
+      "D_00A4E810",
+      "D_00A4E820",
+      "D_00A4E830",
+      "D_00A4E840",
+      "D_00A4E850",
+      "D_00A4E860",
+      "D_00A4E870",
+      "D_00A4E880",
+      "D_00A4E890",
+      "D_00A4E8A0",
+      "D_00A4E8B0",
+      "D_00A4E8C0",
+      "D_00A4E8D8",
+      "D_00A4E8F0",
+      "D_00A4E900",
+      "D_00A4E910",
+      "D_00A4E920",
+      "D_00A4E930",
+      "D_00A4E940",
+      "D_00A4E958",
+      "D_00A4E970",
+      "D_00A4E980",
+      "D_00A4E990",
+      "D_00A4E9A0",
+      "D_00A4E9B0",
+      "D_00A4E9C0",
+      "D_00A4E9D0",
+      "D_00A4E9E0",
+      "D_00A4E9F0",
+      "D_00A4EA00",
+      "D_00A4EA10",
+      "D_00A4EA20",
+      "D_00A4EA30",
+      "D_00A4EA40",
+      "D_00A4EA50",
+      "D_00A4EA68",
+      "D_00A4EA80",
+      "D_00A4EA98",
+      "D_00A4EAB0",
+      "D_00A4EAC8",
+      "D_00A4EAE0",
+      "D_00A4EAF8",
+      "D_00A4EB10",
+      "D_00A4EB20",
+      "D_00A4EB30",
+      "D_00A4EB40",
+      "D_00A4EB58",
+      "D_00A4EB70",
+      "D_00A4EB80",
+      "D_00A4EB98",
+      "D_00A4EBB0",
+      "D_00A4EBC8",
+      "D_00A4EBE0",
+      "D_00A4EBF8",
+      "D_00A4EC10",
+      "D_00A4EC28",
+      "D_00A4EC40",
+      "D_00A4EC58",
+      "D_00A4EC70",
+      "D_00A4EC88",
+      "D_00A4ECA0",
+      "D_00A4ECB8",
+      "D_00A4ECD0",
+      "D_00A4ECE8",
+      "D_00A4ED00",
+      "D_00A4ED18",
+      "D_00A4ED28",
+      "D_00A4ED38",
+      "D_00A4ED48",
+      "D_00A4ED58",
+      "D_00A4ED68",
+      "D_00A4ED78",
+      "D_00A4ED90"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".rodata",
+       "range": [
+        "0x00a4e758",
+        "0x00a4eda8"
+       ],
+       "object_range": [
+        536,
+        2152
        ],
        "symbols": [],
        "anonymous_emission": true
@@ -127348,8 +127746,41 @@
         "0x00a4ee00"
        ],
        "object_range": [
-        272,
-        352
+        2160,
+        2240
+       ],
+       "symbols": [],
+       "anonymous_emission": true
+      }
+     ],
+     "also_referenced_by_c": []
+    },
+    {
+     "range": [
+      "0x00a4ee00",
+      "0x00a4ee60"
+     ],
+     "generated": [
+      "0x00a4ee00",
+      "0x00a4ee60"
+     ],
+     "generated_by": [
+      "CGPCursorMove2"
+     ],
+     "c_owned_symbols": [
+      "jtbl_00A4EE00",
+      "jtbl_00A4EE30"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".rodata",
+       "range": [
+        "0x00a4ee00",
+        "0x00a4ee60"
+       ],
+       "object_range": [
+        2240,
+        2336
        ],
        "symbols": [],
        "anonymous_emission": true
@@ -127380,8 +127811,8 @@
         "0x00a4ee88"
        ],
        "object_range": [
-        352,
-        392
+        2336,
+        2376
        ],
        "symbols": [],
        "anonymous_emission": true
@@ -127412,8 +127843,274 @@
         "0x00a4ef78"
        ],
        "object_range": [
-        480,
-        712
+        2464,
+        2696
+       ],
+       "symbols": [],
+       "anonymous_emission": true
+      }
+     ],
+     "also_referenced_by_c": []
+    },
+    {
+     "range": [
+      "0x00a4ef80",
+      "0x00a4f010"
+     ],
+     "generated": [
+      "0x00a4ef80",
+      "0x00a4f010"
+     ],
+     "generated_by": [
+      "CGPDrawFaseProc"
+     ],
+     "c_owned_symbols": [
+      "jtbl_00A4EF80"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".rodata",
+       "range": [
+        "0x00a4ef80",
+        "0x00a4f010"
+       ],
+       "object_range": [
+        2704,
+        2848
+       ],
+       "symbols": [],
+       "anonymous_emission": true
+      }
+     ],
+     "also_referenced_by_c": []
+    },
+    {
+     "range": [
+      "0x00a4f010",
+      "0x00a4f068"
+     ],
+     "generated": [
+      "0x00a4f010",
+      "0x00a4f068"
+     ],
+     "generated_by": [
+      "CGPMoveFaseProc"
+     ],
+     "c_owned_symbols": [
+      "jtbl_00A4F010"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".rodata",
+       "range": [
+        "0x00a4f010",
+        "0x00a4f068"
+       ],
+       "object_range": [
+        2848,
+        2936
+       ],
+       "symbols": [],
+       "anonymous_emission": true
+      }
+     ],
+     "also_referenced_by_c": []
+    },
+    {
+     "range": [
+      "0x00a4f068",
+      "0x00a4f108"
+     ],
+     "generated": [
+      "0x00a4f068",
+      "0x00a4f108"
+     ],
+     "generated_by": [
+      "CGPSetFaseProc"
+     ],
+     "c_owned_symbols": [
+      "D_00A4F068",
+      "D_00A4F088",
+      "jtbl_00A4F0B0"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".rodata",
+       "range": [
+        "0x00a4f068",
+        "0x00a4f108"
+       ],
+       "object_range": [
+        2936,
+        3096
+       ],
+       "symbols": [],
+       "anonymous_emission": true
+      }
+     ],
+     "also_referenced_by_c": []
+    },
+    {
+     "range": [
+      "0x00a4f150",
+      "0x00a4f2f0"
+     ],
+     "generated": [
+      "0x00a4f150",
+      "0x00a4f2f0"
+     ],
+     "generated_by": [
+      "CGPCFPlayCommOperation"
+     ],
+     "c_owned_symbols": [
+      "jtbl_00A4F150",
+      "jtbl_00A4F2A0",
+      "jtbl_00A4F2C0"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".rodata",
+       "range": [
+        "0x00a4f150",
+        "0x00a4f2f0"
+       ],
+       "object_range": [
+        3104,
+        3520
+       ],
+       "symbols": [],
+       "anonymous_emission": true
+      }
+     ],
+     "also_referenced_by_c": []
+    },
+    {
+     "range": [
+      "0x00a4f370",
+      "0x00a4f4b4"
+     ],
+     "generated": [
+      "0x00a4f370",
+      "0x00a4f4b4"
+     ],
+     "generated_by": [
+      "CGPCommFaseSub"
+     ],
+     "c_owned_symbols": [
+      "jtbl_00A4F370",
+      "jtbl_00A4F420"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".rodata",
+       "range": [
+        "0x00a4f370",
+        "0x00a4f4b4"
+       ],
+       "object_range": [
+        3520,
+        3844
+       ],
+       "symbols": [],
+       "anonymous_emission": true
+      }
+     ],
+     "also_referenced_by_c": []
+    },
+    {
+     "range": [
+      "0x00a4f4c0",
+      "0x00a4f5b8"
+     ],
+     "generated": [
+      "0x00a4f4c0",
+      "0x00a4f5b8"
+     ],
+     "generated_by": [
+      "CGPBattleFaseProc"
+     ],
+     "c_owned_symbols": [
+      "jtbl_00A4F4C0"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".rodata",
+       "range": [
+        "0x00a4f4c0",
+        "0x00a4f5b8"
+       ],
+       "object_range": [
+        3856,
+        4104
+       ],
+       "symbols": [],
+       "anonymous_emission": true
+      }
+     ],
+     "also_referenced_by_c": []
+    },
+    {
+     "range": [
+      "0x00a4f5c0",
+      "0x00a4f5ec"
+     ],
+     "generated": [
+      "0x00a4f5c0",
+      "0x00a4f5ec"
+     ],
+     "generated_by": [
+      "CGPEndFaseProc"
+     ],
+     "c_owned_symbols": [
+      "jtbl_00A4F5C0"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".rodata",
+       "range": [
+        "0x00a4f5c0",
+        "0x00a4f5ec"
+       ],
+       "object_range": [
+        4112,
+        4156
+       ],
+       "symbols": [],
+       "anonymous_emission": true
+      }
+     ],
+     "also_referenced_by_c": []
+    },
+    {
+     "range": [
+      "0x00a4f5f0",
+      "0x00a4f710"
+     ],
+     "generated": [
+      "0x00a4f5f0",
+      "0x00a4f710"
+     ],
+     "generated_by": [
+      "CardGameProc"
+     ],
+     "c_owned_symbols": [
+      "jtbl_00A4F5F0",
+      "jtbl_00A4F620",
+      "jtbl_00A4F640",
+      "jtbl_00A4F680",
+      "jtbl_00A4F6B0",
+      "jtbl_00A4F6E0"
+     ],
+     "c_input_spans": [
+      {
+       "section": ".rodata",
+       "range": [
+        "0x00a4f5f0",
+        "0x00a4f710"
+       ],
+       "object_range": [
+        4160,
+        4448
        ],
        "symbols": [],
        "anonymous_emission": true
@@ -236986,6 +237683,422 @@
       "assembly_sha256": "182f64ff9709caddbe46b7bbba35598d7a97b988a827a6a179e8eb1ee05895d1",
       "space": 1,
       "alignment": 1
+     }
+    },
+    {
+     "unit": "ov10",
+     "address": "0x00A57DE8",
+     "section": ".bss",
+     "names": [
+      "D_00A57DE8"
+     ],
+     "storage_owner": {
+      "name": "cursor.0",
+      "address": "0x00A57DE8",
+      "size": 8,
+      "alignment": 8,
+      "type": "CGPCursorPosition",
+      "linkage": "internal",
+      "assembly_path": "build/ov10/build/scaffold/src/ov10/cgp.s"
+     },
+     "evidence": {
+      "original_tu": "ov10/tu008",
+      "source_path": "src/ov10/cgp.c",
+      "source_sha256": "425b79d622908074c36b2f49967bcbe10b1feaf6418987dafd16c55ea9ed45d0",
+      "object": "build/ov10/build/scaffold/src/ov10/cgp.o",
+      "object_sha256": "41c3197e7cf9852f9cb70c393383fbb346225c38cc43a08eea06bdbe382cbfb6",
+      "raw_input_object": "build/ov10/build/scaffold/src/ov10/cgp.o",
+      "raw_input_object_sha256": "41c3197e7cf9852f9cb70c393383fbb346225c38cc43a08eea06bdbe382cbfb6",
+      "assembly_path": "build/ov10/build/scaffold/src/ov10/cgp.s",
+      "assembly_sha256": "4af31872e848278ba2815ecc881a515cbc899c3d8788de0bbd83ebf44b4277b8",
+      "cc1_assembly": "build/ov10/build/scaffold/src/ov10/cgp.s",
+      "cc1_assembly_sha256": "4af31872e848278ba2815ecc881a515cbc899c3d8788de0bbd83ebf44b4277b8",
+      "original_binary": "game/extracted-iso/OV10.OVL",
+      "original_binary_sha256": "a4e27bc538e7d13de80b9e694b5c93e8d55950af28ac8a7269fe8b0d15630c11",
+      "original_scaffold": "build/ov10/asm/data/ov10/cgp.bss.s",
+      "original_scaffold_sha256": "2b23d1e9a744268d57df14df880e275e2219bcad31549132c5897bfdcec6a3a5",
+      "source_definition": "src/ov10/cgp.c (CGPCFPlayCommOperation)",
+      "extent_evidence": "Function-local static of CGPCFPlayCommOperation (cursor): cc1 emits one local NOBITS owner.",
+      "compiler_contract": "ov10-tu-c296-G0",
+      "object_path": "build/ov10/build/scaffold/src/ov10/cgp.o"
+     },
+     "compiler_storage": {
+      "label": "cursor.0",
+      "source_sha256": "425b79d622908074c36b2f49967bcbe10b1feaf6418987dafd16c55ea9ed45d0",
+      "object_sha256": "41c3197e7cf9852f9cb70c393383fbb346225c38cc43a08eea06bdbe382cbfb6",
+      "assembly_sha256": "4af31872e848278ba2815ecc881a515cbc899c3d8788de0bbd83ebf44b4277b8",
+      "space": 8,
+      "alignment": 8
+     }
+    },
+    {
+     "unit": "ov10",
+     "address": "0x00A57DEA",
+     "section": ".bss",
+     "names": [
+      "D_00A57DEA"
+     ],
+     "storage_owner": {
+      "name": "cursor.0",
+      "address": "0x00A57DE8",
+      "size": 8,
+      "alignment": 8,
+      "type": "CGPCursorPosition",
+      "linkage": "internal",
+      "assembly_path": "build/ov10/build/scaffold/src/ov10/cgp.s"
+     },
+     "evidence": {
+      "original_tu": "ov10/tu008",
+      "source_path": "src/ov10/cgp.c",
+      "source_sha256": "425b79d622908074c36b2f49967bcbe10b1feaf6418987dafd16c55ea9ed45d0",
+      "object": "build/ov10/build/scaffold/src/ov10/cgp.o",
+      "object_sha256": "41c3197e7cf9852f9cb70c393383fbb346225c38cc43a08eea06bdbe382cbfb6",
+      "raw_input_object": "build/ov10/build/scaffold/src/ov10/cgp.o",
+      "raw_input_object_sha256": "41c3197e7cf9852f9cb70c393383fbb346225c38cc43a08eea06bdbe382cbfb6",
+      "assembly_path": "build/ov10/build/scaffold/src/ov10/cgp.s",
+      "assembly_sha256": "4af31872e848278ba2815ecc881a515cbc899c3d8788de0bbd83ebf44b4277b8",
+      "cc1_assembly": "build/ov10/build/scaffold/src/ov10/cgp.s",
+      "cc1_assembly_sha256": "4af31872e848278ba2815ecc881a515cbc899c3d8788de0bbd83ebf44b4277b8",
+      "original_binary": "game/extracted-iso/OV10.OVL",
+      "original_binary_sha256": "a4e27bc538e7d13de80b9e694b5c93e8d55950af28ac8a7269fe8b0d15630c11",
+      "original_scaffold": "build/ov10/asm/data/ov10/cgp.bss.s",
+      "original_scaffold_sha256": "2b23d1e9a744268d57df14df880e275e2219bcad31549132c5897bfdcec6a3a5",
+      "source_definition": "src/ov10/cgp.c (CGPCFPlayCommOperation)",
+      "extent_evidence": "Function-local static of CGPCFPlayCommOperation (cursor): cc1 emits one local NOBITS owner.",
+      "compiler_contract": "ov10-tu-c296-G0",
+      "object_path": "build/ov10/build/scaffold/src/ov10/cgp.o"
+     },
+     "compiler_storage": {
+      "label": "cursor.0",
+      "source_sha256": "425b79d622908074c36b2f49967bcbe10b1feaf6418987dafd16c55ea9ed45d0",
+      "object_sha256": "41c3197e7cf9852f9cb70c393383fbb346225c38cc43a08eea06bdbe382cbfb6",
+      "assembly_sha256": "4af31872e848278ba2815ecc881a515cbc899c3d8788de0bbd83ebf44b4277b8",
+      "space": 8,
+      "alignment": 8
+     },
+     "alias_extent": 6
+    },
+    {
+     "unit": "ov10",
+     "address": "0x00A57DF0",
+     "section": ".bss",
+     "names": [
+      "D_00A57DF0"
+     ],
+     "storage_owner": {
+      "name": "card0.1",
+      "address": "0x00A57DF0",
+      "size": 2,
+      "alignment": 8,
+      "type": "s16[1]",
+      "linkage": "internal",
+      "assembly_path": "build/ov10/build/scaffold/src/ov10/cgp.s"
+     },
+     "evidence": {
+      "original_tu": "ov10/tu008",
+      "source_path": "src/ov10/cgp.c",
+      "source_sha256": "425b79d622908074c36b2f49967bcbe10b1feaf6418987dafd16c55ea9ed45d0",
+      "object": "build/ov10/build/scaffold/src/ov10/cgp.o",
+      "object_sha256": "41c3197e7cf9852f9cb70c393383fbb346225c38cc43a08eea06bdbe382cbfb6",
+      "raw_input_object": "build/ov10/build/scaffold/src/ov10/cgp.o",
+      "raw_input_object_sha256": "41c3197e7cf9852f9cb70c393383fbb346225c38cc43a08eea06bdbe382cbfb6",
+      "assembly_path": "build/ov10/build/scaffold/src/ov10/cgp.s",
+      "assembly_sha256": "4af31872e848278ba2815ecc881a515cbc899c3d8788de0bbd83ebf44b4277b8",
+      "cc1_assembly": "build/ov10/build/scaffold/src/ov10/cgp.s",
+      "cc1_assembly_sha256": "4af31872e848278ba2815ecc881a515cbc899c3d8788de0bbd83ebf44b4277b8",
+      "original_binary": "game/extracted-iso/OV10.OVL",
+      "original_binary_sha256": "a4e27bc538e7d13de80b9e694b5c93e8d55950af28ac8a7269fe8b0d15630c11",
+      "original_scaffold": "build/ov10/asm/data/ov10/cgp.bss.s",
+      "original_scaffold_sha256": "2b23d1e9a744268d57df14df880e275e2219bcad31549132c5897bfdcec6a3a5",
+      "source_definition": "src/ov10/cgp.c (CGPCFPlayCommOperation)",
+      "extent_evidence": "Function-local static of CGPCFPlayCommOperation (card0), followed by card1.2 at +2.",
+      "compiler_contract": "ov10-tu-c296-G0",
+      "object_path": "build/ov10/build/scaffold/src/ov10/cgp.o"
+     },
+     "compiler_storage": {
+      "label": "card0.1",
+      "source_sha256": "425b79d622908074c36b2f49967bcbe10b1feaf6418987dafd16c55ea9ed45d0",
+      "object_sha256": "41c3197e7cf9852f9cb70c393383fbb346225c38cc43a08eea06bdbe382cbfb6",
+      "assembly_sha256": "4af31872e848278ba2815ecc881a515cbc899c3d8788de0bbd83ebf44b4277b8",
+      "space": 2,
+      "alignment": 8
+     }
+    },
+    {
+     "unit": "ov10",
+     "address": "0x00A57DF2",
+     "section": ".bss",
+     "names": [
+      "D_00A57DF2"
+     ],
+     "storage_owner": {
+      "name": "card1.2",
+      "address": "0x00A57DF2",
+      "size": 2,
+      "alignment": 2,
+      "type": "s16",
+      "linkage": "internal",
+      "assembly_path": "build/ov10/build/scaffold/src/ov10/cgp.s"
+     },
+     "evidence": {
+      "original_tu": "ov10/tu008",
+      "source_path": "src/ov10/cgp.c",
+      "source_sha256": "425b79d622908074c36b2f49967bcbe10b1feaf6418987dafd16c55ea9ed45d0",
+      "object": "build/ov10/build/scaffold/src/ov10/cgp.o",
+      "object_sha256": "41c3197e7cf9852f9cb70c393383fbb346225c38cc43a08eea06bdbe382cbfb6",
+      "raw_input_object": "build/ov10/build/scaffold/src/ov10/cgp.o",
+      "raw_input_object_sha256": "41c3197e7cf9852f9cb70c393383fbb346225c38cc43a08eea06bdbe382cbfb6",
+      "assembly_path": "build/ov10/build/scaffold/src/ov10/cgp.s",
+      "assembly_sha256": "4af31872e848278ba2815ecc881a515cbc899c3d8788de0bbd83ebf44b4277b8",
+      "cc1_assembly": "build/ov10/build/scaffold/src/ov10/cgp.s",
+      "cc1_assembly_sha256": "4af31872e848278ba2815ecc881a515cbc899c3d8788de0bbd83ebf44b4277b8",
+      "original_binary": "game/extracted-iso/OV10.OVL",
+      "original_binary_sha256": "a4e27bc538e7d13de80b9e694b5c93e8d55950af28ac8a7269fe8b0d15630c11",
+      "original_scaffold": "build/ov10/asm/data/ov10/cgp.bss.s",
+      "original_scaffold_sha256": "2b23d1e9a744268d57df14df880e275e2219bcad31549132c5897bfdcec6a3a5",
+      "source_definition": "src/ov10/cgp.c (CGPCFPlayCommOperation)",
+      "extent_evidence": "Function-local static of CGPCFPlayCommOperation (card1).",
+      "compiler_contract": "ov10-tu-c296-G0",
+      "object_path": "build/ov10/build/scaffold/src/ov10/cgp.o"
+     },
+     "compiler_storage": {
+      "label": "card1.2",
+      "source_sha256": "425b79d622908074c36b2f49967bcbe10b1feaf6418987dafd16c55ea9ed45d0",
+      "object_sha256": "41c3197e7cf9852f9cb70c393383fbb346225c38cc43a08eea06bdbe382cbfb6",
+      "assembly_sha256": "4af31872e848278ba2815ecc881a515cbc899c3d8788de0bbd83ebf44b4277b8",
+      "space": 2,
+      "alignment": 2
+     }
+    },
+    {
+     "unit": "ov10",
+     "address": "0x00A57DF8",
+     "section": ".bss",
+     "names": [
+      "D_00A57DF8"
+     ],
+     "storage_owner": {
+      "name": "handCursor.3",
+      "address": "0x00A57DF8",
+      "size": 8,
+      "alignment": 8,
+      "type": "CGPCursorPosition",
+      "linkage": "internal",
+      "assembly_path": "build/ov10/build/scaffold/src/ov10/cgp.s"
+     },
+     "evidence": {
+      "original_tu": "ov10/tu008",
+      "source_path": "src/ov10/cgp.c",
+      "source_sha256": "425b79d622908074c36b2f49967bcbe10b1feaf6418987dafd16c55ea9ed45d0",
+      "object": "build/ov10/build/scaffold/src/ov10/cgp.o",
+      "object_sha256": "41c3197e7cf9852f9cb70c393383fbb346225c38cc43a08eea06bdbe382cbfb6",
+      "raw_input_object": "build/ov10/build/scaffold/src/ov10/cgp.o",
+      "raw_input_object_sha256": "41c3197e7cf9852f9cb70c393383fbb346225c38cc43a08eea06bdbe382cbfb6",
+      "assembly_path": "build/ov10/build/scaffold/src/ov10/cgp.s",
+      "assembly_sha256": "4af31872e848278ba2815ecc881a515cbc899c3d8788de0bbd83ebf44b4277b8",
+      "cc1_assembly": "build/ov10/build/scaffold/src/ov10/cgp.s",
+      "cc1_assembly_sha256": "4af31872e848278ba2815ecc881a515cbc899c3d8788de0bbd83ebf44b4277b8",
+      "original_binary": "game/extracted-iso/OV10.OVL",
+      "original_binary_sha256": "a4e27bc538e7d13de80b9e694b5c93e8d55950af28ac8a7269fe8b0d15630c11",
+      "original_scaffold": "build/ov10/asm/data/ov10/cgp.bss.s",
+      "original_scaffold_sha256": "2b23d1e9a744268d57df14df880e275e2219bcad31549132c5897bfdcec6a3a5",
+      "source_definition": "src/ov10/cgp.c (CGPCFPlayCommOperation)",
+      "extent_evidence": "Function-local static of CGPCFPlayCommOperation (work.11 in the original symbol table).",
+      "compiler_contract": "ov10-tu-c296-G0",
+      "object_path": "build/ov10/build/scaffold/src/ov10/cgp.o"
+     },
+     "compiler_storage": {
+      "label": "handCursor.3",
+      "source_sha256": "425b79d622908074c36b2f49967bcbe10b1feaf6418987dafd16c55ea9ed45d0",
+      "object_sha256": "41c3197e7cf9852f9cb70c393383fbb346225c38cc43a08eea06bdbe382cbfb6",
+      "assembly_sha256": "4af31872e848278ba2815ecc881a515cbc899c3d8788de0bbd83ebf44b4277b8",
+      "space": 8,
+      "alignment": 8
+     }
+    },
+    {
+     "unit": "ov10",
+     "address": "0x00A57DFA",
+     "section": ".bss",
+     "names": [
+      "D_00A57DFA"
+     ],
+     "storage_owner": {
+      "name": "handCursor.3",
+      "address": "0x00A57DF8",
+      "size": 8,
+      "alignment": 8,
+      "type": "CGPCursorPosition",
+      "linkage": "internal",
+      "assembly_path": "build/ov10/build/scaffold/src/ov10/cgp.s"
+     },
+     "evidence": {
+      "original_tu": "ov10/tu008",
+      "source_path": "src/ov10/cgp.c",
+      "source_sha256": "425b79d622908074c36b2f49967bcbe10b1feaf6418987dafd16c55ea9ed45d0",
+      "object": "build/ov10/build/scaffold/src/ov10/cgp.o",
+      "object_sha256": "41c3197e7cf9852f9cb70c393383fbb346225c38cc43a08eea06bdbe382cbfb6",
+      "raw_input_object": "build/ov10/build/scaffold/src/ov10/cgp.o",
+      "raw_input_object_sha256": "41c3197e7cf9852f9cb70c393383fbb346225c38cc43a08eea06bdbe382cbfb6",
+      "assembly_path": "build/ov10/build/scaffold/src/ov10/cgp.s",
+      "assembly_sha256": "4af31872e848278ba2815ecc881a515cbc899c3d8788de0bbd83ebf44b4277b8",
+      "cc1_assembly": "build/ov10/build/scaffold/src/ov10/cgp.s",
+      "cc1_assembly_sha256": "4af31872e848278ba2815ecc881a515cbc899c3d8788de0bbd83ebf44b4277b8",
+      "original_binary": "game/extracted-iso/OV10.OVL",
+      "original_binary_sha256": "a4e27bc538e7d13de80b9e694b5c93e8d55950af28ac8a7269fe8b0d15630c11",
+      "original_scaffold": "build/ov10/asm/data/ov10/cgp.bss.s",
+      "original_scaffold_sha256": "2b23d1e9a744268d57df14df880e275e2219bcad31549132c5897bfdcec6a3a5",
+      "source_definition": "src/ov10/cgp.c (CGPCFPlayCommOperation)",
+      "extent_evidence": "Function-local static of CGPCFPlayCommOperation (work.11 in the original symbol table).",
+      "compiler_contract": "ov10-tu-c296-G0",
+      "object_path": "build/ov10/build/scaffold/src/ov10/cgp.o"
+     },
+     "compiler_storage": {
+      "label": "handCursor.3",
+      "source_sha256": "425b79d622908074c36b2f49967bcbe10b1feaf6418987dafd16c55ea9ed45d0",
+      "object_sha256": "41c3197e7cf9852f9cb70c393383fbb346225c38cc43a08eea06bdbe382cbfb6",
+      "assembly_sha256": "4af31872e848278ba2815ecc881a515cbc899c3d8788de0bbd83ebf44b4277b8",
+      "space": 8,
+      "alignment": 8
+     },
+     "alias_extent": 6
+    },
+    {
+     "unit": "ov10",
+     "address": "0x00A57E00",
+     "section": ".bss",
+     "names": [
+      "D_00A57E00"
+     ],
+     "storage_owner": {
+      "name": "NowNo.4",
+      "address": "0x00A57E00",
+      "size": 4,
+      "alignment": 4,
+      "type": "s32",
+      "linkage": "internal",
+      "assembly_path": "build/ov10/build/scaffold/src/ov10/cgp.s"
+     },
+     "evidence": {
+      "original_tu": "ov10/tu008",
+      "source_path": "src/ov10/cgp.c",
+      "source_sha256": "425b79d622908074c36b2f49967bcbe10b1feaf6418987dafd16c55ea9ed45d0",
+      "object": "build/ov10/build/scaffold/src/ov10/cgp.o",
+      "object_sha256": "41c3197e7cf9852f9cb70c393383fbb346225c38cc43a08eea06bdbe382cbfb6",
+      "raw_input_object": "build/ov10/build/scaffold/src/ov10/cgp.o",
+      "raw_input_object_sha256": "41c3197e7cf9852f9cb70c393383fbb346225c38cc43a08eea06bdbe382cbfb6",
+      "assembly_path": "build/ov10/build/scaffold/src/ov10/cgp.s",
+      "assembly_sha256": "4af31872e848278ba2815ecc881a515cbc899c3d8788de0bbd83ebf44b4277b8",
+      "cc1_assembly": "build/ov10/build/scaffold/src/ov10/cgp.s",
+      "cc1_assembly_sha256": "4af31872e848278ba2815ecc881a515cbc899c3d8788de0bbd83ebf44b4277b8",
+      "original_binary": "game/extracted-iso/OV10.OVL",
+      "original_binary_sha256": "a4e27bc538e7d13de80b9e694b5c93e8d55950af28ac8a7269fe8b0d15630c11",
+      "original_scaffold": "build/ov10/asm/data/ov10/cgp.bss.s",
+      "original_scaffold_sha256": "2b23d1e9a744268d57df14df880e275e2219bcad31549132c5897bfdcec6a3a5",
+      "source_definition": "src/ov10/cgp.c (CGPCFPlayCommOperation)",
+      "extent_evidence": "Function-local static of CGPCFPlayCommOperation (NowNo).",
+      "compiler_contract": "ov10-tu-c296-G0",
+      "object_path": "build/ov10/build/scaffold/src/ov10/cgp.o"
+     },
+     "compiler_storage": {
+      "label": "NowNo.4",
+      "source_sha256": "425b79d622908074c36b2f49967bcbe10b1feaf6418987dafd16c55ea9ed45d0",
+      "object_sha256": "41c3197e7cf9852f9cb70c393383fbb346225c38cc43a08eea06bdbe382cbfb6",
+      "assembly_sha256": "4af31872e848278ba2815ecc881a515cbc899c3d8788de0bbd83ebf44b4277b8",
+      "space": 4,
+      "alignment": 4
+     }
+    },
+    {
+     "unit": "ov10",
+     "address": "0x00A57E04",
+     "section": ".bss",
+     "names": [
+      "D_00A57E04"
+     ],
+     "storage_owner": {
+      "name": "lp.5",
+      "address": "0x00A57E04",
+      "size": 4,
+      "alignment": 4,
+      "type": "s32",
+      "linkage": "internal",
+      "assembly_path": "build/ov10/build/scaffold/src/ov10/cgp.s"
+     },
+     "evidence": {
+      "original_tu": "ov10/tu008",
+      "source_path": "src/ov10/cgp.c",
+      "source_sha256": "425b79d622908074c36b2f49967bcbe10b1feaf6418987dafd16c55ea9ed45d0",
+      "object": "build/ov10/build/scaffold/src/ov10/cgp.o",
+      "object_sha256": "41c3197e7cf9852f9cb70c393383fbb346225c38cc43a08eea06bdbe382cbfb6",
+      "raw_input_object": "build/ov10/build/scaffold/src/ov10/cgp.o",
+      "raw_input_object_sha256": "41c3197e7cf9852f9cb70c393383fbb346225c38cc43a08eea06bdbe382cbfb6",
+      "assembly_path": "build/ov10/build/scaffold/src/ov10/cgp.s",
+      "assembly_sha256": "4af31872e848278ba2815ecc881a515cbc899c3d8788de0bbd83ebf44b4277b8",
+      "cc1_assembly": "build/ov10/build/scaffold/src/ov10/cgp.s",
+      "cc1_assembly_sha256": "4af31872e848278ba2815ecc881a515cbc899c3d8788de0bbd83ebf44b4277b8",
+      "original_binary": "game/extracted-iso/OV10.OVL",
+      "original_binary_sha256": "a4e27bc538e7d13de80b9e694b5c93e8d55950af28ac8a7269fe8b0d15630c11",
+      "original_scaffold": "build/ov10/asm/data/ov10/cgp.bss.s",
+      "original_scaffold_sha256": "2b23d1e9a744268d57df14df880e275e2219bcad31549132c5897bfdcec6a3a5",
+      "source_definition": "src/ov10/cgp.c (CGPCFPlayCommOperation)",
+      "extent_evidence": "Function-local static of CGPCFPlayCommOperation (lp).",
+      "compiler_contract": "ov10-tu-c296-G0",
+      "object_path": "build/ov10/build/scaffold/src/ov10/cgp.o"
+     },
+     "compiler_storage": {
+      "label": "lp.5",
+      "source_sha256": "425b79d622908074c36b2f49967bcbe10b1feaf6418987dafd16c55ea9ed45d0",
+      "object_sha256": "41c3197e7cf9852f9cb70c393383fbb346225c38cc43a08eea06bdbe382cbfb6",
+      "assembly_sha256": "4af31872e848278ba2815ecc881a515cbc899c3d8788de0bbd83ebf44b4277b8",
+      "space": 4,
+      "alignment": 4
+     }
+    },
+    {
+     "unit": "ov10",
+     "address": "0x00A57E08",
+     "section": ".bss",
+     "names": [
+      "D_00A57E08"
+     ],
+     "storage_owner": {
+      "name": "timer.6",
+      "address": "0x00A57E08",
+      "size": 4,
+      "alignment": 4,
+      "type": "s32",
+      "linkage": "internal",
+      "assembly_path": "build/ov10/build/scaffold/src/ov10/cgp.s"
+     },
+     "evidence": {
+      "original_tu": "ov10/tu008",
+      "source_path": "src/ov10/cgp.c",
+      "source_sha256": "425b79d622908074c36b2f49967bcbe10b1feaf6418987dafd16c55ea9ed45d0",
+      "object": "build/ov10/build/scaffold/src/ov10/cgp.o",
+      "object_sha256": "41c3197e7cf9852f9cb70c393383fbb346225c38cc43a08eea06bdbe382cbfb6",
+      "raw_input_object": "build/ov10/build/scaffold/src/ov10/cgp.o",
+      "raw_input_object_sha256": "41c3197e7cf9852f9cb70c393383fbb346225c38cc43a08eea06bdbe382cbfb6",
+      "assembly_path": "build/ov10/build/scaffold/src/ov10/cgp.s",
+      "assembly_sha256": "4af31872e848278ba2815ecc881a515cbc899c3d8788de0bbd83ebf44b4277b8",
+      "cc1_assembly": "build/ov10/build/scaffold/src/ov10/cgp.s",
+      "cc1_assembly_sha256": "4af31872e848278ba2815ecc881a515cbc899c3d8788de0bbd83ebf44b4277b8",
+      "original_binary": "game/extracted-iso/OV10.OVL",
+      "original_binary_sha256": "a4e27bc538e7d13de80b9e694b5c93e8d55950af28ac8a7269fe8b0d15630c11",
+      "original_scaffold": "build/ov10/asm/data/ov10/cgp.bss.s",
+      "original_scaffold_sha256": "2b23d1e9a744268d57df14df880e275e2219bcad31549132c5897bfdcec6a3a5",
+      "source_definition": "src/ov10/cgp.c (CGPCFPlayCommOperation)",
+      "extent_evidence": "Function-local static of CGPCFPlayCommOperation (timer).",
+      "compiler_contract": "ov10-tu-c296-G0",
+      "object_path": "build/ov10/build/scaffold/src/ov10/cgp.o"
+     },
+     "compiler_storage": {
+      "label": "timer.6",
+      "source_sha256": "425b79d622908074c36b2f49967bcbe10b1feaf6418987dafd16c55ea9ed45d0",
+      "object_sha256": "41c3197e7cf9852f9cb70c393383fbb346225c38cc43a08eea06bdbe382cbfb6",
+      "assembly_sha256": "4af31872e848278ba2815ecc881a515cbc899c3d8788de0bbd83ebf44b4277b8",
+      "space": 4,
+      "alignment": 4
      }
     }
    ]
