@@ -305,7 +305,7 @@ int CardEnemyAnswer(int side, CardGameWork *work) {
 }
 
 /* Sets the card game work area's error message; defined in ov10/cgp.c. */
-extern void CGPSetErrorMessPlus(s8 code, CardGameWork *work, u8 reason, s16 value);
+extern void CGPSetErrorMessPlus(s8 side, CardGameWork *work, u8 reason, s16 value);
 
 /*
  * The board position this TU hands to the CCU/CCC handlers of ov10/tu003.

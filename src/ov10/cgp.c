@@ -589,15 +589,15 @@ void CGPSetPermanentMess(CardGameWork *work, s32 index)
 
 void CGPSetErrorMess(s32 side, CardGameWork *work, s32 reason)
 {
-    work->errorMessCode = side;
+    work->errorMessSide = side;
     work->errorMessKind = 1;
     work->errorMessReason = reason;
     work->errorMessValue = -1;
 }
 
-void CGPSetErrorMessPlus(s32 code, CardGameWork *work, u8 reason, s16 value)
+void CGPSetErrorMessPlus(s32 side, CardGameWork *work, u8 reason, s16 value)
 {
-    work->errorMessCode = code;
+    work->errorMessSide = side;
     work->flags |= CGP_FLAG_ERROR_PLUS;
     work->errorMessKind = 3;
     work->errorMessReason = reason;
@@ -765,7 +765,7 @@ void CardPlayDispInfo(CardGameWork *workAddress)
         s32 bothSides;
 
         bothSides = 0;
-        if (work->errorMessCode == 0) {
+        if (work->errorMessSide == 0) {
             if (work->flags & 0x40) {
                 bothSides = 1;
             }
@@ -776,10 +776,10 @@ void CardPlayDispInfo(CardGameWork *workAddress)
         }
         if (bothSides == 0) {
             if (work->errorMessKind & CGP_FLAG_ERROR_PLUS) {
-                CGPDispErrorMessPlus(work->errorMessCode, work->errorMessReason,
+                CGPDispErrorMessPlus(work->errorMessSide, work->errorMessReason,
                                      work->errorMessValue);
             } else {
-                CGPDispErrorMess(work->errorMessCode,
+                CGPDispErrorMess(work->errorMessSide,
                                  work->errorMessReason);
             }
         } else if (work->errorMessKind & CGP_FLAG_ERROR_PLUS) {
@@ -2456,7 +2456,7 @@ void CardGameInit(CardGameWork *work)
     work->command.exitMenuItem = 0;
     work->aiStep = 0;
     work->command.aiPhase = 0;
-    work->errorMessCode = 0;
+    work->errorMessSide = 0;
     work->errorMessKind = 0;
     work->infoPanelPhase = 0;
     work->resultWait = 0;
@@ -4390,11 +4390,6 @@ void CGPBattleAfterEffect(s32 side, CardGameWork *work, s32 effect, s32 operand,
     }
 }
 
-extern s32 CGPBattleAttackEffect(s32 side, CardGameWork *work, s32 power,
-                                 CardLayerStack *attacker, CardLayerStack *defender);
-extern s32 CGPBattleDiffenceEffect(s32 side, CardGameWork *work, s32 power,
-                                   CardLayerStack *defender, CardLayerStack *attacker);
-
 /*
  * Damage one attack deals. The attacker's effects raise the power, the
  * defender's lower it, and what is left is taken off the defending card. A
@@ -5806,13 +5801,8 @@ void CGPMoveFaseProc(s32 side, CardGameWork *work, CardPlaySide *ownSide)
 #define CGP_PLACE_FRAMES 10
 #define CGP_PLACE_SLIDE_DIVISOR 10.0f
 
-/*
- * Bytes +0x0C..+0x0F of a CardDefinition flag the cards to discard when no slot is free
- * (CGPSetFaseProc counts the set ones). They sit in the last four bytes of unmodeled_04:
- * giving them a member of their own changes the codegen of ov10/tu006 (card_disp.c).
- */
+/* CardDefinition.discardRequirements has one byte per requirement. */
 #define CGP_REQUIREMENT_COUNT 4
-#define CGP_REQUIREMENT_OFFSET 8      /* +0x0C - offsetof(CardDefinition, unmodeled_04) */
 
 extern void CardPlayTypeSort(CardDefinition *definitions, s16 *cards, s32 count, u8 *order);
 extern float BattlePos1P[][3];
@@ -5931,7 +5921,7 @@ void CGPSetFaseProc(s32 side, CardGameWork *work, CardPlaySide *ownSide)
                             /* One card to discard for every requirement byte of the picked card that is set. */
                             D_00A57DE0 = 0;
                             for (j = CGP_REQUIREMENT_COUNT - 1; j >= 0; j--) {
-                                if (work->definitions[D_00A57DDC].unmodeled_04[CGP_REQUIREMENT_OFFSET + CGP_REQUIREMENT_COUNT - 1 - j] != 0) {
+                                if (work->definitions[D_00A57DDC].discardRequirements[CGP_REQUIREMENT_COUNT - 1 - j] != 0) {
                                     D_00A57DE0++;
                                 }
                             }
@@ -7162,7 +7152,6 @@ extern int CardEnemy1stAnswer(int side, CardGameWork *work);
 extern int CardEnemyAnswer(int side, CardGameWork *work);
 extern int CardEnemyCommandPlay(int side, CardGameWork *work);
 extern s32 CardPlayCommandCondition(u16 side, u16 command, CardGameWork *work);
-extern s32 CGPChkOpePlayable(s32 side, CardGameWork *work, s16 command);
 
 void CGPCommFaseSub(s32 side, CardGameWork *work, u16 cpuTurn, u16 cpuFoe)
 {
@@ -8669,7 +8658,6 @@ extern void CardPlayDispJunk(s32 side, CardPlaySide *ownSide, Matrix4 matrix);
 extern void CardPlayDispCursor(s32 mode, CardGameWork *work, Matrix4 matrix);
 extern void CardEnemyMove(s32 side, CardGameWork *work);
 extern void CardEnemySet(s32 side, CardGameWork *work);
-extern void CGPBattleFaseProc(s32 side, CardGameWork *work);
 extern void CaedGameWinMode(s32 outcome, CardGameWork *work, s32 round);
 extern s32 NewCMPGameModeExit(s32 player, CardGameWork *work, s32 round);
 extern void xglMatrixRotX(Matrix4 destination, const Matrix4 source, float angle);
@@ -8689,33 +8677,29 @@ extern void xglMatrixRotX(Matrix4 destination, const Matrix4 source, float angle
  */
 
 /*
- * Pad-flip loop, original 0x00a315c8..0x00a31640: `addu $5,$17,$7` and `addu $6,$10,$7`
- * add one offset register to two bases, work (+0x5AD0) and work + 8 (+0x5AD8). The
- * offset register $7 starts at 0x5AD0 and steps by `addiu $7,$7,2` (k = 0..2), so
- * input[0].pad[k] and input[1].pad[k] are at 0x5AD0 + 2k and 0x5AD8 + 2k. Written as
- * work->command.input[s].pad[k], the compiler folds 0x5AD0 into each address and the
- * shared offset register is lost, so the slot is addressed by that byte offset.
- * CardCommandInput is 8 bytes, so input[1] is input[0] + CARD_CMD_INPUT_STRIDE.
+ * Pad-flip loop, original 0x00a315c8..0x00a31640: `addu $5,$17,$7` and `addu $6,$10,$7` add one
+ * offset register to two bases, work and work + 8. The offset register $7 starts at 0x5AD0 and steps
+ * by `addiu $7,$7,2` (k = 0..2), so it is the halfword index of input[0].held + k scaled by two
+ * (CardGameWork viewed as u16 words); the enemy base work + 8 is the same view advanced by one
+ * CardCommandInput (4 halfwords). Addressed through the structure members the compiler folds 0x5AD0
+ * into each address and the shared offset register is lost.
  */
-#define CARD_PAD_INPUT0_OFFSET 0x5AD0
-#define CARD_CMD_INPUT_STRIDE 8
+/* Halfword index of command.input[0].held in CardGameWork (+0x5AD0 / 2). */
+#define CARD_PAD_INPUT0_WORD 0x2D68
+#define CARD_CMD_INPUT_WORDS (sizeof(CardCommandInput) / sizeof(u16))
 /* 0xC000 sign-extended: the loop keeps it in $9 (addiu $9,$0,-0x4000, 0x00a315c4) ahead of the work + 8 base in $10. */
 #define CARD_PAD_UP_PAIR (-0x4000)
 
-/* One u16 pad halfword at byte offset `off` from `base` (a char pointer). */
-#define CARD_PAD_AT(base, off) (*(u16 *) ((char *) (base) + (off)))
-
 /*
- * CARD_PAD_FLIP_SLOT(base, off, mask, turned): flips the d-pad bits of the halfword at byte
- * offset `off` from `base` (two statements, `turned` is a u16 temporary, `mask` is the
- * 0xC000 pair as the sign-extended register constant the loop keeps, see CARD_PAD_UP_PAIR). The 0xF000
- * d-pad nibble moves: the 0xC000 bit pair shifts left by 2, the 0x3000 pair shifts
- * right by 2, and the low 12 bits stay (PADFLIP, original 0x00a315e0..0x00a31640).
+ * CARD_PAD_FLIP(pad, mask, turned): flips the d-pad bits of the halfword `*pad` (two statements,
+ * `turned` is a u16 temporary, `mask` is the 0xC000 pair as the sign-extended register constant the
+ * loop keeps, see CARD_PAD_UP_PAIR). The 0xF000 d-pad nibble moves: the 0xC000 bit pair shifts left
+ * by 2, the 0x3000 pair shifts right by 2, and the low 12 bits stay (PADFLIP, original
+ * 0x00a315e0..0x00a31640).
  */
-#define CARD_PAD_FLIP_SLOT(base, off, mask, turned)                                     \
-    turned = ((CARD_PAD_AT(base, off) & 0xF000) << 2) & mask;                  \
-    CARD_PAD_AT(base, off) = (((CARD_PAD_AT(base, off) & 0xF000) >> 2) & 0x3000) | \
-                             (turned | (CARD_PAD_AT(base, off) & 0x0FFF))
+#define CARD_PAD_FLIP(pad, mask, turned)                                     \
+    turned = ((*(pad) & 0xF000) << 2) & mask;                                 \
+    *(pad) = (((*(pad) & 0xF000) >> 2) & 0x3000) | (turned | (*(pad) & 0x0FFF))
 
 /* Operation cards CardGameProc checks on either side. 145, 146 and 147 refuse the end of a turn while the turn's
  * side still has a card to place and a disposal card with definition flag 4 (145) or 2 (147), or any disposal card
@@ -8749,7 +8733,6 @@ s32 CardGameProc(s32 mode, CardListWindow *window, CardGameWork *work, s32 round
     float vec[4];
     CGPBoardArea place;
     CardEffectMatrix cursorMatrix;
-    Quadword row;
     s32 result;
     s32 side;
     u16 pressed;
@@ -8778,15 +8761,21 @@ s32 CardGameProc(s32 mode, CardListWindow *window, CardGameWork *work, s32 round
     }
     if (work->rotStageId != 0) {
         s32 mask = CARD_PAD_UP_PAIR;
-        char *enemyBase = (char *) work + CARD_CMD_INPUT_STRIDE;
-        s32 off;
+        u16 *playerWords = (u16 *) work;
+        u16 *enemyWords = playerWords + CARD_CMD_INPUT_WORDS;
         u16 turned;
         s32 k;
+        s32 word;
 
         for (k = 0; k < 3; k++) {
-            off = CARD_PAD_INPUT0_OFFSET + 2 * k;
-            CARD_PAD_FLIP_SLOT(work, off, mask, turned);
-            CARD_PAD_FLIP_SLOT(enemyBase, off, mask, turned);
+            u16 *playerPad;
+            u16 *enemyPad;
+
+            word = CARD_PAD_INPUT0_WORD + k;
+            playerPad = playerWords + word;
+            enemyPad = enemyWords + word;
+            CARD_PAD_FLIP(playerPad, mask, turned);
+            CARD_PAD_FLIP(enemyPad, mask, turned);
         }
     }
     if (mode == 0) {
@@ -8812,7 +8801,7 @@ s32 CardGameProc(s32 mode, CardListWindow *window, CardGameWork *work, s32 round
         if (work->errorMessKind != 0) {
             u16 answer = work->command.input[0].pressed;
 
-            if (work->errorMessCode != 0) {
+            if (work->errorMessSide != 0) {
                 answer = work->command.input[1].pressed;
             }
             if (answer & CGP_PAD_FACE_BUTTONS) {

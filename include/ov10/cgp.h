@@ -32,7 +32,9 @@ typedef struct CardDefinition {
     u8 kind;
     u8 unmodeled_01;
     u16 flags;
-    u8 unmodeled_04[12];
+    u8 unmodeled_04[8];
+    u8 discardRequirements[4];     /* +0x0C: CGPSetFaseProc counts the set ones (lbu at
+                                    * 0x00a2be20); one card is discarded for each */
     u8 reserveCost;               /* +0x10: cards this command reserves from the draw pile */
     u8 playCost;                   /* +0x11: points required to play this card */
     u8 operationDuration;          /* +0x12 */
@@ -295,7 +297,7 @@ typedef struct CardGameWork {
     u8 helpPage[256];              /* +0x59C0: help page states; CardHelpPageInit clears
                                     * +0x5ABF down to +0x59C0 */
     CardCommandControl command;    /* +0x5AC0 */
-    s8 errorMessCode;              /* +0x5AF0: CGPSetErrorMess/CGPSetErrorMessPlus first argument */
+    s8 errorMessSide;              /* +0x5AF0: side the message is lit for (first argument of CGPSetErrorMess/CGPSetErrorMessPlus; -1 lights neither) */
     u8 errorMessKind;              /* +0x5AF1: 1 = CGPSetErrorMess, 3 = CGPSetErrorMessPlus;
                                     * CardPlayDispInfo tests bit 0x02 to pick the Plus display */
     u16 infoPanelPhase;            /* +0x5AF2: information-panel animation phase */
