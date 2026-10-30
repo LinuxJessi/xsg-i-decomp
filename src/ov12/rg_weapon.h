@@ -266,11 +266,14 @@ typedef struct RgWeaponShotEssence RgWeaponShotEssence;
  * The per-instance data _CreateWeaponEnergyType (ov12:0x00a1b2c8) allocates on
  * top of RgWeapon (0x210 bytes total). _EnergyFree (ov12:0x00a1afc0) clears
  * both as ints (sw): active at 0x1f0, energyCharge at 0x1f8.
+ * shotPending (0x1f4) is set to 1 by _EnergyShot (sw at ov12:0x00a1b024),
+ * read by _EnergyPassTime (lw at ov12:0x00a1b098) and cleared by it and by
+ * _InitEnergyType (sw $0).
  */
 typedef struct RgWeaponEnergyType {
     RgWeapon common;
     int active;
-    unsigned char unmodeled_1f4[4];
+    int shotPending;
     int energyCharge;
 } RgWeaponEnergyType;
 
