@@ -76,7 +76,7 @@ extern void _InitEnergyType(RgWeaponEnergyType *weapon,
 extern void _InitEssenceCommon(void *essence);
 static int _GetNumAttach(RgWeaponAttach *pAttach);
 extern void _CommonPassTime(RgWeapon *weapon, float dt);
-extern int _GetDefShotPosDir(RgWeaponShotRequest *info, RgVector position, RgVector direction);
+extern int _GetDefShotPosDir(RgWeapon *pWpn, RgVector position, RgVector direction);
 extern int RgRobotGetCharID(int robotId);
 extern void *RgRobotGetTarget(int robotId);
 extern int RgRobotIsConfused(int robotId);
@@ -753,7 +753,16 @@ int RgWeaponGetEss(RgWeapon *weapon)
     return weapon->ess;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_weapon", RgWeaponGetAttachedShot);
+unsigned int RgWeaponGetAttachedShot(RgWeapon *weapon, RgShot **shots)
+{
+    if (weapon == 0) {
+        assert_prog(D_00A536F0, D_00A53658, 0x624);
+    }
+    if (shots == 0) {
+        return _GetNumAttach(&weapon->shotAttach);
+    }
+    return _GetAllAttach(&weapon->shotAttach, shots);
+}
 
 int RgWeaponIsActiveLockOnSys(RgWeapon *weapon)
 {
@@ -906,7 +915,18 @@ void RgWeaponSetFree(RgWeapon *weapon)
     }
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_weapon", RgWeaponDisp);
+extern void XrgActorDraw(XrgActor *actor);
+
+void RgWeaponDisp(RgWeapon *weapon)
+{
+    if (weapon == 0) {
+        assert_prog(D_00A536F0, D_00A53658, 0x6CD);
+    }
+    weapon->disp(weapon);
+    if (weapon->actor != 0) {
+        XrgActorDraw(weapon->actor);
+    }
+}
 
 void RgWeaponPassTime(RgWeapon *weapon, float dt)
 {
@@ -1024,7 +1044,17 @@ void _PlayShotMotion(RgWeapon *weapon)
     }
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_weapon", _GetDefShotPosDir);
+int _GetDefShotPosDir(RgWeapon *pWpn, RgVector position, RgVector direction)
+{
+    if (pWpn == 0) {
+        assert_prog(D_00A536F0, D_00A53658, 0x756);
+    }
+    if (pWpn->shotRequested == 0) {
+        return 0;
+    }
+    _GetDefShotPosDirFunc(pWpn, position, direction);
+    return 1;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov12/rg_weapon", _GetDefShotPosDirFunc);
 

@@ -108,7 +108,9 @@ struct RgWeapon {
     unsigned char unmodeled_0c[4];
     int shotRequested;
     void (*dispose)(RgWeapon *weapon);
-    unsigned char unmodeled_18[4];
+    /* +0x18: _InitWeaponCommon stores _CommonDisp here (sw at 0x00a19910);
+     * RgWeaponDisp calls it before drawing the actor. */
+    void (*disp)(RgWeapon *weapon);
     void (*passTime)(RgWeapon *weapon, float dt);
     int (*shoot)(RgWeapon *weapon);
     void (*shotStop)(RgWeapon *weapon);
@@ -422,9 +424,14 @@ struct RgWeaponShieldEssence {
  * confusion state at +0x10 (RgRobotIsConfused's return value). Nothing
  * past +0x10 is written by this allocation, so the descriptor's full
  * extent is not claimed here.
+ *
+ * The callback takes the descriptor's weapon, not the descriptor:
+ * rg_shot's _GetShotPos2 loads +0x00 (lw 0x0, ov12:0x00a15698) into $4
+ * before the jalr through +0x04 (0x00a156b0), and _GetDefShotPosDir
+ * asserts "pWpn != NIL" on that argument.
  */
 typedef struct RgWeaponShotRequest RgWeaponShotRequest;
-typedef int (*RgWeaponGetPosDirFunc)(RgWeaponShotRequest *info, RgVector position,
+typedef int (*RgWeaponGetPosDirFunc)(RgWeapon *weapon, RgVector position,
                                      RgVector direction);
 
 struct RgWeaponShotRequest {
