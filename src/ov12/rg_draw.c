@@ -148,7 +148,28 @@ static void _CopyFog(RgFog *pDst, RgFog *pSrc)
     pDst->color[2] = pSrc->color[2];
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_draw", _InitRgDrawView);
+extern void XrgUnitMatrix(RgMatrix destination);
+extern void XrgUnitVector(RgVector vector);
+
+static void _InitRgDrawView(RgDrawView *pView, RgDrawStudio *pParentStudio)
+{
+    if (pView == 0) {
+        assert_prog(D_00A54B08, D_00A54AF0, 169);
+    }
+    if (pParentStudio == 0) {
+        assert_prog(D_00A54B18, D_00A54AF0, 170);
+    }
+    XrgUnitMatrix(pView->viewMatrix);
+    XrgUnitVector(pView->axisX);
+    XrgUnitVector(pView->axisY);
+    pView->projectionMode = 0;
+    pView->clippingMode = 0;
+    pView->m_pParentStudio = pParentStudio;
+    pView->screenRect.x0 = 0;
+    pView->screenRect.y0 = 0;
+    pView->screenRect.x1 = 512;
+    pView->screenRect.y1 = 448;
+}
 
 static void _DestructRgDrawView(RgDrawView *pView)
 {
