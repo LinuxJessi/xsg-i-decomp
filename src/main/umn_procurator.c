@@ -94,16 +94,22 @@ typedef void (*UmnTaskFunction)(void *task);
 
 extern unsigned int UmnManzaiFlag;
 extern short *UmnManzaiText;
+extern void *UmnModelSon;
 extern void *UmnModelUkn;
 
+int UmnEventTextMake(void);
 short *UmnEventTextNextGet(int index);
+void UmnObjectTaskCreate(UmnTaskFunction function, void *argument);
 void MenuModelCreate(void **model, int model_id);
 void MenuModelExtFuncSet(void *model, UmnTaskFunction function, void *argument);
 void MenuModelUnitOpen(void *model, int draw_type);
 
+void UmnProcuratorManzai(void *task);
+void UmnProcuratorManzai2(void *task);
 void UmnProcuratorMail(void *task);
 void UmnProcuratorTop(void *task);
 void UmnProcuratorGoodBy(void *task);
+void tskUmnManzaiWin(void *task);
 
 /*
  * The xglMatrixStack* wrappers Rotation calls come from their definer,
@@ -152,7 +158,36 @@ int UmnManzaiControl(void)
     return 1;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/ov02/08_umn_procurator", UmnManzaiInit);
+int UmnManzaiInit(void)
+{
+    UmnManzaiWinTask *window;
+    int index;
+
+    if (UmnEventTextMake() < 0) {
+        return -1;
+    }
+    UmnManzaiText = UmnEventTextNextGet(0);
+    if (UmnModelSon == 0) {
+        MenuModelCreate(&UmnModelSon, 3);
+    }
+    MenuModelExtFuncSet(UmnModelUkn, UmnProcuratorManzai, 0);
+    MenuModelExtFuncSet(UmnModelSon, UmnProcuratorManzai2, 0);
+    index = 0;
+    window = UmnManzaiWin;
+    do {
+        UmnObjectTaskCreate(tskUmnManzaiWin, window);
+
+        {
+            int next_index = index + 1;
+            window->task_index = next_index;
+            index = next_index;
+        }
+        /* Advance this loop to the next task record. */
+        window++;
+    } while (index < 2);
+    UmnManzaiFlag = 6;
+    return 0;
+}
 
 INCLUDE_ASM("asm/main/nonmatchings/ov02/08_umn_procurator", tskUmnManzaiWin);
 
@@ -189,7 +224,21 @@ static void LocalLightSet(void *model, int unused)
 
 INCLUDE_ASM("asm/main/nonmatchings/ov02/08_umn_procurator", UmnProcuratorManzai2);
 
-INCLUDE_ASM("asm/main/nonmatchings/ov02/08_umn_procurator", Rotation);
+static void Rotation(float *out, float *position, float *base, float *rotation)
+{
+    float matrix[16];
+
+    xglMatrixStackUnit();
+    xglMatrixStackRotZ(rotation[2]);
+    xglMatrixStackRotY(rotation[1]);
+    xglMatrixStackRotX(rotation[0]);
+    xglMatrixStackTrans(position);
+    xglMatrixStackSave((float (*)[4])matrix);
+
+    out[0] = base[0] + matrix[12];
+    out[1] = base[1] + matrix[13];
+    out[2] = base[2] + matrix[14];
+}
 
 INCLUDE_ASM("asm/main/nonmatchings/ov02/08_umn_procurator", UmnProcuratorManzai);
 
