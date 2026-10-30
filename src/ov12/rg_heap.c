@@ -50,7 +50,6 @@ static void _Error(const char *expression, const char *tag, RgHeap *pHeap,
 static struct RgHeapBlock *_SetHeapHead(void *pTop, u32 nBufSize);
 extern void XrgLog(const char *format, const char *source_file, int line,
                    ...);
-extern int RgHeapIsInSelf(RgHeap *pHeap, void *pPtr);
 extern void RgHeapDump_sub(RgHeap *pHeap, const char *comment,
                            const char *source_file, int line);
 
@@ -202,7 +201,29 @@ static struct RgHeapBlock *_SetHeapHead(void *pTop, u32 nBufSize)
     return pHead;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_heap", _MergeBlocks);
+/*
+ * Walks the circular free list once and folds every block that ends exactly
+ * where its successor starts into that block.
+ */
+static void _MergeBlocks(struct RgHeapBlock *pHead)
+{
+    struct RgHeapBlock *pBlock = pHead;
+    struct RgHeapBlock *pNext;
+
+    if (pHead == 0) {
+        return;
+    }
+    do {
+        pNext = pBlock->next;
+        while ((u8 *)pBlock + pBlock->size == (u8 *)pNext) {
+            pBlock->next = pNext->next;
+            pBlock->size += pNext->size;
+            pNext->next->pre = pBlock;
+            pNext = pBlock->next;
+        }
+        pBlock = pNext;
+    } while (pBlock != pHead);
+}
 
 /* The two heap instances and their backing arenas are zero-initialized data. */
 RgHeap D_00A59AA0;
@@ -261,7 +282,16 @@ INCLUDE_ASM("asm/nonmatchings/ov12/rg_heap", RgHeapAlloc);
 
 INCLUDE_ASM("asm/nonmatchings/ov12/rg_heap", RgHeapFree);
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_heap", RgHeapIsInSelf);
+int RgHeapIsInSelf(RgHeap *pHeap, void *pPtr)
+{
+    if (pHeap == 0) {
+        assert_prog(D_00A52B18.heapNotNil, D_00A52A68, 403);
+    }
+    if ((u8 *)pPtr >= (u8 *)pHeap->top && (u8 *)pPtr < (u8 *)pHeap->top + pHeap->size) {
+        return 1;
+    }
+    return 0;
+}
 
 int RgHeapIsInvalidMemory(RgHeap *pHeap, void *pPtr)
 {
