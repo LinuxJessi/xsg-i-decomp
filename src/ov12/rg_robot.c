@@ -1000,7 +1000,24 @@ static int _ExecRotateCmd(RgRobotStatus *status, RgBody *body, RgCmd *command)
     return 2;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_robot", _IsBackWeaponReady);
+extern float RgWeaponGetShotNum(void *weapon);
+
+static int _IsBackWeaponReady(RgBody *body, unsigned int eType)
+{
+    if (eType >= RG_EQUIP_TYPE_NUM) {
+        assert_prog(D_00A51A88, D_00A51840, 0xDD7);
+    }
+    if (eType != RG_EQUIP_TYPE_BACK) {
+        return 0;
+    }
+    if (body->weapon[RG_EQUIP_TYPE_BACK] == 0) {
+        return 0;
+    }
+    if (RgWeaponGetShotNum(body->weapon[RG_EQUIP_TYPE_BACK]) <= 0.0f) {
+        return 0;
+    }
+    return 1;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov12/rg_robot", _ExecShotOrAttackCmd);
 

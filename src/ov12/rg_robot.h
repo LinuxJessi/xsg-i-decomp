@@ -16,6 +16,10 @@ typedef struct RgRobotEffect RgRobotEffect;
 /* Number of equip sides a body carries (RgRobotGetWeapon's own range check,
  * ov12:0x00a51be0, "RG_EQUIP_TYPE_MIN <= (eSide) && (eSide) < RG_EQUIP_TYPE_NUM"). */
 #define RG_EQUIP_TYPE_NUM 3
+/* The back equip side: _IsBackWeaponReady (ov12:0x00a076d0) only reports a
+ * ready weapon for eType 2 (li $3, 2 at 0x00a07708) and reads that side's
+ * weapon slot, RgBody.weapon[2] (lw 0x78). */
+#define RG_EQUIP_TYPE_BACK 2
 
 /*
  * Homing-thread control block for a robot's ranged weapon lock-on.
