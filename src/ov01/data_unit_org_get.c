@@ -4,6 +4,7 @@
 #include "common.h"
 #include "data_unit_org_get.h"
 #include "ov01/calc.h"
+#include "main/xgl_pad.h"
 
 extern const char D_00A457B0[32];
 
@@ -1463,7 +1464,35 @@ void dataVPadSet(int virtualPad)
     padData = result;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataPadRead);
+/* MAIN's two pad records (0x00490d90, 2 * 0x68 bytes). */
+extern XglPadRecord PadData[2];
+
+/*
+ * Pad 0's direction word: 0 the held directions, 1 the newly pressed ones,
+ * 2 the auto-repeated ones. In virtual-pad mode (dataVPadModeSet) the word
+ * dataVPadSet built is returned instead.
+ */
+int dataPadRead(int padNo)
+{
+    int value = 0;
+
+    if (padMode == 0) {
+        switch (padNo) {
+        case 0:
+            value = PadData[0].directions;
+            break;
+        case 1:
+            value = PadData[0].direction_pressed;
+            break;
+        case 2:
+            value = PadData[0].direction_repeated;
+            break;
+        }
+    } else {
+        value = (unsigned short)padData;
+    }
+    return value;
+}
 
 
 
