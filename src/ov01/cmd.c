@@ -1201,7 +1201,36 @@ int cmdLightDir(ThinkProcess *proc)
     return 0;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/cmd", mcamPtrGet);
+extern McamParams mcamView;
+extern McamParams mcamLookAt;
+extern McamParams mcamViewMove;
+extern McamParams mcamLookAtMove;
+
+/* The camera parameter block the current camMode edits (see
+ * cmdCamCamMode/cmdCamRefMode/cmdCamCamMoveMode/cmdCamRefMoveMode). */
+McamParams *mcamPtrGet(void)
+{
+    McamParams *cam;
+
+    switch (camMode) {
+    case -1:
+        cam = &mcamViewMove;
+        break;
+    case -2:
+        cam = &mcamLookAtMove;
+        break;
+    case 0:
+        cam = &mcamView;
+        break;
+    case 1:
+        cam = &mcamLookAt;
+        break;
+    default:
+        cam = 0;
+        break;
+    }
+    return cam;
+}
 
 struct MpersParams;
 static struct MpersParams mcamPers;
