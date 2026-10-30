@@ -93,7 +93,34 @@ void *_ActJntToJoint(XenoAct *pXenoAct, int jntID)
     return _AccIDToJoint(pXenoAct, _ActJntToAccID_sub(jntID, D_00A587E0, 87));
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov12/xrg_actor", _GetXenoDatEntry);
+/*
+ * One 16-byte entry of the 25-entry actor data table s_aDatTbl.1
+ * (0x00a50978, size 0x190, still asm-owned). _GetXenoDatEntry only
+ * compares charID; the rest of the entry stays unmodeled.
+ */
+typedef struct XenoDatEntry {
+    int charID;                     /* 0x00 */
+    unsigned char unmodeled_04[0x10 - 0x04];
+} XenoDatEntry;
+
+extern XenoDatEntry s_aDatTbl_1[25];
+/* ov12:0x00a58958 "invalid actor char ID = %d" */
+extern const char D_00A58958[];
+extern void RgWarn(const char *format, const char *source_file, int line, ...);
+
+/* Returns the table entry for charID, or warns and returns 0. */
+XenoDatEntry *_GetXenoDatEntry(int charID)
+{
+    unsigned int i;
+
+    for (i = 0; i < 25; i++) {
+        if (s_aDatTbl_1[i].charID == charID) {
+            return &s_aDatTbl_1[i];
+        }
+    }
+    RgWarn(D_00A58958, D_00A587E0, 168, charID);
+    return 0;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov12/xrg_actor", _SkeManiGet);
 
@@ -119,7 +146,6 @@ typedef struct SkeMani {
     int elementIndex;    /* 0x0C: only set together with pXenoAct */
 } SkeMani;
 
-extern void RgWarn(const char *format, const char *source_file, int line, ...);
 extern void _SkeManiGet(SkeMani *mani, RgMatrix matrix);
 extern void _SkeManiSet(SkeMani *mani, RgMatrix matrix);
 

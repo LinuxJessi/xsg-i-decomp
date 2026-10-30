@@ -279,7 +279,10 @@ typedef struct CardGameWork {
                                     * counted up and tested in CC_Kara_SetFase (`lbu` 0x00a3bccc) and
                                     * CC_Kara_CommFase (0x00a37bec); cleared by CardGameInit (0x00a2529c)
                                     * and CGPNextTurnSub (`sb` 0x00a25af0) */
-    u8 unmodeled_59BA;
+    u8 playerDeckId;               /* +0x59BA: the side-0 counterpart of enemyDeckId: GetDeckData,
+                                    * GetDeckDataAdjust and CheckGeneration (ov10/tu010) read it
+                                    * (`lbu` 0x00a354e4) where side 1 reads enemyDeckId; no writer
+                                    * found */
     u8 enemyDeckId;                /* +0x59BB: ROM deck the computer opponent plays; CardMainProc stores it
                                     * (0x00a05efc `sb $3,0x59BB($30)`), GetDeckData (ov10/tu010) reads it */
     u8 helpState;                  /* +0x59BC: nonzero while the help screen replaces the fase; CardHelpProc
