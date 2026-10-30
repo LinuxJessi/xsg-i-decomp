@@ -565,7 +565,19 @@ void _EnergyFree(RgWeaponEnergyType *weapon)
     weapon->energyCharge = 0;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_weapon", _EnergyShot);
+/*
+ * The energy type's shoot method: records the request for _EnergyPassTime
+ * and reports whether a new shot can start (no attached shot and not
+ * already active).
+ */
+int _EnergyShot(RgWeaponEnergyType *weapon)
+{
+    weapon->shotPending = 1;
+    if (_GetNumAttach(&weapon->common.shotAttach) != 0) {
+        return 0;
+    }
+    return weapon->active == 0;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov12/rg_weapon", _EnergyPassTime);
 
@@ -669,7 +681,16 @@ float RgWeaponGetShotNum(RgWeapon *weapon)
     return weapon->shotNum;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_weapon", RgWeaponIsNotBusy);
+int RgWeaponIsNotBusy(RgWeapon *weapon)
+{
+    if (weapon == 0) {
+        assert_prog(D_00A536F0, D_00A53658, 0x5A8);
+    }
+    if (weapon->isBusy != 0) {
+        return weapon->isBusy(weapon) == 0;
+    }
+    return 1;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov12/rg_weapon", RgWeaponGetRestUnit);
 

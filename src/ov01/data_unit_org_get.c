@@ -1307,7 +1307,14 @@ unsigned short dataXtxAdrGet(int index)
     return value;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataXtxLoad);
+/* Starts a non-blocking load of every xtxFile entry up to the null name. */
+void dataXtxLoad(void)
+{
+    int i;
+
+    for (i = 0; xtxFile[i].name != 0; i++)
+        dataFileLoadNB(xtxFile[i].name, (void *)xtxFile[i].address);
+}
 
 extern int dataFileLoad(const char *name, void *dst);
 
