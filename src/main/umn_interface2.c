@@ -136,7 +136,46 @@ void tskUmnBgCubeMain(XglTaskPrefix *task_opaque)
     nmlModelEntry(task->model);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/ov02/06_umn_interface2", UmnBgCubeInit);
+extern unsigned char *task_xmx;
+extern void *UmnBgCubeXtx;
+extern void *UmnBgCubeLex;
+extern void xglCameraInit(StudioCamera *camera);
+
+/*
+ * Creates the background-cube task on task_xmx, gives it the 0x80-byte
+ * UmnBgCubeData that starts at the next 16-byte boundary of `memory`, and
+ * sets up studio camera 0 for it. Returns the first byte after that data.
+ */
+void *UmnBgCubeInit(void *memory)
+{
+    unsigned int address = ((unsigned int)memory + 15) & ~15u;
+    XglTaskScheduler *scheduler = (XglTaskScheduler *)task_xmx;
+    UmnBgCubeMainTask *task;
+    StudioCamera *camera;
+
+    task = (UmnBgCubeMainTask *)xglTaskEntryNext(
+        scheduler, (int (*)(XglTaskPrefix *))tskUmnBgCubeMain,
+        scheduler != 0 ? scheduler->active_tail : 0);
+    task->data = (UmnBgCubeData *)address;
+    address += sizeof(UmnBgCubeData);
+    task->state = 0;
+    task->enabled = 0;
+    camera = xglStudioGetCamera2(0);
+    task->camera_id = 0;
+    xglCameraInit(camera);
+    camera->rotation.x = 0.0f;
+    camera->rotation.y = 0.0f;
+    camera->rotation.z = 0.0f;
+    camera->position.x = 0.0f;
+    camera->position.y = 0.0f;
+    camera->position.z = 4.0f;
+    camera->fov = 0.91593236f;
+    camera->active = 1;
+    camera->state = 1;
+    task->texture = (int)UmnBgCubeXtx;
+    task->model = (int)UmnBgCubeLex;
+    return (void *)address;
+}
 
 #include "main/xgl_packet.h"
 #include "main/xgl_render.h"
