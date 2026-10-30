@@ -334,7 +334,40 @@ static int _GetSelectableSelectChar(SelChar *pSelChar)
     return charMask;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_select_agws", _PassTimeSelectChar);
+extern int XrgPadIsUp(void);
+extern int XrgPadIsDown(void);
+extern void XrgSoundSystemCursor(void);
+
+static void _PassTimeSelectChar(SelChar *pSelChar, float deltaTime)
+{
+    int cursor;
+    int oldCursor;
+    int step;
+
+    if (pSelChar == 0) {
+        assert_prog(D_00A56650, D_00A56660, 0x133);
+    }
+    cursor = pSelChar->cursor;
+    oldCursor = cursor;
+    if (XrgPadIsUp() != 0) {
+        step = -1;
+    } else {
+        step = XrgPadIsDown() != 0;
+    }
+    if (step != 0) {
+        do {
+            cursor += step;
+            if ((unsigned int) cursor >= 7) {
+                cursor = pSelChar->cursor;
+                break;
+            }
+        } while ((pSelChar->selectableMask & (1 << cursor)) == 0);
+    }
+    pSelChar->cursor = cursor;
+    if (cursor != oldCursor) {
+        XrgSoundSystemCursor();
+    }
+}
 
 extern const char D_00A56698[]; /* "pSelWep != NIL" */
 
@@ -1104,10 +1137,9 @@ static int _GetPlayerModeSelectData(SelDat *pSel)
 extern void XrgPadSetID(int pad_id);
 
 /*
- * _PassTimeSelectChar/_PassTimeSelType (above) are still INCLUDE_ASM;
- * declare them so this caller does not see an implicit declaration.
+ * _PassTimeSelType (above) is still INCLUDE_ASM; declare it so this caller
+ * does not see an implicit declaration.
  */
-static void _PassTimeSelectChar(SelChar *pSelChar, float deltaTime);
 static void _PassTimeSelType(SelType *pSelType, float deltaTime);
 
 static void _PassTimeSelectData(SelDat *pSel, float deltaTime)
@@ -1155,7 +1187,30 @@ static void _GetSelectWeps(SelDat *pSel, int *essences, int *confricts)
     }
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_select_agws", _GetWepSelection);
+static int _GetWepSelection(SelDat *pSelDat, int *apCollects)
+{
+    SelWep *pSelWep;
+    int *essList;
+    unsigned int i;
+    int confrictMask;
+
+    confrictMask = 0;
+    for (i = 0; i < RG_EQUIP_TYPE_NUM; i++) {
+        pSelWep = _GetSelWepSelType(&pSelDat->selType, i);
+        if (pSelWep == 0) {
+            assert_prog(D_00A56698, D_00A56660, 0x4C0);
+        }
+        essList = _GetEssListSelWep(pSelWep);
+        if (_GetConfrictSelType(&pSelDat->selType, i) != 0) {
+            confrictMask |= 1 << i;
+            *apCollects = essList[0];
+        } else {
+            *apCollects = _GetEssSelWep(pSelWep);
+        }
+        apCollects++;
+    }
+    return confrictMask;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov12/rg_select_agws", _DrawPlayerMode);
 
