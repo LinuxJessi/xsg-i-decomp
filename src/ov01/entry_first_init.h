@@ -40,4 +40,17 @@ typedef struct FadeObjTask {
     int delay;                      /* +0x24 */
 } FadeObjTask;
 
+/*
+ * entryPhase35's view of the think-script spawn table thinkMonsTblGet
+ * returns: 8-byte entries, a charaId halfword at +0x00 (`lh $3,0x0($4)`,
+ * entries+unitIdx*8) that is the end-of-table sentinel (0 stops spawning)
+ * and the per-entry pointer entryPhase35 hands to unitEnCreate as its
+ * s16 *pl argument. The remaining 6 bytes are unitEnCreate's own, not read
+ * here.
+ */
+typedef struct ThinkMonsEntry {
+    short charaId;              /* +0x00 */
+    unsigned char unmodeled_02[6];
+} ThinkMonsEntry;
+
 #endif /* SRC_OV01_ENTRY_FIRST_INIT_H */

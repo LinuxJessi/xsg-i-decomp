@@ -51,7 +51,88 @@ int pauseProc(void) {
     return 1;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/entry_first_init", selectPL);
+#include "ov01/calc.h"
+
+/*
+ * This TU's own view of battle_init.c's BattleUnit/Actor (there kept behind
+ * an opaque typedef, full body local to that TU): only the fields this
+ * function's own flag check reads (BattleUnit.actor +0x14 and Actor.flags
+ * +0x00, both evidenced there by src/ov01/battle_init.c's actUnitTblMake).
+ */
+typedef struct EntryActor {
+    unsigned int flags; /* +0x00 */
+} EntryActor;
+
+/*
+ * Actor.flags bit that unitDispOff (src/ov01/unit_cmd.c) sets on a unit's
+ * motion actor and unitActupdate tests to skip the motion update: the actor
+ * is display-off and update-disabled while it is set.
+ */
+#define ENTRY_ACTOR_FLAG_DISP_OFF 0x8u
+
+typedef struct EntryBattleUnit {
+    unsigned char unmodeled_00[0x14];
+    EntryActor *actor;  /* +0x14 */
+} EntryBattleUnit;
+
+extern int calcBattleChk(ObjectTask *unit);
+extern CalcUnitParam *calcUPGet(ObjectTask *unit);
+extern int unitLiveNumGet2(int side);
+extern int unitTblGet(int side, EntryBattleUnit ***table);
+extern int rnd(int max);
+
+/*
+ * selectPL's own charaId cutoff (`lh $3,0x38($2)`/`slti $3,$3,0x8`): the
+ * comparison itself only proves calcUPGet(unit)->charaId < 8.
+ */
+#define SELECT_PL_CHARA_ID_LIMIT 8
+
+/*
+ * unitTblGet(0, ...) is the player side; its entries alias the published
+ * party roster plTbl[3] (src/ov01/battle_init.c), so `count` is bounded by
+ * 3 and `picked` never needs more slots than that.
+ */
+ObjectTask *selectPL(ObjectTask *excludeUnit)
+{
+    EntryBattleUnit **table;
+    EntryBattleUnit *picked[3];
+    int count;
+    int i;
+    int pickedCount;
+    int idx;
+
+    if (excludeUnit != 0) {
+        if (calcBattleChk(excludeUnit) != 0) {
+            if (calcUPGet(excludeUnit)->charaId < SELECT_PL_CHARA_ID_LIMIT) {
+                return excludeUnit;
+            }
+        }
+    }
+
+    if (unitLiveNumGet2(0) == 0) {
+        return 0;
+    }
+
+    i = 0;
+    count = unitTblGet(0, &table);
+    pickedCount = 0;
+    if (count > 0) {
+        for (; i < count; i++) {
+            if (calcBattleChk((ObjectTask *)table[i]) != 0
+                && calcUPGet((ObjectTask *)table[i])->charaId < SELECT_PL_CHARA_ID_LIMIT) {
+                picked[pickedCount] = table[i];
+                pickedCount++;
+            }
+        }
+    }
+
+    if (pickedCount == 0) {
+        return 0;
+    }
+
+    idx = rnd(pickedCount - 1);
+    return (ObjectTask *)picked[idx];
+}
 
 extern int mapNoGet(void);
 
@@ -171,26 +252,17 @@ int entryPhase15(void)
 
 extern void dataMapLoad(int mapNo);
 int entryPhase20(void);
-
-int entryPhase16(void)
-{
-    if (dataCdSync() <= loadNum) {
-        loadNum = dataCdSync();
-        dataMapLoad(mapNoGet());
-        battleSeq = entryPhase20;
-    }
-    pFadeIn->delay = 2;
-    return 1;
-}
-
-INCLUDE_ASM("asm/nonmatchings/ov01/entry_first_init", entryPhase20);
-
-INCLUDE_ASM("asm/nonmatchings/ov01/entry_first_init", entryPhase25);
-
 int entryPhase25(void);
-extern int sefCheckLoad(void);
-extern void dataUnitFileLoad2(int unit);
-static int pCreateUnit;
+
+/*
+ * This TU's own declaration order of its static objects (pCreateUnit then
+ * camEv then unitIdx) has to stay the same relative order the already
+ * matched entryPhase26/30/31/35 established (their gate pass proved these
+ * addresses); entryPhase20 needs camEv and unitIdx before their own
+ * definitions further down, so each gets an early `extern` mention here,
+ * in that same order, ahead of its real storage.
+ */
+extern ObjectTask *pCreateUnit;
 
 /*
  * camEv is a second camera-event request record: camEventExec's other
@@ -203,7 +275,9 @@ typedef struct EntryCamEvent {
     BattleUnit *unit;          /* +0x08 */
     unsigned char unmodeled_0c[4];
 } EntryCamEvent;
-static EntryCamEvent camEv;
+extern EntryCamEvent camEv;
+extern int pCvUnit;
+extern int unitIdx;
 
 /*
  * This TU's own call site sets up only the event-record argument, unlike
@@ -212,6 +286,121 @@ static EntryCamEvent camEv;
  * function as its own call site uses it.
  */
 extern int camEventExec(EntryCamEvent *event);
+
+/*
+ * This TU's own call site passes mapNoGet()'s result as mapInit's argument
+ * (`daddu $4,$2,$0` before `jal mapInit`), unlike src/ov01/map_disp.c's
+ * accepted definition, which declares mapInit void and ignores it: each TU
+ * forward-declares the function as its own call site uses it.
+ */
+extern void mapInit(int mapNo);
+extern void camInit(void);
+extern int camInitExec(void);
+extern int encEffCmd;
+
+int entryPhase16(void)
+{
+    if (dataCdSync() <= loadNum) {
+        loadNum = dataCdSync();
+        dataMapLoad(mapNoGet());
+        battleSeq = entryPhase20;
+    }
+    pFadeIn->delay = 2;
+    return 1;
+}
+
+int entryPhase20(void)
+{
+    if (dataCdSync() <= loadNum) {
+        mapInit(mapNoGet());
+        camInit();
+        camInitExec();
+        camEv.type = 4;
+        camEventExec(&camEv);
+        battleDispMode = 1;
+        encEffCmd = 1;
+        loadNum = dataCdSync();
+        unitIdx = 0;
+        battleSeq = entryPhase25;
+    } else {
+        pFadeIn->delay = 2;
+    }
+    return 1;
+}
+
+/*
+ * plUnitTblGet's own PlUnitEntry (src/ov01/battle_init.c): this TU reads
+ * only partyId (+0x00), the slot-occupied flag entryPhase25's own search
+ * and status-display match both test (`lh $x,0x0($y)`).
+ */
+typedef struct EntryPlUnit {
+    short partyId;              /* +0x00 */
+    unsigned char unmodeled_02[6];
+} EntryPlUnit;
+
+extern EntryPlUnit *plUnitTblGet(void);
+extern ObjectTask *unitPlCreate(s16 *pl);
+extern void menuStatDispCreate(void);
+extern int entryPhase30(void);
+extern int entryPhase26(void);
+extern ObjectTask *pCreateUnit;
+
+int entryPhase25(void)
+{
+    EntryPlUnit *entries;
+    ObjectTask *unit;
+    int i;
+    int matched;
+
+    /*
+     * A structured form merging this bound check into the search loop's
+     * own condition (`while (unitIdx < 3 && entries[unitIdx].partyId ==
+     * 0)`), with the trailing `if (unitIdx >= 3) ... else ...` collapsed
+     * into one if/else instead of this goto, moved bytes at the very
+     * first branch of this function (`beql` -> `beq`): fndiff on that
+     * form reported equal-in-place 17/78 (down from 19/78 here) and a
+     * different register for the outer `unitIdx < 3` compare. The goto
+     * is kept because that was the only structured rewrite tried and it
+     * did not reproduce the original bytes.
+     */
+    entries = plUnitTblGet();
+    if (unitIdx < 3 && entries[unitIdx].partyId == 0) {
+        do {
+            unitIdx++;
+            if (unitIdx >= 3) {
+                goto noSlot;
+            }
+        } while (entries[unitIdx].partyId == 0);
+    }
+
+    if (unitIdx >= 3) {
+noSlot:
+        battleSeq = entryPhase30;
+        return 1;
+    }
+
+    loadNum = dataCdSync();
+    unit = unitPlCreate(&entries[unitIdx].partyId);
+    pCreateUnit = unit;
+    unitIdx++;
+
+    matched = 0;
+    for (i = 0; i < 3; i++) {
+        if (entries[i].partyId != 0) {
+            matched = i;
+        }
+    }
+    if (matched == unitIdx - 1) {
+        menuStatDispCreate();
+    }
+    battleSeq = entryPhase26;
+    return 1;
+}
+
+extern int sefCheckLoad(void);
+extern void dataUnitFileLoad2(ObjectTask *unit);
+static ObjectTask *pCreateUnit;
+static EntryCamEvent camEv;
 
 int entryPhase26(void)
 {
@@ -226,7 +415,7 @@ int entryPhase26(void)
 }
 
 
-extern int selectPL(int excludeUnit);
+extern ObjectTask *selectPL(ObjectTask *excludeUnit);
 extern void dataSndSeLoad(int unit, int seId);
 extern int entryPhase31(void);
 
@@ -236,7 +425,7 @@ int entryPhase30(void) {
     int unit;
 
     loadNum = dataCdSync();
-    unit = selectPL(0);
+    unit = (int)selectPL(0);
     pCvUnit = unit;
     if (unit != 0) {
         dataSndSeLoad(unit, 0x18);
@@ -264,12 +453,39 @@ int entryPhase31(void)
     return 1;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/entry_first_init", entryPhase35);
+/*
+ * src/ov01/cmd.c declares and defines thinkMonsTblGet returning plain int
+ * (thinkAdrGet's own return, an address); this TU's own call site only
+ * ever uses that address as the base of its spawn-entry table, so it is
+ * forward-declared here as its own view, ThinkMonsEntry *.
+ */
+extern ThinkMonsEntry *thinkMonsTblGet(int monsSetNo);
+extern ObjectTask *unitEnCreate(short *pl);
+extern int entryPhase40(void);
+extern int entryPhase36(void);
+
+int entryPhase35(void)
+{
+    ThinkMonsEntry *entries;
+    ObjectTask *unit;
+
+    entries = thinkMonsTblGet(monsSetNoGet());
+    if (unitIdx >= 5 || entries[unitIdx].charaId == 0) {
+        battleSeq = entryPhase40;
+        return 1;
+    }
+    loadNum = dataCdSync();
+    unit = unitEnCreate(&entries[unitIdx].charaId);
+    pCreateUnit = unit;
+    unitIdx++;
+    battleSeq = entryPhase36;
+    return 1;
+}
 
 
 
 
-static int pCreateUnit;
+static ObjectTask *pCreateUnit;
 
 int entryPhase36(void)
 {
@@ -295,28 +511,6 @@ int entryPhase40(void) {
     battleSeq = &entryPhase45;
     return 1;
 }
-
-/*
- * This TU's own view of battle_init.c's BattleUnit/Actor (there kept behind
- * an opaque typedef, full body local to that TU): only the fields this
- * function's own flag check reads (BattleUnit.actor +0x14 and Actor.flags
- * +0x00, both evidenced there by src/ov01/battle_init.c's actUnitTblMake).
- */
-typedef struct EntryActor {
-    unsigned int flags; /* +0x00 */
-} EntryActor;
-
-/*
- * Actor.flags bit that unitDispOff (src/ov01/unit_cmd.c) sets on a unit's
- * motion actor and unitActupdate tests to skip the motion update: the actor
- * is display-off and update-disabled while it is set.
- */
-#define ENTRY_ACTOR_FLAG_DISP_OFF 0x8u
-
-typedef struct EntryBattleUnit {
-    unsigned char unmodeled_00[0x14];
-    EntryActor *actor;  /* +0x14 */
-} EntryBattleUnit;
 
 extern int unitTblGet(int side, EntryBattleUnit ***table);
 extern void encountEffDisp(void);
@@ -381,7 +575,7 @@ int entryPhase50(void)
     if (battleMain() == 0) {
         loadNum = dataCdSync();
         if (battleRetCodeGet() == 1) {
-            unit = selectPL((int)lastUnitGet());
+            unit = (int)selectPL((ObjectTask *)lastUnitGet());
             pCvUnit = unit;
             if (unit != 0) {
                 dataSndSeLoad(unit, 0x19);
