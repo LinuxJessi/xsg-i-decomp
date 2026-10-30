@@ -66,7 +66,6 @@ const CardHelpFloat4 D_00A4E1D0 = {{ 1.36f, 0.15f, 0.0f, 1.0f }};
 const char *cardxtx_tbl[64] = {0};
 u32 cardlex_tbl[64] = {0};
 extern char *strcpy(char *destination, const char *source);
-extern int xglCdReadFile(const char *name, void *buffer, int mode, int flags);
 
 /* 16-byte float vector with doubleword alignment (see CardDispHelpSlide2/3). */
 typedef unsigned int Quadword __attribute__((mode(TI)));
@@ -1272,8 +1271,6 @@ extern void CardStrListDisp(CHPTitleList *list, char **strings, int index);
 extern void CardDispTxtSub(int x, int y, char *text, int color);
 extern void CardDispTxtSub2(u16 x, u16 y, const char *text);
 extern void xglMatrixUnit(float matrix[4][4]);
-extern void xglSoundEffectNormalID(int sound_id, int variant);
-extern void xglFontPrint(int x, int y, int color, const char *text);
 
 void CardHelpProc(CardGameWork *work)
 {

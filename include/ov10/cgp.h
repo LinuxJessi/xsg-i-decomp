@@ -14,11 +14,13 @@ typedef signed char s8;
  * Only the card array is evidenced; the record may extend past it.
  */
 typedef struct CardHand {
-    s8 playPoints[2];              /* +0x00: per-kind points available for playing cards */
-    u8 unmodeled_02;
+    s8 playPoints[3];              /* +0x00: per-kind points available for playing cards; [2] is set to 1
+                                    * together with the first two when the draw fase starts (sb 0x00a2a7c0),
+                                    * no reader found */
     u8 commandFlags;               /* +0x03: CardPlayCommandPlay command 37 sets bit 0 */
     u8 deckCount;                  /* +0x04: cards left in the deck, CardPlayYamaCnt's result (CaedGameWinMode) */
-    u8 unmodeled_05[3];
+    u8 suteCount;                  /* +0x05: cards in the discard pile, CardPlaySuteCnt's result (CGPHPCheckSub, sb 0x00a295ac) */
+    u8 unmodeled_06[2];
     s16 cards[40];                 /* +0x08 */
 } CardHand;
 
@@ -30,7 +32,9 @@ typedef struct CardDefinition {
     u8 kind;
     u8 unmodeled_01;
     u16 flags;
-    u8 unmodeled_04[12];
+    u8 unmodeled_04[8];
+    u8 discardRequirements[4];     /* +0x0C: CGPSetFaseProc counts the set ones (lbu at
+                                    * 0x00a2be20); one card is discarded for each */
     u8 reserveCost;               /* +0x10: cards this command reserves from the draw pile */
     u8 playCost;                   /* +0x11: points required to play this card */
     u8 operationDuration;          /* +0x12 */
@@ -51,7 +55,8 @@ typedef struct CardBattleLayer {
                                     * clears it with `sb` for the base layer of a slot holding card 14 */
     u8 boostCount;                 /* +0x02: CCC26ExecSub adds one */
     s8 life;                       /* +0x03: CCC38ExecSub subtracts two, clamped at zero */
-    u8 unmodeled_04;
+    u8 shownLife;                  /* +0x04: copy of life CGPHPCheckSub refreshes while the damage timer is
+                                    * zero (lbu 0x00a295e0, sb 0x00a295e4) */
     u8 damageTimer;                /* +0x05 */
     s16 cardId;                    /* +0x06 */
     u8 unmodeled_08[2];
@@ -66,7 +71,8 @@ typedef struct CardLayerStack {
     u8 moveFrames;                 /* +0x01: frames remaining in the current movement */
     u8 power;
     u8 powerLimit;
-    u8 unmodeled_04[4];
+    u8 previousFlags;              /* +0x04: copy of flags CGPHPCheckSub makes (lbu 0x00a295b0, sb 0x00a295b8) */
+    u8 unmodeled_05[3];
     CardBattleLayer layers[40];    /* +0x008 */
     float position[3];             /* +0x198: current effect position (CardSetEffect) */
     float step[3];                 /* +0x1A4: per-frame movement toward the next slot */
@@ -155,14 +161,19 @@ typedef struct CardCommandControl {
                                     *      (0x00a31d28..0x00a31d7c); handled by NewCMPGameModeExit,
                                     *      then cleared.
                                     * CardPlayDispInfo also reads it with lh */
-    u8 unmodeled_0A;
+    u8 turnCountdown;              /* +0x0A: counted down by CGPEndFaseSub while nonzero (lbu/sb 0x00a2fb24 / 0x00a2fb30) and
+                                    * read by CGPBattleFaseProc (lbu 0x00a30438); CardGameInit clears it (sb 0x00a2528c) */
     u8 recoveryApplied;            /* +0x0B */
     u16 commandIndex;              /* +0x0C */
     u16 aiPhase;                   /* +0x0E: phase of the AI handler of the current phase; CardEnemyMove and
                                     * CardEnemySet switch on it (`lhu` 0x00a32598 / 0x00a32684 from work
                                     * +0x5ACE) and advance it with `sh` */
     CardCommandInput input[2];     /* +0x10: player, enemy */
-    u8 unmodeled_20[4];
+    s16 interruptMessId;           /* +0x20: id of the interrupt message on display, 0 = none; CGPNextTurnSub
+                                    * stores the phase message id (`sh` at 0x00a25ae8) and CardGameProc waits
+                                    * on it (`lh` 0x00a31728) */
+    s16 interruptMessTimer;        /* +0x22: frames the interrupt message stays; CardGameProc counts it down
+                                    * (`lh` 0x00a31778, `sh` 0x00a31790) and clears both with the message pointer */
     s16 exitMenuItem;              /* +0x24: START-menu cursor, 0..3 (NewCMPGameModeExit, lh 0x00a01e5c) */
     s16 exitMenuSub;               /* +0x26: option row inside the item, -1 = none (lh 0x00a01e50) */
     u16 slideDirection;            /* +0x28: nonzero slides the offset down (CardMainProc 0x00a0859c lhu) */
@@ -174,7 +185,9 @@ typedef struct CardCommandControl {
 /* The board cursor (CardCursorActive/CardCursorPassive). */
 typedef struct CardCursorControl {
     s16 selectionMode;
-    u8 unmodeled_02[4];
+    s16 selectionSubMode;          /* +0x02: stored with selectionMode when a fase starts (sh 0x00a2a7d0 / 0x00a2a7d8,
+                                    * 0x00a2b3cc / 0x00a2b3c4, 0x00a2bca4 / 0x00a2bcb0); no reader found */
+    u8 unmodeled_04[2];
     s16 controllingSide;           /* +0x06 */
 } CardCursorControl;
 
@@ -261,7 +274,12 @@ typedef struct CardGameWork {
                                     * *FaseProc/*FaseSub phase handlers, and it only requests a stage rotation
                                     * while fase == 9 */
     u16 faseStep;                  /* +0x59B6: step within the current fase (lhu/sh only) */
-    u8 unmodeled_59B8[3];
+    u8 unmodeled_59B8;
+    u8 aiStep;                     /* +0x59B9: step of the computer player's routine for the current phase,
+                                    * counted up and tested in CC_Kara_SetFase (`lbu` 0x00a3bccc) and
+                                    * CC_Kara_CommFase (0x00a37bec); cleared by CardGameInit (0x00a2529c)
+                                    * and CGPNextTurnSub (`sb` 0x00a25af0) */
+    u8 unmodeled_59BA;
     u8 enemyDeckId;                /* +0x59BB: ROM deck the computer opponent plays; CardMainProc stores it
                                     * (0x00a05efc `sb $3,0x59BB($30)`), GetDeckData (ov10/tu010) reads it */
     u8 helpState;                  /* +0x59BC: nonzero while the help screen replaces the fase; CardHelpProc
@@ -279,7 +297,7 @@ typedef struct CardGameWork {
     u8 helpPage[256];              /* +0x59C0: help page states; CardHelpPageInit clears
                                     * +0x5ABF down to +0x59C0 */
     CardCommandControl command;    /* +0x5AC0 */
-    s8 errorMessCode;              /* +0x5AF0: CGPSetErrorMess/CGPSetErrorMessPlus first argument */
+    s8 errorMessSide;              /* +0x5AF0: side the message is lit for (first argument of CGPSetErrorMess/CGPSetErrorMessPlus; -1 lights neither) */
     u8 errorMessKind;              /* +0x5AF1: 1 = CGPSetErrorMess, 3 = CGPSetErrorMessPlus;
                                     * CardPlayDispInfo tests bit 0x02 to pick the Plus display */
     u16 infoPanelPhase;            /* +0x5AF2: information-panel animation phase */
@@ -297,8 +315,12 @@ typedef struct CardGameWork {
     char *permanentMess;           /* +0x5B48: CGPSetPermanentMess, indexed from PermMessTbl or NULL */
     u8 unmodeled_5B4C[0x5B50 - 0x5B4C];
     CardCursorControl cursor;      /* +0x5B50 */
-    u8 cursorMoveStep[2];          /* +0x5B58: one movement counter per side */
-    u8 unmodeled_5B5A[2];
+    union {
+        u8 cursorMoveStep[2];      /* +0x5B58: one movement counter per side */
+        u16 cursorMoveAny;         /* both counters at once (lhu 0x00a2b0cc) */
+    };
+    u8 junkPick[2];                /* +0x5B5A: junk pile card under the cursor while one is browsed, one per pile
+                                    * (player pile, enemy pile); CGPCursorMove2 steps it with lbu/sb */
     s16 cursorIndex;               /* +0x5B5C: position inside the selected zone */
     s16 cursorZone;                /* +0x5B5E: selected board zone */
     float highlightX;              /* +0x5B60 */
@@ -309,7 +331,8 @@ typedef struct CardGameWork {
     u8 unmodeled_5B80[0x5BBC - 0x5B80];
     void *cursorLex[4];            /* +0x5BBC: layout file of each cursor kind, loaded by CardMainInit */
     void *cursorXtx[4];            /* +0x5BCC: texture file of each cursor kind */
-    u8 unmodeled_5BDC[0x5BE2 - 0x5BDC];
+    u8 unmodeled_5BDC[0x5BE0 - 0x5BDC];
+    u16 effectsActive;             /* +0x5BE0: only write is CardGameInit's clear (sh 0x00a252cc); no reader found */
     u16 effectsSet;                /* +0x5BE2: number of effect entries registered */
     u8 unmodeled_5BE4[0x5BF0 - 0x5BE4];
     CardEffect effects[64];        /* +0x5BF0: card-game effect table */
