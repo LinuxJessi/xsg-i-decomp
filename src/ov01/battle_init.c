@@ -42,8 +42,7 @@ extern void battleMsgPut(int x, int y, int msgId, int frames);
  * touches: the float at +0xC0 (transWepIn/transWepOut set it to 0.0/1.0, the
  * same "transparency" member src/ov01/unit_cmd.h restates at that offset)
  * and the flags word at +0x6F0 (hairWindOn ORs in HAIR_WIND_BIT there for
- * every other unit's actor; hairWindOff, still INCLUDE_ASM, is this bit's
- * pair).
+ * every other unit's actor and hairWindOff clears it again).
  */
 typedef struct Actor {
     u32 flags;
@@ -1092,8 +1091,8 @@ extern void EXM_SetShakeTime(float time);
 
 /*
  * Blows a fixed directional wind and camera shake, then sets HAIR_WIND_BIT
- * on every other unit's actor (hairWindOff, still INCLUDE_ASM, is this
- * bit's pair; unit itself is excluded).
+ * on every other unit's actor (hairWindOff is this bit's pair; unit itself
+ * is excluded).
  */
 void hairWindOn(BattleUnit *unit)
 {
@@ -1127,7 +1126,35 @@ void hairWindOn(BattleUnit *unit)
     }
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", hairWindOff);
+extern void EXM_StopWind(void);
+
+/*
+ * hairWindOn's pair: stops the wind and clears HAIR_WIND_BIT on every other
+ * unit's actor again (unit itself is excluded).
+ */
+void hairWindOff(BattleUnit *unit)
+{
+    BattleUnit **table;
+    BattleUnit **next;
+    BattleUnit *cur;
+    int remaining;
+    int count;
+
+    EXM_StopWind();
+    count = unitTblGet(0, &table);
+    if (count > 0) {
+        next = table;
+        remaining = count;
+        do {
+            cur = *next;
+            next++;
+            if (cur != 0 && cur != unit) {
+                cur->actor->windFlags &= ~HAIR_WIND_BIT;
+            }
+            remaining--;
+        } while (remaining != 0);
+    }
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", scenarioBatExecPhase10);
 
