@@ -912,6 +912,77 @@ void effCalcMatrix(ObjectTask *task, Matrix4 matrix, int index) {
 
 INCLUDE_ASM("asm/nonmatchings/ov01/entry_first_init", encEffObjDraw);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/entry_first_init", encEffAppend);
+extern void grGpInit(GrPacket *packet);
+extern void grPacketSend(GrPacket *packet);
+
+/*
+ * Sends two GIF-tagged UV/RGBAQ/XYZ2 vertex pairs (regs 0x513), UV 0..
+ * (0x1FF0, 0x1BF0), textured from grFBAdrGet(drawingIndex) through TEX0,
+ * offset by +16 then -16 (12.4 fixed point) on both axes.
+ * gp is the original's callee-saved packet pointer (`daddu $17,$29,$0` in
+ * grGpInit's delay slot, every later data/count read goes through $17), and
+ * depth its Z, loaded into $18 at entry (`lui/ori $18` in the first calls'
+ * delay slots).
+ */
+void encEffAppend(void)
+{
+    GrPacket packet;
+    GrPacket *gp;
+    int drawingIndex;
+    int currentIndex;
+    int tbp0;
+    int depth = 0xFFFFFD;
+    int *count;
+    int dx;
+    int dy;
+    int i;
+
+    grDBIdxGet(&drawingIndex, &currentIndex);
+    tbp0 = (grFBAdrGet(drawingIndex) << 5) & 0xFFFF;
+    gp = &packet;
+    grGpInit(&packet);
+    GS_REG_SET(&packet, 0xE, 0x1000000000008005LL);
+    GS_REG_SET(&packet, 0x3F, 1);
+    GS_REG_SET(&packet, 0x6, tbp0 | 0x2000000664020000LL);
+    GS_REG_SET(&packet, 0x42, 0x44);
+    GS_REG_SET(&packet, 0x47, 0x30000);
+    GS_REG_SET(&packet, 0x14, 0);
+
+    for (i = 0; i < 2; i++) {
+        if (i == 0) {
+            dx = 1;
+            dy = 1;
+        } else {
+            dx = -1;
+            dy = -1;
+        }
+        GR_PACKET_QUAD(gp, gp->count)->tag.register_id = 0x513;
+        count = &gp->count;
+        GR_PACKET_QUAD(gp, (*count)++)->tag.control = 0x30AB400000008002LL;
+
+        GR_PACKET_QUAD(gp, *count)->uv.u = 0;
+        GR_PACKET_QUAD(gp, (*count)++)->uv.v = 0;
+        GR_PACKET_QUAD(gp, *count)->rgba.r = 0x80;
+        GR_PACKET_QUAD(gp, *count)->rgba.g = 0x80;
+        GR_PACKET_QUAD(gp, *count)->rgba.b = 0x80;
+        GR_PACKET_QUAD(gp, (*count)++)->rgba.a = 0x80;
+        GR_PACKET_QUAD(gp, *count)->xyz.x = dx * 16 + 0x7000;
+        GR_PACKET_QUAD(gp, *count)->xyz.y = dy * 16 + 0x7200;
+        GR_PACKET_QUAD(gp, *count)->xyz.z = depth;
+        GR_PACKET_QUAD(gp, (*count)++)->xyz.flags = 0;
+
+        GR_PACKET_QUAD(gp, *count)->uv.u = 0x1FF0;
+        GR_PACKET_QUAD(gp, (*count)++)->uv.v = 0x1BF0;
+        GR_PACKET_QUAD(gp, *count)->rgba.r = 0x80;
+        GR_PACKET_QUAD(gp, *count)->rgba.g = 0x80;
+        GR_PACKET_QUAD(gp, *count)->rgba.b = 0x80;
+        GR_PACKET_QUAD(gp, (*count)++)->rgba.a = 0x80;
+        GR_PACKET_QUAD(gp, *count)->xyz.x = dx * 16 + 0x9000;
+        GR_PACKET_QUAD(gp, *count)->xyz.y = dy * 16 + 0x8E00;
+        GR_PACKET_QUAD(gp, *count)->xyz.z = depth;
+        GR_PACKET_QUAD(gp, (*count)++)->xyz.flags = 0;
+    }
+    grPacketSend(gp);
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/entry_first_init", encEffVramCopy);
