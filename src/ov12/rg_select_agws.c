@@ -695,7 +695,24 @@ static void _CheckConfrictSelType(SelType *pSelType)
     }
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_select_agws", _SetAllCursorByNameSelType);
+/* Still INCLUDE_ASM above: moves the list cursor to the entry named `name`. */
+static int _SetCursorByNameSelWep(SelWep *pSelWep, char *name);
+
+static void _SetAllCursorByNameSelType(SelType *pSelType, char *aszName)
+{
+    unsigned int i;
+
+    if (pSelType == 0) {
+        assert_prog(D_00A56758, D_00A56660, 0x272);
+    }
+    if (aszName == 0) {
+        assert_prog(D_00A56788, D_00A56660, 0x273);
+    }
+    for (i = 0; i < RG_EQUIP_TYPE_NUM; i++) {
+        _SetCursorByNameSelWep(&pSelType->wepList[i], aszName + i * WEP_NAME_SIZE);
+    }
+    _CheckConfrictSelType(pSelType);
+}
 
 /*
  * ov12:0x00a568f0 "_GetSelectChar(&pSel->m_inChar) != RG_ACTOR_CHAR_NOP"
