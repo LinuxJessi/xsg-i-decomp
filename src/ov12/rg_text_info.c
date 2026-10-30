@@ -56,10 +56,24 @@ extern float RgReadTextGetFloat(struct RgReadText *pReader);
 extern int RgReadTextGetInt(struct RgReadText *pReader);
 extern int RgReadTextGetBool(struct RgReadText *pReader);
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_text_info", _FindEntry);
-
 struct RgTextInfoEntry *_FindEntry(struct RgTextInfoEntry *pParaList,
-                                   const char *pszName);
+                                   const char *pszName)
+{
+    struct RgTextInfoEntry *pEntry;
+
+    if (pParaList == 0) {
+        assert_prog(D_00A54480, D_00A54498, 22);
+    }
+    if (pszName == 0) {
+        assert_prog(D_00A544B0, D_00A54498, 23);
+    }
+    for (pEntry = pParaList; pEntry->type != RG_TEXT_INFO_END; pEntry++) {
+        if (strcmp(pEntry->pszName, pszName) == 0) {
+            return pEntry;
+        }
+    }
+    return 0;
+}
 
 void RgTextInfoRead(struct RgReadText *pReadText,
                     struct RgTextInfoEntry *pParaList, char *pData)
