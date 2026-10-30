@@ -260,7 +260,29 @@ static int _GetSelectCursor(SelChar *pSelChar)
     return pSelChar->cursor;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_select_agws", _SetSelectableSelectChar);
+static void _SetSelectableSelectChar(SelChar *pSelChar, unsigned int charIDMask)
+{
+    unsigned int i;
+
+    if (pSelChar == 0) {
+        assert_prog(D_00A56650, D_00A56660, 0xE7);
+    }
+    pSelChar->selectableMask = 0;
+    for (i = 0; i < 6; i++) {
+        if (charIDMask & (1 << i)) {
+            pSelChar->selectableMask |= 1 << _CharIDToCharCursor(i);
+        }
+    }
+    pSelChar->selectableMask |= 0x40;
+    if ((pSelChar->selectableMask & (1 << pSelChar->cursor)) == 0) {
+        for (i = 0; i < 7; i++) {
+            if (pSelChar->selectableMask & (1 << i)) {
+                pSelChar->cursor = i;
+                break;
+            }
+        }
+    }
+}
 
 extern const char D_00A56678[]; /* "eCharID != RG_ACTOR_CHAR_NOP" */
 
@@ -990,11 +1012,6 @@ static int _SaveWepSelectData(SelDat *pSelDat, int *pData)
 extern const char D_00A56838[]; /* "pSelDat != NIL" */
 extern const char D_00A568C0[]; /* "pData != NIL" */
 
-/*
- * _SetSelectableSelectChar (above) is still INCLUDE_ASM; declare it so this
- * caller does not see an implicit declaration.
- */
-static void _SetSelectableSelectChar(SelChar *pSelChar, unsigned int charIDMask);
 
 static void _LoadCharSelectData(SelDat *pSelDat, int *pData)
 {
