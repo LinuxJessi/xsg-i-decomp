@@ -662,7 +662,25 @@ static void _GetAllSelType(SelType *pSelType, int *out)
     }
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_select_agws", _GetAllNameOnCursorSelType);
+extern const char D_00A56788[]; /* "aszName != NIL" */
+
+/* One weapon name slot: _GetAllNameOnCursorSelType's own 0x20 stride. */
+#define WEP_NAME_SIZE 0x20
+
+static void _GetAllNameOnCursorSelType(SelType *pSelType, char *aszName)
+{
+    unsigned int i;
+
+    if (pSelType == 0) {
+        assert_prog(D_00A56758, D_00A56660, 0x25C);
+    }
+    if (aszName == 0) {
+        assert_prog(D_00A56788, D_00A56660, 0x25D);
+    }
+    for (i = 0; i < RG_EQUIP_TYPE_NUM; i++) {
+        _GetNameOnCursorSelWep(&pSelType->wepList[i], aszName + i * WEP_NAME_SIZE);
+    }
+}
 
 static void _CheckConfrictSelType(SelType *pSelType)
 {
@@ -702,7 +720,20 @@ static void _InitSelType(SelType *pSelType)
     pSelType->charID = RG_ACTOR_CHAR_NOP;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_select_agws", _InitByCharSelType);
+static void _InitByCharSelType(SelType *pSelType, int charID)
+{
+    unsigned int i;
+
+    if (pSelType == 0) {
+        assert_prog(D_00A56758, D_00A56660, 0x293);
+    }
+    _InitSelType(pSelType);
+    for (i = 0; i < RG_EQUIP_TYPE_NUM; i++) {
+        _InitCharTypeSelWep(&pSelType->wepList[i], charID, i);
+    }
+    pSelType->charID = charID;
+    _CheckConfrictSelType(pSelType);
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov12/rg_select_agws", _PassTimeSelType);
 
@@ -778,13 +809,6 @@ extern const char D_00A56838[]; /* "pSelDat != NIL" */
  */
 extern void InitRgSelectAGWSData(int *confrict);
 
-/*
- * _InitByCharSelType (ov12:0x00a39458) is still INCLUDE_ASM; it tail-calls
- * _CheckConfrictSelType (ov12:0x00a39280, also unallocated), so its return
- * type follows that unresolved callee. This call's own result is unused.
- */
-static int _InitByCharSelType(SelType *pSelType, int charID);
-
 static void _InitSelectData(SelDat *pSelDat)
 {
     SelChar *pSelChar;
@@ -820,14 +844,6 @@ static void _SaveCharSelectData(SelDat *pSelDat, int *pData)
 }
 
 /*
- * _GetAllNameOnCursorSelType (ov12, still INCLUDE_ASM) walks the weapon list
- * of every equip type and copies the name on each cursor into successive
- * WEP_NAME_SIZE-byte slots; declare it so this caller does not see an
- * implicit declaration.
- */
-static void _GetAllNameOnCursorSelType(SelType *pSelType, char *names);
-
-/*
  * Number of character slots the weapon-name save area holds, one per
  * character-select cursor position (_InitSelectChar's own initial cursor 6 is
  * the first value outside the range this bound tests).
@@ -836,11 +852,10 @@ static void _GetAllNameOnCursorSelType(SelType *pSelType, char *names);
 
 /*
  * Layout of one character's slot inside the save area _SaveToBaseData passes:
- * RG_EQUIP_TYPE_NUM weapon names of WEP_NAME_SIZE bytes each
- * (_GetAllNameOnCursorSelType's own 0x20 stride), the first slot starting two
+ * RG_EQUIP_TYPE_NUM weapon names of WEP_NAME_SIZE bytes each (defined with
+ * _GetAllNameOnCursorSelType above), the first slot starting two
  * words after the character data _SaveCharSelectData stores.
  */
-#define WEP_NAME_SIZE 0x20
 #define WEP_NAME_LIST_OFFSET 8
 
 /*
