@@ -165,11 +165,9 @@ void hairWindOn(BattleUnit *unit);
 void hairWindOff(BattleUnit *unit);
 extern void ACT_setHand(Actor *actor, int hand);
 extern Actor *ACT_setArms(Actor *actor, Actor *parent, unsigned int accessoryId, int flags);
-/* dataTid2WepSp is still INCLUDE_ASM in its defining TU (data_unit_org_get.c), so
- * there is no prototype to check this against: the signature is read off the
- * call in spWepDispOn (technique id in, `lw $4,0x8($16)` at 0x00a0e5cc; the
- * result is only tested against zero and stored). */
-extern int dataTid2WepSp(int tecId);
+/* Defined in data_unit_org_get.c; spWepDispOn only tests the returned
+ * special-weapon entry against zero, so the entry type stays incomplete. */
+extern struct WepSpEntry *dataTid2WepSp(int tecId);
 
 extern void transWepInDraw(Actor *actor);
 extern void transWepOutDraw(Actor *actor);
@@ -1432,7 +1430,7 @@ void scenarioMtd(ScenarioBatExec *exec)
 void spWepDispOn(ScenarioBatExec *exec, int weapon)
 {
     int tecKind;
-    int wepSp;
+    struct WepSpEntry *wepSp;
     int weaponId;
     Actor *weaponActor;
 
