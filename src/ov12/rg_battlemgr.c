@@ -314,7 +314,29 @@ static RgCamera *_GetCameraBattleField(BattleField *pField, u32 index)
     return pField->camera[index];
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_battlemgr", _ClearBattleField);
+extern void DisposeRgCamera(RgCamera *camera);
+extern void RgGeomFree(RgGeom *geom);
+
+static void _ClearBattleField(BattleField *pField)
+{
+    u32 i;
+
+    if (pField == 0) {
+        assert_prog(D_00A54D50, D_00A54CC0, 0x107);
+    }
+    for (i = 0; i < (u32)pField->count; i++) {
+        if (pField->camera[i] != 0) {
+            DisposeRgCamera(pField->camera[i]);
+            pField->camera[i] = 0;
+        }
+        if (pField->screenBall[i] != 0) {
+            RgGeomFree(pField->screenBall[i]);
+            pField->screenBall[i] = 0;
+        }
+    }
+    pField->count = 0;
+    RgDrawCreateDrawStudioFullScreen(InstanceOfRgDraw());
+}
 
 extern RgGeomGroup *CreateRgGeomGroup(void);
 extern RgDraw *InstanceOfRgDraw(void);
@@ -348,8 +370,6 @@ static void _InitBattleField(BattleField *pField)
     } while (pass < 2U);
     RgDrawCreateDrawStudioFullScreen(InstanceOfRgDraw());
 }
-
-static void _ClearBattleField(BattleField *pField);
 
 static void _DestructBattleField(BattleField *pField)
 {
