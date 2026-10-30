@@ -235,7 +235,39 @@ s32 CheckEnemyFight(s32 side, CardGameWork *work)
 
 INCLUDE_ASM("asm/nonmatchings/ov10/battle_area_check_enemy", CheckGeneration);
 
-INCLUDE_ASM("asm/nonmatchings/ov10/battle_area_check_enemy", GetDeckData);
+/* Defined in ov10/cgp.c; filled by CardEnemyInit (ov10/card_enemy.c). */
+extern char *EnemyDeckLst[48];
+extern char *DeckDataLst[48];
+
+/*
+ * Looks cardId up in the side's ROM deck (EnemyDeckLst) and returns the
+ * parallel DeckDataLst byte for it, or 0 when cardId is negative or not in
+ * the 40-card deck.
+ */
+u32 GetDeckData(int side, CardGameWork *work, int cardId)
+{
+    int deck;
+    u8 *data;
+    u8 *cards;
+    int i;
+
+    if (cardId < 0) {
+        return 0;
+    }
+    if (side == 0) {
+        deck = work->playerDeckId;
+    } else {
+        deck = work->enemyDeckId;
+    }
+    cards = (u8 *)EnemyDeckLst[deck];
+    data = (u8 *)DeckDataLst[deck];
+    for (i = 0; i < 40; i++) {
+        if (cards[i] == cardId) {
+            return data[i];
+        }
+    }
+    return 0;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov10/battle_area_check_enemy", GetDeckDataAdjust);
 
