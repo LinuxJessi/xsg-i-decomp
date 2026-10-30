@@ -144,7 +144,31 @@ int unitLiveNumGet(int side)
     return live;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitLiveNumGet2);
+/*
+ * unitLiveNumGet that also skips units carrying status 0x2000 in category
+ * 0 or 4 (calcStatGet at 0x00a01064 and 0x00a01080).
+ */
+int unitLiveNumGet2(int side)
+{
+    UnitRecord **table;
+    UnitRecord *unit;
+    int count;
+    int live;
+    int i;
+
+    live = 0;
+    count = unitTblGet(side, &table);
+    for (i = 0; i < count; i++) {
+        unit = table[i];
+        if (unit != 0 && !(((Actor *)unit->task.work)->flags & ACTOR_FLAG_DOWN)) {
+            if (calcStatGet(&unit->task, 0, 0x2000) == 0
+                && calcStatGet(&table[i]->task, 4, 0x2000) == 0) {
+                live++;
+            }
+        }
+    }
+    return live;
+}
 
 int unitCidGet(ObjectTask *unit)
 {
@@ -593,9 +617,72 @@ int unitCmdMove(UnitRecord *unit)
     return 0;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitCmdGuard);
+/*
+ * Guard: plays motion 0x1B and marks the unit as guarding
+ * (ACTOR_FLAG_GUARD), then stands the unit once the motion ends.
+ */
+int unitCmdGuard(ObjectTask *unit)
+{
+    Actor *actor;
 
-INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitCmdAgws);
+    actor = unit->work;
+    unitCmdPtrGet(unit);
+    if (actor->moveState == 0) {
+        unitMotSet(unit, 0x1B);
+        /* The work slot is loaded again after the call (lw $2,0x10($16) at
+         * 0x00a0275c), not read through the cached `actor`. */
+        ((Actor *)unit->work)->flags |= ACTOR_FLAG_GUARD;
+        actor->moveState++;
+    } else if (((UnitRecord *)unit)->motionActor->moveFlags & 0x1000) {
+        unitMotStandSet(unit);
+        return unitCmdNext(unit);
+    }
+    return 0;
+}
+
+/*
+ * Queues the AGWS boarding pair: command 0x2B (with the queued argument and
+ * the unit's character id: the linked unit's when CalcUnitParam flag 0x40 is
+ * set, lw $2,0x50/lh $17,0x38($2) at 0x00a0280c, else baseCharaId,
+ * lh $17,0x54($3) at 0x00a02818) and then command 0x2D from the same entry.
+ */
+int unitCmdAgws(ObjectTask *unit)
+{
+    CmdEntry entry;
+    CmdEntry *cmd;
+    CalcUnitParam *param;
+    int charaId;
+    int effectId;
+    int soundId;
+
+    cmd = unitCmdPtrGet(unit);
+    param = calcUPGet(unit);
+    if (param->flags & 0x40) {
+        charaId = param->linkedUnit->charaId;
+    } else {
+        charaId = param->baseCharaId;
+    }
+    calcStatResetAll(unit);
+    entry.selector = 0x2B;
+    entry.argument = cmd->argument;
+    entry.extra = charaId;
+    unitCmdSet(unit, &entry);
+    entry.selector = 0x2D;
+    unitCmdSet(unit, &entry);
+    if (calcUPGet(unit)->flags & 0x40) {
+        effectId = 0x67;
+        soundId = 0x20;
+    } else {
+        /* Both set before the call: addiu $17,0x66 and the delay-slot
+         * addiu $18,0x1F around jal sndSeTransPlay (0x00a02888). */
+        effectId = 0x66;
+        soundId = 0x1F;
+        sndSeTransPlay(unit, 0x17, 3);
+    }
+    decoEffCall(unit, effectId);
+    sndSysSePlay(soundId);
+    return unitCmdNext(unit);
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitCmdUnitChange);
 
@@ -617,7 +704,66 @@ int unitCmdEnd(ObjectTask *unit)
     return unitCmdStand(unit);
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitCmdDmg);
+/*
+ * Damage reaction: the queued argument picks the hit motion and face (1 and
+ * 2 the heavy ones, face 0x3B), and a kind-2 hit on a front position
+ * (CalcUnitParam.posId < 4, lh $3,0x44($2) at 0x00a02df8) knocks the unit
+ * three positions back and snaps its motion actor onto the new position.
+ */
+int unitCmdDmg(ObjectTask *unit)
+{
+    Actor *actor;
+    CmdEntry *cmd;
+    int kind;
+    int motion;
+    int face;
+    CalcUnitParam *param;
+    Vector4 *pos;
+    Actor *motionActor;
+
+    actor = unit->work;
+    cmd = unitCmdPtrGet(unit);
+    kind = cmd->argument;
+    if (actor->moveState == 0) {
+        switch (kind) {
+        case 1:
+            motion = 5;
+            face = 0x3B;
+            break;
+        case 2:
+            motion = 0x26;
+            face = 0x3B;
+            break;
+        case 0: /* its own case: slti $2,$17,2 at 0x00a02d7c */
+        default:
+            motion = 4;
+            face = 0x3A;
+            break;
+        }
+        unitMotSet(unit, motion);
+        unitFaceMotSet(unit, face);
+        sndSeTransPlay(unit, 2, kind + 1);
+        actor->moveState++;
+    } else if (((UnitRecord *)unit)->motionActor->moveFlags & 0x1000) {
+        if (kind == 2 && calcUPGet(unit)->posId < 4) {
+            param = calcUPGet(unit);
+            param->posId += 3;
+            pos = dataPosTblGet(param->posId);
+            motionActor = ((UnitRecord *)unit)->motionActor;
+            motionActor->position.x = pos->x;
+            motionActor->position.y = pos->y;
+            motionActor->position.z = pos->z;
+        }
+        unitMotStandSet(unit);
+        if (calcStatGet(unit, 1, 0x2000) != 0) {
+            unitFaceMotSet(unit, 0x37);
+        } else {
+            unitFaceMotSet(unit, 0x35);
+        }
+        return unitCmdNext(unit);
+    }
+    return 0;
+}
 
 /*
  * unitMotSet's own sibling, still asm in this TU; forward-declared for the
@@ -645,7 +791,38 @@ int unitCmdEva(ObjectTask *unit)
     return 0;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitCmdDef);
+/*
+ * Defence: plays motion 0x1E, then, once it ends, motion 0x1C unless the
+ * unit is guarding (Actor.flags 0x800, andi at 0x00a02fac), and stands the
+ * unit when the last motion ends.
+ */
+int unitCmdDef(ObjectTask *unit)
+{
+    Actor *actor;
+
+    actor = unit->work;
+    switch (actor->moveState) {
+    case 0:
+        unitMotSet(unit, 0x1E);
+        actor->moveState++;
+        break;
+    case 1:
+        if (((UnitRecord *)unit)->motionActor->moveFlags & 0x1000) {
+            if (!(actor->flags & ACTOR_FLAG_GUARD)) {
+                unitMotSet(unit, 0x1C);
+            }
+            actor->moveState++;
+        }
+        break;
+    default:
+        if (((UnitRecord *)unit)->motionActor->moveFlags & 0x1000) {
+            unitMotStandSet(unit);
+            return unitCmdNext(unit);
+        }
+        break;
+    }
+    return 0;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitCmdDead);
 
@@ -1235,7 +1412,30 @@ float unitCmdDirSet(UnitRecord *unit)
     return motionActor->rotation.y;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitCmdLenGet);
+/*
+ * Ground-plane distance from the motion actor to the pending move command's
+ * target (cmdTarget x/z, lwc1 0x0/0x8 off the hoisted +0x90 base at
+ * 0x00a05b2c).
+ */
+float unitCmdLenGet(ObjectTask *unit)
+{
+    Vector4 *target;
+    Actor *motionActor;
+    float dx;
+    float dz;
+
+    target = &((Actor *)unit->work)->cmdTarget.vector;
+    motionActor = ((UnitRecord *)unit)->motionActor;
+    dx = target->x - motionActor->position.x;
+    if (dx < 0.0f) {
+        dx = -dx;
+    }
+    dz = target->z - motionActor->position.z;
+    if (dz < 0.0f) {
+        dz = -dz;
+    }
+    return __builtin_sqrtf(dx * dx + dz * dz);
+}
 
 void unitCmdDivSet(UnitRecord *unit, float distance, float step)
 {
@@ -1451,13 +1651,93 @@ int unitCmdReadWait(ObjectTask *unit)
     return 0;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitCmdAgws2);
+/*
+ * Step 0 calls the AGWS effect (0x67 with CalcUnitParam flag 0x40, else 0x66,
+ * movz at 0x00a06c14), step 1 stands the unit and clears the teleport timer,
+ * then it waits for unitTelIn.
+ */
+int unitCmdAgws2(ObjectTask *unit)
+{
+    Actor *actor;
+
+    actor = unit->work;
+    unitCmdPtrGet(unit);
+    if (actor->moveState == 0) {
+        decoEffCall(unit, (calcUPGet(unit)->flags & 0x40) ? 0x67 : 0x66);
+        actor->moveState++;
+    } else if (actor->moveState == 1) {
+        unitMotStandSet(unit);
+        actor->movePhaseTimer = 0;
+        actor->moveState++;
+    } else if (unitTelIn(unit) != 0) {
+        return unitCmdNext(unit);
+    }
+    return 0;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitCmdEscape);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitCmdFadeIn);
+/*
+ * The reverse of unitCmdFadeOut: teleports the unit in, then unblocks the
+ * unit's effect record and restarts its status effects.
+ */
+int unitCmdFadeIn(ObjectTask *unit)
+{
+    Actor *actor;
+    CalcUnitParam *param;
 
-INCLUDE_ASM("asm/nonmatchings/ov01/unit_cmd", unitCmdFadeOut);
+    actor = unit->work;
+    switch (actor->moveState) {
+    case 0:
+        actor->moveState++;
+        actor->movePhaseTimer = 0;
+        break;
+    case 1:
+        if (unitTelIn(unit) != 0) {
+            actor->moveState++;
+        }
+        break;
+    case 2:
+        param = calcUPGet(unit);
+        if (param->effectUnit != 0) {
+            param->effectUnit->flags &= ~UNIT_WORK_STATUS_BLOCKED;
+        }
+        statEffOn(unit);
+        return unitCmdNext(unit);
+    }
+    return 0;
+}
+
+/*
+ * Blocks the unit's effect record and stops its status effects, then
+ * teleports the unit out.
+ */
+int unitCmdFadeOut(ObjectTask *unit)
+{
+    Actor *actor;
+    CalcUnitParam *param;
+
+    actor = unit->work;
+    switch (actor->moveState) {
+    case 0:
+        param = calcUPGet(unit);
+        if (param->effectUnit != 0) {
+            param->effectUnit->flags |= UNIT_WORK_STATUS_BLOCKED;
+        }
+        statEffOff(unit);
+        actor->movePhaseTimer = 0;
+        actor->moveState++;
+        break;
+    case 1:
+        if (unitTelOut(unit) != 0) {
+            actor->moveState++;
+        }
+        break;
+    case 2:
+        return unitCmdNext(unit);
+    }
+    return 0;
+}
 
 /*
  * unitMotSetEx is defined later in this TU, still asm; forward-declared for
@@ -1699,7 +1979,6 @@ extern void statEffOff(ObjectTask *unit);
  */
 #define CALC_UNIT_PARAM_STAT_EFF_TARGET_OFF 0x158
 #define UNIT_WORK_FLAGS_OFF 0xA8C
-#define UNIT_WORK_STATUS_BLOCKED 0x100u
 
 void unitDispOnOff(int flag)
 {
