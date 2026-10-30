@@ -17,6 +17,21 @@ extern int calcIdol2Chk(ObjectTask *unit);
 extern int dataCidGet(int chara_id);
 
 /*
+ * Actor.cmdTarget's type: unitCmdPosAdj saves and restores the whole command
+ * target with aligned ld/sd pairs (0x00a04aa4..0x00a04ab8,
+ * 0x00a04aec..0x00a04af8), where a plain Vector4 (4-byte aligned) copies
+ * through ldl/ldr/sdl/sdr. The u64 pair is the alignment spelling of
+ * MCamVector (src/ov01/m_cam.c) and GameVector8 (src/main/game.c) and carries
+ * no meaning of its own; every access goes through `vector`. Its 8-byte
+ * alignment rounds the partial Actor view's sizeof from 0x76C to 0x770;
+ * no offset moves and nothing in this TU takes sizeof(Actor).
+ */
+typedef union UnitVector {
+    Vector4 vector;
+    u64 pair[2];
+} UnitVector;
+
+/*
  * The battle actor object an ObjectTask's own `work` slot (include/shared.h)
  * points at once a unit is loaded; unitActupdate/unitActdraw below are its
  * `update`/`draw` callbacks. The head up to +0x70 is the Actor head main's
@@ -63,7 +78,7 @@ typedef struct Actor {
                              * command target's own CalcUnitParam/table
                              * position through it. */
     unsigned char unmodeled_84[0x90 - 0x84];
-    Vector4 cmdTarget;    /* +0x90: unitCmdDirSet reads x/z against
+    UnitVector cmdTarget; /* +0x90: unitCmdDirSet reads x/z against
                             * motionActor->position to face the pending move
                             * command; unitCmdDivSet blends x/z toward that
                             * position by a supplied ratio. y and w are
@@ -223,6 +238,9 @@ extern void nmlModelSetZwrite(int enabled);
 
 extern void unitCmdExec(ObjectTask *unit);
 extern void statEffProc(ObjectTask *unit);
+/* Defined in src/ov01/battle_init.c; unitCmdBted calls it before the
+ * declaration further down the .c file. */
+extern void statEffOff(ObjectTask *unit);
 extern void unitClipSet(ObjectTask *unit);
 
 /*
@@ -314,5 +332,50 @@ typedef struct TecJobView {
 extern void scenarioBatInit(void);
 extern TecJobView *dataTecGet(int tecId);
 extern void unitJobTypeAtk(ObjectTask *unit, UnitActRequest *request, TecJobView *tec);
+
+/*
+ * unitCmdExec dispatches the queued command's selector through this table of
+ * command handlers (lui/lw %lo(unitCmdTbl) indexed by selector << 2, jalr,
+ * 0x00a01dc8..0x00a01dd4); a zero return advances Actor.runFrameCounter.
+ */
+extern int (*unitCmdTbl[])(ObjectTask *unit);
+
+/* Defined in src/ov01/debug_entry.c, still asm there; it reads its second
+ * argument as the command selector (daddu $22,$5 at 0x00a2e530). */
+extern void debugCmdPrint(ObjectTask *unit, int selector);
+
+/* Defined in src/ov01/snd.c; unitCmdWake passes its own unit
+ * as the first argument (daddu $4,$16,$0 at 0x00a06a54). */
+extern void sndSeTransPlay(ObjectTask *unit, int, int);
+
+/* Defined later in this TU; unitCmdMot calls it before its definition. */
+extern void unitMtdProc(UnitRecord *unit);
+
+/*
+ * Actor.flags bit unitLiveNumGet skips as not alive and unitCmdDeadSet
+ * refuses to set again; unitCmdWake clears it (and -0x81, 0x00a06a94).
+ */
+#define ACTOR_FLAG_DOWN 0x80u
+
+/*
+ * One row of unitCmdPosAdj's root-motion tables (adjTblPl at 0x00a3d050,
+ * 0xA0 bytes = 8 rows; adjTblEn at 0x00a3d0f0, 0x348 bytes = 42 rows; both
+ * end at a zero charaId): the row stride is 0x14 (addiu $16,$16,0x14 at
+ * 0x00a0498c) and the four curve pointers at +4..+0x10 are the per-frame
+ * float tables the data names <unit>F1/F5/B1/B5 (chaosF1, kosmosB5, ...),
+ * picked by step motion 0xD, 0xF/0x11, 0x12 and 0x14/0x16.
+ */
+typedef struct UnitPosAdj {
+    int charaId;   /* +0x00: compared with CalcUnitParam.charaId */
+    float *front1; /* +0x04 */
+    float *front5; /* +0x08 */
+    float *back1;  /* +0x0C */
+    float *back5;  /* +0x10 */
+} UnitPosAdj;
+
+extern UnitPosAdj adjTblPl[];
+extern UnitPosAdj adjTblEn[];
+
+extern int unitMotGet(ObjectTask *unit);
 
 #endif /* SRC_OV01_UNIT_CMD_H */
