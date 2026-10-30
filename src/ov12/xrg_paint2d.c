@@ -168,7 +168,22 @@ INCLUDE_ASM("asm/nonmatchings/ov12/xrg_paint2d", _DrawNoTex);
 
 INCLUDE_ASM("asm/nonmatchings/ov12/xrg_paint2d", _DrawWithTex);
 
-INCLUDE_ASM("asm/nonmatchings/ov12/xrg_paint2d", _InitPaint);
+extern char *strcpy(char *destination, const char *source);
+static void _InitReq(XrgPaint2DDrawReq *req);
+
+static void _InitPaint(XrgPaint2D *paint, const char *sourceFile, int line)
+{
+    if (paint == 0) {
+        assert_prog(D_00A59098, D_00A59058, 701);
+    }
+    strcpy(paint->sourceFile, sourceFile);
+    paint->line = line;
+    paint->drawID = -2;
+    paint->reqCount = 0;
+    paint->request = &paint->req;
+    paint->prio = 3;
+    _InitReq(&paint->req);
+}
 
 static void _DestructPaint(XrgPaint2D *paint) {
     if (paint == 0) {
@@ -181,7 +196,6 @@ extern void *RgHeapAlloc(RgHeap *heap, unsigned int size, const char *source_fil
                         int line);
 extern void RgHeapFree(RgHeap *heap, void *ptr, const char *source_file,
                        int line);
-static void _InitPaint(XrgPaint2D *paint, const char *sourceFile, int line);
 
 XrgPaint2D *CreateXrgPaint2D_sub(const char *sourceFile, int line) {
     XrgPaint2D *paint;
@@ -506,8 +520,6 @@ void InitXrgPaint2DLine3D(XrgPaint2DLine3D *line, float width)
 INCLUDE_ASM("asm/nonmatchings/ov12/xrg_paint2d", XrgPaint2DDrawLine);
 
 INCLUDE_ASM("asm/nonmatchings/ov12/xrg_paint2d", _Paint2DFlush);
-
-static void _InitReq(XrgPaint2DDrawReq *req);
 
 static void _Paint2DClearReq(XrgPaint2D *paint, void *pStudio) {
     if (paint == 0) {
