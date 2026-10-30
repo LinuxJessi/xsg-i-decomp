@@ -24,9 +24,9 @@ typedef struct RgRobotEffect RgRobotEffect;
 /*
  * Homing-thread control block for a robot's ranged weapon lock-on.
  * _CreateHomingThread allocates it with RgHeapAlloc (size 0x18,
- * ov12:0x00a02594) and _InitHomingThread (still asm) zeroes it.
+ * ov12:0x00a02594) and _InitHomingThread zeroes it.
  * _StartHomingThread, _StopHomingThread, _GetStatHomingThread and
- * _GetSleepTimeHomingThread evidence every field but the unmodeled one:
+ * _GetSleepTimeHomingThread evidence every field but homingSpeed:
  *   +0x00 geometry   the geometry to home toward (sw 0($16),
  *                     ov12:0x00a02674)
  *   +0x04 target     the homing target object (sw 4($16),
@@ -44,15 +44,17 @@ typedef struct RgRobotEffect RgRobotEffect;
  *                     (ov12:0x00a02734) and _GetSleepTimeHomingThread
  *                     (ov12:0x00a02774), and advanced to 2 by
  *                     _StopHomingThread (ov12:0x00a026f4)
- * Byte 0x10 is untouched by any function of this allocation and stays
- * unmodeled.
+ *   +0x10 homingSpeed the rotation speed limit _PassTimeHomingThread passes
+ *                     as RgRobSubHoming's `speed` argument (lwc1 0x10($16)
+ *                     into $f12, ov12:0x00a02824); _InitHomingThread sets
+ *                     it to 4*pi (0x41490FDB, ov12:0x00a0253c)
  */
 typedef struct RgHomingThread {
     RgGeomPoint *geometry;          /* +0x00 */
     void *target;                   /* +0x04 */
     float actionTime;               /* +0x08 */
     float sleepTime;                /* +0x0c */
-    unsigned char unmodeled_10[4];  /* +0x10 */
+    float homingSpeed;              /* +0x10 */
     int state;                      /* +0x14 */
 } RgHomingThread;
 

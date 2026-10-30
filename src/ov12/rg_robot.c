@@ -68,9 +68,18 @@ extern void RgHeapFree(void *heap, void *pointer, const char *source_file,
 extern void XrgSoundRing(int soundID, int count);
 extern float RgGeomPointGetWeight(RgGeomPoint *point);
 
-static void _InitHomingThread(RgHomingThread *thread);
-
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_robot", _InitHomingThread);
+static void _InitHomingThread(RgHomingThread *thread)
+{
+    if (thread == 0) {
+        assert_prog(D_00A51830, D_00A51840, 73);
+    }
+    thread->geometry = 0;
+    thread->target = 0;
+    thread->actionTime = 0;
+    thread->sleepTime = 0;
+    thread->homingSpeed = 4.0f * 3.1415927f;
+    thread->state = 0;
+}
 
 static RgHomingThread *_CreateHomingThread(void)
 {
