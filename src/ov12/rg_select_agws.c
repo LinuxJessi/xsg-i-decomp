@@ -926,7 +926,31 @@ static void _LoadCharSelectData(SelDat *pSelDat, int *pData)
     _SetSelectableSelectChar(&pSelDat->selChar, pData[1]);
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_select_agws", _LoadWepSelectData);
+/*
+ * Declared int for the same reason as _SaveWepSelectData below: the original
+ * enters _SetAllCursorByNameSelType with jal and returns through its own
+ * epilogue instead of tail-jumping to it.
+ */
+static int _LoadWepSelectData(SelDat *pSelDat, int *pData)
+{
+    SelType *pSelType;
+    int charID;
+
+    pSelType = &pSelDat->selType;
+    if (pSelDat == 0) {
+        assert_prog(D_00A56838, D_00A56660, 0x40E);
+    }
+    if (pData == 0) {
+        assert_prog(D_00A568C0, D_00A56660, 0x40F);
+    }
+    charID = _GetSelectChar(&pSelDat->selChar);
+    _InitByCharSelType(pSelType, charID);
+    if ((unsigned int) charID < RG_ACTOR_CHAR_NUM) {
+        _SetAllCursorByNameSelType(pSelType,
+                                   (char *) pData + WEP_NAME_LIST_OFFSET +
+                                       charID * RG_EQUIP_TYPE_NUM * WEP_NAME_SIZE);
+    }
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov12/rg_select_agws", _GetBaseSelectData);
 
@@ -963,13 +987,6 @@ static void _DisposeSelectData(SelDat *pSelDat)
 
 extern const char D_00A568E0[]; /* "pSel != NIL" */
 extern const char D_00A568F0[]; /* "_GetSelectChar(&pSel->m_inChar) != RG_ACTOR_CHAR_NOP" */
-
-/*
- * _LoadWepSelectData (ov12, still INCLUDE_ASM) mirrors the accepted
- * _LoadCharSelectData(SelDat *, int *) shape; declare it so this caller does
- * not see an implicit declaration.
- */
-static void _LoadWepSelectData(SelDat *pSel, int *pData);
 
 static void _TransitToWeaponSelect(SelDat *pSel)
 {
