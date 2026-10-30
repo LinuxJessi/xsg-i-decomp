@@ -262,7 +262,41 @@ static int _GetSelectCursor(SelChar *pSelChar)
 
 INCLUDE_ASM("asm/nonmatchings/ov12/rg_select_agws", _SetSelectableSelectChar);
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_select_agws", _SetCharSelectChar);
+extern const char D_00A56678[]; /* "eCharID != RG_ACTOR_CHAR_NOP" */
+
+/*
+ * ov12:0x00a568f0 "_GetSelectChar(&pSel->m_inChar) != RG_ACTOR_CHAR_NOP"
+ * (_TransitToWeaponSelect below) and ov12:0x00a56678 "eCharID !=
+ * RG_ACTOR_CHAR_NOP" (_SetCharSelectChar) are this allocation's own evidence
+ * for the original sentinel value _InitSelType resets SelType::charID to.
+ */
+#define RG_ACTOR_CHAR_NOP (-1)
+
+
+static void _SetCharSelectChar(SelChar *pSelChar, int charID)
+{
+    int cursor;
+    unsigned int i;
+
+    if (pSelChar == 0) {
+        assert_prog(D_00A56650, D_00A56660, 0xFE);
+    }
+    if (charID == RG_ACTOR_CHAR_NOP) {
+        assert_prog(D_00A56678, D_00A56660, 0xFF);
+    }
+    cursor = _CharIDToCharCursor(charID);
+    if (pSelChar->selectableMask & (1 << cursor)) {
+        pSelChar->cursor = cursor;
+        return;
+    }
+    /* All 7 cursor positions: the 6 characters plus cursor 6, the bit
+     * _InitSelectChar's own selectableMask 0x40 sets. */
+    for (i = 0; i < 7; i++) {
+        if (pSelChar->selectableMask & (1 << i)) {
+            pSelChar->cursor = i;
+        }
+    }
+}
 
 static int _IsExistItemUpper(SelChar *pSelChar)
 {
@@ -714,13 +748,6 @@ static void _SetAllCursorByNameSelType(SelType *pSelType, char *aszName)
     _CheckConfrictSelType(pSelType);
 }
 
-/*
- * ov12:0x00a568f0 "_GetSelectChar(&pSel->m_inChar) != RG_ACTOR_CHAR_NOP"
- * (_TransitToWeaponSelect below) is this allocation's own evidence for the
- * original sentinel value _InitSelType resets SelType::charID to.
- */
-#define RG_ACTOR_CHAR_NOP (-1)
-
 static void _InitSelType(SelType *pSelType)
 {
     unsigned int i;
@@ -908,10 +935,9 @@ extern const char D_00A56838[]; /* "pSelDat != NIL" */
 extern const char D_00A568C0[]; /* "pData != NIL" */
 
 /*
- * _SetCharSelectChar/_SetSelectableSelectChar (above) are still INCLUDE_ASM;
- * declare them so this caller does not see an implicit declaration.
+ * _SetSelectableSelectChar (above) is still INCLUDE_ASM; declare it so this
+ * caller does not see an implicit declaration.
  */
-static void _SetCharSelectChar(SelChar *pSelChar, int charID);
 static void _SetSelectableSelectChar(SelChar *pSelChar, unsigned int charIDMask);
 
 static void _LoadCharSelectData(SelDat *pSelDat, int *pData)
