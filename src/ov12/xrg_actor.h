@@ -34,8 +34,12 @@ typedef struct XenoAct {
                                          (lw + andi 0x1000 at ov12:0x00a464ec) as the
                                          motion-ended flag; main's chr.h and menu_model.c
                                          name the same word motion_flags/motionFlags */
-    float motionFrame;                /* 0x6F4 */
-    unsigned char unmodeled_6f8[0x8D0 - 0x6F8];
+    float motionFrame;                /* 0x6F4: returned by XrgActorGetPlayingMotTime
+                                         (lwc1 at ov12:0x00a47584) */
+    unsigned char unmodeled_6f8[0x700 - 0x6F8];
+    float motionLength;               /* 0x700: returned by XrgActorGetMotionLength
+                                         (lwc1 at ov12:0x00a4751c) */
+    unsigned char unmodeled_704[0x8D0 - 0x704];
     void *dupFileData;                 /* 0x8D0: resourceFiles[2]->data, cached by
                                            _DupLoadXenoActor after RgFileSysDup */
     void *auxFileData;                  /* 0x8D4: resourceFiles[1]->data, cached by
