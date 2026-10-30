@@ -73,14 +73,19 @@ typedef struct RgDispLife {
         };
         struct {
             int vsMode;                       /* +0x4c */
-            unsigned char unmodeled_50[0x0c]; /* +0x50 */
+            int winCount[2];                  /* +0x50 */
+            int winnerMask;                   /* +0x58 */
             float elapsedTime;                /* +0x5c */
         };
     };
 } RgDispLife;
 
 /* RgDispLifeSetVsMode uses dispBxx +0x00, board pictures +0x08/+0x0c, and
- * vsMode +0x4c. RgDispLifePassTime updates elapsedTime +0x5c. These members
+ * vsMode +0x4c. RgDispLifePassTime updates elapsedTime +0x5c.
+ * RgDispLifeSetWin (0x00a263b8) stores each player's win tally, clamped to
+ * 0..2, in winCount[0]/[1] (+0x50/+0x54), and its fourth argument in
+ * winnerMask (+0x58). rg_main's _GameInfoSetDispLife passes
+ * RgGameInfo.playerResult[0]/[1] and either 0 or `1 << winner`. These members
  * are the additional ASM-offset-evidenced view of the original 0x60 object. */
 
 #endif /* SRC_OV12_RG_DISP_LIFE_H */
