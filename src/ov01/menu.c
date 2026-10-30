@@ -526,15 +526,18 @@ void menuKeyGuideObj(void) {
  * through include/ov01/battle_init.h. menuKeyGuideDisp null-checks
  * unitTask, then reads a flag (bit 3) from unitTask->work, and compares
  * controlPhase against 0xb and 0x1a. */
-void menuKeyGuideDisp(GrPacket *packet, ObjectTask *task, int phase);
+/* The first parameter was spelled GrPacket *packet: menuKeyGuideDisp loads
+ * its work (lw $2,0x10($17)) and the position floats there (lwc1 0x98/0x90
+ * at 0x00A2A6E0), so it is the key guide object's own task. */
+void menuKeyGuideDisp(ObjectTask *guideTask, ObjectTask *unitTask, int phase);
 
-void menuKeyGuideObjDraw(GrPacket *packet) {
+void menuKeyGuideObjDraw(ObjectTask *guideTask) {
     ObjectTask *task;
     int phase;
 
     task = manWorkGet()->unitTask;
     phase = manWorkGet()->controlPhase;
-    menuKeyGuideDisp(packet, task, phase);
+    menuKeyGuideDisp(guideTask, task, phase);
 }
 
 INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuStatObj);
@@ -1045,7 +1048,31 @@ void menuStockNext(void)
     }
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuStockBoost);
+/*
+ * Brings in the boost face (pStockObj[4]): command 3, shown from its
+ * stockPosTbl slot and moving to the first one. The target is written
+ * before the position (lwc1 0x24 first, swc1 0x0 last), and the work slot
+ * is re-read through menuStockWorkGet after the command store
+ * (lw $4,0x10($17) after sw $4,0x0($2)).
+ */
+void menuStockBoost(void)
+{
+    ObjectTask *task;
+    MenuObjTransform *transform;
+    MenuCmdEntryView *entry;
+
+    task = pStockObj[4];
+    transform = &menuStockWorkGet(task)->transform;
+    entry = objCmdTailGet(task);
+    entry->selector = 3;
+    transform->target.y = 0.0f;
+    transform->position.y = 0.0f;
+    transform->target.x = stockPosTbl[0].x;
+    transform->target.z = stockPosTbl[0].z;
+    transform->position.x = stockPosTbl[4].x;
+    transform->position.z = stockPosTbl[4].z;
+    menuStockWorkGet(task)->flags &= ~MENU_STOCK_HIDDEN;
+}
 
 /*
  * menuStockDead's bounded view of the action-stock record actStockGet
@@ -1132,7 +1159,132 @@ void menuStockObj(ObjectTask *task)
     ((MenuStockWork *)task->work)->frameCount++;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuStockObjDraw);
+/*
+ * menuStockObjDraw's bounded view of the record actStockGet returns (the
+ * MenuActStockView stock array, then the words this function reads).
+ */
+typedef struct MenuActStockDrawView {
+    ObjectTask *stock[4];   /* +0x00: lw $16,0x0(record + slot*4) */
+    ObjectTask *boost[2];   /* +0x10: battle_init.c ActStock.boost */
+    int count;              /* +0x18: lw $3,0x18($4); 0 draws no face */
+    int picked;             /* +0x1C: lw $2,0x1C($4), subtracted from count */
+    ObjectTask *boostUnit;  /* +0x20: lw $16,0x20($4), face 4's unit */
+    int boostState;         /* +0x24: lw $3,0x24($4), compared with 2 */
+} MenuActStockDrawView;
+
+/* A stock unit's actor flags, read as one doubleword (ld $3,0x0($2)). */
+typedef struct MenuStockActor {
+    u64 flags;
+} MenuStockActor;
+
+/* The face's unit must be present (bit 0x1) and not down (bit 0x80). */
+#define MENU_STOCK_ACTOR_MASK 0x81
+#define MENU_STOCK_ACTOR_PRESENT 0x1
+
+/* The boost face: pStockObj[4], hidden by menuStockStart. */
+#define MENU_STOCK_BOOST_FACE 4
+#define MENU_STOCK_BOOST_STATE 2
+
+extern int frameCntGet(void);
+void faceUVGet(ObjectTask *task, int *srcX, int *srcY);
+void menuStatSprite2(GrPacket *packet, int x, int y, int width, int height, int srcLeft, int srcTop, int srcRight, int srcBottom);
+void menuStatSprite2RGB(GrPacket *packet, int x, int y, int width, int height, int srcLeft, int srcTop, int srcRight, int srcBottom, const MenuRGBA *rgba);
+
+/*
+ * Draws one stock face beside the ATB gauge: the face of the unit queued in
+ * its action-stock slot (the boost unit for face 4), raised by 4 for the
+ * current target, and its frame; faces 0 and 4 get a pulsing frame.
+ * The colour's initializer is what calls memset and stores a = 0x80 (sb
+ * 0x23), sharing the constant 4 with the face compares ($16). faces is
+ * formed before the count test (subu ahead of beqz $3), inset and the face
+ * corner are their own values (li 10; subu $16 before grOpenSpr, addu
+ * $16,$20,$16 after it), and the pulse is stored b, g, r to get the
+ * original's sb 0x20/0x22/0x21 order.
+ */
+void menuStockObjDraw(ObjectTask *task)
+{
+    GrPacket packet;
+    MenuRGBA color = { 0, 0, 0, 0x80 };
+    int srcX;
+    int srcY;
+    MenuActStockDrawView *stock;
+    MenuStockWork *work;
+    ObjectTask *unit;
+    int index;
+    int slot;
+    int faces;
+    int y;
+    int width;
+    int x;
+    int raise;
+    int faceX;
+    int faceY;
+    int inset;
+    int pulse;
+
+    if (((MenuStockWork *)task->work)->flags & MENU_STOCK_HIDDEN) {
+        return;
+    }
+    stock = (MenuActStockDrawView *)actStockGet();
+    work = task->work;
+    faces = stock->count - stock->picked + 1;
+    index = work->index;
+    slot = work->stockSlot;
+    if (stock->count == 0) {
+        return;
+    }
+    if (index >= faces && index != MENU_STOCK_BOOST_FACE) {
+        return;
+    }
+    if (index == 0 && stock->boostState == MENU_STOCK_BOOST_STATE) {
+        return;
+    }
+    if (index == MENU_STOCK_BOOST_FACE) {
+        if (stock->boostState != MENU_STOCK_BOOST_STATE) {
+            return;
+        }
+        unit = stock->boostUnit;
+    } else {
+        unit = stock->stock[slot];
+    }
+    if (unit == 0) {
+        return;
+    }
+    if ((((MenuStockActor *)unit->work)->flags & MENU_STOCK_ACTOR_MASK) != MENU_STOCK_ACTOR_PRESENT) {
+        return;
+    }
+    x = (int)work->transform.position.x;
+    y = (int)work->transform.position.z;
+    x += ((MenuATBWork *)pAtbObj->work)->position.x;
+    y += ((MenuATBWork *)pAtbObj->work)->position.z;
+    grGpInit(&packet);
+    menuATBEnvMake(&packet);
+    faceUVGet(unit, &srcX, &srcY);
+    raise = -4;
+    if (unit != (ObjectTask *)tgtUnitGet()) {
+        raise = 0;
+    }
+    faceY = y + raise;
+    width = ((MenuStockWork *)task->work)->width.value;
+    inset = 10 - width / 2;
+    grOpenSpr(&packet);
+    faceX = x + inset;
+    menuStatSprite2(&packet, faceX, faceY, width, 0x18, srcX, srcY, srcX + 0x14, srcY + 0x18);
+    if (index == 0 || index == MENU_STOCK_BOOST_FACE) {
+        pulse = (frameCntGet() * 2) & 0x7F;
+        if (pulse >= 0x40) {
+            pulse = 0x7F - pulse;
+        }
+        color.b = pulse + 0x80;
+        color.g = pulse + 0x80;
+        color.r = pulse + 0x80;
+        menuStatSprite2RGB(&packet, faceX - 4, faceY - 4, width + 8, 0x20, 0xD8, 0x40, 0xF4, 0x61, &color);
+    } else {
+        menuStatSprite2(&packet, faceX - 2, faceY - 2, width + 4, 0x1C, 0xC0, 0x20, 0xD9, 0x3D);
+    }
+    grCloseSpr();
+    grPacketSend(&packet);
+}
 
 /*
  * The 3x11 face-icon sheet's per-character source cell: chrId<32 indexes a
@@ -1369,7 +1521,45 @@ void menuApBarPut(GrPacket *packet, int x, int y, int amount)
     }
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuBpBarPut);
+/* grPutF4's quad (src/ov01/gr_gp_init.c GrF4Vertices, TU-local there): four
+ * corners and one colour at +0x40 (sb 0x40..0x43 in menuBpBarPut). */
+typedef struct GrF4Vertices {
+    Vector4 points[4]; /* +0x00 */
+    MenuRGBA color;    /* +0x40 */
+} GrF4Vertices;
+
+extern void grOpenF4(GrPacket *packet);
+extern void grPutF4(GrPacket *packet, GrF4Vertices *quad, const Matrix4 matrix);
+extern void grCloseF4(void);
+
+/*
+ * The BP bar: an orange quad 4 pixels high, length pixels long, at
+ * (x + 0x49, y + 0x36).
+ */
+void menuBpBarPut(GrPacket *packet, int x, int y, int length)
+{
+    GrF4Vertices quad;
+
+    grOpenF4(packet);
+    quad.color.r = 0xFF;
+    quad.color.g = 0x20;
+    quad.color.b = 0x80;
+    quad.color.a = 0x80;
+    quad.points[0].x = x + 0x49;
+    quad.points[0].y = y + 0x36;
+    quad.points[0].z = SPRITE_Z;
+    quad.points[1].x = x + length + 0x49;
+    quad.points[1].y = y + 0x36;
+    quad.points[1].z = SPRITE_Z;
+    quad.points[2].x = x + 0x49;
+    quad.points[2].y = y + 0x3A;
+    quad.points[2].z = SPRITE_Z;
+    quad.points[3].x = x + length + 0x49;
+    quad.points[3].y = y + 0x3A;
+    quad.points[3].z = SPRITE_Z;
+    grPutF4(packet, &quad, 0);
+    grCloseF4();
+}
 
 /*
  * Index of the first icon entry of the character's table whose flags share a
@@ -1453,9 +1643,170 @@ void menuStatNamePut(ObjectTask *task)
     }
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuKeyGuideDisp);
+/*
+ * One line of a key guide list (menu.data keyGuideL, keyGuideNull, ...;
+ * still asm-owned): the pad button icon (uvTbl index, + 4 for its dimmed
+ * variant) and the key command it triggers; a 0 button ends the list.
+ */
+typedef struct KeyGuideLine {
+    int button; /* +0x00: lw $7,0x0($16) */
+    int key;    /* +0x04: lw $6,0x4($16) */
+} KeyGuideLine;
 
-INCLUDE_ASM("asm/nonmatchings/ov01/menu", keyGideDisp);
+/*
+ * One row of keyGuideTblChr/keyGuideTblAgws (8 bytes, sll $3,$16,3): the
+ * guide lines and the 0-terminated button icon list of one guide mode.
+ */
+typedef struct KeyGuideMode {
+    KeyGuideLine *lines; /* +0x00 */
+    int *buttons;        /* +0x04 */
+} KeyGuideMode;
+
+extern KeyGuideMode keyGuideTblChr[];
+extern KeyGuideMode keyGuideTblAgws[];
+
+/* The key guide object's work: its screen position (lwc1 0x98/0x90). */
+typedef struct MenuKeyGuideWork {
+    unsigned char unmodeled_00[0x90];
+    Vector4 position; /* +0x90 */
+} MenuKeyGuideWork;
+
+/* The battle actor flag the key guide requires (lw $2,0x0($3); andi 0x8). */
+#define ACTOR_FLAG_KEY_GUIDE 0x8u
+
+/* Control phase with no guide (beq $16,0x1A). */
+#define KEY_GUIDE_PHASE_NONE 0x1A
+/* First control phase that needs calcTuigekiChk (slti $2,$16,0xB). */
+#define KEY_GUIDE_PHASE_TUIGEKI 0xB
+/* Key command without a check (bne $6,0x1C). */
+#define KEY_CMD_NO_CHECK 0x1C
+
+extern int menuChk(void);
+extern int calcTuigekiChk(ObjectTask *unit);
+extern int keyCmdChk(ObjectTask *unit, BattleUnit *target, int key);
+extern int battleCtrlHelpGet(void);
+extern void grPacketSend(GrPacket *packet);
+void keyGideDisp(GrPacket *packet, int x, int y, int button);
+void menuKeyGuideHelp(GrPacket *packet, ObjectTask *unit, int key, int x, int y);
+void menuKeyGuideVal(GrPacket *packet, ObjectTask *unit, int key, int x, int y);
+
+/*
+ * Draws the key guide of phase for unitTask: the button icons of the phase in a
+ * row, then each guide line with its button (dimmed while keyCmdChk gives
+ * 1, skipped for 2 or more or a negative result) and, unless the help
+ * display is in state 2, its help text and values; then the guide footer.
+ * Each table is read in its own branch, lines before buttons (the original
+ * keeps sll $3,$16,3 in both branches and forms two addresses, addu $4,$2,$3
+ * and addu $3,$3,$2); both lists are walked by index (daddu $16,$7,$0 copies
+ * the base, the element is reloaded at the loop head); the range check is
+ * two nested ifs (slti $2,$3,0x2 then bltzl $3).
+ */
+void menuKeyGuideDisp(ObjectTask *guideTask, ObjectTask *unitTask, int phase)
+{
+    GrPacket packet;
+    MenuKeyGuideWork *work;
+    BattleUnit *target;
+    KeyGuideLine *lines;
+    int *buttons;
+    int x;
+    int y;
+    int i;
+    int check;
+    int icon;
+
+    if (unitTask == 0) {
+        return;
+    }
+    if ((((BattleActor *)unitTask->work)->flags & ACTOR_FLAG_KEY_GUIDE) == 0) {
+        return;
+    }
+    if (menuChk() != 0) {
+        return;
+    }
+    if (phase == KEY_GUIDE_PHASE_NONE) {
+        return;
+    }
+    if (phase >= KEY_GUIDE_PHASE_TUIGEKI && calcTuigekiChk(unitTask) == 0) {
+        return;
+    }
+    work = guideTask->work;
+    x = (int)work->position.x;
+    y = (int)work->position.z;
+    grGpInit(&packet);
+    menuStatEnvMake(&packet);
+    target = tgtUnitGet();
+    if (calcUPGet(unitTask)->flags & 0x40) {
+        lines = keyGuideTblAgws[phase].lines;
+        buttons = keyGuideTblAgws[phase].buttons;
+    } else {
+        lines = keyGuideTblChr[phase].lines;
+        buttons = keyGuideTblChr[phase].buttons;
+    }
+    if (buttons != 0) {
+        for (i = 0; buttons[i] != 0; i++) {
+            keyGideDisp(&packet, x, y, buttons[i]);
+            x += 0x18;
+        }
+    }
+    if (lines != 0) {
+        for (i = 0; lines[i].button != 0; i++) {
+            if (lines[i].key == 0 || lines[i].key == KEY_CMD_NO_CHECK) {
+                check = 0;
+            } else {
+                check = keyCmdChk(unitTask, target, lines[i].key);
+            }
+            if (check < 2) {
+                if (check >= 0) {
+                    if (check == 0) {
+                        icon = lines[i].button;
+                    } else {
+                        icon = lines[i].button + 4;
+                    }
+                    keyGideDisp(&packet, x, y, icon);
+                    if (battleCtrlHelpGet() != 2) {
+                        menuKeyGuideHelp(&packet, unitTask, lines[i].key, x, y);
+                        menuKeyGuideVal(&packet, unitTask, lines[i].key, x, y);
+                    }
+                    x += 4;
+                    y += 0x1C;
+                }
+            }
+        }
+    }
+    grOpenSpr(&packet);
+    menuStatSprite(&packet, 8, 0x1A8, 0xB2, 0xB, 0x4C, 0xAF);
+    grCloseSpr();
+    grPacketSend(&packet);
+}
+
+/*
+ * One pad button icon's cell in the menu sheet (menu.data uvTbl, 8 entries
+ * of 0x10 bytes; still asm-owned): keyGideDisp passes srcX/srcY (lw 0x0/0x4)
+ * and width/height (lw 0x8/0xC) to menuStatSprite.
+ */
+typedef struct UvTblEntry {
+    int srcX;   /* +0x00 */
+    int srcY;   /* +0x04 */
+    int width;  /* +0x08 */
+    int height; /* +0x0C */
+} UvTblEntry;
+
+extern UvTblEntry uvTbl[];
+
+/*
+ * Draws pad button icon button (1-based: uvTbl[0] is button 1) at (x, y).
+ * The index is decremented as its own statement: the original subtracts 1
+ * before the shift (addiu $16,$16,-1; sll $16,$16,4) instead of folding the
+ * -0x10 into the table address.
+ */
+void keyGideDisp(GrPacket *packet, int x, int y, int button)
+{
+    grOpenSpr(packet);
+    button--;
+    menuStatSprite(packet, x, y, uvTbl[button].width, uvTbl[button].height, uvTbl[button].srcX,
+                   uvTbl[button].srcY);
+    grCloseSpr();
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuGuideFrameDisp);
 
@@ -1488,7 +1839,101 @@ void monsNameDisp(void *packet, ObjectTask *unitTask, int x, int y, int isEnemy)
 
 INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuKeyGuideHelp);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/menu", menuKeyGuideVal);
+/* battle_init.c (ov01), still INCLUDE_ASM there: the weapon slot and the
+ * technique id a key command selects for a unit (-1: no weapon slot). */
+extern int keyCmd2wno(ObjectTask *unit, int key);
+extern int keyCmd2tid(ObjectTask *unit, int key);
+/* calc.c (ov01): a unit's EP cost for a technique. */
+extern int calcTakeEpGet(ObjectTask *unit, int tecId);
+
+/*
+ * dataTecGet's record (src/ov01/data_unit_org_get.c, TecRecord), as far as
+ * menuKeyGuideVal reads it.
+ */
+typedef struct MenuTecData {
+    unsigned char unmodeled_00[0x05];
+    signed char extraRow;   /* +0x05: `lb $8,0x5($2)`, nonzero gives the key
+                             * guide frame its second row */
+    unsigned char unmodeled_06[0x11 - 0x06];
+    signed char kind;       /* +0x11: `lb $3,0x11($2)`, compared with 6 */
+} MenuTecData;
+
+/*
+ * dataWpnGet's record (src/ov01/data_unit_org_get.c, WpnRecord), as far as
+ * menuKeyGuideVal reads it; names follow calc.c's WpnData view.
+ */
+typedef struct MenuWpnData {
+    unsigned char unmodeled_00[0x0F];
+    signed char apCost;     /* +0x0F: `lb $23,0xF($20)` */
+    unsigned char equipped; /* +0x10: `lbu $2,0x10($20)` */
+    unsigned char unmodeled_11[0x14 - 0x11];
+    short tecId;            /* +0x14: `lh $5,0x14($20)`, calcTakeEpGet's argument */
+} MenuWpnData;
+
+extern MenuTecData *dataTecGet(int tecId);
+extern MenuWpnData *dataWpnGet(int weaponId);
+
+/* Technique kind whose AP cost is fixed at 6 instead of the weapon's. */
+#define TEC_KIND_FIXED_AP 6
+
+/*
+ * The value panel of one key guide entry: the weapon slot's count, the EP
+ * cost and the AP cost of the command bound to key. A technique command of
+ * a unit without flag 0x40 shows only for TEC_KIND_FIXED_AP techniques.
+ * The frame position is a variable stepped to the value row (valueX += 8,
+ * valueY += 6): the original keeps y in $16 and adds 6 in place, and draws
+ * the AP cell from that row ($18 + 0x42, + 0x54). The AP cell sits in a
+ * do { } while (0) block: the original calls grCloseSpr with jal and
+ * returns (no `j grCloseSpr` tail call) and sets the sprite's arguments
+ * $5..$10 in order with `daddu $4,$17,$0` in the delay slot; a plain
+ * statement list gives the tail call and another argument order.
+ */
+void menuKeyGuideVal(GrPacket *packet, ObjectTask *unit, int key, int x, int y)
+{
+    MenuWpnData *weapon;
+    int slot;
+    int tecId;
+    int apCost;
+    int valueX;
+    int valueY;
+
+    slot = keyCmd2wno(unit, key);
+    if (slot == -1) {
+        return;
+    }
+    tecId = keyCmd2tid(unit, key);
+    if ((calcUPGet(unit)->flags & 0x40) == 0) {
+        if (tecId == 0) {
+            return;
+        }
+        if (dataTecGet(tecId)->kind != TEC_KIND_FIXED_AP) {
+            return;
+        }
+    }
+    weapon = dataWpnGet(calcUPGet(unit)->weaponId[slot]);
+    valueX = x + 0xC6;
+    valueY = y;
+    menuGuideFrameDisp(packet, valueX, valueY, 0x38, dataTecGet(tecId)->extraRow != 0);
+    valueX += 8;
+    valueY += 6;
+    grGsRegSet(packet, 0x42, 0);
+    grOpenSpr(packet);
+    if (weapon->equipped != 0) {
+        menuNumPut(packet, valueX, valueY, calcUPGet(unit)->wpnSlotValue[slot], 2, 1);
+    }
+    menuStatSprite(packet, x + 0xE6, valueY, 0x12, 0xC, 0x12, 0xAE);
+    menuNumPut(packet, x + 0xF8, valueY, calcTakeEpGet(unit, weapon->tecId), 2, 1);
+    if (dataTecGet(tecId)->kind == TEC_KIND_FIXED_AP) {
+        apCost = 6;
+    } else {
+        apCost = weapon->apCost;
+    }
+    do {
+        menuStatSprite(packet, valueX + 0x42, valueY, 0x12, 0xC, 0x24, 0xAE);
+        menuNumPut(packet, valueX + 0x54, valueY, apCost, 1, 1);
+        grCloseSpr();
+    } while (0);
+}
 
 /* obj.c (ov01/tu001), exact_c: allocates a task from the free list and
  * stores the caller's callback into its ->exec slot. */
