@@ -156,7 +156,30 @@ static void _AddShotAttach(RgWeaponAttach *pAttach, RgShot *shot)
     pAttach->shots[pAttach->m_uAttachNum++] = shot;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_weapon", _CheckAttach);
+extern int RgShotIsReleased(RgShot *shot);
+
+static void _CheckAttach(RgWeaponAttach *pAttach)
+{
+    RgShot *alive[ATTACH_MAX];
+    RgShot *shot;
+    unsigned int i;
+    unsigned int aliveNum;
+
+    if (pAttach == 0) {
+        assert_prog(D_00A53648, D_00A53658, 83);
+    }
+    aliveNum = 0;
+    for (i = 0; i < pAttach->m_uAttachNum; i++) {
+        shot = pAttach->shots[i];
+        if (RgShotIsReleased(shot) == 0) {
+            alive[aliveNum++] = shot;
+        }
+    }
+    for (i = 0; i < aliveNum; i++) {
+        pAttach->shots[i] = alive[i];
+    }
+    pAttach->m_uAttachNum = aliveNum;
+}
 
 void _CommonDispose(void)
 {
