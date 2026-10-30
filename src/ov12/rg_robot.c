@@ -822,7 +822,25 @@ INCLUDE_ASM("asm/nonmatchings/ov12/rg_robot", _BodyDropWeapon);
 
 INCLUDE_ASM("asm/nonmatchings/ov12/rg_robot", _BodyEquipWeapon);
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_robot", _BodySetSpareWeapon);
+/*
+ * spareWeapon[] holds the weapon handle as int (RgRobotSetSpareWeapon's
+ * weaponID); the slot being replaced is disposed as the weapon it is.
+ */
+extern void DisposeRgWeapon(void *weapon);
+
+static void _BodySetSpareWeapon(RgBody *body, int eSide, int weaponID)
+{
+    if (body == 0) {
+        assert_prog(D_00A51A68, D_00A51840, 0xC3B);
+    }
+    if ((unsigned int) eSide >= RG_EQUIP_TYPE_NUM) {
+        assert_prog(D_00A51A88, D_00A51840, 0xC3C);
+    }
+    if (body->spareWeapon[eSide] != 0 && body->spareWeapon[eSide] != weaponID) {
+        DisposeRgWeapon((void *) body->spareWeapon[eSide]);
+    }
+    body->spareWeapon[eSide] = weaponID;
+}
 
 static void _BodySetAutoHomingEnv(RgBody *body, int autoHomingEnv)
 {
@@ -927,7 +945,32 @@ INCLUDE_ASM("asm/nonmatchings/ov12/rg_robot", _BodyAutoHomingPassTime);
 
 INCLUDE_ASM("asm/nonmatchings/ov12/rg_robot", _BodyPassTime);
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_robot", _BodyDisp);
+extern void XrgActorSetLocal(XrgActor *actor, const RgMatrix matrix);
+extern void XrgActorDraw(XrgActor *actor);
+extern void RgWeaponDisp(void *weapon);
+extern void RgRobotEffectDisp(RgRobotEffect *effect);
+
+static void _BodyDisp(RgRobotStatus *robotStatus, RgBody *body)
+{
+    RgVector localFrame[4];
+    unsigned int eSide;
+
+    if (body == 0) {
+        assert_prog(D_00A51A68, D_00A51840, 0xD0E);
+    }
+    _StatusDisp(robotStatus, body);
+    RgGeomRobotCalcLocal(body->geometry, localFrame);
+    if (body->actor != 0) {
+        XrgActorSetLocal(body->actor, localFrame);
+        XrgActorDraw(body->actor);
+    }
+    for (eSide = 0; eSide < RG_EQUIP_TYPE_NUM; eSide++) {
+        if (body->weapon[eSide] != 0) {
+            RgWeaponDisp(body->weapon[eSide]);
+        }
+    }
+    RgRobotEffectDisp(body->effect);
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov12/rg_robot", _InitBody);
 
@@ -1199,8 +1242,6 @@ static void _PassTimeRobot(RgStatus *pRobot, float deltaTime)
         _BodyPassTime(pRobot->robotStatus, body, deltaTime);
     _DullFlagsPassTime(pRobot, deltaTime);
 }
-
-static void _BodyDisp(RgRobotStatus *robotStatus, RgBody *body);
 
 static void _DispRobot(RgStatus *pRobot)
 {
