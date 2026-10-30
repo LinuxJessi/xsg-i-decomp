@@ -805,7 +805,39 @@ XrgRawJntData *_FindRawJntData(int id, int jntID)
     return 0;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov12/xrg_actor", _GetPakaPakaBaseJnt);
+/*
+ * Scaffold-owned (.rodata still owner: asm): the two bare debug strings
+ * _GetPakaPakaBaseJnt logs. ov12:0x00a58be0 holds "3\n", ov12:0x00a58be8
+ * holds "4\n".
+ */
+extern const char D_00A58BE0[];
+extern const char D_00A58BE8[];
+extern void XrgLog(const char *format, const char *sourceFile, int line, ...);
+
+int _GetPakaPakaBaseJnt(int charID, int attachID)
+{
+    switch (charID) {
+    case 0:
+        switch (attachID) {
+        case 4:
+            return 0x35;
+        case 5:
+            return 0x43;
+        }
+        break;
+    case 2:
+        switch (attachID) {
+        case 4:
+            XrgLog(D_00A58BE0, D_00A587E0, 0x5A8);
+            return 0x31;
+        case 5:
+            XrgLog(D_00A58BE8, D_00A587E0, 0x5AB);
+            return 0x40;
+        }
+        break;
+    }
+    return -1;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov12/xrg_actor", XrgActorCreateEffConstraint);
 
