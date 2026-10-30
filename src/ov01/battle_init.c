@@ -240,9 +240,10 @@ typedef struct ScenarioStep {
  * prototyping. That call (`jalr $3` at 0x00a0bc1c) sets $a0 to
  * scenarioSrcGet(0)'s return and $a1 to scenarioDstGet(0)'s record (`daddu
  * $5,$16,$0` at 0x00a0bc08, `daddu $4,$2,$0` at 0x00a0bc10); only this
- * parameter list makes the compiler emit that set-up. Whether any phase
- * handler reads the two values is not established; the handlers themselves
- * (scenarioBatExecPhase10 and the ones chained from it) are still asm here.
+ * parameter list makes the compiler emit that set-up. scenarioBatExecPhase10
+ * reads `source` as the ScenarioBatExec record (`lw $4,0x0($17)` at
+ * 0x00a0bee4, `lw $3,0x4($17)` at 0x00a0bef4) and hands `dest` to
+ * scenarioCam as its target list (`daddu $5,$18,$0` at 0x00a0bef0).
  */
 typedef struct ScenarioDstEntry ScenarioDstEntry;
 typedef void (*ScenarioPhaseFunc)(int source, ScenarioDstEntry *dest);
@@ -738,8 +739,8 @@ typedef struct PartyAttackSlot {
 
 /*
  * plTbl (data still asm-owned; original ELF symbol name): three 8-byte
- * entries. plUnitTblGet writes only the first two fields of each; the
- * remaining four bytes are written by plUnitTblSet (still INCLUDE_ASM).
+ * entries. plUnitTblGet and plUnitTblSet write only the first two fields of
+ * each; nothing in this TU's C touches the remaining four bytes.
  */
 typedef struct PlUnitEntry {
     short partyId;         /* +0x0 */
@@ -764,7 +765,31 @@ PlUnitEntry *plUnitTblGet(void) {
     return plTbl;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", plUnitTblSet);
+/*
+ * The party record's attack-slot table (src/main/party.h PartyDataPrefix:
+ * attack_slots at +0x30): plUnitTblSet computes index*4 + 0x30 before adding
+ * the record base (`addiu $4,$4,0x30` at 0x00a0b6b8, `addu $2,$2,$4` at
+ * 0x00a0b6c0). A named slot pointer (&party->attackSlots[index]) instead adds
+ * the base first and the 0x30 last; indexing the field in each store, partyId
+ * first, gives the original's `sb` (0x00a0b6cc) ahead of the `sh`.
+ */
+typedef struct PartyAttackView {
+    unsigned char unmodeled_00[0x30];
+    PartyAttackSlot attackSlots[3]; /* +0x30 */
+} PartyAttackView;
+
+/* Assign a party member and its attack position to slot `index`, both in the
+ * party record and in plTbl. */
+void plUnitTblSet(int index, int partyId, int attackPosition)
+{
+    PartyAttackView *party;
+
+    party = (PartyAttackView *)PartyDataGet();
+    party->attackSlots[index].partyId = partyId;
+    party->attackSlots[index].attackPosition = attackPosition;
+    plTbl[index].partyId = partyId;
+    plTbl[index].attackPosition = attackPosition;
+}
 
 /*
  * GameLoopState (config/symbols/main.txt, data still asm-owned) is a
@@ -977,6 +1002,9 @@ typedef struct TecFlagView {
     unsigned char flags;                      /* +0x00 */
     unsigned char unmodeled_01[0x11 - 0x01];
     signed char kind;                         /* +0x11 */
+    unsigned char unmodeled_12[0x16 - 0x12];
+    short effectNo; /* +0x16: scenarioBatExecPhase50 waits on this effect
+                     * (`lh $4,0x16($2)` at 0x00a0cb8c into sefIsFinishEffect) */
 } TecFlagView;
 
 extern TecFlagView *dataTecGet(int tecId);
@@ -989,6 +1017,9 @@ extern TecFlagView *dataTecGet(int tecId);
 typedef struct ItmTrgView {
     unsigned char unmodeled_00[0x08];
     u8 trgFlags; /* +0x08 */
+    unsigned char unmodeled_09[0x10 - 0x09];
+    short effectNo; /* +0x10: the item's effect (`lh $4,0x10($2)` at
+                     * 0x00a0cb98 into sefIsFinishEffect) */
 } ItmTrgView;
 
 extern ItmTrgView *dataItmGet(int itmId);
@@ -1154,7 +1185,47 @@ void hairWindOff(BattleUnit *unit)
     }
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", scenarioBatExecPhase10);
+void statEffOff(ObjectTask *unit);
+/* Defined in src/main/sef.c and src/ov01/snd.c. */
+extern void sefLoadEffect(int effect_no, int character_id);
+extern int sndConvSpid(ObjectTask *unit, int mode, int tecId, int itmId);
+extern int sndSeRegChk(ObjectTask *unit, int seType);
+extern void dataSndSeLoad(ObjectTask *unit, int seId);
+void scenarioBatExecPhase20(int source, ScenarioDstEntry *dest);
+
+/*
+ * First phase of a scenario action. `source` is the record scenarioSrcGet
+ * hands out as an int (the action: unit, type, technique id, item id or
+ * weapon slot, read at +0x0/+0x4/+0x8/+0xC); `dest` is the current
+ * destination record, whose first word scenarioCam reads as the target.
+ * On the phase's first frame it suspends the unit's status-effect ticks,
+ * queues the action camera, loads the action's effect and its sound effect,
+ * then hands over to scenarioBatExecPhase20 within the same frame.
+ */
+void scenarioBatExecPhase10(int source, ScenarioDstEntry *dest)
+{
+    ScenarioBatExec *exec = (ScenarioBatExec *)source;
+    int effectNo;
+    int seType;
+
+    if (scenarioPtr.phaseTimer == 0) {
+        statEffOff((ObjectTask *)exec->unit);
+        scenarioCam(exec, (BattleUnit **)dest);
+        if (exec->type != 3) {
+            effectNo = dataTecGet(exec->tecId)->effectNo;
+        } else {
+            effectNo = dataItmGet(exec->slotOrItemId)->effectNo;
+        }
+        sefLoadEffect(effectNo, calcUPGet((ObjectTask *)exec->unit)->charaId);
+        seType = sndConvSpid((ObjectTask *)exec->unit, exec->type, exec->tecId,
+                             exec->slotOrItemId);
+        if (!sndSeRegChk((ObjectTask *)exec->unit, seType)) {
+            dataSndSeLoad((ObjectTask *)exec->unit, seType);
+        }
+    }
+    scenarioPtrFuncSet(scenarioBatExecPhase20);
+    scenarioBatExecPhase20(source, dest);
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", scenarioBatExecPhase20);
 
@@ -1164,7 +1235,34 @@ INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", scenarioBatExecPhase30);
 
 INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", scenarioBatExecPhase40);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", scenarioBatExecPhase50);
+/* Defined in src/main/sef.c; nonzero once the effect has finished. */
+extern int sefIsFinishEffect(int effect_no);
+void statEffOn(ObjectTask *unit);
+
+/*
+ * Wait for the action's effect (the item's for an item action, else the
+ * technique's) to finish, then queue camera event 1 for the acting unit,
+ * re-enable its status-effect ticks and advance the scenario.
+ */
+void scenarioBatExecPhase50(int source, ScenarioDstEntry *dest)
+{
+    ScenarioBatExec *exec = (ScenarioBatExec *)source;
+    int effectNo;
+
+    if (exec->type != 3) {
+        effectNo = dataTecGet(exec->tecId)->effectNo;
+    } else {
+        effectNo = dataItmGet(exec->slotOrItemId)->effectNo;
+    }
+    if (sefIsFinishEffect(effectNo)) {
+        D_00A57B80.type = 1;
+        D_00A57B80.unit = exec->unit;
+        D_00A57B80.param = exec->tecId;
+        camEventExec(&D_00A57B80);
+        statEffOn((ObjectTask *)exec->unit);
+        scenarioBatNext();
+    }
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", scenarioBatExecMain);
 
@@ -1506,7 +1604,53 @@ void spWepDispOnSub(BattleUnit *unit, int slot, int fade)
     transWepIn(unit, slot);
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/battle_init", spWepDispOff);
+void spWepDispOffSub(BattleUnit *unit, int slot, int fade);
+
+/*
+ * spWepDispOn's counterpart at the end of an action: hide the weapon the
+ * action showed again (fading for kind-6 techniques and for slot-2 weapons
+ * 0x11 and 0xB), or put a special weapon's actor back.
+ */
+void spWepDispOff(ScenarioBatExec *exec, int weapon)
+{
+    int tecKind;
+    int wepSp;
+    int weaponId;
+    Actor *weaponActor;
+
+    if (exec->type == 1) {
+        tecKind = dataTecGet(exec->tecId)->kind;
+    } else {
+        spWepDispOffSub(exec->unit, weapon, 0);
+        return;
+    }
+
+    weaponId = calcUPGet((ObjectTask *)exec->unit)->weaponId[2];
+    if (tecKind == 6) {
+        spWepDispOffSub(exec->unit, exec->slotOrItemId, 1);
+    } else if (weaponId == 0x11 || weaponId == 0xB) {
+        spWepDispOffSub(exec->unit, 2, 1);
+    } else {
+        wepSp = dataTid2WepSp(exec->tecId);
+        if (wepSp != 0) {
+            weaponId = calcUPGet((ObjectTask *)exec->unit)->weaponId[2];
+            if ((unsigned int)(weaponId - 0xD) >= 4) {
+                weaponActor = exec->unit->weapon[weapon & 3];
+                if (weaponActor != 0 && weaponId != 0x11) {
+                    weaponActor->flags &= ~WEAPON_HIDDEN_BIT;
+                }
+            } else {
+                ACT_setHand(exec->unit->actor, 0);
+            }
+            spWepDispOffSub(exec->unit, 2, 0);
+        } else if (exec->tecId == 8 || exec->tecId == 0xB) {
+            weaponId = calcUPGet((ObjectTask *)exec->unit)->weaponId[exec->slotOrItemId];
+            if (weaponId == 0xC) {
+                spWepDispOffSub(exec->unit, exec->slotOrItemId, 0);
+            }
+        }
+    }
+}
 
 /*
  * spWepDispOff's worker: with fade clear the weapon actor in slot
