@@ -615,9 +615,33 @@ int XrgActorIsEndOfMotion(XrgActor *pActor)
     return _IsEndOfMotUseXenoActor(pActor);
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov12/xrg_actor", XrgActorGetMotionLength);
+/* The current motion's length, or 0 when no motion is set or loaded. */
+float XrgActorGetMotionLength(XrgActor *pActor)
+{
+    XenoAct *pXenoAct;
 
-INCLUDE_ASM("asm/nonmatchings/ov12/xrg_actor", XrgActorGetPlayingMotTime);
+    if (pActor == 0) {
+        assert_prog(D_00A589C8.actorNotNil, D_00A587E0, 1127);
+    }
+    if (pActor->motionID == -1 || (pXenoAct = pActor->pXenoAct) == 0) {
+        return 0.0f;
+    }
+    return pXenoAct->motionLength;
+}
+
+/* The current motion's playing time, or 0 when no motion is set or loaded. */
+float XrgActorGetPlayingMotTime(XrgActor *pActor)
+{
+    XenoAct *pXenoAct;
+
+    if (pActor == 0) {
+        assert_prog(D_00A589C8.actorNotNil, D_00A587E0, 1138);
+    }
+    if (pActor->motionID == -1 || (pXenoAct = pActor->pXenoAct) == 0) {
+        return 0.0f;
+    }
+    return pXenoAct->motionFrame;
+}
 
 void XrgActorGetLocal(XrgActor *pActor, RgMatrix matrix)
 {
