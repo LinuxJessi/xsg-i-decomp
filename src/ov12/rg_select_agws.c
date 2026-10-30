@@ -283,7 +283,22 @@ static int _IsExistItemLower(SelChar *pSelChar)
     return (pSelChar->selectableMask & ~((cursorBit - 1) | cursorBit)) != 0;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_select_agws", _GetSelectableSelectChar);
+static int _GetSelectableSelectChar(SelChar *pSelChar)
+{
+    int charMask;
+    unsigned int charID;
+
+    if (pSelChar == 0) {
+        assert_prog(D_00A56650, D_00A56660, 0x126);
+    }
+    charMask = 0;
+    for (charID = 0; charID < 6; charID++) {
+        if ((pSelChar->selectableMask & (1 << _CharIDToCharCursor(charID))) != 0) {
+            charMask |= 1 << charID;
+        }
+    }
+    return charMask;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov12/rg_select_agws", _PassTimeSelectChar);
 
@@ -791,13 +806,6 @@ static void _InitSelectData(SelDat *pSelDat)
 INCLUDE_ASM("asm/nonmatchings/ov12/rg_select_agws", _DumpSelect__);
 
 extern const char D_00A568C0[]; /* "pData != NIL" */
-
-/*
- * _GetSelectableSelectChar (ov12, still INCLUDE_ASM) is a sibling of the
- * accepted _SetSelectableSelectChar below; declare it so this caller does
- * not see an implicit declaration.
- */
-static int _GetSelectableSelectChar(SelChar *pSelChar);
 
 static void _SaveCharSelectData(SelDat *pSelDat, int *pData)
 {
