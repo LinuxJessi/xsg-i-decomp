@@ -43,7 +43,7 @@ extern void unitCmdSet(ObjectTask *unit, CalcCmdEntry *cmd);
 /* calcDeadUnitNum: calcSpecChk's own callee, still asm in this TU. */
 extern int calcDeadUnitNum(ObjectTask *unit, int flag);
 
-/* calcBattleChk: calcWctDec's own callee, still asm in this TU. */
+/* calcBattleChk: calcWctDec's own callee, defined below in this TU. */
 extern int calcBattleChk(ObjectTask *unit);
 
 /* calcTrg2PE (this TU, defined below): calcDeadUnitNum's own callee. */
@@ -182,6 +182,7 @@ void calcPara2OrgSub(ObjectTask *unit) {
 
 INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcDeadReset);
 
+
 CalcUnitParam *calcUPGet(ObjectTask *unit)
 {
     return ((CalcActorRecord *)unit->work)->up;
@@ -291,16 +292,46 @@ int calcTakeEpGetMenu(int charaId, int etherId) {
 INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcUseEtherMenu);
 
 /*
- * dataItmGet's return, as far as calcUseItemMenu, calcItmEnableChk and
- * calcDItemChk read it:
+ * dataItmGet's return, as far as calcUseItemMenu, calcItmEnableChk,
+ * calcDItemChk, calcHitItem and calcDmgItem read it:
  * the item's target-selection flags at +0x08 (`lbu $5,0x8($2)`), handed on
- * to calcTgtUnitTbl, and a one-bit flag at the bottom of +0x09 that
- * calcDItemChk tests (`lbu $3,0x9($2)`, `andi 0x1`, `andi 0xFF`).
+ * to calcTgtUnitTbl, and a flag byte at +0x09 whose bit 0 calcDItemChk
+ * tests (`lbu $3,0x9($2)`, `andi 0x1`, `andi 0xFF`) and whose bit 1
+ * calcDmgItem tests (`lbu $3,0x9($18)`, `andi $3,$3,0x2`). It is a plain
+ * byte, not bit-fields: with the u16 bit-fields at +0x0C the record is
+ * 2-aligned and gcc reads +0x09 bit-fields as `lhu 0x8`/`andi 0x100`.
  */
 typedef struct ItmTrgView {
     unsigned char unmodeled_00[0x08];
     u8 trgFlags;        /* +0x08 */
-    u8 dItemEnable : 1; /* +0x09 bit 0 */
+    u8 useFlags;        /* +0x09 */
+    u8 power;           /* +0x0A: calcHitItem/calcDmgItem's `lbu 0xA` */
+    unsigned char unmodeled_0b[0x0C - 0x0B];
+    /*
+     * +0x0C: the effect bits calcHitItem and calcDmgItem test from one
+     * `lhu 0xC` (bit 0 as `andi 0x1`/`andi 0xFFFF`, a bit-field read, the
+     * others as a plain `andi` of the same register). Each name is the
+     * hit mode calcHitItem returns for the bit, as calcHpDmg (jtbl_00A44360)
+     * applies it: mode 1 calcHp(-amount), 2 calcHp(+amount), 3/4 the same
+     * through calcEp, 5 and 6 neither; the amount is calcDmgItem's.
+     */
+    u16 recoverHp : 1;      /* bit 0: mode 2, amount power * 50 */
+    u16 recoverEp : 1;      /* bit 1: mode 4, amount power * 10 */
+    u16 resultMode6 : 1;    /* bit 2: calcHitItem's mode 6 only */
+    u16 recoverHpRate : 1;  /* bit 3: mode 0x802 (low byte 2), amount
+                             * maxHp * power / 20 */
+    u16 resultMode5 : 1;    /* bit 4: calcHitItem's mode 5 only */
+    u16 resultMode5Alt : 1; /* bit 5: calcHitItem's mode 5 only */
+    u16 : 2;
+    u16 hpToOne : 1;        /* bit 8: with power 1, mode 1 and amount
+                             * currentHp - 1; otherwise mode 6, amount 0 */
+    u16 : 4;
+    /*
+     * bit 13: calcDmgItem gives it bit 3's amount (maxHp * power / 20);
+     * calcHitItem does not test it, so such an item falls to mode 1
+     * (calcHp(-amount)): the name follows that pairing.
+     */
+    u16 damageHpRate : 1;
 } ItmTrgView;
 
 extern ItmTrgView *dataItmGet(int itmId);
@@ -774,7 +805,12 @@ struct TecKindView {
     u8 attr;
     signed char epCost;     /* +0x01: calcTakeEpGet's base term, `lb $16,0x1($2)` */
     u16 flags;              /* +0x02: bit 0x800 rules out a counter */
-    unsigned char unmodeled_04[0x06 - 0x04];
+    signed char effectType; /* +0x04: calcStatClr's `lb $4,0x4($18)`, 4 clears statuses */
+    /*
+     * +0x05: calcStat's `lb $3,0x5($2)`: 1 makes the hit double *damage
+     * while the target carries status (0, 0x20), which calcStat then resets.
+     */
+    signed char doubleDamageKind;
     /*
      * +0x06: calcPowLevGet's base term, `lbu $18,0x6($2)` (0x00a13684,
      * unsigned byte load). TecRecord (src/ov01/data_unit_org_get.c) owns
@@ -784,7 +820,11 @@ struct TecKindView {
      */
     u8 powLevBase;
     signed char agility;    /* +0x07: calcPlusAglGet's base term, `lb $18,0x7($2)` */
-    unsigned char unmodeled_08[0x11 - 0x08];
+    unsigned char unmodeled_08[0x0C - 0x08];
+    signed char statCategory; /* +0x0C: calcStatClr's `lb $3,0xC($18)` */
+    unsigned char unmodeled_0d[0x0E - 0x0D];
+    u16 statMask;           /* +0x0E: calcStatClr's `lhu $2,0xE($18)` */
+    unsigned char unmodeled_10[0x11 - 0x10];
     /*
      * +0x11: calcBp2Tid's timeline selector. calcBp2Tid.s (0x00a1267c)
      * reads it with `lb $2,0x11($2)` (signed byte load), hence `signed char`.
@@ -944,7 +984,7 @@ int calcDItemChk(ObjectTask *unit, int itmId)
     if (calcUPGet(unit)->dblActKind >= 6
         && (dataItmGet(itmId)->trgFlags & CALC_TRG_BIT4) == 0
         && dataItmBoxChk(itmId) >= 2
-        && dataItmGet(itmId)->dItemEnable) {
+        && (dataItmGet(itmId)->useFlags & 1)) {
         return 1;
     }
     return 0;
@@ -1048,6 +1088,7 @@ int calcWctDec(ObjectTask *unit)
 }
 
 INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcHitMotChk);
+
 
 INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcHitDmg);
 
@@ -1430,11 +1471,128 @@ int futtobiChk(ObjectTask *unit, TecKindView *tec)
     return 1;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcStat);
+/*
+ * The hit record calcHitDmg (this TU, still asm) fills and hands to
+ * calcDmg, which passes it on to calcLinePos; calcLinePos reads only the
+ * byte at +0x00 (`lbu $16,0x0($6)`) and goes on when it is 1; calcStatClr
+ * records the status category and bits the technique clears.
+ */
+typedef struct CalcHitInfo {
+    /*
+     * +0x00: calcRevHit's packed word, the hit mode in the low byte and
+     * the side above it. A word: calcHitDmg stores it with `sw $2,0x0($17)`
+     * and calcStat hands it whole to calcRevHit (`lw $4,0x0($18)`) and
+     * stores the answer back; calcLinePos and calcStat read the mode alone
+     * (`lbu`, `& 0xFF`).
+     */
+    int result;
+    unsigned char unmodeled_04[0x0C - 0x04];
+    int setCategory;   /* +0x0C: calcHitItem's `sw $3,0xC($16)`, 8 = none */
+    int setMask;       /* +0x10: calcHitItem's `sw $0,0x10($16)` */
+    /*
+     * +0x14/+0x18: calcStatClr's `sw $3,0x14($16)` / `sw $2,0x18($16)`. Read
+     * together: category 8 with a zero mask records no clearing; category 8
+     * with mask 0xFFFF clears every bit of every category; any other category
+     * clears that category's statMask bits.
+     */
+    int clearCategory;
+    int clearMask;
+} CalcHitInfo;
+
+/* calcStatReset (this TU, defined below): calcStat's own callee. */
+extern void calcStatReset(ObjectTask *unit, int category, int mask, int useAltMask);
+
+/*
+ * Applies cmd->target's statuses to a hit of mode hit->result & 0xFF and
+ * its *damage: a technique with doubleDamageKind 1 doubles the damage
+ * and uses up status (0, 0x20); status (0, 0x10) reverses modes 1 and 2 (calcRevHit);
+ * (0, 8) halves mode 2, (1, 0x40) mode 4; (7, 0x40) moves mode 1's damage
+ * by 20% per two units of its last decimal digit, down for odd damage, up
+ * for even; (3, 2) cancels mode 3. A mode-1 hit also clears
+ * CALC_ACTOR_FLAG_BIT4 from a target calcBattleChk refuses, ends statuses
+ * (1, 0x2000) and (5, 0x2000), and ends (5, 0x4000) half the time.
+ */
+/* calcRevHit (this TU, defined below): calcStat's own callee. */
+extern int calcRevHit(int hitMode);
+
+int calcStat(ObjectTask *unit, TgtCmd *cmd, CalcHitInfo *hit, int *damage)
+{
+    TecKindView *tec;
+    int mode;
+    int rate;
+
+    tec = dataTecGet(cmd->tecId);
+    mode = hit->result & 0xFF;
+    if (tec->doubleDamageKind == 1 && calcStatGet(cmd->target, 0, 0x20)) {
+        calcStatReset(cmd->target, 0, 0x20, 0);
+        *damage *= 2;
+    }
+    if ((mode == 1 || mode == 2) && calcStatGet(cmd->target, 0, 0x10)) {
+        hit->result = calcRevHit(hit->result);
+    }
+    if (mode == 2 && calcStatGet(cmd->target, 0, 8)) {
+        *damage /= 2;
+    }
+    if (mode == 4 && calcStatGet(cmd->target, 1, 0x40)) {
+        *damage /= 2;
+    }
+    if (mode == 1 && calcStatGet(cmd->target, 7, 0x40)) {
+        rate = *damage % 10 / 2 * 20;
+        if (*damage & 1) {
+            *damage -= *damage * rate / 100;
+        } else {
+            *damage += *damage * rate / 100;
+        }
+    }
+    if (mode == 3 && calcStatGet(cmd->target, 3, 2)) {
+        *damage = 0;
+    }
+    if (mode == 1) {
+        if (!calcBattleChk(cmd->target)) {
+            ((CalcActorRecord *) cmd->target->work)->flags &= ~CALC_ACTOR_FLAG_BIT4;
+        }
+        calcStatReset(cmd->target, 1, 0x2000, 0);
+        calcStatReset(cmd->target, 5, 0x2000, 0);
+        if (calcStatGet(cmd->target, 5, 0x4000) && rnd(100) < 50) {
+            calcStatReset(cmd->target, 5, 0x4000, 0);
+        }
+    }
+    return 1;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcStatAtk);
 
-INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcStatClr);
+/*
+ * A status-clearing technique (effectType 4, `lb $4,0x4($18)`) takes the
+ * CALC_ACTOR_FLAG_BIT4 bit off a target calcBattleChk refuses and records
+ * the category and bits it clears in the hit record; category 8 clears
+ * every bit (`ori $2,$0,0xFFFF`). Any other technique records category 8,
+ * no bits, and returns 0.
+ */
+int calcStatClr(ObjectTask *unit, TgtCmd *cmd, CalcHitInfo *hit)
+{
+    TecKindView *tec;
+    int category;
+
+    tec = dataTecGet(cmd->tecId);
+    if (tec->effectType == 4) {
+        if (!calcBattleChk(cmd->target)) {
+            ((CalcActorRecord *) cmd->target->work)->flags &= ~CALC_ACTOR_FLAG_BIT4;
+        }
+        category = tec->statCategory;
+        if (category == 8) {
+            hit->clearCategory = category;
+            hit->clearMask = 0xFFFF;
+        } else {
+            hit->clearCategory = category;
+            hit->clearMask = tec->statMask;
+        }
+        return 1;
+    }
+    hit->clearMask = 0;
+    hit->clearCategory = 8;
+    return 0;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcCrit);
 
@@ -1443,15 +1601,6 @@ INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcSpec);
 /* dataPosLineGet (src/ov01/data_unit_org_get.c, this TU's own private view
  * of its PosTblEntry.line member): the position's battle line index. */
 extern short dataPosLineGet(int posId);
-
-/*
- * The hit record calcHitDmg (this TU, still asm) fills and hands to
- * calcDmg, which passes it on to calcLinePos; calcLinePos reads only the
- * byte at +0x00 (`lbu $16,0x0($6)`) and goes on when it is 1.
- */
-typedef struct CalcHitInfo {
-    u8 result; /* +0x00 */
-} CalcHitInfo;
 
 extern const char D_00A447A0[]; /* "** LinePos: adjust\n" */
 
@@ -1468,7 +1617,7 @@ int calcLinePos(ObjectTask *unit, TgtCmd *cmd, CalcHitInfo *hit, int *damage)
     int line;
 
     result = 0;
-    hitResult = hit->result;
+    hitResult = hit->result & 0xFF;
     line = dataPosLineGet(calcUPGet(cmd->target)->posId);
     if (hitResult == 1) {
         actor = (BattleActor *) cmd->target->work;
@@ -1577,9 +1726,109 @@ int calcAttWpnChk(int weaponId)
     return dataWpnGet(weaponId)->equipped != 0;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcHitItem);
+/*
+ * The hit result item cmd->itmId has on cmd->target, by its effect bits;
+ * the hit record carries no status to set or clear (category 8, no bits).
+ * Effect bit 0's result 2 is reversed (calcRevHit) on a target carrying
+ * CALC_UNIT_FLAG_ITEM_REVERSED and again under status (0, 0x10).
+ */
+int calcHitItem(ObjectTask *unit, TgtCmd *cmd, CalcHitInfo *hit)
+{
+    ItmTrgView *item;
+    int result;
 
-INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcDmgItem);
+    item = dataItmGet(cmd->itmId);
+    hit->setCategory = 8;
+    hit->setMask = 0;
+    hit->clearCategory = 8;
+    hit->clearMask = 0;
+    if (item->recoverHp) {
+        result = 2;
+        if (calcUPGet(cmd->target)->flags & CALC_UNIT_FLAG_ITEM_REVERSED) {
+            result = calcRevHit(2);
+        }
+        if (calcStatGet(cmd->target, 0, 0x10)) {
+            result = calcRevHit(result);
+        }
+    } else if (item->recoverEp) {
+        result = 4;
+    } else if (item->resultMode6) {
+        result = 6;
+    } else if (item->resultMode5) {
+        result = 5;
+    } else if (item->resultMode5Alt) {
+        result = 5;
+    } else if (item->recoverHpRate) {
+        result = 0x802;
+    } else if (item->hpToOne) {
+        result = (item->power == 1) ? 1 : 6;
+    } else {
+        result = 1;
+    }
+    return result;
+}
+
+/*
+ * The effect amount of item cmd->itmId on cmd->target, by its effect bits:
+ * a recovery for recoverHp/recoverEp/recoverHpRate, a damage amount for
+ * damageHpRate, and negative when CALC_UNIT_FLAG_ITEM_REVERSED on the target
+ * flips a recoverHp item.
+ */
+int calcDmgItem(ObjectTask *unit, TgtCmd *cmd)
+{
+    ItmTrgView *item;
+    int amount;
+
+    amount = 0;
+    item = dataItmGet(cmd->itmId);
+    if (item->recoverHp) {
+        int base = item->power * 25;
+
+        amount = base * 2;
+        if (calcStatGet(cmd->target, 3, 0x80)) {
+            amount = base * 4;
+            calcStatReset(cmd->target, 3, 0x80, 0);
+        }
+        if (calcStatGet(cmd->target, 0, 8)) {
+            amount /= 2;
+        }
+        if (calcUPGet(cmd->target)->flags & CALC_UNIT_FLAG_ITEM_REVERSED) {
+            amount = -amount;
+        }
+        if (calcStatGet(cmd->target, 0, 0x10)) {
+            amount = -amount;
+        }
+        if (item->useFlags & 2) {
+            if (calcUPGet(cmd->target)->flags & CALC_UNIT_FLAG_BIT12) {
+                amount = 0;
+            }
+        }
+    } else if (item->recoverEp) {
+        int base = item->power * 5;
+
+        amount = base * 2;
+        if (calcStatGet(cmd->target, 3, 0x80)) {
+            amount = base * 4;
+            calcStatReset(cmd->target, 3, 0x80, 0);
+        }
+        if (calcStatGet(cmd->target, 1, 0x40)) {
+            amount /= 2;
+        }
+    } else if (item->recoverHpRate) {
+        int power = item->power;
+
+        amount = calcUPGet(cmd->target)->maxHp * power / 20;
+    } else if (item->damageHpRate) {
+        int power = item->power;
+
+        amount = calcUPGet(cmd->target)->maxHp * power / 20;
+    } else if (item->hpToOne) {
+        if (item->power == 1) {
+            amount = (short) calcUPGet(cmd->target)->currentHp - 1;
+        }
+    }
+    return amount;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/calc", tgtFindFirst);
 
@@ -1617,7 +1866,36 @@ ObjectTask *tgtFindNext(void)
     return tgtTbl[tgtIdx++];
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcMoveChk);
+/*
+ * moveTbl (ov01/battle_init data, 0x00a3d880, 0x78 bytes): five reachable
+ * positions per position, -1 for an empty entry. calcMoveChk indexes it by
+ * posId - 1 (`lui/addiu` of 0x00a3d86c, one 0x14-byte row before the
+ * table, plus posId * 0x14), so its six rows are posIds 1..6.
+ */
+extern int moveTbl[6][5];
+
+/*
+ * Whether unit may move to toPosId: enemies and AGWS units always may, a
+ * player character only to a position its own row of moveTbl lists.
+ */
+int calcMoveChk(ObjectTask *unit, int toPosId)
+{
+    int posId;
+    int i;
+
+    posId = calcUPGet(unit)->posId;
+    if (!(((CalcActorRecord *) unit->work)->flags & CALC_ACTOR_FLAG_ENEMY)) {
+        if (!(calcUPGet(unit)->flags & CALC_UNIT_FLAG_IS_AGWS)) {
+            for (i = 0; i < 5; i++) {
+                if (moveTbl[posId - 1][i] != -1 && moveTbl[posId - 1][i] == toPosId) {
+                    return 1;
+                }
+            }
+            return 0;
+        }
+    }
+    return 1;
+}
 
 /* TecKindView.attr's range class (calcAtkChk below). */
 enum { TEC_ATTR_RANGE = 0x03 };
@@ -1662,7 +1940,38 @@ short calcAtkChk(ObjectTask *unit, ObjectTask *target, int tecId)
     return 1;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcA2Chk);
+/*
+ * A unit standing at posId 8 passes only when no live unit of its own side
+ * stands at a posId in 1..6 (`addiu $3,$3,-0x1`/`sltiu $3,$3,0x6`).
+ */
+int calcA2Chk(ObjectTask *unit)
+{
+    ObjectTask **table;
+    short posId;
+    int side;
+    int count;
+    int i;
+
+    if (calcUPGet(unit)->posId != 8) {
+        return 1;
+    }
+    if (((CalcActorRecord *) unit->work)->flags & CALC_ACTOR_FLAG_ENEMY) {
+        side = 1;
+    } else {
+        side = 0;
+    }
+    i = 0;
+    count = unitTblGet(side, &table);
+    for (; i < count; i++) {
+        if (table[i] != 0 && !(((CalcActorRecord *) table[i]->work)->flags & CALC_ACTOR_FLAG_DEAD)) {
+            posId = calcUPGet(table[i])->posId;
+            if (posId >= 1 && posId <= 6) {
+                return 0;
+            }
+        }
+    }
+    return 1;
+}
 
 int calcLineChk(ObjectTask *unit)
 {
@@ -1998,7 +2307,43 @@ int calcSameWpnChk(ObjectTask *unit)
     return -1;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcEthEnableChk);
+/* calcEtherDisableGet (this TU, defined below): calcEthEnableChk's own
+ * callee, the unit's disable bit for ether slot `bit`. */
+extern int calcEtherDisableGet(ObjectTask *unit, int bit);
+
+/*
+ * Whether unit can use ether etherId now: its technique must find a
+ * target, the unit must have the EP calcTakeEpGet asks, ether 3 is refused
+ * while cfEventGet() carries bit 8, status (7, 2) refuses ether 0x2B and
+ * its absence 0x2C/0x2D, status (7, 1) refuses 0x2E and its absence
+ * 0x2F/0x30, and an equipped slot holding etherId must not be disabled.
+ */
+int calcEthEnableChk(ObjectTask *unit, int etherId)
+{
+    int i;
+
+    if (!calcTgtUnitTbl(unit, dataTecGet(dataEthGet(etherId)->tecId)->attr, 0)) {
+        return 0;
+    }
+    if ((short) calcUPGet(unit)->currentEp < calcTakeEpGet(unit, dataEthGet(etherId)->tecId)) {
+        return 0;
+    }
+    if (etherId == 3 && (cfEventGet() & 8)) {
+        return 0;
+    }
+    if ((calcStatGet(unit, 7, 2) && etherId == 0x2B)
+        || (!calcStatGet(unit, 7, 2) && (etherId == 0x2C || etherId == 0x2D))
+        || (calcStatGet(unit, 7, 1) && etherId == 0x2E)
+        || (!calcStatGet(unit, 7, 1) && (etherId == 0x2F || etherId == 0x30))) {
+        return 0;
+    }
+    for (i = 0; i < 12; i++) {
+        if (calcUPGet(unit)->etherId[i] == etherId && calcEtherDisableGet(unit, i)) {
+            return 0;
+        }
+    }
+    return 1;
+}
 
 int calcItmEnableChk(ObjectTask *unit, int itmId)
 {
@@ -2101,7 +2446,23 @@ int calcDeadUnitNum(ObjectTask *unit, int flag)
     return result;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcBattleChk);
+/*
+ * 0 for a missing or dead (CALC_ACTOR_FLAG_DEAD) unit or one carrying any
+ * of the five statuses tested; otherwise 1.
+ */
+int calcBattleChk(ObjectTask *unit)
+{
+    if (unit == 0
+        || (((CalcActorRecord *) unit->work)->flags & CALC_ACTOR_FLAG_DEAD)
+        || calcStatGet(unit, 0, 0x2000)
+        || calcStatGet(unit, 1, 0x2000)
+        || calcStatGet(unit, 4, 0x2000)
+        || calcStatGet(unit, 5, 0x4000)
+        || calcStatGet(unit, 5, 0x2000)) {
+        return 0;
+    }
+    return 1;
+}
 
 /*
  * Answers a target-selection flag word (cmdAtktbl, calcTgtUnitTbl and

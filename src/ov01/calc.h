@@ -162,7 +162,10 @@ struct CalcUnitParam {
     short normalTechniqueId[CALC_NORMAL_TECHNIQUE_COUNT]; /* +0x76 */
     short slotTechniqueId[2];   /* +0x82: calcSlotAChk's own pair, right
                                  * after normalTechniqueId. */
-    unsigned char unmodeled_86[0xA6 - 0x86];
+    unsigned char unmodeled_86[0x8E - 0x86];
+    short etherId[12];           /* +0x8E: calcEthEnableChk's `lh $3,0xE($2)`
+                                  * from calcUPGet(unit) + 0x80 + 2 * slot,
+                                  * mirroring CalcCharParaData's etherId */
     short skillId[3];            /* +0xA6: calcSkillEquChk's `lh $3,0x6($2)`,
                                   * mirroring CalcCharParaData's skillId at
                                   * the same offset. */
@@ -225,8 +228,15 @@ enum CalcUnitFlag {
     /* calcBackLineChk alone (0x00a16370, selector 0, on a unit standing
      * further back): set, the check fails. */
     CALC_UNIT_FLAG_BLOCKS_BACK_LINE = 0x800,
-    /* calcStatSetChk alone (`andi $2,$4,0x1000`, 0x00a17380): set, status
-     * categories 0..3 are refused, clear, 4..6 are. Role not established. */
+    /* Tested on the target by calcDmgItem (`andi $3,$3,0x200`, 0x00a159ac):
+     * set, a recoverHp item's amount changes sign; and by calcHitItem
+     * (`andi $3,$3,0x200`, 0x00a15830): set, the recoverHp item's hit
+     * result 2 is reversed through calcRevHit. */
+    CALC_UNIT_FLAG_ITEM_REVERSED = 0x200,
+    /* Two readers, both on the target: calcStatSetChk (`andi $2,$4,0x1000`,
+     * 0x00a17380): set, status categories 0..3 are refused, clear, 4..6 are;
+     * calcDmgItem: set, a recoverHp item whose useFlags bit 1 is set has its
+     * amount zeroed. The flag's full role is not established. */
     CALC_UNIT_FLAG_BIT12 = 0x1000
 };
 
@@ -302,6 +312,11 @@ typedef BattleActor CalcActorRecord;
  * macro once this enum reaches the generated header.
  */
 enum CalcActorFlag {
+    /* Cleared on the target when calcBattleChk refuses it, by calcStatClr
+     * (`addiu $3,$0,-0x11`/`and` at 0x00a14d00..0x00a14d08) and by calcStat
+     * for a mode-1 hit (`addiu $4,$0,-0x11`/`and` at 0x00a148f8..0x00a14904).
+     * Both uses only clear it, so its role is not established. */
+    CALC_ACTOR_FLAG_BIT4 = 0x10,
     /* The enemy bit src/ov01/unit_cmd.h evidences (unitLoad picks
      * sefSetupEnemy on it); tested here by calcWpnAtkGet (0x00a13460),
      * calcPowLevGet (0x00a136a0), calcBackLineChk (0x00a162d8) and the
