@@ -231,11 +231,44 @@ void XrgPaint2DSetDrawPrio(XrgPaint2D *paint, int prio) {
     paint->prio = prio;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov12/xrg_paint2d", XrgPaint2DOffset2D);
+void XrgPaint2DOffset2D(XrgPaint2D *paint, int x, int y)
+{
+    XrgPaint2DDrawReq *req;
 
-INCLUDE_ASM("asm/nonmatchings/ov12/xrg_paint2d", XrgPaint2DOffset2DDot);
+    if (paint == 0) {
+        assert_prog(D_00A59098, D_00A59058, 777);
+    }
+    req = paint->request;
+    req->offsetAnchor.i.x = x;
+    req->offsetMode = 1;
+    paint->request->offsetAnchor.i.y = y;
+}
 
-INCLUDE_ASM("asm/nonmatchings/ov12/xrg_paint2d", XrgPaint2DOffsetCenter);
+void XrgPaint2DOffset2DDot(XrgPaint2D *paint, int x, int y)
+{
+    XrgPaint2DDrawReq *req;
+
+    if (paint == 0) {
+        assert_prog(D_00A59098, D_00A59058, 786);
+    }
+    req = paint->request;
+    req->offsetAnchor.i.x = x << 4;
+    req->offsetMode = 1;
+    paint->request->offsetAnchor.i.y = y << 4;
+}
+
+void XrgPaint2DOffsetCenter(XrgPaint2D *paint)
+{
+    XrgPaint2DDrawReq *req;
+
+    if (paint == 0) {
+        assert_prog(D_00A59098, D_00A59058, 795);
+    }
+    req = paint->request;
+    req->offsetAnchor.i.x = 256 << 4;
+    req->offsetMode = 1;
+    paint->request->offsetAnchor.i.y = 224 << 4;
+}
 
 void XrgPaint2DOffset3D(XrgPaint2D *paint, const XrgPaint2DOffset *anchor)
 {
