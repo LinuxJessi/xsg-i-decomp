@@ -781,7 +781,30 @@ static void _InitByCharSelType(SelType *pSelType, int charID)
 
 INCLUDE_ASM("asm/nonmatchings/ov12/rg_select_agws", _PassTimeSelType);
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_select_agws", _DetachWeaponIfConfrictSelType);
+static int _DetachWeaponIfConfrictSelType(SelType *pSelType)
+{
+    int eType;
+    unsigned int confrict;
+    int i;
+
+    if (pSelType == 0) {
+        assert_prog(D_00A56758, D_00A56660, 0x2CA);
+    }
+    eType = _EquipCurIDToEquipType(pSelType->cursor);
+    if (eType != RG_EQUIP_TYPE_INVALID) {
+        confrict = pSelType->confrict[eType];
+        if (confrict != 0) {
+            for (i = 0; i < RG_EQUIP_TYPE_NUM; i++) {
+                if (confrict & (1 << i)) {
+                    _SetCursorSelWep(&pSelType->wepList[i], 0);
+                }
+            }
+            _CheckConfrictSelType(pSelType);
+            return 1;
+        }
+    }
+    return 0;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov12/rg_select_agws", _InitWepListDisp);
 
