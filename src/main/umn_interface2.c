@@ -136,7 +136,46 @@ void tskUmnBgCubeMain(XglTaskPrefix *task_opaque)
     nmlModelEntry(task->model);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/ov02/06_umn_interface2", UmnBgCubeInit);
+extern unsigned char *task_xmx;
+extern void *UmnBgCubeXtx;
+extern void *UmnBgCubeLex;
+extern void xglCameraInit(StudioCamera *camera);
+
+/*
+ * Creates the background-cube task on task_xmx, gives it the 0x80-byte
+ * UmnBgCubeData that starts at the next 16-byte boundary of `memory`, and
+ * sets up studio camera 0 for it. Returns the first byte after that data.
+ */
+void *UmnBgCubeInit(void *memory)
+{
+    unsigned int address = ((unsigned int)memory + 15) & ~15u;
+    XglTaskScheduler *scheduler = (XglTaskScheduler *)task_xmx;
+    UmnBgCubeMainTask *task;
+    StudioCamera *camera;
+
+    task = (UmnBgCubeMainTask *)xglTaskEntryNext(
+        scheduler, (int (*)(XglTaskPrefix *))tskUmnBgCubeMain,
+        scheduler != 0 ? scheduler->active_tail : 0);
+    task->data = (UmnBgCubeData *)address;
+    address += sizeof(UmnBgCubeData);
+    task->state = 0;
+    task->enabled = 0;
+    camera = xglStudioGetCamera2(0);
+    task->camera_id = 0;
+    xglCameraInit(camera);
+    camera->rotation.x = 0.0f;
+    camera->rotation.y = 0.0f;
+    camera->rotation.z = 0.0f;
+    camera->position.x = 0.0f;
+    camera->position.y = 0.0f;
+    camera->position.z = 4.0f;
+    camera->fov = 0.91593236f;
+    camera->active = 1;
+    camera->state = 1;
+    task->texture = (int)UmnBgCubeXtx;
+    task->model = (int)UmnBgCubeLex;
+    return (void *)address;
+}
 
 #include "main/xgl_packet.h"
 #include "main/xgl_render.h"
@@ -267,6 +306,59 @@ static void DrawUmnInterface2(void *context_arg, void *arg)
     sceVif1PkAddDirectDataN(context->packet, geometry, 0x13);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/ov02/06_umn_interface2", UmnInterface2Main);
+/*
+ * State reached through the global UmnInterface2 pointer; only the two
+ * frame counters UmnInterface2Main touches are evidenced.
+ */
+typedef struct UmnInterface2State {
+    unsigned int base_color;
+    unsigned char color_a[3];
+    unsigned char intensity_a; /* decremented by 8 each frame until zero */
+    unsigned char color_b[3];
+    unsigned char intensity_b; /* decremented by 2 each frame until zero */
+} UmnInterface2State;
 
-INCLUDE_ASM("asm/main/nonmatchings/ov02/06_umn_interface2", UmnInterface2Init);
+/* The font queue calls draw(context, arg) with the arg registered below;
+ * the context record (read at +0x00 and +0x30) is not yet recovered. */
+static void DrawUmnInterface2(void *context, void *arg);
+extern void xglFontPrintExtFunc(unsigned int flags, void (*draw)(void *context, void *arg), void *arg);
+extern UmnInterface2State *UmnInterface2;
+
+void UmnInterface2Main(void) {
+    if (UmnInterface2->intensity_a != 0) {
+        UmnInterface2->intensity_a -= 8;
+    }
+    if (UmnInterface2->intensity_b != 0) {
+        UmnInterface2->intensity_b -= 2;
+    }
+    if (UmnInterface2->intensity_a != 0 || UmnInterface2->intensity_b != 0) {
+        xglFontPrintExtFunc(0x03FFFFF0, DrawUmnInterface2, UmnInterface2);
+    }
+}
+
+void *UmnInterface2Init(void *memory) {
+    unsigned int aligned_address;
+    UmnInterface2State *color_a_state;
+    void *result;
+    UmnInterface2State *color_b_state;
+
+    result = 0;
+    if (memory != 0) {
+        aligned_address = ((unsigned int)memory + 15) & ~15u;
+        UmnInterface2 = (UmnInterface2State *)aligned_address;
+        result = (void *)(aligned_address + 12);
+    }
+
+    color_a_state = UmnInterface2;
+    color_a_state->color_a[0] = 0x80;
+    color_a_state->intensity_a = 0x80;
+    color_a_state->color_a[2] = 0x80;
+    color_a_state->color_a[1] = 0x80;
+    color_a_state->base_color = 0x00fffffe;
+    color_b_state = UmnInterface2;
+    color_b_state->intensity_b = 0x80;
+    color_b_state->color_b[2] = 0x80;
+    color_b_state->color_b[1] = 0x80;
+    color_b_state->color_b[0] = 0x80;
+    return result;
+}

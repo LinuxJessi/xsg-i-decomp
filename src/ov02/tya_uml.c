@@ -215,7 +215,41 @@ int tyaUmlDispMain(TyaUmlDispParam *parameter)
     return 0;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov02/tya_uml", find_text);
+/*
+ * One record of the text archive find_text walks: `size` counts the bytes
+ * after the size word itself (the next record starts at size + 4), and a zero
+ * size ends the archive. Only the fields find_text reads are evidenced.
+ */
+typedef struct TyaUmlTextRecord {
+    int size;                  /* 0x00 */
+    int id;                    /* 0x04 */
+    u8 unmodeled_08[0x0C];
+    u16 flag;                  /* 0x14: event flag that unlocks the text */
+    u8 unmodeled_16[0x52];
+    u8 text[1];                /* 0x68 */
+} TyaUmlTextRecord;
+
+/* Defined in src/main/xgl_flags.c. */
+extern int xglFlagsGet(int bit_offset, int bit_count);
+
+/* Returns the text of record `id`, or 0 if it is missing or still locked. */
+static u8 *find_text(TyaUmlTextRecord *record, int id)
+{
+    for (;;) {
+        int size = record->size;
+
+        if (size == 0)
+            return 0;
+        if (id == record->id) {
+            u8 *text = record->text;
+
+            if (xglFlagsGet(record->flag, 1) == 0)
+                text = 0;
+            return text;
+        }
+        record = (TyaUmlTextRecord *)((u8 *)record + size + 4);
+    }
+}
 
 static int get_fileno(int target_id, int *file_index)
 {
@@ -321,7 +355,51 @@ done:
 
 INCLUDE_ASM("asm/nonmatchings/ov02/tya_uml", dbheader_load);
 
-INCLUDE_ASM("asm/nonmatchings/ov02/tya_uml", disp_index);
+/*
+ * The database view tyaUmlDatabaseMain drives: it starts with the display
+ * parameters it hands to tyaUmlDispMain/tyaUmlDispType3/tyaUmlDispLoad, so
+ * the record embeds a TyaUmlDispParam. Only the index cursor disp_index
+ * reads is modeled; the rest stays unmodeled.
+ */
+typedef struct TyaUmlDatabase {
+    TyaUmlDispParam display;   /* 0x00 */
+    u8 unmodeled_30[0x26];
+    s16 indexCursor;           /* 0x56: highlighted entry of the index bar */
+} TyaUmlDatabase;
+
+/* Font control streams: the index-bar header, the highlighted and the normal
+ * entry colour, the two-byte entry labels (through idx.7) and the suffix
+ * template msg.8, whose bytes 2 and 3 take the high and low suffix byte. */
+extern const char D_00A13400[16];
+extern const char D_00A13410[8];
+extern const char D_00A13418[8];
+extern const char *idx_7;
+extern char msg_8[5];
+extern void xglFontPrintDirectOT(int ot, const char *text);
+
+/* Prints the 26-entry index bar, highlighting database->indexCursor. */
+static void disp_index(TyaUmlDatabase *database, int suffix)
+{
+    TyaUmlDispParam *display = &database->display;
+    int ot = (int)(display->color + 4);
+    int i;
+
+    xglFontPrint(display->render_x + display->render_width - 0x824,
+                 display->render_y + display->render_height - 0x71C,
+                 ot, D_00A13400);
+    for (i = 0; i < 26; i++) {
+        if (i == database->indexCursor)
+            xglFontPrintDirectOT(ot, D_00A13410);
+        else
+            xglFontPrintDirectOT(ot, D_00A13418);
+        xglFontPrintDirectOT(ot, idx_7 + i * 2);
+        if (suffix != 0) {
+            msg_8[2] = suffix >> 8;
+            msg_8[3] = suffix;
+            xglFontPrintDirectOT(ot, msg_8);
+        }
+    }
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov02/tya_uml", tyaUmlDatabaseMain);
 
