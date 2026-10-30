@@ -681,7 +681,16 @@ float RgWeaponGetShotNum(RgWeapon *weapon)
     return weapon->shotNum;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_weapon", RgWeaponIsNotBusy);
+int RgWeaponIsNotBusy(RgWeapon *weapon)
+{
+    if (weapon == 0) {
+        assert_prog(D_00A536F0, D_00A53658, 0x5A8);
+    }
+    if (weapon->isBusy != 0) {
+        return weapon->isBusy(weapon) == 0;
+    }
+    return 1;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov12/rg_weapon", RgWeaponGetRestUnit);
 

@@ -114,7 +114,9 @@ struct RgWeapon {
     void (*shotStop)(RgWeapon *weapon);
     void (*hitRobot)(RgWeapon *weapon, int robotId, int damage);
     void (*hitBG)(RgWeapon *weapon, int bgObject, int damage);
-    unsigned char unmodeled_30[4];
+    /* +0x30: _InitWeaponShot stores _ShotTypeIsBusy and _InitEnergyType
+     * _EnergyIsBusy here (sw at 0x00a1a3d0 / 0x00a1b270). */
+    int (*isBusy)(RgWeapon *weapon);
     void (*setFree)(RgWeapon *weapon);
     unsigned char unmodeled_38[8];
     RgWeaponAttach shotAttach;
