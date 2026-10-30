@@ -1415,7 +1415,15 @@ void *RgRobotGetSpec(RgStatus *pRobot)
     return pRobot->body->spec;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_robot", RgRobotIsConfused);
+int RgRobotIsConfused(RgStatus *pRobot)
+{
+    if (pRobot == 0) {
+        assert_prog(D_00A51BB0, D_00A51840, 4337);
+    }
+    if (pRobot->body->confuse > 0.0f)
+        return 1;
+    return 0;
+}
 
 int RgRobotIsAcceptedCommand(RgStatus *pRobot, int command)
 {

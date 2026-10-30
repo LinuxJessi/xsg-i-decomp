@@ -1235,7 +1235,29 @@ void *dataFpkAdrGet(FpkHeader *fpk)
     return (unsigned char *)fpk + fpk->data_offset;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataTid2WepSp);
+/*
+ * One 12-byte entry of the special-weapon table, terminated by a zero
+ * tecId. dataTid2WepSp only reads tecId; dataFileLoadWepSp* (still asm)
+ * read the words at +0x04 and +0x08.
+ */
+typedef struct WepSpEntry {
+    int tecId;                       /* +0x00 */
+    unsigned char unmodeled_04[8];
+} WepSpEntry;
+
+extern WepSpEntry wepSpTbl[];        /* original storage, still asm-owned */
+
+/* Returns the special-weapon entry of technique `tecId`, or 0. */
+WepSpEntry *dataTid2WepSp(int tecId)
+{
+    int i;
+
+    for (i = 0; wepSpTbl[i].tecId != 0; i++) {
+        if (wepSpTbl[i].tecId == tecId)
+            return &wepSpTbl[i];
+    }
+    return 0;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataFileLoadWepSp);
 
