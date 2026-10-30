@@ -134,7 +134,27 @@ static unsigned int _GetAllAttach(RgWeaponAttach *pAttach, RgShot **shots)
     return pAttach->m_uAttachNum;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_weapon", _AddShotAttach);
+/*
+ * Scaffold-owned (.rodata still owner: asm, config/tu-build.json
+ * data_ownership window 0x00a53642..0x00a53818): the assert_prog expression
+ * string _AddShotAttach's bound check cites. ov12:0x00a53670 holds
+ * "pAttach->m_uAttachNum < ATTACH_MAX".
+ */
+extern const char D_00A53670[];
+
+static void _AddShotAttach(RgWeaponAttach *pAttach, RgShot *shot)
+{
+    if (pAttach == 0) {
+        assert_prog(D_00A53648, D_00A53658, 71);
+    }
+    if (shot == 0) {
+        return;
+    }
+    if (pAttach->m_uAttachNum >= ATTACH_MAX) {
+        assert_prog(D_00A53670, D_00A53658, 73);
+    }
+    pAttach->shots[pAttach->m_uAttachNum++] = shot;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov12/rg_weapon", _CheckAttach);
 
