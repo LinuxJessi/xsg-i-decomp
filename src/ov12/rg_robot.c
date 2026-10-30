@@ -402,7 +402,23 @@ INCLUDE_ASM("asm/nonmatchings/ov12/rg_robot", _ExecCmdInTargetting);
 
 INCLUDE_ASM("asm/nonmatchings/ov12/rg_robot", _TargettingPassTime);
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_robot", _ExitTargettingStatus);
+extern void RgRobotEffectTermJet(RgRobotEffect *effect);
+extern void RgRobotEffectSetJetInertia(RgRobotEffect *effect, int inertia);
+
+static void _ExitTargettingStatus(RgRobotStatus *status, RgBody *body)
+{
+    /*
+     * The original frame is 0x20 bytes with a 16-byte local area below the
+     * saved $16/$31, and the last call is a jal, not a sibling jump. An
+     * unreferenced 16-byte local reproduces both; its original role is not
+     * evidenced.
+     */
+    Vector4 unused;
+
+    (void)status;
+    RgRobotEffectTermJet(body->effect);
+    RgRobotEffectSetJetInertia(body->effect, 1);
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov12/rg_robot", _InitTargettingStatus);
 
@@ -457,7 +473,6 @@ INCLUDE_ASM("asm/nonmatchings/ov12/rg_robot", _DashVRExecCmd);
 INCLUDE_ASM("asm/nonmatchings/ov12/rg_robot", _DashVRPassTime);
 
 extern void RgGeomPointSetMaxXYSpd(RgGeomPoint *point, float maxSpeed);
-extern void RgRobotEffectTermJet(RgRobotEffect *effect);
 extern void RgRobotEffectTermDash(RgRobotEffect *effect);
 extern void XrgSoundRingStopMoving(int soundID);
 
