@@ -159,9 +159,8 @@ typedef struct MCamCoordMove {
     Vector4 pivot;
     Vector4 startCoord;
     Vector4 endCoord;
-    /* MCamVector, was Vector4: MCamExec_Control copies it to a point's
-     * fixedCoord with ld/sd from camParams (`ld $3,0x390($2)` at 0x00a32240);
-     * the Vector4 spelling compiled `ld $2,408($16)` there. */
+    /* MCamVector: MCamExec_Control copies it whole into a point's fixedCoord
+     * (`ld $3,0x390($2)` at 0x00a32240; as a Vector4 it compiled `ld $2,408($16)`). */
     MCamVector currentCoord;
     int path;
     int mode;
@@ -640,9 +639,10 @@ static int MCamMoveProc_Pers(MCamMoveState *state);
 static void MCamShakeProc(void);
 
 /*
- * Advances every running move. A finished coordinate move hands its target
- * point to MCamSet; with the fix flag the point stays fixed at its current
- * coordinate without an offset.
+ * Advances every running move. While a coordinate move runs, its point
+ * follows the move's current coordinate; when it ends, the target goes to
+ * MCamSet and, with the fix flag, the point is pinned to the camera's own
+ * coordinate with no offset.
  */
 static void MCamExec_Control(void)
 {
