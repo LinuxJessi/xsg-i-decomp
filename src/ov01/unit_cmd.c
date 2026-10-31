@@ -202,7 +202,6 @@ static const char UnitPlCreateAgwsFormat[32] =
  * at 0x00a00e80, daddu $2,$0,$0 at 0x00a00e98).
  */
 extern ObjectTask *unitCreate(s16 *pl, int side, ObjectTaskCallback func);
-extern int unitTblSet(int side, ObjectTask *unit);
 void unitLoad(ObjectTask *unit, int mode);
 
 ObjectTask *unitPlCreate(s16 *pl)
@@ -946,8 +945,7 @@ int unitCmdMoveNext(ObjectTask *unit, int mode)
 
 /*
  * unitCmdMoveChaNorm's, unitCmdMoveChaJump2's and unitCmdMovePosNorm's own
- * siblings, still asm
- * (unitCmdLenGet) or defined later in this TU; forward-declared for their
+ * siblings, defined later in this TU and forward-declared for their
  * calls. unitCmdLenGet returns its distance in $f0, which all three hand on as
  * unitCmdDivSet's distance (mov.s $f12,$f0 at 0x00a03eb0,
  * 0x00a044f4 and 0x00a0416c).
@@ -1966,7 +1964,6 @@ void unitDispOffAll(void)
 }
 
 extern void statEffOn(ObjectTask *unit);
-extern void statEffOff(ObjectTask *unit);
 
 /*
  * calcUPGet(unit)+0x158, immediately before ov01/tu004 calc.c's own

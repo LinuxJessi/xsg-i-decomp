@@ -15,8 +15,9 @@ typedef union {
 extern CmdTecparaValue *cmdTecparaSub(int tec, short category, short *valueType);
 
 /*
- * Returns int: declared void, cmdUnitChange loads the 0x25 command into $2
- * where the original uses $3 (addiu $3,$0,0x25 at 0x00a1fd3c).
+ * Returns int: with a void callee gcc keeps cmdUnitChange's 0x25 command in
+ * $2 across the call, while the original reserves $2 for the return value
+ * and uses $3 (addiu $3,$0,0x25 at 0x00a1fd3c).
  */
 extern int unitCmdListSet(ObjectTask *unit, int *count);
 

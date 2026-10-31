@@ -22,7 +22,7 @@ extern int dataCidGet(int chara_id);
  * 0x00a04aec..0x00a04af8), where a plain Vector4 (4-byte aligned) copies
  * through ldl/ldr/sdl/sdr. The u64 pair is the alignment spelling of
  * MCamVector (src/ov01/m_cam.c) and GameVector8 (src/main/game.c) and carries
- * no meaning of its own; every access goes through `vector`. Its 8-byte
+ * no meaning of its own; the components are read through `vector` and the whole is copied as one 8-byte value (unitCmdPosAdj's savedTarget). Its 8-byte
  * alignment rounds the partial Actor view's sizeof from 0x76C to 0x770;
  * no offset moves and nothing in this TU takes sizeof(Actor).
  */
