@@ -55,8 +55,8 @@ int pauseProc(void) {
 
 /*
  * This TU's own view of battle_init.c's BattleUnit/Actor (there kept behind
- * an opaque typedef, full body local to that TU): only the fields this
- * function's own flag check reads (BattleUnit.actor +0x14 and Actor.flags
+ * an opaque typedef, full body local to that TU): only the fields the
+ * flag check in entryPhase45 reads (BattleUnit.actor +0x14 and Actor.flags
  * +0x00, both evidenced there by src/ov01/battle_init.c's actUnitTblMake).
  */
 typedef struct EntryActor {
@@ -88,8 +88,8 @@ extern int rnd(int max);
 #define SELECT_PL_CHARA_ID_LIMIT 8
 
 /*
- * unitTblGet(0, ...) is the player side; its entries alias the published
- * party roster plTbl[3] (src/ov01/battle_init.c), so `count` is bounded by
+ * unitTblGet(0, ...) returns the player side's three records (unit_cmd.c's
+ * unitTbl), so `count` is bounded by
  * 3 and `picked` never needs more slots than that.
  */
 ObjectTask *selectPL(ObjectTask *excludeUnit)
@@ -257,7 +257,7 @@ int entryPhase25(void);
 /*
  * This TU's own declaration order of its static objects (pCreateUnit then
  * camEv then unitIdx) has to stay the same relative order the already
- * matched entryPhase26/30/31/35 established (their gate pass proved these
+ * matched entryPhase26/30/31 established (their gate pass proved these
  * addresses); entryPhase20 needs camEv and unitIdx before their own
  * definitions further down, so each gets an early `extern` mention here,
  * in that same order, ahead of its real storage.
@@ -276,7 +276,7 @@ typedef struct EntryCamEvent {
     unsigned char unmodeled_0c[4];
 } EntryCamEvent;
 extern EntryCamEvent camEv;
-extern int pCvUnit;
+extern ObjectTask *pCvUnit;
 extern int unitIdx;
 
 /*
@@ -343,14 +343,13 @@ extern ObjectTask *unitPlCreate(s16 *pl);
 extern void menuStatDispCreate(void);
 extern int entryPhase30(void);
 extern int entryPhase26(void);
-extern ObjectTask *pCreateUnit;
 
 int entryPhase25(void)
 {
     EntryPlUnit *entries;
     ObjectTask *unit;
     int i;
-    int matched;
+    int lastOccupiedIdx;
 
     /* Advance unitIdx to the next occupied party slot, if any. */
     entries = plUnitTblGet();
@@ -373,13 +372,13 @@ int entryPhase25(void)
     pCreateUnit = unit;
     unitIdx++;
 
-    matched = 0;
+    lastOccupiedIdx = 0;
     for (i = 0; i < 3; i++) {
         if (entries[i].partyId != 0) {
-            matched = i;
+            lastOccupiedIdx = i;
         }
     }
-    if (matched == unitIdx - 1) {
+    if (lastOccupiedIdx == unitIdx - 1) {
         menuStatDispCreate();
     }
     battleSeq = entryPhase26;
@@ -404,17 +403,16 @@ int entryPhase26(void)
 }
 
 
-extern ObjectTask *selectPL(ObjectTask *excludeUnit);
-extern void dataSndSeLoad(int unit, int seId);
+extern void dataSndSeLoad(ObjectTask *unit, int seId);
 extern int entryPhase31(void);
 
-static int pCvUnit;
+static ObjectTask *pCvUnit;
 
 int entryPhase30(void) {
-    int unit;
+    ObjectTask *unit;
 
     loadNum = dataCdSync();
-    unit = (int)selectPL(0);
+    unit = selectPL(0);
     pCvUnit = unit;
     if (unit != 0) {
         dataSndSeLoad(unit, 0x18);
@@ -424,8 +422,8 @@ int entryPhase30(void) {
 }
 
 static int unitIdx;
-extern void dataSndSeLoad2(int unit);
-extern void sndSeTransPlay(int unit, int seId, int volume);
+extern void dataSndSeLoad2(ObjectTask *unit);
+extern void sndSeTransPlay(ObjectTask *unit, int seId, int volume);
 extern int entryPhase35(void);
 
 int entryPhase31(void)
@@ -501,7 +499,6 @@ int entryPhase40(void) {
     return 1;
 }
 
-extern int unitTblGet(int side, EntryBattleUnit ***table);
 extern void encountEffDisp(void);
 int entryPhase50(void);
 
@@ -559,12 +556,12 @@ int entryPhase51(void);
 
 int entryPhase50(void)
 {
-    int unit;
+    ObjectTask *unit;
 
     if (battleMain() == 0) {
         loadNum = dataCdSync();
         if (battleRetCodeGet() == 1) {
-            unit = (int)selectPL((ObjectTask *)lastUnitGet());
+            unit = selectPL((ObjectTask *)lastUnitGet());
             pCvUnit = unit;
             if (unit != 0) {
                 dataSndSeLoad(unit, 0x19);
@@ -907,7 +904,7 @@ extern void grPacketSend(GrPacket *packet);
 /*
  * Sends two GIF-tagged UV/RGBAQ/XYZ2 vertex pairs (regs 0x513), UV 0..
  * (0x1FF0, 0x1BF0), textured from grFBAdrGet(drawingIndex) through TEX0,
- * offset by +16 then -16 (12.4 fixed point) on both axes.
+ * offset by +16 then -16 in 12.4 fixed point (one pixel) on both axes.
  * gp is the original's callee-saved packet pointer (`daddu $17,$29,$0` in
  * grGpInit's delay slot, every later data/count read goes through $17), and
  * depth its Z, loaded into $18 at entry (`lui/ori $18` in the first calls'
