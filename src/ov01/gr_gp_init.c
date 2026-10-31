@@ -563,10 +563,9 @@ void grPutF4(GrPacket *packet, GrF4Vertices *quad, const Matrix4 matrix)
     f4Num += 4;
 }
 
-/* grPutF4 with a UV quadword per corner: S and T (the grPutFT4STQ record)
- * scaled to 12.4 fixed point. Two cursors walk the corners: point
- * for the screen-space path and vertex for grRotTransPers (two registers,
- * each stepped by 0x10 at the loop end, vertex first). */
+/* grPutF4 with a UV quadword per corner: the GrFT4STQVertices S and T
+ * scaled to 12.4 fixed point. Two cursors walk the corners: point for the
+ * screen-space path, vertex for grRotTransPers. */
 void grPutFT4(GrPacket *packet, GrFT4STQVertices *quad, const Matrix4 matrix)
 {
     int clipFlags = 0;
