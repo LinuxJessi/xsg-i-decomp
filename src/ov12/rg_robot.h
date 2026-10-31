@@ -13,6 +13,9 @@ typedef struct RgStatus RgStatus;
 /* Opaque here: rg_robot_effect.c (ov12/tu010) owns the RgRobotEffect definition. */
 typedef struct RgRobotEffect RgRobotEffect;
 
+/* Opaque here: rg_weapon.c (ov12/tu026) owns the RgWeapon definition. */
+typedef struct RgWeapon RgWeapon;
+
 /* Number of equip sides a body carries (RgRobotGetWeapon's own range check,
  * ov12:0x00a51be0, "RG_EQUIP_TYPE_MIN <= (eSide) && (eSide) < RG_EQUIP_TYPE_NUM"). */
 #define RG_EQUIP_TYPE_NUM 3

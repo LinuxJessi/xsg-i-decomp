@@ -245,6 +245,20 @@ void XrgPaint2DSetDrawPrio(XrgPaint2D *paint, int prio) {
     paint->prio = prio;
 }
 
+/*
+ * The three 2D anchor setters below store x through `req` but y through a
+ * fresh paint->request load: the original reloads the request pointer after
+ * the offsetMode store (lw -0x2FEC again before the +0x54 store), the same
+ * reload XrgPaint2DOffset3DForce documents.
+ *
+ * XRG_PAINT2D_SUBPIXEL_SHIFT converts whole pixels into the GS's 12.4
+ * subpixel units (x << 4); XRG_PAINT2D_SCREEN_CENTER_X/Y are the centre of
+ * the 512x448 screen (RgDrawView's own default screenRect) in pixels.
+ */
+#define XRG_PAINT2D_SUBPIXEL_SHIFT 4
+#define XRG_PAINT2D_SCREEN_CENTER_X (512 / 2)
+#define XRG_PAINT2D_SCREEN_CENTER_Y (448 / 2)
+
 void XrgPaint2DOffset2D(XrgPaint2D *paint, int x, int y)
 {
     XrgPaint2DDrawReq *req;
@@ -266,9 +280,9 @@ void XrgPaint2DOffset2DDot(XrgPaint2D *paint, int x, int y)
         assert_prog(D_00A59098, D_00A59058, 786);
     }
     req = paint->request;
-    req->offsetAnchor.i.x = x << 4;
+    req->offsetAnchor.i.x = x << XRG_PAINT2D_SUBPIXEL_SHIFT;
     req->offsetMode = 1;
-    paint->request->offsetAnchor.i.y = y << 4;
+    paint->request->offsetAnchor.i.y = y << XRG_PAINT2D_SUBPIXEL_SHIFT;
 }
 
 void XrgPaint2DOffsetCenter(XrgPaint2D *paint)
@@ -279,9 +293,10 @@ void XrgPaint2DOffsetCenter(XrgPaint2D *paint)
         assert_prog(D_00A59098, D_00A59058, 795);
     }
     req = paint->request;
-    req->offsetAnchor.i.x = 256 << 4;
+    req->offsetAnchor.i.x = XRG_PAINT2D_SCREEN_CENTER_X << XRG_PAINT2D_SUBPIXEL_SHIFT;
     req->offsetMode = 1;
-    paint->request->offsetAnchor.i.y = 224 << 4;
+    paint->request->offsetAnchor.i.y = XRG_PAINT2D_SCREEN_CENTER_Y
+                                       << XRG_PAINT2D_SUBPIXEL_SHIFT;
 }
 
 void XrgPaint2DOffset3D(XrgPaint2D *paint, const XrgPaint2DOffset *anchor)

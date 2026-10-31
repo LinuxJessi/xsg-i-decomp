@@ -204,11 +204,26 @@ static int _CheckEquipWeps(int *essences, int slot)
     return RgEquipCheckConfrict(equipData, slot);
 }
 
-static int s_aeCharTbl[6] = {0, 4, 2, 5, 3, 1};
+/*
+ * Character-select cursor layout: RG_ACTOR_CHAR_NUM character positions
+ * (s_aeCharTbl; also the number of character slots the weapon-name save
+ * area holds) plus one more, SEL_CHAR_CURSOR_NOP. That is the position
+ * _CharIDToCharCursor returns for an unknown character and
+ * _CharCursorToCharID maps back to -1 (RG_ACTOR_CHAR_NOP below);
+ * _InitSelectChar starts the cursor there and _SetSelectableSelectChar
+ * keeps it selectable (SEL_CHAR_CURSOR_NOP_BIT, the 0x40 in
+ * selectableMask).
+ */
+#define RG_ACTOR_CHAR_NUM 6
+#define SEL_CHAR_CURSOR_NOP RG_ACTOR_CHAR_NUM
+#define SEL_CHAR_CURSOR_NUM (RG_ACTOR_CHAR_NUM + 1)
+#define SEL_CHAR_CURSOR_NOP_BIT (1 << SEL_CHAR_CURSOR_NOP)
+
+static int s_aeCharTbl[RG_ACTOR_CHAR_NUM] = {0, 4, 2, 5, 3, 1};
 
 static int _CharCursorToCharID(int charCursor)
 {
-    if ((unsigned int) charCursor >= 6) {
+    if ((unsigned int) charCursor >= RG_ACTOR_CHAR_NUM) {
         return -1;
     }
     return s_aeCharTbl[charCursor];
@@ -218,12 +233,12 @@ static int _CharIDToCharCursor(int charID)
 {
     unsigned int i;
 
-    for (i = 0; i < 6; i++) {
+    for (i = 0; i < RG_ACTOR_CHAR_NUM; i++) {
         if (s_aeCharTbl[i] == charID) {
             return i;
         }
     }
-    return 6;
+    return SEL_CHAR_CURSOR_NOP;
 }
 
 extern void assert_prog(const char *expression, const char *source_file,
@@ -237,8 +252,8 @@ static void _InitSelectChar(SelChar *pSelChar)
     if (pSelChar == 0) {
         assert_prog(D_00A56650, D_00A56660, 0xD0);
     }
-    pSelChar->cursor = 6;
-    pSelChar->selectableMask = 0x40;
+    pSelChar->cursor = SEL_CHAR_CURSOR_NOP;
+    pSelChar->selectableMask = SEL_CHAR_CURSOR_NOP_BIT;
 }
 
 /* Defined above (scaffold); returns s_aeCharTbl[charCursor], or -1 past the table. */
@@ -268,14 +283,14 @@ static void _SetSelectableSelectChar(SelChar *pSelChar, unsigned int charIDMask)
         assert_prog(D_00A56650, D_00A56660, 0xE7);
     }
     pSelChar->selectableMask = 0;
-    for (i = 0; i < 6; i++) {
+    for (i = 0; i < RG_ACTOR_CHAR_NUM; i++) {
         if (charIDMask & (1 << i)) {
             pSelChar->selectableMask |= 1 << _CharIDToCharCursor(i);
         }
     }
-    pSelChar->selectableMask |= 0x40;
+    pSelChar->selectableMask |= SEL_CHAR_CURSOR_NOP_BIT;
     if ((pSelChar->selectableMask & (1 << pSelChar->cursor)) == 0) {
-        for (i = 0; i < 7; i++) {
+        for (i = 0; i < SEL_CHAR_CURSOR_NUM; i++) {
             if (pSelChar->selectableMask & (1 << i)) {
                 pSelChar->cursor = i;
                 break;
@@ -311,9 +326,7 @@ static void _SetCharSelectChar(SelChar *pSelChar, int charID)
         pSelChar->cursor = cursor;
         return;
     }
-    /* All 7 cursor positions: the 6 characters plus cursor 6, the bit
-     * _InitSelectChar's own selectableMask 0x40 sets. */
-    for (i = 0; i < 7; i++) {
+    for (i = 0; i < SEL_CHAR_CURSOR_NUM; i++) {
         if (pSelChar->selectableMask & (1 << i)) {
             pSelChar->cursor = i;
         }
@@ -348,7 +361,7 @@ static int _GetSelectableSelectChar(SelChar *pSelChar)
         assert_prog(D_00A56650, D_00A56660, 0x126);
     }
     charMask = 0;
-    for (charID = 0; charID < 6; charID++) {
+    for (charID = 0; charID < RG_ACTOR_CHAR_NUM; charID++) {
         if ((pSelChar->selectableMask & (1 << _CharIDToCharCursor(charID))) != 0) {
             charMask |= 1 << charID;
         }
@@ -379,7 +392,7 @@ static void _PassTimeSelectChar(SelChar *pSelChar, float deltaTime)
     if (step != 0) {
         do {
             cursor += step;
-            if ((unsigned int) cursor >= 7) {
+            if ((unsigned int) cursor >= SEL_CHAR_CURSOR_NUM) {
                 cursor = pSelChar->cursor;
                 break;
             }
@@ -964,13 +977,6 @@ static void _SaveCharSelectData(SelDat *pSelDat, int *pData)
     pData[0] = _GetSelectChar(&pSelDat->selChar);
     pData[1] = _GetSelectableSelectChar(&pSelDat->selChar);
 }
-
-/*
- * Number of character slots the weapon-name save area holds, one per
- * character-select cursor position (_InitSelectChar's own initial cursor 6 is
- * the first value outside the range this bound tests).
- */
-#define RG_ACTOR_CHAR_NUM 6
 
 /*
  * Layout of one character's slot inside the save area _SaveToBaseData passes:
@@ -1600,7 +1606,7 @@ void InitRgSelectAGWSData(int *pData)
     pData[0] = 0;
     pData[1] = 1;
     pNames = (unsigned char *) pData + WEP_NAME_LIST_OFFSET;
-    for (charID = 0; charID < 6; charID++) {
+    for (charID = 0; charID < RG_ACTOR_CHAR_NUM; charID++) {
         for (i = 0; i < RG_EQUIP_TYPE_NUM; i++) {
             pNames[charID * CHAR_WEP_RECORD_SIZE + i * WEP_NAME_LEN] = 0;
         }
