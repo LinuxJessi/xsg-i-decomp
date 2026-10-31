@@ -899,9 +899,9 @@ INCLUDE_ASM("asm/nonmatchings/ov01/data_unit_org_get", dataMotNameGetSub);
 
 extern int unitCidGet(ObjectTask *unit);
 extern int dataUnitFileLoadMdl(UnitEquipInfo *unit, int charaId, UnitFileInfo *file);
-extern int dataUnitFileLoadWep(ObjectTask *unit, int weaponId, int slot, void *fileInfo);
-/* The leader candidate's party id (`lw $3,0x0($16)`, $16 = &leaderId); a
- * local of the original TU at 0x00a597b8 that this file does not yet own. */
+extern int dataUnitFileLoadWep(ObjectTask *unit, int weaponId, int slot, UnitFileInfo *fileInfo);
+/* The leader's character id (`lw $3,0x0($16)`, $16 = &leaderId), compared
+ * with charaId; a static of the original TU at 0x00a597b8, still asm-owned. */
 extern int leaderId;
 
 /*

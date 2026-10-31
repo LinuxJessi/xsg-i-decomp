@@ -83,7 +83,7 @@ typedef struct GrGifRGBA {
     int a; /* +0x0c */
 } GrGifRGBA;
 
-/* The UV quadword grPutFT4 writes: texel coordinates in 12.4 fixed point,
+/* The UV quadword grPutFT4 writes: UV coordinates in 12.4 fixed point,
  * converted from float S/T as unsigned (the c.le.s against 2^31 and the or of
  * 0x80000000). */
 typedef struct GrGifUV {
@@ -564,7 +564,7 @@ void grPutF4(GrPacket *packet, GrF4Vertices *quad, const Matrix4 matrix)
 }
 
 /* grPutF4 with a UV quadword per corner: S and T (the grPutFT4STQ record)
- * scaled to texels in 12.4 fixed point. Two cursors walk the corners: point
+ * scaled to 12.4 fixed point. Two cursors walk the corners: point
  * for the screen-space path and vertex for grRotTransPers (two registers,
  * each stepped by 0x10 at the loop end, vertex first). */
 void grPutFT4(GrPacket *packet, GrFT4STQVertices *quad, const Matrix4 matrix)
