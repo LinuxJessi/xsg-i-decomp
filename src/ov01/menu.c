@@ -652,6 +652,8 @@ enum MenuCritWorkFlag {
  * sw $16,0x80($2)). */
 static __inline__ MenuCritWork *menuCritWorkGet(ObjectTask *task)
 {
+    /* Read as a u32 on purpose: `(MenuCritWork *)task->work` compiles the
+     * callers' loads differently and OV01.OVL stops matching. */
     return (MenuCritWork *)*(u32 *)&task->work;
 }
 
@@ -700,7 +702,7 @@ extern ObjectTask *pCritObj;
 
 void menuCritDispOff(void)
 {
-    *(int *)pCritObj->work |= 4; /* set hidden bit 2 */
+    menuCritWorkGet(pCritObj)->flags |= MENU_CRIT_HIDDEN;
 }
 
 
@@ -1338,7 +1340,7 @@ extern void grCloseF2(void);
 /*
  * The target line: a 0x3A-pixel stub left of (x0, y0), then on to (x1, y1);
  * green, or magenta when the line is blocked. The depth is converted at run
- * time (lui/ori 0xFFFFFC; cvt.s.w into $f20), so it is written as an integer.
+ * time (lui/ori 0x00FFFFFC; cvt.s.w into $f20), so it is written as an integer.
  */
 void menuSelLine(GrPacket *packet, int x0, int y0, int x1, int y1, int blocked)
 {
