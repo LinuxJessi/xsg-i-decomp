@@ -352,29 +352,18 @@ int entryPhase25(void)
     int i;
     int matched;
 
-    /*
-     * A structured form merging this bound check into the search loop's
-     * own condition (`while (unitIdx < 3 && entries[unitIdx].partyId ==
-     * 0)`), with the trailing `if (unitIdx >= 3) ... else ...` collapsed
-     * into one if/else instead of this goto, moved bytes at the very
-     * first branch of this function (`beql` -> `beq`): fndiff on that
-     * form reported equal-in-place 17/78 (down from 19/78 here) and a
-     * different register for the outer `unitIdx < 3` compare. The goto
-     * is kept because that was the only structured rewrite tried and it
-     * did not reproduce the original bytes.
-     */
+    /* Advance unitIdx to the next occupied party slot, if any. */
     entries = plUnitTblGet();
     if (unitIdx < 3 && entries[unitIdx].partyId == 0) {
         do {
             unitIdx++;
             if (unitIdx >= 3) {
-                goto noSlot;
+                break;
             }
         } while (entries[unitIdx].partyId == 0);
     }
 
     if (unitIdx >= 3) {
-noSlot:
         battleSeq = entryPhase30;
         return 1;
     }
