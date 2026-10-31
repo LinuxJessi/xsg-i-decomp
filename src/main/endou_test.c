@@ -903,6 +903,9 @@ void endPrintDirectLine(EndouPrintLinePoint *line);
 
 void endSpriteSet(void *sprite, int mode);
 
+void eSpriteMain(ESpriteMainData *sprite);
+void eSpriteSet(ESprite *sprite, int flags);
+
 void xglStudioGetCamera(StudioCamera **camera_out, int camera_index);
 
 extern u8 time_37;
@@ -1924,7 +1927,391 @@ void BattleWindowTest(void)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/endou_test", eNumberTest);
+void eNumberTest(void) {
+    EndouPrintLinePoint line[3];
+    XglClock sp60;
+    s16 sp70[2];
+    StudioCamera *camera;
+    StudioCamera *studio_camera;
+    int primary_order;
+    int number_order;
+    int sprite_order;
+    StudioCamera *second_camera;
+    u8 sprite_tick;
+    short blink_sprite_id;
+    int cursor_pressed;
+    EndouPrintPoint *cursor;
+
+    eSpriteSet(&spr_22[0], 0x200);
+    eSpriteSet(&spr_22[1], 0x200);
+    eSpriteSet(&spr_22[2], 0x200);
+    eSpriteSet(&spr_22[3], 0x200);
+    eRibbonSet(&rbn_21[0], 1);
+    eRibbonSet(&rbn_21[1], 0);
+    eRibbonSet(&rbn_21[2], 0);
+    eLineSet((EndouELineSetData *)&line_23[0], 0);
+    eLineSet((EndouELineSetData *)&line_23[1], 0);
+    eLineSet((EndouELineSetData *)&line_23[2], 0);
+    eLineSet((EndouELineSetData *)&line_23[3], 0);
+    eCursolSet((ECursol *)&cur_25, 0);
+    eTagFontSet(&tgf_24[0].control, moji_26);
+    eTagFontSet(&tgf_24[1].control, moji2_27);
+    cursor = &d_43;
+    xglRenderClearFrame();
+    xglStudioChange((M2C_UNK) 0);
+    xglStudioGetCamera(&camera, 0);
+    PadData.buttons.input.pressed = (u16) 0;
+    studio_camera = camera;
+    studio_camera->rotation.x = 0.0f;
+    studio_camera->rotation.y = 0.0f;
+    studio_camera->rotation.z = 0.0f;
+    studio_camera->position.x = 0.0f;
+    studio_camera->position.y = 0.0f;
+    studio_camera->position.z = 1.0f;
+    studio_camera->active = 1;
+    studio_camera->state = 1;
+    second_camera = xglStudioGetCamera2(0);
+    second_camera->position.y = 1.0f;
+    second_camera->position.z = 4.0f;
+    second_camera->rotation.x = 0.0f;
+    second_camera->rotation.y = 0.0f;
+    second_camera->rotation.z = 0.0f;
+    second_camera->position.x = 0.0f;
+    second_camera->active = 1;
+    second_camera->state = 1;
+    WindowTexLoad(NULL, 1U);
+    if ((PadData.buttons.button_state & 0x08000100U) != 0x08000100U) {
+        primary_order = 0xFFFFFF;
+        number_order = 0xFFFFFE;
+        sprite_order = 0x02FFFFF0;
+        do {
+            xglFontDebugPrintf(0, 0, D_004C2AD8);
+            d_28.uv = 0xE00;
+            d_28.vertices[0].x = 0x100;
+            d_28.vertices[0].y = 0x40;
+            d_28.vertices[0].depth = primary_order;
+            d_28.coordinate_mode = 0;
+            d_28.flags = 1;
+            endPrintExtFunc(0, 8, &d_28);
+            line[0].x = 0x70F8;
+            line[0].y = 0x84B8;
+            line[1].x = 0x8F38;
+            line[1].y = 0x7BF8;
+            line[0].z = primary_order;
+            line[0].color[1] = 0x40;
+            line[0].color[0] = 0x40;
+            line[0].color[3] = 0x80;
+            line[0].color[2] = 0x80;
+            line[1].z = primary_order;
+            line[1].color[0] = 0x80;
+            line[1].color[3] = 0;
+            line[1].color[2] = 0;
+            line[1].color[1] = 0;
+            line[2].z = 0;
+            endPrintDirectLine(line);
+            eNumberSet(num_29, 0);
+            num_29[0].x = 0x10;
+            num_29[0].y = 0x80;
+            num_29[0].digits = 5;
+            num_29[0].work = number_order;
+            num_29[0].value.integer = -1;
+            num_29[0].format = 0;
+            eNumberMain(num_29);
+            xglClockRead(&sp60);
+            eNumberSet(&num_30[0], 0);
+            num_30[0].x = 0x10;
+            num_30[0].y = 0xA0;
+            __builtin_memcpy(&num_30[0].value.integer, &sp60,
+                             sizeof(num_30[0].value.integer));
+            num_30[0].work = number_order;
+            num_30[0].format = 2;
+            eNumberMain(num_30);
+            eNumberSet(&num_31[0], 0);
+            num_31[0].x = 0x40;
+            num_31[0].y = 0xC0;
+            num_31[0].work = number_order;
+            num_31[0].format = 3;
+            sp70[1] = 0xC8;
+            sp70[0] = 0;
+            num_31[0].value.integer = *(int *)sp70;
+            num_31[0].digits = 3;
+            num_31[0].colorMode[0] = 1;
+            num_31[0].colorMode[1] = 2;
+            num_31[0].alignment = 0;
+            num_31[0].firstOnly = 0;
+            eNumberMain(num_31);
+            eNumberSet(&num_32[0], 0);
+            num_32[0].x = 0x40;
+            num_32[0].y = 0xE0;
+            num_32[0].format = 7;
+            num_32[0].digits = 4;
+            num_32[0].value.integer = 0x4D2;
+            num_32[0].work = number_order;
+            eNumberMain(num_32);
+            d_33.spriteId = 1024;
+            endSpriteSet(&d_33, 0xFF);
+            d_33.x = 0x64;
+            d_33.y = 0x60;
+            d_33.work = sprite_order;
+            endPrintExtFunc(d_33.work, 2, &d_33);
+            endPrintExtFunc(0xFFFFFF, 0, line_34);
+            d_35[0].spriteId = 0x31C;
+            d_35[1].spriteId = 0x31F;
+            endSpriteSet(&d_35[0], 0xFF);
+            endSpriteSet(&d_35[1], 0xFF);
+            d_35[0].x = 0xC8;
+            d_35[0].y = 0x60;
+            d_35[1].x = d_35[0].x + d_35[0].width - d_35[1].width;
+            d_35[1].y = d_35[0].y + d_35[0].height - d_35[1].height;
+            d_35[1].work = 0x02FFFFF2;
+            d_35[0].work = sprite_order;
+            d_35[1].color[0] = 0xFF;
+            d_35[1].color[1] = 0x20;
+            d_35[1].color[2] = d_35[1].color[1];
+            endPrintExtFunc(d_35[0].work, 2, &d_35[0]);
+            endPrintExtFunc(d_35[1].work, 2, &d_35[1]);
+            sprite_tick = time_37++;
+            blink_sprite_id = ((sprite_tick >> 4) & 1) + 0x10D;
+            d_36.spriteId = blink_sprite_id;
+            endSpriteSet(&d_36, 0xFF);
+            d_36.x = 0x108;
+            d_36.y = 0x60;
+            d_36.work = sprite_order;
+            endPrintExtFunc(d_36.work, 2, &d_36);
+            d_38.spriteId = 0x609;
+            endSpriteSet(&d_38, 0xFF);
+            d_38.x = 0x108;
+            d_38.y = 0x80;
+            d_38.work = sprite_order;
+            endPrintExtFunc(d_38.work, 2, &d_38);
+            rbn_21[0].work = 0xFFFFF0;
+            rbn_21[0].x = 0x40;
+            rbn_21[0].y = 0x80;
+            rbn_21[0].width = 0x100;
+            rbn_21[0].height = 0x20;
+            eRibbonMain((ERibbonMainData *)&rbn_21[0]);
+            d_39.payload.number.value = 0x7B;
+            d_39.argument1 = 3;
+            d_39.x = 0xA;
+            d_39.y = 0x40;
+            d_39.work = primary_order;
+            d_39.payload.number.alpha = -0x80;
+            d_39.argument2 = 0;
+            d_39.payload.number.blue = -0x80;
+            d_39.payload.number.green = -0x80;
+            d_39.payload.number.red = -0x80;
+            endPrintExtFunc(d_39.work, 0xA, &d_39);
+            {
+            short c5 = 5, c1 = 1, c80 = 0x50;
+            d_40.x = 0xA;
+            d_40.work = primary_order;
+            d_40.argument1 = c5;
+            d_40.y = c80;
+            d_40.argument2 = c1;
+            d_40.payload.number.alpha = -0x80;
+            d_40.payload.number.value = 0;
+            d_40.payload.number.blue = -0x80;
+            d_40.payload.number.green = -0x80;
+            d_40.payload.number.red = -0x80;
+            endPrintExtFunc(d_40.work, 0xA, &d_40);
+            }
+            d_41.spriteId = 258;
+            d_41.x = 0xA;
+            d_41.y = 0x60;
+            d_41.work = primary_order;
+            endPrintExtFunc(d_41.work, 2, &d_41);
+            cursor_pressed = PadData.buttons.input.pressed & 0x20;
+            cur_25.x = 0x10;
+            cur_25.y = 0xC8;
+            cur_25.work = 0xFFFFF4;
+            if (cursor_pressed) {
+                cur_25.state = 0x20;
+            }
+            eCursolMain(&cur_25);
+            endPrintExtFunc(0x01000000, 3, d_42);
+            if ((PadData.buttons.input.held & 0x1000U) != 0) {
+                int cursor_y = cursor->y;
+
+                cursor->y = cursor_y - 2;
+            }
+            if ((PadData.buttons.input.held & 0x4000U) != 0) {
+                int cursor_y = cursor->y;
+
+                cursor->y = cursor_y + 2;
+            }
+            endPrintExtFunc(cursor->depth, 4, cursor);
+            if (PadData.buttons.input.pressed & 0x20) {
+                spr_22[0].state = 0x22;
+                spr_22[1].state = 0x22;
+                spr_22[2].state = 0x22;
+                spr_22[3].state = 0x22;
+            }
+            spr_22[0].x = 0x64;
+            spr_22[0].y = 0xC8;
+            spr_22[0].work = primary_order;
+            eSpriteMain((ESpriteMainData *)&spr_22[0]);
+            spr_22[1].y = 0xC8;
+            spr_22[1].x = 0xA4;
+            spr_22[1].work = primary_order;
+            eSpriteMain((ESpriteMainData *)&spr_22[1]);
+            spr_22[2].x = 0xC8;
+            spr_22[2].y = spr_22[2].x;
+            spr_22[2].work = primary_order;
+            eSpriteMain((ESpriteMainData *)&spr_22[2]);
+            spr_22[3].x = 0x190;
+            spr_22[3].y = spr_22[3].x;
+            spr_22[3].work = primary_order;
+            eSpriteMain((ESpriteMainData *)&spr_22[3]);
+            tgf_24[0].draw.x = 0x40;
+            tgf_24[0].draw.y = 0x12C;
+            tgf_24[0].draw.work = primary_order;
+            eTagFontMain((ETagFontMainData *)&tgf_24[0].draw);
+            tgf_24[1].draw.y = 0x140;
+            tgf_24[1].draw.x = 0x40;
+            tgf_24[1].draw.work = primary_order;
+            eTagFontMain(&tgf_24[1].draw);
+            d_44.points[0].depth = 0x01FFFFF0;
+            d_44.points[1].depth = 0x01FFFFF0;
+            d_44.points[2].depth = 0x01FFFFF0;
+            d_44.points[3].depth = 0x01FFFFF0;
+            d_44.points[0].y = 0x32;
+            d_44.points[1].y = 0x64;
+            d_44.points[2].y = 0x14;
+            d_44.points[3].y = 0x82;
+            d_44.colors[3].red = -0x80;
+            d_44.colors[2].red = -0x80;
+            d_44.colors[1].red = -0x80;
+            d_44.colors[0].red = -0x80;
+            d_44.colors[3].green = -0x80;
+            d_44.colors[2].green = -0x80;
+            d_44.colors[1].green = -0x80;
+            d_44.colors[0].green = -0x80;
+            d_44.colors[3].blue = -0x80;
+            d_44.colors[2].blue = -0x80;
+            d_44.colors[1].blue = -0x80;
+            d_44.colors[0].blue = -0x80;
+            d_44.colors[0].alpha = -0x80;
+            d_44.colors[1].alpha = -0x80;
+            d_44.colors[2].alpha = -0x80;
+            d_44.colors[3].alpha = -0x80;
+            d_44.points[0].x = 0;
+            d_44.points[1].x = 0;
+            d_44.points[2].x = 0xA0;
+            d_44.points[3].x = 0xA0;
+            d_44.format = 0x1A11;
+            line_23[1].count = 4;
+            line_23[1].points[0].x = 0xB4;
+            line_23[1].points[0].y = 0x46;
+            line_23[1].points[0].work = 0x7FFFFFFF;
+            line_23[1].points[1].x = 0xB4;
+            line_23[1].points[1].y = 0x78;
+            line_23[1].points[1].work = 0x7FFFFFFF;
+            line_23[1].points[2].x = 0x96;
+            line_23[1].points[2].y = 0x96;
+            line_23[1].points[2].work = 0x7FFFFFFF;
+            line_23[1].points[3].x = 0x64;
+            line_23[1].points[3].y = 0x96;
+            line_23[1].points[3].work = 0x7FFFFFFF;
+            line_23[1].points[0].red = -1;
+            line_23[1].points[0].green = 0;
+            line_23[1].points[0].blue = 0;
+            line_23[1].points[0].alpha = -0x80;
+            line_23[1].points[1].red = 0;
+            line_23[1].points[1].green = 0;
+            line_23[1].points[1].blue = -1;
+            line_23[1].points[1].alpha = -0x80;
+            line_23[1].points[2].red = 0;
+            line_23[1].points[2].green = -1;
+            line_23[1].points[2].blue = 0;
+            line_23[1].points[2].alpha = -0x80;
+            line_23[1].points[3].red = -1;
+            line_23[1].points[3].green = -1;
+            line_23[1].points[3].blue = -1;
+            line_23[1].points[3].alpha = -0x80;
+            if (PadData.buttons.input.pressed & 0x800) {
+                line_23[1].state = 0x20;
+            }
+            if (PadData.buttons.input.pressed & 0x100) {
+                line_23[1].state = 0x10;
+            }
+            eLineMain(&line_23[1]);
+            line_23[2].count = 4;
+            line_23[2].points[0].x = 0x64;
+            line_23[2].points[0].y = 0x64;
+            line_23[2].points[0].work = 0x7FFFFFFF;
+            line_23[2].points[1].y = 0x46;
+            line_23[2].points[1].x = 0x82;
+            line_23[2].points[1].work = 0x7FFFFFFF;
+            line_23[2].points[2].x = 0x82;
+            line_23[2].points[2].y = 0x78;
+            line_23[2].points[2].work = 0x7FFFFFFF;
+            line_23[2].points[3].y = 0x78;
+            line_23[2].points[3].x = 0xB4;
+            line_23[2].points[3].work = 0x7FFFFFFF;
+            line_23[2].points[0].red = -1;
+            line_23[2].points[0].green = 0;
+            line_23[2].points[0].blue = 0;
+            line_23[2].points[0].alpha = -0x80;
+            line_23[2].points[1].red = 0;
+            line_23[2].points[1].green = 0;
+            line_23[2].points[1].blue = -1;
+            line_23[2].points[1].alpha = -0x80;
+            line_23[2].points[2].red = 0;
+            line_23[2].points[2].green = -1;
+            line_23[2].points[2].blue = 0;
+            line_23[2].points[2].alpha = -0x80;
+            line_23[2].points[3].red = -1;
+            line_23[2].points[3].green = -1;
+            line_23[2].points[3].blue = -1;
+            line_23[2].points[3].alpha = -0x80;
+            if (ENDOU_MODEL_PAD->pressed & 0x800) {
+                line_23[2].state = 0x20;
+            }
+            if (ENDOU_MODEL_PAD->pressed & 0x100) {
+                line_23[2].state = 0x10;
+            }
+            eLineMain(&line_23[2]);
+            line_23[3].count = 4;
+            line_23[3].points[0].x = 0x82;
+            line_23[3].points[0].y = 0x78;
+            line_23[3].points[0].work = 0x7FFFFFFF;
+            line_23[3].points[1].x = 0x64;
+            line_23[3].points[1].y = 0x96;
+            line_23[3].points[1].work = 0x7FFFFFFF;
+            line_23[3].points[2].x = 0x64;
+            line_23[3].points[2].y = 0x64;
+            line_23[3].points[2].work = 0x7FFFFFFF;
+            line_23[3].points[3].x = 0x96;
+            line_23[3].points[3].y = 0x64;
+            line_23[3].points[3].work = 0x7FFFFFFF;
+            line_23[3].points[0].red = -1;
+            line_23[3].points[0].green = 0;
+            line_23[3].points[0].blue = 0;
+            line_23[3].points[0].alpha = -0x80;
+            line_23[3].points[1].red = 0;
+            line_23[3].points[1].green = 0;
+            line_23[3].points[1].blue = -1;
+            line_23[3].points[1].alpha = -0x80;
+            line_23[3].points[2].red = 0;
+            line_23[3].points[2].green = -1;
+            line_23[3].points[2].blue = 0;
+            line_23[3].points[2].alpha = -0x80;
+            line_23[3].points[3].red = -1;
+            line_23[3].points[3].green = -1;
+            line_23[3].points[3].blue = -1;
+            line_23[3].points[3].alpha = -0x80;
+            if (ENDOU_MODEL_PAD->pressed & 0x800) {
+                line_23[3].state = 0x20;
+            }
+            if (ENDOU_MODEL_PAD->pressed & 0x100) {
+                line_23[3].state = 0x10;
+            }
+            eLineMain(&line_23[3]);
+            endPrintExtFunc(0xFFFFFF, 0x64, NULL);
+            xglSleep();
+        } while ((PadData.buttons.button_state & 0x08000100U) != 0x08000100U);
+    }
+}
 
 void eModelTestMain(EModelTestState *unit)
 {

@@ -61,7 +61,10 @@ typedef struct NmlAlphaGroup {
     short blockCount;
     float sortDistance;
     u32 status;
-    unsigned char unmodeled_0c[4];
+    union {
+        union LayoutStore *layout; /* layout record this group was built from */
+        int address;
+    } owner;                       /* +0x0c */
 } NmlAlphaGroup;
 
 extern NmlAlphaGroup s_aAlphaGroup[];
@@ -252,7 +255,9 @@ typedef struct NmlModel {
     int partCount; /* +0x40 */
     int blockCount;
     int sampleCount; /* +0x48 */
-    unsigned char unmodeled_04c[0x20];
+    unsigned char unmodeled_04c[4];
+    int weightedMatrixOffset; /* +0x50: byte offset from the model to its weighted matrices */
+    unsigned char unmodeled_054[0x18];
     int unclassified_6c;
     unsigned char unmodeled_070[0x20];
     Vector4 entryTranslation; /* +0x90; w at +0x9c */
@@ -278,6 +283,25 @@ typedef struct NmlStealthPacket {
     unsigned char unmodeled_10[0x10];
     float unclassified_20;
 } NmlStealthPacket;
+
+/*
+ * Partial view of the render volume a layout points at through +0x260: a
+ * plane normal pair at +0x160/+0x168, an origin vector at +0x190, a min and a
+ * max bounds vector at +0x1a0/+0x1b0, and the u64 alpha word at +0x1c8.
+ * Only these witnessed offsets are named.
+ */
+typedef struct NmlRenderVolume {
+    unsigned char unmodeled_000[0x160];
+    float planeNormalX; /* +0x160 */
+    unsigned char unmodeled_164[4];
+    float planeNormalZ; /* +0x168 */
+    unsigned char unmodeled_16c[0x190 - 0x16c];
+    Vector4 origin; /* +0x190 */
+    Vector4 boundsMin; /* +0x1a0 */
+    Vector4 boundsMax; /* +0x1b0 */
+    unsigned char unmodeled_1c0[0x1c8 - 0x1c0];
+    u64 alpha; /* +0x1c8 */
+} NmlRenderVolume;
 
 union LayoutStore {
     LayoutSlot slots[200];
@@ -305,7 +329,9 @@ union LayoutStore {
         u32 render_status;                  /* +0x250 */
         int parent; /* +0x254 */
         Matrix4 *weightedMatrices; /* +0x258 */
-        unsigned char unmodeled_25c[0x268 - 0x25c];
+        unsigned char unmodeled_25c[4];
+        NmlRenderVolume *volume; /* +0x260 */
+        NmlRenderVolume *renderVolume; /* +0x264; set while the layout renders */
         int texMapMode; /* +0x268; supplied by map and actor shadow setup */
         float textureTransparency;
         int texMapSize; /* +0x270 */

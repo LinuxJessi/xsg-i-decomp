@@ -17,7 +17,7 @@ This is the per-symbol split the accepted main import derived once
 import-era runs of docs/tu-build.md "Data ownership"), made available to every
 new recovery.
 
-The declaration (`config/tu/data-carves.json`, schema `tu-data-carves/1`):
+The declaration (`config/objects/data-carves.json`, schema `tu-data-carves/1`):
 
     {"schema": "tu-data-carves/1",
      "tus": {"main/tu170": {".rodata": [
@@ -126,9 +126,12 @@ sys.path.insert(0, str(HERE))
 from elfinfo import Elf  # noqa: E402
 from toolchain import Toolchain, tu_assembler_options  # noqa: E402
 
-REGISTRY = 'config/tu/data-carves.json'
-CANONICAL_ROOT = Path('/home/pc/xenosaga1-port/xenosaga-i-decomp')
+# One registry (user decision 2026-10-31): the tracked config/objects file is
+# both what workers, review and publication write and what the build reads.
+# The former private config/tu/data-carves.json is retired.
 PUBLIC_REGISTRY = 'config/objects/data-carves.json'
+REGISTRY = PUBLIC_REGISTRY
+CANONICAL_ROOT = Path('/home/pc/xenosaga1-port/xenosaga-i-decomp')
 SCHEMA = 'tu-data-carves/1'
 # Sections a compiler fills with anonymous constants of a function: jump tables
 # and string/float/double literals (.rodata), gp-relative float literals (.lit4)
@@ -185,8 +188,7 @@ def registry_path(root):
 
 
 def registry_input_path(root):
-    private = registry_path(root)
-    return private if private.is_file() else Path(root) / PUBLIC_REGISTRY
+    return registry_path(root)
 
 
 def load_registry(root):
@@ -2578,7 +2580,7 @@ def missing_sidecar(obj, suffix):
             f'TU object the build compiled, build/c/<tu>.o or build/c/<tu>.raw.o under --unit-dir, '
             f'which the ccas_c rule writes with its <obj>.s and <obj>.i sidecars, together with '
             f'--source <the TU file that object was compiled from> and --root <the tree whose '
-            f'config/tu/data-carves.json is the starting request> (tools/worker.py '
+            f'config/objects/data-carves.json is the starting request> (tools/worker.py '
             f'tu_data_carve_sync passes exactly these)')
 
 
@@ -7115,7 +7117,7 @@ def main(argv=None):
         p.add_argument('--json-out', type=Path)
     sub.choices['derive'].add_argument(
         '--write', action='store_true',
-        help='record the derived runs as this TU\'s entry of ROOT/config/tu/data-carves.json '
+        help='record the derived runs as this TU\'s entry of ROOT/config/objects/data-carves.json '
              '(a private root: a worker sandbox or a test tree; publication is tools/tu_publish.py)')
     sub.choices['derive'].add_argument('--basis', help='JSON object recorded as the entry\'s basis')
     p = sub.add_parser('show')

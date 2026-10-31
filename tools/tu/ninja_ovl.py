@@ -476,7 +476,7 @@ def main():
     ap.add_argument("--bss-record", type=Path, default=None,
                     help="explicit evidence record for guarded overlay .bss/.sbss allocation")
     ap.add_argument("--carve-registry", type=Path, default=None,
-                    help="private TU data-carve registry (defaults to ROOT/config/tu/data-carves.json)")
+                    help="TU data-carve registry (defaults to ROOT/config/objects/data-carves.json)")
     ap.add_argument("--emit-scaffold-aliases", action="store_true",
                     help="refresh guarded scaffold aliases after compiling the C objects")
     a = ap.parse_args()
@@ -519,7 +519,7 @@ def main():
     if aligned != text:
         text = aligned
         ld.write_text(text)
-    # Declared C-owned data runs (config/tu/data-carves.json, tools/tu/data_carve.py):
+    # Declared C-owned data runs (config/objects/data-carves.json, tools/tu/data_carve.py):
     # a C TU's constants or initialized arrays cut out of its scaffold data piece and
     # placed from its object. An earlier carve is undone first; nothing declared
     # leaves splat's script unchanged.

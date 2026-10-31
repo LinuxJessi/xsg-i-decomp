@@ -29,34 +29,17 @@ PROFILE = Path(__file__).resolve().parents[1] / 'config/match-profile.json'
 NOSIBCALL = 'ee-gcc2_96-nosibcall'
 NOSIBCALL_FLAGS = [['-O2', '-G0', '-fno-optimize-sibling-calls'],
                    ['-O2', '-G8', '-fno-optimize-sibling-calls']]
-# Since the user decision of 2026-09-11 every GCC 2.96-family profile runs the lp7
-# cc1: the catalog cc1 with the R5900 short-loop padding bound raised from 5-d to
-# 7-d nops (reports/cc1-lengthen-loops-lp7.md). cpp0 and ee-gcc are unchanged.
-# Since the user decision of 2026-09-23 it is the fsv1 variant of lp7: clause 1 of
-# fixed_scalar_and_varying_struct_p treats a LO_SUM mem1 address as non-varying
-# (reports/cc1-fsv-clause1-losum.md). Since the same day's later decision it is fsv3:
-# the LO_SUM rule made symmetric plus the make_decl_rtl alias-set cave (reports/cc1-fsv3-alias.md).
-# Since the user decision of 2026-10-09 it is fsv4: compute_transp passes rtx_varies_p to
-# canon_true_dependence in gcse load-PRE transparency (reports/cc1-fsv4-gcse-transp.md).
-# Since the user decision of 2026-10-10 it is fsv5 (qisi): a QI->DI sign extension is
-# lb plus a separate in-place extendsidi2, never one extendqidi2_insn (reports/cc1-fsv5-qisi.md).
-# Since the user decision of 2026-10-27 ("no debería haber ninguna variante de cc1 más. Solo debería usarse el mismo cc1 en todos lados") the only EE cc1 is
-# ee-gcc2.96-realconv-lp7-fsv6-v2 (realconv + lp7 + fsv1..fsv6, reports/cc1-fsv6-legit-addr.md),
-# since the user decision of 2026-10-27 ("sí, adopta fsv7-v2 y reescribe MenuShopCore natural")
-# ee-gcc2.96-realconv-lp7-fsv7-v2 (+ fsv7-v2 SameG gcse transparency, reports/cc1-fsv7-transp-argreg.md),
-# since the user decision of 2026-10-28 ("Adaptamos fsv8")
-# ee-gcc2.96-realconv-lp7-fsv8-v1 (+ fsv8 NZ-init small-data alias sets, reports/cc1-fsv8-nzinit.md):
 # config/toolchains.json names it, and the profiles below are retired.
-GCC296_PAYLOAD = '.work/toolchains/ee-gcc2.96-realconv-lp7-fsv8-v1/bin'
+GCC296_PAYLOAD = '.work/toolchains/ee-gcc2.96-realconv-lp7-fsv12-v1/bin'
 GCC296_PAYLOAD_SHA256 = {
-    'cc1': '575db2bbef59132765136aa2525722501d717abe8381bf706645962af6c6188f',
+    'cc1': '58a63b84ed4385101b1135a71919a2516f2d6c61b80258b5917ccd47bc56b1f4',
     'cpp0': 'f6f6b598f39649edfe171d6da8c7f91d07f2b87c2aeeffffbc5f566bfb1a39a9',
     'ee-gcc': 'b8c284d16c9c0a0e8788e9522c46881e224ad01fa1c732aed43f821cc32f168b',
 }
 # Profiles retired by the user decision of 2026-10-27 (single cc1): each selected
 # another cc1 (GCC 2.9-ee-990721) or a cc1-only variant route; match() refuses them.
 RETIRED_PROFILES = ('ee-gcc2_9-990721', NOSIBCALL)
-RETIRED_REASON = "user 2026-10-27: single cc1 (\"no debería haber ninguna variante de cc1 más. Solo debería usarse el mismo cc1 en todos lados\"); the only EE cc1 is ee-gcc2.96-realconv-lp7-fsv8-v1 (cc1 sha 575db2bb...)"
+RETIRED_REASON = ""
 
 
 def require(ok, message):

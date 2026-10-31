@@ -82,7 +82,8 @@ typedef struct UwamonoCrossBasis {
     float zAxisX;
     unsigned char unmodeled_24[4];
     float zAxisZ;
-    unsigned char unmodeled_2c[0x14];
+    unsigned char unmodeled_2c[4];
+    Vector4 anchor;
 } UwamonoCrossBasis;
 
 typedef struct UwamonoMapUnit {
@@ -656,7 +657,11 @@ typedef union UwamonoCollisionPosition {
 typedef struct UwamonoCollisionUnit {
     unsigned char unmodeled_00[0x10];
     UwamonoCollisionPosition position;
-    unsigned char unmodeled_20[0x60];
+    float rotationX;                  /* +0x20 */
+    float rotationY;                  /* +0x24 */
+    float rotationZ;                  /* +0x28 */
+    unsigned char unmodeled_2c[0x14];
+    Matrix4 matrix;                   /* +0x40 */
     struct UwamonoCrossBasis *basis;
     unsigned char unmodeled_84[0x2c];
     UwamonoAlignedVector dimensions;
@@ -2732,7 +2737,112 @@ int HitCheckCorner(UwamonoCollisionActor *actor, UwamonoCollisionUnit *unit)
     return CheckDist2D(&actor->position, &corners[3]) < actor->radius * 1.5f;
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/init_uwamono_sys", HitCheckBoxTest);
+int HitCheckBoxTest(UwamonoCollisionActor *actor, UwamonoCollisionUnit *unit)
+{
+    UwamonoCrossBasis basisCopy;
+    const float (*basis)[4];
+    UwamonoAlignedVector dimensions;
+    UwamonoCollisionPosition center;
+    float nearestX;
+    float nearestY;
+    float nearestZ;
+    float dx;
+    float dy;
+    float dz;
+    float radiusSquared;
+    float distance;
+
+    basis = unit->basis;
+    basisCopy = *unit->basis;
+    dimensions = unit->dimensions;
+    if (PadData.half_28 & 0x20) {
+        unit->rotationY += 0.05f;
+        xglMatrixStackUnit();
+        xglMatrixStackTrans(&unit->position.value.x);
+        xglMatrixStackRotX(unit->rotationX);
+        xglMatrixStackRotY(unit->rotationY);
+        xglMatrixStackRotZ(unit->rotationZ);
+        xglMatrixStackSave(unit->matrix);
+    }
+    if (PadData.half_28 & 0x40) {
+        unit->rotationY -= 0.05f;
+        xglMatrixStackUnit();
+        xglMatrixStackTrans(&unit->position.value.x);
+        xglMatrixStackRotX(unit->rotationX);
+        xglMatrixStackRotY(unit->rotationY);
+        xglMatrixStackRotZ(unit->rotationZ);
+        xglMatrixStackSave(unit->matrix);
+    }
+
+    xglFontDebugPrintf(8, 0x80, D_004CA220,
+                       basis[0][0],
+                       basis[0][1],
+                       basis[0][2]);
+    xglFontDebugPrintf(8, 0x88, D_004CA220,
+                       basis[1][0],
+                       basis[1][1],
+                       basis[1][2]);
+    xglFontDebugPrintf(8, 0x90, D_004CA220,
+                       basis[2][0],
+                       basis[2][1],
+                       basis[2][2]);
+    xglFontDebugPrintf(8, 0x98, D_004CA230,
+                       basis[3][0],
+                       basis[3][1],
+                       basis[3][2]);
+
+    center = unit->position;
+    center.value.x = unit->position.value.x -
+               ((dimensions.value.x * basis[0][0] +
+                 dimensions.value.z * basis[2][0]) * 0.5f);
+    center.value.y = unit->position.value.y;
+    center.value.z = unit->position.value.z -
+               ((dimensions.value.x * basis[0][2] +
+                 dimensions.value.z * basis[2][2]) * 0.5f);
+    basisCopy.anchor.x = center.value.x;
+    basisCopy.anchor.y = center.value.y + 2.0f;
+    basisCopy.anchor.z = center.value.z;
+    basisCopy.anchor.x = unit->position.value.x + basis[0][0];
+    basisCopy.anchor.y = unit->position.value.y + 2.0f;
+    basisCopy.anchor.z = unit->position.value.z + basis[0][2];
+    basisCopy.anchor.x = unit->position.value.x + basis[2][0];
+    basisCopy.anchor.y = unit->position.value.y + 2.0f;
+    basisCopy.anchor.z = unit->position.value.z + basis[2][2];
+    nearestX = actor->position.x - center.value.x;
+    nearestY = actor->position.y - center.value.y;
+    nearestZ = actor->position.z - center.value.z;
+    distance = (nearestX * basis[0][0]) + (nearestY * basis[0][1]) + (nearestZ * basis[0][2]);
+    xglFontDebugPrintf(8, 0x3C, D_004DB6F0, distance);
+
+    if (distance < 0.0f) {
+        return 0;
+    }
+    if (unit->dimensions.value.x < distance) {
+        return 0;
+    }
+    nearestX = distance * basis[0][0] + center.value.x;
+    nearestY = distance * basis[0][1] + center.value.y;
+    nearestZ = distance * basis[0][2] + center.value.z;
+    xglFontDebugPrintf(8, 0x18, D_004DB6F8, nearestX);
+    xglFontDebugPrintf(8, 0x20, D_004DB700, nearestY);
+    xglFontDebugPrintf(8, 0x28, D_004DB708, nearestZ);
+
+    dx = actor->position.x - nearestX;
+    dy = actor->position.y - nearestY;
+    dz = actor->position.z - nearestZ;
+    radiusSquared = unit->dimensions.value.z * unit->dimensions.value.z;
+    distance = (dx * dx) + (dy * dy) + (dz * dz);
+    xglFontDebugPrintf(8, 0x54, D_004DB710, dx);
+    xglFontDebugPrintf(8, 0x5C, D_004DB718, dy);
+    xglFontDebugPrintf(8, 0x64, D_004DB720, dz);
+    xglFontDebugPrintf(8, 0x6C, D_004CA240,
+                       distance, radiusSquared);
+    if (distance < radiusSquared) {
+        xglFontDebugPrintf(8, 8, D_004CA250);
+    }
+
+    return 0;
+}
 
 int HitCheckNyuru(UwamonoNyuruAlignedActor *actor, UwamonoCollisionUnit *unit)
 {

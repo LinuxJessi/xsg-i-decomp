@@ -137,6 +137,14 @@ struct FontEffectScratchPacket {
     unsigned long long payload_count;
 };
 
+union FontScalePair {
+    struct {
+        unsigned short x;
+        unsigned short y;
+    } axis;
+    unsigned int both;
+};
+
 struct FontDrawCursor {
     XglPacket *packet;
     unsigned short origin_x;
@@ -262,7 +270,7 @@ unsigned int xglFontGetProportionalSize(int code);
 
 unsigned int xglFontAscii2Euc(signed char character, signed char **text);
 
-static void xglFontFlushCore(struct FontDrawCursor *cursor, const unsigned char *text);
+static void xglFontFlushCore(struct FontDrawCursor *cursor, unsigned char *text);
 
 extern unsigned char WindowImage[];
 
@@ -717,7 +725,173 @@ static void buffer_reset(void)
 
 extern void sceVif1PkAddDirectDataN(XglPacket *packet, const void *data, int size);
 
-INCLUDE_ASM("asm/main/nonmatchings/xgl_font", xglFontFlushSub);
+extern signed char tbl_1_004DC2A8[4][2];
+
+static void xglFontFlushSub(int texture_u, int texture_v, int size, int flags)
+{
+    struct FontDrawCursor *cursor = (struct FontDrawCursor *)0x70000000;
+    struct FontSpritePacket *sprite = (struct FontSpritePacket *)0x70000100;
+    int glyph_width = size >> 8;
+    unsigned int glyph_height = size & 0xff;
+    int texture_width;
+    int texture_height;
+    int draw_width;
+    int draw_height;
+    int effect_x;
+    int effect_y;
+    int cursor_x = (short)cursor->x;
+    int cursor_y = (short)cursor->y;
+    int offset_x = (short)cursor->offset_x;
+    int offset_y = (short)cursor->offset_y;
+    unsigned int left = ((offset_x + cursor_x) * 16) - 8;
+    unsigned int top = ((offset_y + cursor_y) * 16) - 9;
+
+    int attributes = flags & 15;
+    texture_width = glyph_width * 16;
+    texture_height = glyph_height * 16;
+    cursor->attributes = attributes;
+    if (!FS.state.debug_mode && (flags & 16)) {
+        draw_width = texture_width * 2;
+        draw_height = texture_height * 2;
+    } else {
+        draw_width = glyph_width * 16;
+        draw_height = glyph_height * 16;
+    }
+    draw_width = (draw_width * (short)cursor->scale_x) >> 4;
+    effect_x = cursor->effect_x * 16;
+    effect_y = cursor->effect_y * 16;
+    draw_height = (draw_height * (short)cursor->scale_y) >> 4;
+    cursor->x += draw_width / 16;
+    if ((FS.state.flags & 8) && (left > 0xf000U || top > 0xf000U)) {
+        return;
+    }
+    {
+        unsigned long long texture;
+
+        sprite->tag_low = 0x8001;
+        sprite->tag_high = 0x60ab4000;
+        sprite->registers_low = 0x535316;
+        sprite->registers_high = 0;
+        texture = (attributes & 2) ? 0x2a942bc00ULL : 0x2a942b820ULL;
+        sprite->texture = texture | ((!FS.state.debug_mode) ? 0x2000000400000000ULL : 0x2000000000000000ULL) |
+                   (((unsigned long long)((attributes & 1) + 0x3800)) << 37);
+        sprite->red = cursor->red;
+        sprite->green = cursor->green;
+        sprite->blue = cursor->blue;
+        sprite->alpha = cursor->alpha;
+        sprite->corners[0].texture_u_or_x = texture_u;
+        sprite->corners[0].texture_v_or_y = texture_v;
+        if (FS.state.horizontal_shift) {
+            unsigned int shifted_left = left + FS.state.horizontal_shift * 16;
+            int u_end = texture_u + texture_width;
+
+            sprite->corners[0].y = top;
+            sprite->corners[2].texture_u_or_x = texture_u;
+            sprite->corners[1].texture_v_or_y = texture_v;
+            sprite->tag_low = 0x8001;
+            sprite->tag_high = 0xa0aa4000;
+            sprite->registers_low = 0x53535316;
+            sprite->registers_high = 0x53;
+            sprite->corners[0].x = shifted_left;
+            sprite->corners[0].depth = cursor->depth;
+            sprite->corners[0].depth_upper = 0;
+            sprite->corners[1].y = top;
+            sprite->corners[1].x = shifted_left + draw_width;
+            sprite->corners[1].texture_u_or_x = u_end;
+            sprite->corners[1].depth = cursor->depth;
+            sprite->corners[1].depth_upper = 0;
+            sprite->corners[2].x = left;
+            sprite->corners[2].texture_v_or_y = texture_v + texture_height;
+            sprite->corners[2].y = top + draw_height;
+            sprite->corners[2].depth = cursor->depth;
+            sprite->corners[2].depth_upper = 0;
+            sprite->corners[3].texture_u_or_x = u_end;
+            sprite->corners[3].texture_v_or_y = texture_v + texture_height;
+            sprite->corners[3].x = left + draw_width;
+            sprite->corners[3].y = top + draw_height;
+            sprite->corners[3].depth = cursor->depth;
+            sprite->corners[3].depth_upper = 0;
+            sceVif1PkAddDirectDataN(cursor->packet, sprite, 11);
+            return;
+        }
+        sprite->corners[0].x = left;
+        sprite->corners[0].y = top;
+        sprite->corners[0].depth = cursor->depth;
+        sprite->corners[0].depth_upper = 0;
+        sprite->corners[1].texture_u_or_x = texture_u + texture_width;
+        sprite->corners[1].texture_v_or_y = texture_v + texture_height;
+        sprite->corners[1].x = left + draw_width;
+        sprite->corners[1].y = top + draw_height;
+        sprite->corners[1].depth = cursor->depth;
+        sprite->corners[1].depth_upper = 0;
+        sceVif1PkAddDirectDataN(cursor->packet, sprite, 7);
+        sprite->corners[0].depth--;
+        sprite->corners[1].depth--;
+        if (cursor->effect == 4) {
+            unsigned int old_left = sprite->corners[0].x;
+            unsigned int old_right = sprite->corners[1].x;
+            unsigned int old_top = sprite->corners[0].y;
+            unsigned int old_bottom = sprite->corners[1].y;
+
+            sprite->corners[0].x = old_left + 16;
+            sprite->corners[2].texture_v_or_y = old_top;
+            sprite->corners[2].backup_x = old_right;
+            sprite->corners[2].backup_y = old_bottom;
+            sprite->corners[0].y = old_top;
+            sprite->corners[1].y = old_bottom;
+            sprite->corners[1].x = old_right + 16;
+            sprite->corners[2].texture_u_or_x = old_left;
+            sceVif1PkAddDirectDataN(cursor->packet, sprite, 7);
+            sprite->corners[0].x = sprite->corners[2].texture_u_or_x;
+            sprite->corners[0].y = sprite->corners[2].texture_v_or_y + 16;
+            sprite->corners[1].x = sprite->corners[2].backup_x;
+            sprite->corners[1].y = sprite->corners[2].backup_y + 16;
+            sceVif1PkAddDirectDataN(cursor->packet, sprite, 7);
+        } else if (cursor->effect >= 2) {
+            unsigned char effect_red = cursor->effect_red;
+            unsigned char effect_green = cursor->effect_green;
+            unsigned char effect_blue = cursor->effect_blue;
+            unsigned int old_left = sprite->corners[0].x;
+            unsigned int old_top = sprite->corners[0].y;
+            unsigned int old_right = sprite->corners[1].x;
+            unsigned int old_bottom = sprite->corners[1].y;
+
+            sprite->red = effect_red;
+            sprite->green = effect_green;
+            sprite->blue = effect_blue;
+            sprite->corners[2].texture_u_or_x = old_left;
+            sprite->corners[2].texture_v_or_y = old_top;
+            sprite->corners[2].backup_x = old_right;
+            sprite->corners[2].backup_y = old_bottom;
+            if (cursor->effect == 2) {
+                sprite->corners[0].x = old_left + effect_x;
+                sprite->corners[0].y = old_top + effect_y;
+                sprite->corners[1].x = old_right + effect_x;
+                sprite->corners[1].y = old_bottom + effect_y;
+                sceVif1PkAddDirectDataN(cursor->packet, sprite, 7);
+            } else {
+                int row;
+                int column;
+                int direction;
+
+                for (row = 16; row <= effect_y; row += 16) {
+                    for (column = 16; column <= effect_x; column += 16) {
+                        for (direction = 0; direction < 4; direction++) {
+                            int offset_x = tbl_1_004DC2A8[direction][0] * column;
+                            int offset_y = tbl_1_004DC2A8[direction][1] * row;
+
+                            sprite->corners[0].x = sprite->corners[2].texture_u_or_x + offset_x;
+                            sprite->corners[0].y = sprite->corners[2].texture_v_or_y + offset_y;
+                            sprite->corners[1].x = sprite->corners[2].backup_x + offset_x;
+                            sprite->corners[1].y = sprite->corners[2].backup_y + offset_y;
+                            sceVif1PkAddDirectDataN(cursor->packet, sprite, 7);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
 static void xglFontFlushSubHex(int digit)
 {
@@ -739,7 +913,451 @@ static void xglFontFlushSubCRLF(void)
 }
 
 
-INCLUDE_ASM("asm/main/nonmatchings/xgl_font", xglFontFlushCore);
+struct FontLiteralHexCommand {
+    unsigned char opcode;
+    unsigned char digit_index;
+    unsigned char value_high;
+    unsigned char value_mid_high;
+    unsigned char value_mid_low;
+    unsigned char value_low;
+};
+
+
+struct FontPrimitiveStatePacket {
+    unsigned int tag_low, tag_high;
+    unsigned int register_low, register_high;
+    unsigned int primitive_flags, primitive_mode;
+    unsigned int register_address, register_address_high;
+};
+
+/* The native SDK returns the previous writer and advances it by words * 4. */
+extern void *sceVif1PkReserve(XglPacket *packet, int words);
+extern unsigned char normal_2[], back0_3[], back1_4[], biliner_6[], nearest_5[];
+static const unsigned char D_004D2350[96];
+
+struct FontRealDigits {
+    signed char value[16];
+};
+
+static void xglFontFlushCore(struct FontDrawCursor *cursor, unsigned char *text)
+{
+    struct FontRealDigits real_digits;
+    signed char integer_digits[32];
+    unsigned char kana[96];
+
+    while (*text != 0) {
+        unsigned char opcode = *text;
+        switch (opcode) {
+        case 1: case 2: case 3: {
+            unsigned int position_high = (unsigned char)text[0];
+            unsigned int position_low = (unsigned char)text[1];
+            int position;
+            text += 2;
+            position = position_low + (position_high << 8) - 0x100;
+            cursor->x = position;
+            cursor->origin_x = position;
+            break;
+        }
+        case 4: case 5: {
+            unsigned int position_high = (unsigned char)text[0];
+            unsigned int position_low = (unsigned char)text[1];
+            int position;
+            text += 2;
+            position = position_low + (position_high << 8) - 0x400;
+            cursor->y = position;
+            break;
+        }
+        case 6: {
+            int depth = ((unsigned char)text[1] << 16) + ((unsigned char)text[2] << 8) + (unsigned char)text[3];
+            text += 4;
+            cursor->depth = depth;
+            break;
+        }
+        case 7:
+            text++;
+            break;
+        case 8: {
+            unsigned char flags = text[1];
+            text += 2;
+            if (flags & 1) {
+                cursor->x = (unsigned char)text[1] + ((unsigned char)text[0] << 8);
+                if (!(flags & 0x80)) cursor->origin_x = cursor->x;
+                text += 2;
+            }
+            if (flags & 2) {
+                cursor->y = (unsigned char)text[1] + ((unsigned char)text[0] << 8);
+                text += 2;
+            }
+            if (flags & 4) {
+                cursor->depth = ((unsigned char)text[0] << 16) + ((unsigned char)text[1] << 8) + (unsigned char)text[2];
+                text += 3;
+            }
+            if (flags & 8) {
+                cursor->x += (unsigned char)text[1] + ((unsigned char)text[0] << 8);
+                if (!(flags & 0x80)) cursor->origin_x = cursor->x;
+                text += 2;
+            }
+            if (flags & 16) {
+                cursor->y += (unsigned char)text[1] + ((unsigned char)text[0] << 8);
+                text += 2;
+            }
+            break;
+        }
+        case 9:
+            cursor->x = (cursor->x + 64) & 0xffc0;
+            text++;
+            break;
+        case 10:
+            xglFontFlushSubCRLF();
+            text++;
+            break;
+        case 11:
+            cursor->effect = 1;
+            cursor->red = cursor->green = cursor->blue = 0x80;
+            cursor->primitive_flags = 0;
+            cursor->scale_x = 16;
+            cursor->alpha = 0x80;
+            cursor->scale_y = 16;
+            cursor->flags &= 0xf8;
+            if (!FS.state.debug_mode) sceVif1PkAddDirectDataN(cursor->packet, normal_2, 4);
+            FS.state.default_width = 4;
+            FS.state.character_spacing = 0;
+            text++;
+            break;
+        case 12:
+            cursor->red = text[1]; cursor->green = text[2]; cursor->blue = text[3];
+            text += 4;
+            break;
+        case 13: {
+            cursor->effect = text[1];
+            switch (cursor->effect) {
+            case 0:
+            case 2:
+            case 3:
+            case 4:
+                sceVif1PkAddDirectDataN(cursor->packet, back0_3, 2);
+                break;
+            case 1:
+            default:
+                sceVif1PkAddDirectDataN(cursor->packet, back1_4, 2);
+                break;
+            }
+            text += 2;
+            break;
+        }
+        case 14:
+            cursor->effect_x = text[1]; cursor->effect_y = text[2];
+            cursor->effect_red = text[3]; cursor->effect_green = text[4]; cursor->effect_blue = text[5];
+            text += 6;
+            break;
+        case 15: {
+            struct FontPrimitiveStatePacket *packet;
+            cursor->primitive_flags = text[1]; cursor->primitive_mode = text[2]; cursor->alpha = text[3];
+            packet = sceVif1PkReserve(cursor->packet, 8);
+            packet->tag_low = 0x8001; packet->tag_high = 0x10000000;
+            packet->register_low = 14; packet->register_high = 0;
+            packet->primitive_flags = cursor->primitive_flags;
+            packet->primitive_mode = cursor->primitive_mode;
+            packet->register_address = 0x42; packet->register_address_high = 0;
+            text += 4;
+            break;
+        }
+        case 16: {
+            const struct FontLiteralHexCommand *command =
+                (const struct FontLiteralHexCommand *)text;
+            unsigned int value = ((unsigned int)command->value_high << 24) +
+                ((unsigned int)command->value_mid_high << 16) +
+                ((unsigned int)command->value_mid_low << 8) + command->value_low;
+            int digit = command->digit_index;
+            while (digit >= 0) {
+                xglFontFlushSubHex((value >> (digit * 4)) & 15);
+                digit--;
+            }
+            text += sizeof(*command);
+            break;
+        }
+        case 17: {
+            const struct FontNumericCommand *command =
+                (const struct FontNumericCommand *)text;
+            if (command->radix == 255) {
+                unsigned int mid_high = (unsigned int)command->value_mid_high << 16;
+                unsigned int high = (unsigned int)command->value_high << 24;
+                unsigned int mid = ((unsigned int)command->value_mid_low << 8) + mid_high;
+                unsigned int bits = high + command->value_low + mid;
+                unsigned int mantissa = (bits & 0x7fffff) + 0x800000;
+                unsigned int shift = 150 - ((bits >> 23) & 255);
+                long long integer;
+                unsigned long long mask;
+                unsigned long long fraction;
+                int digit;
+                int printed;
+                int remaining;
+                signed char *fraction_digit;
+
+                if ((int)bits < 0)
+                    xglFontFlushSubHex(16);
+                else
+                    xglFontFlushSubHex(32);
+                if (shift >= 32) {
+                    integer = 0;
+                    mask = (0x100000000ULL << (shift - 32)) - 1;
+                } else {
+                    integer = mantissa >> shift;
+                    mask = (int)((1U << shift) - 1);
+                }
+                fraction = mantissa & mask;
+                for (digit = 7; digit >= 0; digit--) {
+                    real_digits.value[digit] = integer % 10;
+                    integer /= 10;
+                    fraction *= 10;
+                    if (shift >= 32)
+                        real_digits.value[digit + 8] = ((long long)fraction >> 32) >> (shift - 32);
+                    else
+                        real_digits.value[digit + 8] = (long long)fraction >> shift;
+                    fraction &= mask;
+                }
+                printed = 0;
+                for (digit = 0; digit < 7; digit++) {
+                    if (real_digits.value[digit] || printed) {
+                        printed++;
+                        xglFontFlushSubHex(real_digits.value[digit]);
+                    }
+                }
+                xglFontFlushSubHex(real_digits.value[7]);
+                xglFontFlushSubHex(17);
+                printed += 2;
+                remaining = 7;
+                for (; remaining >= 0 && printed < 9; remaining--) {
+                    printed++;
+                    xglFontFlushSubHex(real_digits.value[remaining + 8]);
+                }
+            } else {
+                int suppress_zero = 0;
+                int radix = command->radix;
+                int digit = command->digits_minus_one;
+                unsigned int value = ((unsigned int)command->value_high << 24) +
+                    ((unsigned int)command->value_mid_high << 16) +
+                    ((unsigned int)command->value_mid_low << 8) + command->value_low;
+                if (radix == 10) {
+                    suppress_zero = 1;
+                    if ((int)value < 0) { value = -value; suppress_zero = 2; }
+                }
+                integer_digits[digit + 1] = -1;
+                while (digit >= 0) {
+                    integer_digits[digit] = value % radix;
+                    value /= radix;
+                    digit--;
+                }
+                for (digit = 0; integer_digits[digit] >= 0; digit++) {
+                    if (suppress_zero && !integer_digits[digit] && integer_digits[digit + 1] >= 0) {
+                        if (suppress_zero == 2 && integer_digits[digit + 1] > 0) xglFontFlushSubHex(16);
+                        else xglFontFlushSubHex(32);
+                    } else {
+                        xglFontFlushSubHex(integer_digits[digit]);
+                        suppress_zero = 0;
+                    }
+                }
+            }
+            text += sizeof(*command);
+            break;
+        }
+        case 18:
+            cursor->scale_x = (unsigned char)text[1]; cursor->scale_y = (unsigned char)text[2];
+            if (((union FontScalePair *)&cursor->scale_x)->both == 0x100010)
+                sceVif1PkAddDirectDataN(cursor->packet, nearest_5, 2);
+            else sceVif1PkAddDirectDataN(cursor->packet, biliner_6, 2);
+            text += 3;
+            break;
+        case 19: {
+            struct FontEffectScratchPacket *packet = (struct FontEffectScratchPacket *)
+                (((unsigned int)&cursor->effect_packet + 15) & ~15);
+            long long horizontal_mode;
+            long long horizontal_mask;
+            long long vertical_mask;
+            long long vertical_mode;
+            long long horizontal_random;
+            long long vertical_random;
+            packet->vif_tag = 0x1000000000008001ULL;
+            packet->vif_count = 14;
+            if (!(unsigned char)text[1]) {
+                horizontal_mode = 1; horizontal_mask = horizontal_random = 0;
+            } else {
+                unsigned long long mask_byte = text[1];
+                horizontal_mode = 3; horizontal_mask = mask_byte ^ 0x3ff;
+                if (mask_byte & 0x80) {
+                    unsigned short random = xglSRand();
+                    horizontal_random = (unsigned char)text[1] & random;
+                } else {
+                    horizontal_random = 0;
+                }
+            }
+            if (!(unsigned char)text[2]) {
+                vertical_mode = 1; vertical_mask = vertical_random = 0;
+            } else {
+                vertical_mode = 3; vertical_mask = (unsigned char)text[1] ^ 0x3ff;
+                if (text[2] & 0x80) {
+                    unsigned short random = xglSRand();
+                    vertical_random = (unsigned char)text[1] & random;
+                } else {
+                    vertical_random = 0;
+                }
+            }
+            packet->payload_count = 8;
+            packet->effect_state = horizontal_mode | (vertical_mode << 2) | (horizontal_mask << 4) |
+                (horizontal_random << 14) | (vertical_mask << 24) | (vertical_random << 34);
+            sceVif1PkAddDirectDataN(cursor->packet, packet, 2);
+            text += 3;
+            break;
+        }
+        case 21: {
+            const unsigned char *payload = text + 2;
+            int length = text[1];
+            text += length + 2;
+            switch (payload[0]) {
+            case 1: if (length == 2) FS.state.line_height = payload[1]; break;
+            case 2: if (length == 2) FS.state.default_width = payload[1]; break;
+            case 3: if (length == 3) FS.state.character_spacing = (payload[1] << 8) + payload[2]; break;
+            case 4: if (length == 2) FS.state.proportional_mode = payload[1]; break;
+            case 5: if (length == 2) FS.state.horizontal_shift = payload[1]; break;
+            }
+            break;
+        }
+        case 23: {
+            const struct FontExtCommand *command =
+                (const struct FontExtCommand *)text;
+            void (*callback)(struct FontDrawCursor *, int) = (void (*)(struct FontDrawCursor *, int))
+                (((unsigned int)command->function_high << 16) +
+                 ((unsigned int)command->function_middle << 8) +
+                 command->function_low);
+            int argument = ((unsigned int)command->argument_high << 24) +
+                ((unsigned int)command->argument_mid_high << 16) +
+                ((unsigned int)command->argument_mid_low << 8) +
+                command->argument_low;
+            text += 8;
+            cursor->flags &= 0xbf;
+            callback(cursor, argument);
+            break;
+        }
+        case 24: {
+            unsigned char flags = cursor->flags & 0xfe;
+            unsigned char enable = text[1];
+            text += 2;
+            if (enable) flags |= 1;
+            cursor->flags = flags;
+            break;
+        }
+        case 25: {
+            unsigned char bits = text[1];
+            unsigned char flags = cursor->flags & 0xf9;
+            text += 2;
+            if (bits & 1) flags |= 2;
+            if (bits & 2) flags |= 4;
+            cursor->flags = flags;
+            break;
+        }
+        case 27: {
+            signed char character = text[1];
+            if (character < 64) xglFontFlushSub((character & 63) << 7, 0x2f00, 0x808, 0x13);
+            else xglFontFlushSub((character & 63) << 7, 0x2f80, 0x808, 0x13);
+            text += 2;
+            break;
+        }
+        case 20: case 22: case 26:
+        case 28: case 29: case 30: case 31:
+            break;
+        default: {
+            signed char sign;
+            if ((short)FS.state.character_spacing > 0 && opcode == 32 &&
+                (short)cursor->x - (short)cursor->origin_x + xglFontGetStringWidth2((const char *)text, 1) > (short)FS.state.character_spacing) {
+                xglFontFlushSubCRLF();
+            } else if ((sign = *text) >= 0 && !(cursor->flags & 4)) {
+                if (sign < 64) xglFontFlushSub((sign & 63) << 7, 0x2f00, 0x808, 0x13);
+                else xglFontFlushSub((sign & 63) << 7, 0x2f80, 0x808, 0x13);
+            } else {
+                if ((unsigned char)(*text + 128) < 32) {
+                    xglFontFlushSub(0x1f80, 0x2f80, 0x808, 0x13);
+                } else {
+                    unsigned char high;
+                    unsigned int low;
+                    int character;
+                    if ((signed char)*text >= 0) {
+                        unsigned int euc = xglFontAscii2Euc((signed char)*text, (signed char **)&text);
+                        character = euc;
+                        high = (euc >> 8) & 255; low = euc & 255;
+                    } else {
+                        high = *text++;
+                        low = *text;
+                        character = ((high << 8) + low) & 0xffff;
+                    }
+                    if ((cursor->flags & 1) &&
+                        ((unsigned char)(high + 0x5d) < 3 || character == 0xa1a6 || character == 0xa1bc || character == 0xa1dd)) {
+                        if (character == 0xa1a6 || character == 0xa1bc || character == 0xa1dd) {
+                            switch (character) {
+                            case 0xa1a6:
+                                xglFontFlushSub(0x280, 0x2e80, 0x808, 3);
+                                break;
+                            case 0xa1bc:
+                            case 0xa1dd:
+                                xglFontFlushSub(0x800, 0x2e80, 0x808, 3);
+                                break;
+                            }
+                        } else {
+                            switch ((int)high) {
+                            case 0xa3:
+                                if (low < 0xc0) xglFontFlushSub((low & 63) << 7, 0x2f00, 0x808, 3);
+                                else xglFontFlushSub((low & 63) << 7, 0x2f80, 0x808, 3);
+                                break;
+                            case 0xa4:
+                            case 0xa5: {
+                                __builtin_memcpy(kana, D_004D2350, sizeof(kana));
+                                low = kana[low - 0xa0];
+                                xglFontFlushSub((low & 63) << 7, (0x101 - high) << 7, 0x808, 3);
+                                if (low & 64) xglFontFlushSub((low & 128) + 0x1f00, 0x2e80, 0x808, 3);
+                                break;
+                            }
+                            }
+                        }
+                    } else {
+                        int proportional = xglFontCheckProportional(high, low);
+                        if ((cursor->flags & 2) && proportional >= 0) {
+                            unsigned int bounds = xglFontGetProportionalSize(proportional);
+                            int row = proportional >> 5;
+                            unsigned int left = bounds & 255;
+                            unsigned int right = (bounds >> 8) & 255;
+                            if (row >= 2) row = 1 - row;
+                            xglFontFlushSub(((proportional & 31) * 20 + left) * 16, row * 384 + 0x2a00,
+                                (right - left) * 256 + 0x118, 3);
+                        } else {
+                            unsigned int glyph = (low + high * 94 - 0xa1) & 0xffff;
+                            if (high < 0xa7) glyph = (glyph + 0xc4e2) & 0xffff;
+                            else if (high < 0xad) glyph = (glyph + 0xc4be) & 0xffff;
+                            else if (high < 0xb0) glyph = (glyph + 0xc30c) & 0xffff;
+                            else if (high < 0xd0) glyph = (glyph + 0xc250) & 0xffff;
+                            else glyph = (glyph + 0xc240) & 0xffff;
+                            low = glyph & 31;
+                            high = (glyph >> 5) & 255;
+                            xglFontFlushSub(low * 320, (high & 31) * 384, 0x1418, high >> 5);
+                        }
+                    }
+                }
+            }
+            text++;
+            break;
+        }
+        }
+    }
+}
+
+static const unsigned char D_004D2350[96] = {
+    0x00, 0x07, 0x11, 0x08, 0x12, 0x09, 0x13, 0x0A, 0x14, 0x0B, 0x15, 0x16,
+    0x56, 0x17, 0x57, 0x18, 0x58, 0x19, 0x59, 0x1A, 0x5A, 0x1B, 0x5B, 0x1C,
+    0x5C, 0x1D, 0x5D, 0x1E, 0x5E, 0x1F, 0x5F, 0x20, 0x60, 0x21, 0x61, 0x0F,
+    0x22, 0x62, 0x23, 0x63, 0x24, 0x64, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2A,
+    0x6A, 0xEA, 0x2B, 0x6B, 0xEB, 0x2C, 0x6C, 0xEC, 0x2D, 0x6D, 0xED, 0x2E,
+    0x6E, 0xEE, 0x2F, 0x30, 0x31, 0x32, 0x33, 0x0C, 0x34, 0x0D, 0x35, 0x0E,
+    0x36, 0x37, 0x38, 0x39, 0x3A, 0x3B, 0x00, 0x3C, 0x00, 0x00, 0x06, 0x3D,
+    0x53, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+};
 
 int xglFontCheckProportional(unsigned char row, int column)
 {

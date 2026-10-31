@@ -240,7 +240,7 @@ def main(argv=None):
     registry_path = a.carve_registry.resolve() if a.carve_registry else data_carve.registry_input_path(ROOT)
     registry = json.loads(registry_path.read_bytes())
     base_manifest = json.loads((unit_dir / "tu-manifest.json").read_bytes())
-    # Declared C-owned data runs (config/tu/data-carves.json, tools/tu/data_carve.py):
+    # Declared C-owned data runs (config/objects/data-carves.json, tools/tu/data_carve.py):
     # the jump tables and literals recovered C functions generate, cut out of their
     # TU's scaffold piece. Nothing declared: `m` is the tracked manifest unchanged.
     m, carve_report = data_carve.apply_main(ROOT, unit_dir, base_manifest, registry=registry)

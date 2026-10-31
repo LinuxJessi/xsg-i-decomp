@@ -375,7 +375,7 @@ extern XglTaskScheduler *FileTask;
 
 extern unsigned char *FileCardDataBuf;
 
-extern void *FileExistCheckWork;
+extern unsigned char *FileExistCheckWork;
 
 extern unsigned char D_004C4D80[];
 
@@ -448,7 +448,7 @@ static void VersionChange00To01(SaveDataVersions *save_data)
     VersionUpDate(&save_data->header);
 }
 
-void FileVersionCheck(void)
+void FileVersionCheck(SaveDataHeader *save_data)
 {
 }
 
@@ -717,7 +717,7 @@ int FileObjectAllLoad(void)
 
             work->hdd_result = 0;
             if (!work->use_hdd) {
-                unsigned short *card_status = work->card_status;
+                unsigned short *card_status = work->card.status;
 
                 if (card_status[work->card_number] != 1) {
                     work->hdd_result = -1;
@@ -756,7 +756,7 @@ int FileObjectAllLoad(void)
             *load_state = 6;
         } else {
             card_request.slot = *load_index;
-            card_request.buffer = FileSaveData;
+            card_request.buffer = (int)FileSaveData;
             card_request.size = sizeof(*FileSaveData);
             memset(FileSaveData, 0, sizeof(*FileSaveData));
             xglMcRequest(FileWork->card_number, 4, &card_request,
@@ -777,7 +777,7 @@ int FileObjectAllLoad(void)
             }
         } else {
             FileWorkBlock *work = FileWork;
-            unsigned short *card_status = work->card_status;
+            unsigned short *card_status = work->card.status;
             int status = card_status[work->card_number];
 
             if (status != 1) {
@@ -1051,7 +1051,7 @@ static void MenuFileInfo(TskObject *task, void *data)
             switch (FileWork->device_selection) {
             case 0:
             case 1: {
-                unsigned short *card_statuses = FileWork->card_status;
+                unsigned short *card_statuses = FileWork->card.status;
 
                 switch (card_statuses[FileWork->device_selection]) {
                 case 0:
@@ -1357,7 +1357,7 @@ static void tskFileSelect(TskObject *task, void *data)
     void ListColorChage(void)
     {
         for (i = 0; i < 2; ++i) {
-            unsigned short *card_statuses = FileWork->card_status;
+            unsigned short *card_statuses = FileWork->card.status;
             int card_status = card_statuses[i];
             switch (card_status) {
             case 0:
@@ -2014,7 +2014,1174 @@ static void tskFileData(TskObject *task, void *data)
     }
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/file", MenuFile);
+/* Defining-owner interface proposals from xgl_hdd. */
+struct HddCheckState {
+    int status;
+    unsigned char *transfer;
+    int dataSize;
+};
+
+struct HddExistRequest {
+    int card;
+    unsigned char *found;
+};
+
+struct HddLoadRequest {
+    int card;
+    void *data;
+    int size;
+};
+
+struct HddSaveRequest {
+    int card;
+    const void *data;
+    int size;
+};
+
+extern int xglMcMain(void);
+extern int xglHddCheck(void);
+extern int xglHddMcGetFree(void);
+extern int xglHddMcExist(struct HddExistRequest *request);
+extern int xglHddMcCreate(struct HddCheckState *request);
+extern int xglHddMcLoad(struct HddLoadRequest *request);
+extern int xglHddMcSave(const struct HddSaveRequest *request);
+extern int MenuSelectMove(int selection, int count, int wrap);
+extern void xglFontDebugHex(int x, int y, int value, int digits);
+extern void xglFontDebugPrintf(int x, int y, const char *format, ...);
+/*
+ * PadData as MenuFile reads it: a TU-local view of the 0xd0-byte pad object
+ * (src/main/input.c lists the other views). held/pressed keep the PadPrefix
+ * names at +0x28/+0x2a; the panel cursor tests 0x1000/0x4000 in the +0x30
+ * halfword, and mappedRepeat is the +0x34 halfword of PadPrefix.
+ */
+typedef struct FileMenuPadData {
+    unsigned char unmodeled_00[0x28];
+    u16 half_28;
+    u16 half_2a;
+    u16 half_2c;
+    u16 half_2e;
+    u16 half_30;
+    u16 mappedPressed;
+    u16 mappedRepeat;
+} FileMenuPadData;
+
+extern FileMenuPadData PadData;
+/* The card number as MenuFile reads it before the create request: through a
+   one-member union, so the load is not ordered after the gauge stores. */
+typedef union FileCardNumber {
+    int number;
+} FileCardNumber;
+extern const char D_004DAA80[];
+extern const char D_004DAA88[];
+extern const char D_004DAA90[];
+
+void MenuFile(void) {
+    unsigned char delay;
+    unsigned char state;
+    int card_status;
+    union FileCardStatus *card;
+    McRequestArguments card_request;
+    union {
+        struct HddExistRequest exist;
+        struct HddCheckState create;
+        struct HddLoadRequest load;
+        struct HddSaveRequest save;
+    } hdd_request;
+
+    if (FileWork->state != FileWork->command) {
+        FileWork->state = FileWork->command;
+        FileWork->input_flags |= 1;
+    } else {
+        FileWork->input_flags &= 0xfe;
+    }
+    FileWork->card.word = xglMcMain();
+    delay = FileWork->dispatch_delay;
+    if (delay != 0) {
+        FileWork->dispatch_delay = delay - 1;
+        return;
+    }
+    state = FileWork->state;
+    switch (state) {
+    case 0x24: {
+        signed char selection;
+        unsigned char input_flags = FileWork->input_flags;
+        if (input_flags & 1) {
+            if (FileWork->use_hdd) {
+                FileWork->device_selection = 2;
+            } else {
+                FileWork->device_selection = FileWork->card_number;
+            }
+            FileWork->hdd_status = (unsigned short) xglHddCheck();
+            FileWork->dispatch_delay = 12;
+            FileWork->hide_selection = 0;
+            break;
+        }
+        else if (input_flags & 2) {
+            break;
+        } else {
+            FileWork->device_selection = MenuSelectMove(FileWork->device_selection, 3, 0);
+            if (PadData.half_2a & 0x20) {
+                selection = FileWork->device_selection;
+                switch (selection) {
+                    case 0:
+                    case 1:
+                        FileWork->use_hdd = 0;
+                        FileWork->card_number = FileWork->device_selection;
+                        card = &FileWork->card;
+                        card_status = card->status[FileWork->card_number];
+                        switch (card_status) {
+                        case 0:
+                        case 0x81:
+                        case 0x82:
+                            xglSoundEffectNormalID(5, 0);
+                            break;
+                        case 2:
+                            if (FileWork->text_index == 0) {
+                                FileWork->command = 0x80;
+                            } else {
+                                FileWork->command = 0xb8;
+                            }
+                            xglSoundEffectNormalID(5, 0);
+                            break;
+                        case 0xff:
+                            break;
+                        default:
+                            FileWork->command = 0x25;
+                            xglSoundEffectNormalID(1, 0);
+                            break;
+                        }
+                        break;
+                    case 2:
+                        xglSoundEffectNormalID(2, 0);
+                        FileWork->command = 0xf0;
+                        if (FileWork->text_index == 1) {
+                            FileWork->result = 1;
+                        }
+                        break;
+                    default:
+                        break;
+                }
+            }
+            if (PadData.half_2a & 0x40) {
+                FileWork->command = 0xf0;
+                xglSoundEffectNormalID(2, 0);
+                if (FileWork->text_index == 1) {
+                    FileWork->result = 1;
+                }
+            }
+        }
+        break;
+    }
+    case 0x25:
+    {
+        int hdd_slot;
+        int card_slot;
+        if (FileWork->input_flags & 1) {
+            if (FileWork->use_hdd) {
+                FileWork->dispatch_delay = 12;
+                FileWork->available_blocks = xglHddMcGetFree();
+            } else {
+                xglMcRequest(FileWork->card_number, 1, 0,
+                             &FileWork->available_blocks);
+                card_request.slot = -1;
+                card_request.buffer = (int)FileExistCheckWork;
+                xglMcRequest(FileWork->card_number, 2, &card_request,
+                             &FileWork->directory_result);
+                FileWork->menu_substate = 0;
+            }
+        } else if (FileWork->use_hdd) {
+            if (FileWork->available_blocks < 0) {
+                if (FileWork->text_index == 0) {
+                    switch (FileWork->available_blocks) {
+                    case -1:
+                        FileWork->command = 0x92;
+                        break;
+                    case -2:
+                        FileWork->command = 0x95;
+                        break;
+                    case -3:
+                        FileWork->command = 0x94;
+                        break;
+                    case -4:
+                        FileWork->command = 0x96;
+                        break;
+                    }
+                } else {
+                    switch (FileWork->available_blocks) {
+                    case -1:
+                        FileWork->command = 0x92;
+                        break;
+                    case -2:
+                    case -3:
+                    case -4:
+                        FileWork->command = 0xb8;
+                        break;
+                    }
+                }
+                xglSoundEffectNormalID(5, 0);
+                FileWork->dispatch_delay = 16;
+                break;
+            }
+            hdd_request.exist.card = -1;
+            hdd_request.exist.found = FileExistCheckWork;
+            FileWork->directory_result = xglHddMcExist(&hdd_request.exist);
+            if (FileWork->directory_result == 0) {
+                if (FileWork->text_index == 0) {
+                if (FileWork->available_blocks < 225) {
+                    FileWork->command = 0xb0;
+                    xglSoundEffectNormalID(5, 0);
+                } else {
+                    for (hdd_slot = 0; hdd_slot < 99; hdd_slot++) {
+                        if (FileWork->available_blocks >= 225) {
+                            FileObjectDataSystem->state[hdd_slot] = 2;
+                            FileWork->available_blocks -= 225;
+                        } else {
+                            FileObjectDataSystem->state[hdd_slot] = 3;
+                        }
+                    }
+                    FileExistCheckWork[100] = 0;
+                    FileWork->command = 0x27;
+                }
+                } else {
+                    FileWork->command = 0xb8;
+                    xglSoundEffectNormalID(5, 0);
+                }
+            } else if (FileWork->directory_result < 0) {
+                xglSoundEffectNormalID(5, 0);
+                FileWork->command = 0x92;
+            } else {
+                FileWork->selected_slot = 0;
+                FileWork->slot_count = 99;
+                if (FileWork->directory_result == 0 &&
+                    FileWork->available_blocks < 225) {
+                    if (FileWork->text_index == 0) {
+                        FileWork->command = 0xb0;
+                    } else {
+                        FileWork->command = 0xb8;
+                    }
+                    xglSoundEffectNormalID(5, 0);
+                    break;
+                }
+                for (hdd_slot = 0; hdd_slot < 99; hdd_slot++) {
+                    if (FileExistCheckWork[hdd_slot] != 0) {
+                        FileObjectDataSystem->state[hdd_slot] = 1;
+                    } else if (FileWork->available_blocks >= 225) {
+                        FileObjectDataSystem->state[hdd_slot] = 2;
+                        FileWork->available_blocks -= 225;
+                    } else {
+                        FileObjectDataSystem->state[hdd_slot] = 3;
+                    }
+                }
+                if (FileWork->text_index == 0) {
+                    FileWork->command = 0x27;
+                } else {
+                    switch (FileWork->directory_result) {
+                    default:
+                        FileWork->command = 0x27;
+                        break;
+                    case 0:
+                        FileWork->command = 0xb8;
+                        xglSoundEffectNormalID(5, 0);
+                        break;
+                    }
+                }
+            }
+        } else {
+            card = &FileWork->card;
+            card_status = card->status[FileWork->card_number];
+            switch (card_status) {
+            case 1:
+                if (FileWork->menu_substate != 0) {
+                    FileWork->selected_slot = 0;
+                    FileWork->slot_count = 99;
+                    if (FileWork->directory_result == 0 &&
+                        FileWork->available_blocks < 165) {
+                        if (FileWork->text_index == 0) {
+                            FileWork->command = 0xb0;
+                        } else {
+                            FileWork->command = 0xb8;
+                        }
+                        xglSoundEffectNormalID(5, 0);
+                        break;
+                    } else {
+                        for (card_slot = 0; card_slot < 99; card_slot++) {
+                            if (FileExistCheckWork[card_slot] != 0) {
+                                FileObjectDataSystem->state[card_slot] = 1;
+                            } else if (FileWork->available_blocks >= 165) {
+                                FileObjectDataSystem->state[card_slot] = 2;
+                                FileWork->available_blocks -= 165;
+                            } else {
+                                FileObjectDataSystem->state[card_slot] = 3;
+                            }
+                        }
+                        if (FileWork->directory_result < 0) {
+                            FileWork->command = 0x91;
+                            xglSoundEffectNormalID(5, 0);
+                        } else {
+                            if (FileWork->text_index == 0) {
+                                FileWork->command = 0x27;
+                            } else {
+                                switch (FileWork->directory_result) {
+                                default:
+                                    FileWork->command = 0x27;
+                                    break;
+                                case 0:
+                                    FileWork->command = 0xb8;
+                                    xglSoundEffectNormalID(5, 0);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                FileWork->menu_substate = 1;
+                break;
+            case 0:
+                FileWork->command = 0x91;
+                xglSoundEffectNormalID(5, 0);
+                break;
+            case 0xff:
+                break;
+            default:
+                FileWork->command = 0x91;
+                xglSoundEffectNormalID(5, 0);
+                break;
+            }
+        }
+        break;
+    }
+    case 0xff:
+        break;
+    case 0x27:
+        if (FileWork->input_flags & 1) {
+            FileWork->selected_slot = FileExistCheckWork[100];
+            FileWork->panel_count = 3;
+            FileWork->selected_panel = 0;
+            FileWork->scroll_direction = 0;
+            FileWork->current_slot = FileWork->selected_slot;
+            FileObjectDataClear();
+            FileObjectDataSystem->unmodeled_00[1] = FileWork->current_slot;
+        } else if (FileWork->use_hdd) {
+            int load_result = FileObjectAllLoad();
+            if (load_result == 0) {
+                if (FileWork->hdd_result >= 0) {
+                    FileWork->slot_count = 99;
+                    FileObjectJpegSet();
+                    FileWork->command = 0x28;
+                    FileWork->dispatch_delay = 12;
+                }
+            }
+            if (FileWork->hdd_result != 0) {
+                FileWork->command = 0x92;
+                xglSoundEffectNormalID(5, 0);
+            }
+        } else {
+            unsigned short loaded_card_status;
+            int load_result = FileObjectAllLoad();
+            if (load_result == 0) {
+                if (FileWork->hdd_result >= 0) {
+                    FileWork->slot_count = 99;
+                    FileObjectJpegSet();
+                    FileWork->command = 0x28;
+                    FileWork->dispatch_delay = 12;
+                }
+            }
+            if (FileWork->hdd_result >= 0) {
+                break;
+            }
+            card = &FileWork->card;
+            loaded_card_status = card->status[FileWork->card_number];
+            switch (loaded_card_status) {
+            default:
+                FileWork->command = 0x92;
+                FileWork->slot_count = 0;
+                xglSoundEffectNormalID(5, 0);
+                break;
+            case 0xff:
+                break;
+            case 0:
+                FileWork->command = 0x91;
+                xglSoundEffectNormalID(5, 0);
+                break;
+            }
+        }
+        break;
+    case 0x28:
+    {
+        if (FileWork->input_flags & 1) {
+            FileWork->scroll_direction = 0;
+        }
+        if ((FileWork->input_flags & 2) == 0) {
+            if (FileWork->scroll_direction == 0) {
+                unsigned short action = 0;
+
+                if (FileWork->fast_scroll != 0) {
+                    if (FileWork->scroll_repeat_count == 10) {
+                        FileWork->fast_scroll = 0;
+                    } else {
+                        FileWork->scroll_repeat_count++;
+                        action = FileWork->scroll_repeat_direction < 0
+                                     ? 0x1000
+                                     : 0x4000;
+                    }
+                    FileWork->menu_substate = 0;
+                } else {
+                    if (FileWork->menu_substate == 0) {
+                        u16 menu_input = PadData.half_30;
+
+                        if (menu_input & 0x1000) {
+                            if (FileWork->selected_panel == 0 ||
+                                (PadData.mappedRepeat & 0x1000)) {
+                                action = 0x1000;
+                            }
+                        } else if (menu_input & 0x4000) {
+                            if (FileWork->selected_panel == 2 ||
+                                (PadData.mappedRepeat & 0x4000)) {
+                                action = 0x4000;
+                            }
+                        } else {
+                            action = 0x40;
+                            if ((menu_input & 0x40) == 0) {
+                                action = menu_input & 0x20;
+                            }
+                        }
+                        if (action != 0) {
+                            FileWork->menu_substate = 4;
+                        }
+                    } else {
+                        FileWork->menu_substate--;
+                    }
+                }
+                if (action == 0x1000) {
+                    FileWork->selected_slot = FileObjectDataNoGet(
+                        FileWork->selected_slot, -1);
+                    if (FileWork->selected_panel == 0) {
+                        FileWork->scroll_direction = -1;
+                        FileWork->current_slot = FileObjectDataNoGet(
+                            FileWork->current_slot, -1);
+                        FileObjectJpegSet();
+                    } else {
+                        FileWork->selected_panel--;
+                    }
+                    xglSoundEffectNormalID(3, 0);
+                }
+                if (action == 0x4000) {
+                    FileWork->selected_slot = FileObjectDataNoGet(
+                        FileWork->selected_slot, 1);
+                    if (FileWork->selected_panel ==
+                        (signed char) FileWork->panel_count - 1) {
+                        FileWork->scroll_direction = 1;
+                        FileWork->current_slot = FileObjectDataNoGet(
+                            FileWork->current_slot, 1);
+                        FileObjectJpegSet();
+                    } else {
+                        FileWork->selected_panel++;
+                    }
+                    xglSoundEffectNormalID(3, 0);
+                }
+                if (action == 0x40) {
+                    FileWork->command = 0x24;
+                    xglSoundEffectNormalID(2, 0);
+                }
+                if (action == 0x20) {
+                    unsigned char object_status =
+                        FileObjectDataSystem->state[FileWork->selected_slot];
+                    switch (object_status) {
+                    case 2:
+                        if (FileWork->text_index == 0) {
+                            FileWork->command = 0x2a;
+                            xglSoundEffectNormalID(1, 0);
+                        } else {
+                            FileWork->command = 0x29;
+                            xglSoundEffectNormalID(5, 0);
+                        }
+                        break;
+                    case 3:
+                    case 4:
+                        FileWork->command = 0x29;
+                        xglSoundEffectNormalID(5, 0);
+                        break;
+                    default:
+                        if (FileWork->text_index == 0) {
+                            FileWork->command = 0x2a;
+                            xglSoundEffectNormalID(1, 0);
+                        } else {
+                            signed char selected_slot = FileWork->selected_slot;
+                            FileObjectEntryView *selected_entry =
+                                &((FileObjectEntryView *)FileObjectData)[selected_slot];
+                            if (selected_entry->map_number == 10) {
+                                xglSoundEffectNormalID(5, 0);
+                            } else {
+                                FileWork->command = 0x2a;
+                                xglSoundEffectNormalID(1, 0);
+                            }
+                        }
+                        break;
+                    }
+                }
+            } else {
+                FileWork->menu_substate = 0;
+            }
+        }
+        if (FileWork->use_hdd == 0) {
+            card = &FileWork->card;
+            card_status = card->status[FileWork->card_number];
+            switch (card_status) {
+            case 1:
+            case 0xff:
+                break;
+            case 0:
+            default:
+                FileWork->command = 0x91;
+                xglSoundEffectNormalID(5, 0);
+                break;
+            }
+        }
+        break;
+    }
+    case 0x29: {
+        if (FileWork->input_flags & 1) {
+            FileWork->dispatch_delay = 12;
+        } else if (FileWork->use_hdd) {
+            if (PadData.half_2a & 0x20) {
+                FileWork->command = 0x28;
+                FileWork->dispatch_delay = 12;
+                xglSoundEffectNormalID(1, 0);
+            }
+        } else {
+            card = &FileWork->card;
+            card_status = card->status[FileWork->card_number];
+            switch (card_status) {
+            case 1:
+                if (PadData.half_2a & 0x20) {
+                    FileWork->command = 0x28;
+                    FileWork->dispatch_delay = 12;
+                    xglSoundEffectNormalID(1, 0);
+                }
+                break;
+            case 0xff:
+                break;
+            case 0:
+            default:
+                xglSoundEffectNormalID(5, 0);
+                FileWork->command = 0x91;
+                break;
+            }
+        }
+        break;
+    }
+    case 0x2a: {
+        if (FileWork->input_flags & 1) {
+            FileWork->dispatch_delay = 10;
+            if (FileWork->text_index == 0) {
+                FileWork->action_selection = 1;
+            } else {
+                FileWork->action_selection = 0;
+            }
+            if (!FileWork->use_hdd) {
+                xglMcRequest(FileWork->card_number, 1, 0,
+                             &FileWork->available_blocks);
+            }
+        } else if (FileWork->use_hdd) {
+            if (!(FileWork->input_flags & 2)) {
+                FileWork->action_selection =
+                    MenuSelectMove(FileWork->action_selection, 2, 0);
+                if (PadData.half_2a & 0x20) {
+                    if (FileWork->action_selection == 0) {
+                        if (FileWork->text_index != 0) {
+                            FileWork->command = 0x50;
+                        } else {
+                            switch (FileObjectDataSystem->state[FileWork->selected_slot]) {
+                            case 2:
+                                FileWork->command = 0x2d;
+                                break;
+                            default:
+                                FileWork->command = 0x2d;
+                                break;
+                            }
+                        }
+                        xglSoundEffectNormalID(1, 0);
+                    } else {
+                        FileWork->command = 0x28;
+                        FileWork->dispatch_delay = 12;
+                        xglSoundEffectNormalID(2, 0);
+                    }
+                }
+                if (PadData.half_2a & 0x40) {
+                    FileWork->command = 0x28;
+                    FileWork->dispatch_delay = 12;
+                    xglSoundEffectNormalID(2, 0);
+                }
+            }
+        } else {
+            card = &FileWork->card;
+            card_status = card->status[FileWork->card_number];
+            switch (card_status) {
+            case 0:
+                FileWork->command = 0x91;
+                xglSoundEffectNormalID(5, 0);
+                break;
+            case 1:
+            if (!(FileWork->input_flags & 2)) {
+                FileWork->action_selection =
+                    MenuSelectMove(FileWork->action_selection, 2, 0);
+                if (PadData.half_2a & 0x20) {
+                        if (FileWork->action_selection == 0) {
+                            if (FileWork->text_index != 0) {
+                                FileWork->command = 0x50;
+                            } else if (FileObjectDataSystem->state[FileWork->selected_slot] != 2 ||
+                                       FileWork->available_blocks >= 165) {
+                                FileWork->command = 0x2d;
+                            } else {
+                                FileWork->command = 0xb0;
+                            }
+                        xglSoundEffectNormalID(1, 0);
+                    } else {
+                        FileWork->command = 0x28;
+                        FileWork->dispatch_delay = 12;
+                        xglSoundEffectNormalID(2, 0);
+                    }
+                }
+                if (PadData.half_2a & 0x40) {
+                    FileWork->dispatch_delay = 12;
+                    FileWork->command = 0x28;
+                    xglSoundEffectNormalID(2, 0);
+                }
+            }
+                break;
+            case 0xff:
+                break;
+            default:
+                FileWork->command = 0x90;
+                break;
+            }
+        }
+        break;
+    }
+    case 0x2c:
+    {
+        int hdd_existing_slot;
+        int card_existing_slot;
+        if (FileWork->input_flags & 1) {
+            if (FileWork->use_hdd) {
+                FileWork->dispatch_delay = 16;
+            } else {
+                card_request.slot = FileWork->selected_slot;
+                card_request.buffer = (int)SaveData;
+                card_request.size = 0x163b0;
+                xglMcRequest(FileWork->card_number, 6, &card_request,
+                             &FileWork->hdd_result);
+                xglMcRequest(FileWork->card_number, 1, 0,
+                             &FileWork->available_blocks);
+                FileWork->menu_substate = 0;
+                tyaDrawGauge(&gauge);
+            }
+        } else if (FileWork->use_hdd) {
+            hdd_request.save.card = FileWork->selected_slot;
+            hdd_request.save.data = SaveData;
+            hdd_request.save.size = 0x163b0;
+            FileWork->directory_result = xglHddMcSave(&hdd_request.save);
+            if (FileWork->directory_result != 0) {
+                FileWork->command = 0x90;
+                xglSoundEffectNormalID(5, 0);
+            } else {
+                xglSoundEffectNormalID(0x19, 0);
+                FileWork->available_blocks = xglHddMcGetFree();
+                *FileSaveData = *(FileSaveRecord *) SaveData;
+                hdd_existing_slot = 0;
+                FileObjectDataInput(FileWork->selected_slot, 1);
+                FileObjectDataSystem->state[FileWork->selected_slot] = 1;
+                FileObjectJpegDecChange(FileWork->selected_slot);
+                    for (; hdd_existing_slot < 99; hdd_existing_slot++) {
+                        if (FileObjectDataSystem->state[hdd_existing_slot] == 2) {
+                        FileWork->available_blocks -= 225;
+                    }
+                }
+                for (hdd_existing_slot = 0; hdd_existing_slot < 99; hdd_existing_slot++) {
+                    if (FileObjectDataSystem->state[hdd_existing_slot] == 3 &&
+                        FileWork->available_blocks >= 225) {
+                        FileObjectDataInput(hdd_existing_slot, 2);
+                        FileObjectDataSystem->state[hdd_existing_slot] = 2;
+                        FileObjectJpegDecChange(hdd_existing_slot);
+                        FileWork->available_blocks -= 225;
+                    }
+                }
+                FileWork->command = 0x2e;
+            }
+        } else {
+            card = &FileWork->card;
+            card_status = card->status[FileWork->card_number];
+            if (card_status != 1) {
+                if (card_status != 0xff) {
+                    FileWork->command = 0x90;
+                    xglSoundEffectNormalID(5, 0);
+                } else {
+                    tyaDrawGauge(&gauge);
+                }
+            } else if (FileWork->menu_substate == 0) {
+                xglSoundEffectNormalID(0x19, 0);
+                *FileSaveData = *(FileSaveRecord *) SaveData;
+                FileObjectDataInput(FileWork->selected_slot, 1);
+                FileObjectDataSystem->state[FileWork->selected_slot] = 1;
+                FileObjectJpegDecChange(FileWork->selected_slot);
+                FileWork->menu_substate = 1;
+                tyaDrawGauge(&gauge);
+            } else {
+                for (card_existing_slot = 0; card_existing_slot < 99; card_existing_slot++) {
+                    if (FileObjectDataSystem->state[card_existing_slot] == 2) {
+                        FileWork->available_blocks -= 165;
+                    }
+                }
+                for (card_existing_slot = 0; card_existing_slot < 99; card_existing_slot++) {
+                    if (FileObjectDataSystem->state[card_existing_slot] == 3 &&
+                        FileWork->available_blocks >= 165) {
+                        FileObjectDataInput(card_existing_slot, 2);
+                        FileObjectDataSystem->state[card_existing_slot] = 2;
+                        FileObjectJpegDecChange(card_existing_slot);
+                        FileWork->available_blocks -= 165;
+                    }
+                }
+                FileWork->command = 0x2e;
+            }
+        }
+        break;
+    }
+    case 0x2d: {
+        int create_result;
+
+        if (FileWork->input_flags & 1) {
+            if (FileWork->use_hdd) {
+                FileWork->menu_substate = 16;
+            } else {
+                card_request.slot = FileWork->selected_slot;
+                card_request.buffer = (int)FileCardDataBuf;
+                FileSaveDataPush();
+                gauge.x = 128;
+                gauge.y = 296;
+                gauge.vertex_attribute = 0xffffffffU;
+                gauge.width = 256;
+                gauge.height = 8;
+                gauge.current = 0;
+                gauge.maximum = 7;
+                gauge.filled_color.red = 161;
+                gauge.filled_color.green = 232;
+                gauge.filled_color.blue = 205;
+                gauge.filled_color.alpha = 128;
+                gauge.unfilled_color.red = 64;
+                gauge.unfilled_color.green = 64;
+                gauge.unfilled_color.blue = 64;
+                gauge.unfilled_color.alpha = 128;
+                xglMcRequest(((FileCardNumber *)&FileWork->card_number)->number, 8,
+                             &card_request,
+                             &FileWork->directory_result);
+                tyaDrawGauge(&gauge);
+                break;
+            }
+        }
+        if (FileWork->use_hdd) {
+            if (FileWork->menu_substate == 0) {
+                hdd_request.create.status = FileWork->selected_slot;
+                hdd_request.create.transfer = FileCardDataBuf;
+                hdd_request.create.dataSize = 0x163b0;
+                FileSaveDataPush();
+                create_result = xglHddMcCreate(&hdd_request.create);
+                FileWork->directory_result = create_result;
+                switch (create_result) {
+                case 0:
+                    FileWork->command = 0x2c;
+                    break;
+                case -13:
+                    xglSoundEffectNormalID(5, 0);
+                    FileWork->command = 0x94;
+                    FileWork->dispatch_delay = 16;
+                    break;
+                case -9:
+                    xglSoundEffectNormalID(5, 0);
+                    FileWork->command = 0x95;
+                    FileWork->dispatch_delay = 16;
+                    break;
+                case -15:
+                    xglSoundEffectNormalID(5, 0);
+                    FileWork->command = 0x96;
+                    FileWork->dispatch_delay = 16;
+                    break;
+                default:
+                    xglSoundEffectNormalID(5, 0);
+                    FileWork->command = 0x90;
+                    FileWork->dispatch_delay = 16;
+                    break;
+                }
+            } else {
+                FileWork->menu_substate--;
+            }
+        } else {
+            card = &FileWork->card;
+            card_status = card->status[FileWork->card_number];
+            switch (card_status) {
+            default:
+                FileWork->command = 0x90;
+                xglSoundEffectNormalID(5, 0);
+                break;
+            case 0xff:
+                gauge.current = FileWork->directory_result;
+                tyaDrawGauge(&gauge);
+                break;
+            case 1:
+                if (FileWork->directory_result < 0) {
+                    FileWork->command = 0x90;
+                    xglSoundEffectNormalID(5, 0);
+                } else {
+                    FileWork->command = 0x2c;
+                }
+                gauge.current = 7;
+                tyaDrawGauge(&gauge);
+                break;
+            }
+        }
+        break;
+    }
+    case 0x2e: {
+        if (FileWork->use_hdd) {
+            if (PadData.half_2a & 0x20) {
+                FileWork->command = 0x28;
+                xglSoundEffectNormalID(1, 0);
+                FileWork->menu_substate = 16;
+            }
+        } else {
+            card = &FileWork->card;
+            card_status = card->status[FileWork->card_number];
+            switch (card_status) {
+            case 1:
+                if (PadData.half_2a & 0x20) {
+                    FileWork->command = 0x28;
+                    xglSoundEffectNormalID(1, 0);
+                    FileWork->menu_substate = 16;
+                }
+                break;
+            case 0xff:
+                break;
+            case 0:
+            default:
+                FileWork->command = 0x91;
+                xglSoundEffectNormalID(5, 0);
+                break;
+            }
+        }
+        break;
+    }
+    case 0x50:
+    {
+        if (FileWork->input_flags & 1) {
+            if (FileWork->use_hdd) {
+                FileWork->dispatch_delay = 16;
+            } else {
+                card_request.slot = FileWork->selected_slot;
+                card_request.buffer = (int)FileSaveData;
+                card_request.size = 0x163b0;
+                memset(FileSaveData, 0, 0x163b0);
+                xglMcRequest(FileWork->card_number, 4, &card_request,
+                             &FileWork->directory_result);
+            }
+        } else {
+            if (FileWork->use_hdd) {
+                hdd_request.load.card = FileWork->selected_slot;
+                hdd_request.load.data = FileSaveData;
+                hdd_request.load.size = 0x163b0;
+                memset(FileSaveData, 0, 0x163b0);
+                FileWork->directory_result = xglHddMcLoad(&hdd_request.load);
+                if (FileWork->directory_result != 0) {
+                    FileWork->command = 0x90;
+                    xglSoundEffectNormalID(5, 0);
+                    break;
+                }
+                *(FileSaveRecord *) SaveData = *FileSaveData;
+                FileVersionCheck((SaveDataHeader *) SaveData);
+                xglSoundEffectNormalID(0x1a, 0);
+                FileWork->command = 0x52;
+            } else {
+                card = &FileWork->card;
+                card_status = card->status[FileWork->card_number];
+                if (card_status != 1) {
+                    if (card_status != 0xff) {
+                        FileWork->command = 0x90;
+                        xglSoundEffectNormalID(5, 0);
+                    }
+                    break;
+                }
+                *(FileSaveRecord *) SaveData = *FileSaveData;
+                FileVersionCheck((SaveDataHeader *) SaveData);
+                xglSoundEffectNormalID(0x1a, 0);
+                FileWork->command = 0x52;
+            }
+        }
+        break;
+    }
+    case 0x52: {
+        if (FileWork->use_hdd) {
+            if (PadData.half_2a & 0x20) {
+                FileWork->command = 0xf0;
+                xglSoundEffectNormalID(1, 0);
+            }
+        } else {
+            card = &FileWork->card;
+            card_status = card->status[FileWork->card_number];
+            switch (card_status) {
+            case 1:
+                if (PadData.half_2a & 0x20) {
+                    FileWork->command = 0xf0;
+                    xglSoundEffectNormalID(1, 0);
+                }
+                break;
+            case 0xff:
+                break;
+            case 0:
+            default:
+                FileWork->command = 0x91;
+                xglSoundEffectNormalID(5, 0);
+                break;
+            }
+        }
+        break;
+    }
+    case 0x80: {
+        if (FileWork->use_hdd) {
+            if (PadData.half_2a & 0x20) {
+                FileWork->command = 0xa0;
+                xglSoundEffectNormalID(1, 0);
+            }
+        } else {
+            card = &FileWork->card;
+            card_status = card->status[FileWork->card_number];
+            switch (card_status) {
+            case 2:
+                if (PadData.half_2a & 0x20) {
+                    xglSoundEffectNormalID(1, 0);
+                    FileWork->command = 0x82;
+                }
+                break;
+            case 0:
+                FileWork->command = 0x91;
+                xglSoundEffectNormalID(5, 0);
+                break;
+            case 0xff:
+                break;
+            default:
+                FileWork->command = 0x91;
+                xglSoundEffectNormalID(5, 0);
+                break;
+            }
+        }
+        break;
+    }
+    case 0x82: {
+        if (FileWork->input_flags & 1) {
+            FileWork->action_selection = 1;
+        }
+        card = &FileWork->card;
+        card_status = card->status[FileWork->card_number];
+        switch (card_status) {
+        case 2:
+            FileWork->action_selection =
+                MenuSelectMove(FileWork->action_selection, 2, 0);
+            if (PadData.half_2a & 0x20) {
+                if (FileWork->action_selection == 0) {
+                    xglMcRequest(FileWork->card_number, 9, 0,
+                                 &FileWork->available_blocks);
+                    FileWork->command = 0x84;
+                } else {
+                    FileWork->command = 0xa0;
+                }
+                xglSoundEffectNormalID(1, 0);
+            }
+            if (PadData.half_2a & 0x40) {
+                FileWork->command = 0x24;
+                xglSoundEffectNormalID(2, 0);
+            }
+            break;
+        case 0:
+            FileWork->command = 0x91;
+            xglSoundEffectNormalID(5, 0);
+            break;
+        case 0xff:
+            break;
+        default:
+            FileWork->command = 0x91;
+            xglSoundEffectNormalID(5, 0);
+            break;
+        }
+        break;
+    }
+    case 0x84: {
+        card = &FileWork->card;
+        card_status = card->status[FileWork->card_number];
+        switch (card_status) {
+        case 1:
+            FileWork->command = 0x86;
+            xglSoundEffectNormalID(1, 0);
+            break;
+        case 2:
+        case 0xff:
+            break;
+        default:
+            FileWork->command = 0x87;
+            xglSoundEffectNormalID(5, 0);
+            break;
+        }
+        break;
+    }
+    case 0x86: {
+        if (FileWork->dispatch_delay == 0) {
+            if (PadData.half_2a & 0x20) {
+                FileWork->command = 0x25;
+                FileWork->hide_selection = 1;
+            }
+            card = &FileWork->card;
+            card_status = card->status[FileWork->card_number];
+            switch (card_status) {
+            case 0:
+                FileWork->command = 0x91;
+                xglSoundEffectNormalID(5, 0);
+                break;
+            case 1:
+            case 0xff:
+                break;
+            default:
+                FileWork->command = 0x91;
+                xglSoundEffectNormalID(5, 0);
+                break;
+            }
+        }
+        break;
+    }
+    case 0x87:
+        if (FileWork->dispatch_delay != 0) {
+            break;
+        }
+        if (PadData.half_2a & 0x20) {
+            FileWork->command = 0xa0;
+            xglSoundEffectNormalID(1, 0);
+        }
+        break;
+    case 0x90:
+    case 0x91:
+    case 0x92:
+    case 0x93:
+    case 0x94:
+    case 0x95:
+    case 0x96:
+    case 0x97:
+        if (FileWork->dispatch_delay != 0) {
+            break;
+        }
+        if (PadData.half_2a & 0x20) {
+            FileWork->command = 0xa0;
+            xglSoundEffectNormalID(1, 0);
+        }
+        break;
+    case 0xa0:
+        if (FileWork->input_flags & 1) {
+            FileWork->action_selection = 1;
+            FileWork->dispatch_delay = 8;
+            xglHddCheck();
+        }
+        if (FileWork->dispatch_delay == 0) {
+            FileWork->action_selection =
+                MenuSelectMove(FileWork->action_selection, 2, 0);
+            if (PadData.half_2a & 0x20) {
+                if (FileWork->action_selection == 0) {
+                    FileWork->result = 1;
+                    FileWork->command = 0xf0;
+                    xglSoundEffectNormalID(2, 0);
+                } else {
+                    FileWork->command = 0x24;
+                    xglSoundEffectNormalID(1, 0);
+                }
+            }
+        }
+        break;
+    case 0xa1:
+        if (FileWork->dispatch_delay != 0) {
+            break;
+        }
+        if (PadData.half_2a & 0x20) {
+            FileWork->command = 0x24;
+            xglSoundEffectNormalID(1, 0);
+        }
+        break;
+    case 0xb0:
+        if (FileWork->dispatch_delay != 0) {
+            break;
+        }
+        if (PadData.half_2a & 0x20) {
+            FileWork->command = 0xa0;
+            xglSoundEffectNormalID(1, 0);
+        }
+        break;
+    case 0xb8:
+        if (FileWork->dispatch_delay != 0) {
+            break;
+        }
+        if (PadData.half_2a & 0x20) {
+            FileWork->command = 0xa0;
+            xglSoundEffectNormalID(1, 0);
+        }
+        break;
+    case 0xf0:
+        if (FileWork->input_flags & 1) {
+            FileWork->menu_substate = 16;
+        }
+        if (FileWork->menu_substate == 0) {
+            FileWork->command = 0xff;
+        } else {
+            FileWork->menu_substate--;
+        }
+        break;
+    default:
+        break;
+    }
+    FileWork->input_flags &= 0xfd;
+    xglFontDebugHex(0, 0x48, FileWork->state, 2);
+    xglFontDebugHex(0, 0x50, FileWork->command, 2);
+    xglFontDebugHex(0, 0x58, FileWork->input_flags, 2);
+    xglFontDebugHex(0, 0x60, FileWork->menu_substate, 2);
+    xglFontDebugPrintf(0, 0x68, D_004DAA80,
+                       FileWork->debug_value_11);
+    xglFontDebugPrintf(0x10, 0x68, D_004DAA80,
+                       FileWork->debug_value_12);
+    xglFontDebugPrintf(0, 0x70, D_004DAA80,
+                       FileWork->device_selection);
+    xglFontDebugPrintf(0x10, 0x70, D_004DAA80,
+                       FileWork->debug_value_14);
+    xglFontDebugPrintf(0, 0x78, D_004DAA80,
+                       FileWork->debug_value_16);
+    xglFontDebugPrintf(0x10, 0x78, D_004DAA80,
+                       FileWork->debug_value_17);
+    xglFontDebugPrintf(0, 0x80, D_004DAA80,
+                       FileWork->selected_panel);
+    xglFontDebugPrintf(0x10, 0x80, D_004DAA80,
+                       (signed char) FileWork->panel_count);
+    xglFontDebugPrintf(0, 0x88, D_004DAA80,
+                       FileWork->scroll_direction);
+    xglFontDebugPrintf(0x10, 0x88, D_004DAA80,
+                       FileWork->debug_value_1b);
+    xglFontDebugPrintf(0, 0x90, D_004DAA80,
+                       FileWork->action_selection);
+    xglFontDebugPrintf(0, 0x98, D_004DAA80,
+                       FileWork->selected_slot);
+    xglFontDebugPrintf(0x10, 0x98, D_004DAA80,
+                       FileWork->slot_count);
+    xglFontDebugPrintf(0x20, 0x30, D_004DAA88);
+    xglFontDebugHex(0x20, 0x38, FileWork->card.status[0], 2);
+    xglFontDebugHex(0x20, 0x40, FileWork->card.status[1], 2);
+    xglFontDebugPrintf(0x20, 0x50, D_004DAA90,
+                       FileWork->available_blocks);
+    xglFontDebugPrintf(0x20, 0x58, D_004DAA90,
+                       FileWork->directory_result);
+    xglFontDebugPrintf(0x20, 0x60, D_004DAA90,
+                       FileWork->hdd_result);
+    xglFontDebugPrintf(0x20, 0x68, D_004DAA90,
+                       FileWork->request_result);
+}
 
 void endBackTexDraw(unsigned char *color)
 {

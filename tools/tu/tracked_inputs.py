@@ -59,9 +59,12 @@ TOOL_TOKENS = {
     # since 2026-10-10 the fsv5 (qisi) release (reports/cc1-fsv5-qisi.md),
     # since 2026-10-27 the fsv6-v2 release (reports/cc1-fsv6-legit-addr.md),
     # since the later user decision of 2026-10-27 the fsv7-v2 release (reports/cc1-fsv7-transp-argreg.md),
-    # since the user decision of 2026-10-28 the fsv8-v1 release (reports/cc1-fsv8-nzinit.md).
-    ".work/toolchains/ee-gcc2.96-realconv-lp7-fsv8-v1/bin": "tool:ee-gcc2.96-realconv-lp7",
-    ".work/toolchains/ee-gcc2.96-realconv-lp7-fsv8-v1/bin/cc1": "tool:ee-gcc2.96-realconv-lp7/cc1",
+    # since the user decision of 2026-10-28 the fsv8-v1 release (reports/cc1-fsv8-nzinit.md),
+    # since the user decision of 2026-10-29 the fsv9-v1 release (reports/cc1-fsv9-anyg.md),
+    # since the later user decision of 2026-10-29 the fsv10-v1 release (reports/cc1-fsv10-swu.md),
+    # since the user decision of 2026-10-30 the fsv12-v1 release (reports/cc1-fsv12-r3split.md).
+    ".work/toolchains/ee-gcc2.96-realconv-lp7-fsv12-v1/bin": "tool:ee-gcc2.96-realconv-lp7",
+    ".work/toolchains/ee-gcc2.96-realconv-lp7-fsv12-v1/bin/cc1": "tool:ee-gcc2.96-realconv-lp7/cc1",
     ".work/toolchains/compiler-variants/ee-gcc2.9-991111": "tool:ee-gcc2.9-991111",
     ".work/toolchains/compiler-variants/ee-gcc2.9-991111/cc1": "tool:ee-gcc2.9-991111/cc1",
     # Tool id unchanged; since 2026-09-24 it is the nolabel release (reports/as-la29-vsqrt-nolabel.md),
@@ -74,7 +77,7 @@ TOOL_TOKENS = {
 }
 # The same tools named inside prose, where the sentence is the point.
 TOOL_PROSE = {
-    ".work/toolchains/ee-gcc2.96-realconv-lp7-fsv8-v1": "ee-gcc2.96-realconv-lp7",
+    ".work/toolchains/ee-gcc2.96-realconv-lp7-fsv12-v1": "ee-gcc2.96-realconv-lp7",
 }
 
 
@@ -263,34 +266,14 @@ def check(root, units=UNITS, build=None):
 
 
 def freeze_carves(root):
-    """Publish native C storage routes and their overlay allocation guards."""
-    root = Path(root).resolve()
-    private = root / 'config/tu/data-carves.json'
-    data = json.loads(private.read_text())
-    for sections in data['tus'].values():
-        for rows in sections.values():
-            for row in rows:
-                correction = row.get('basis', {}).get('owner_correction')
-                row.pop('basis', None)
-                if correction:
-                    row['basis'] = {'owner_correction': correction}
-    records = {}
-    for unit in OVERLAYS:
-        path = root / 'gates' / (unit + '-bss-manifest.json')
-        if not path.is_file():
-            continue
-        record = json.loads(path.read_text())
-        records[unit] = dict(unit=unit, recovered_location_candidates=
-                            record.get('recovered_location_candidates', []))
-    prefix = str(root) + '/'
-    data['overlay_bss_records'] = _map_strings(
-        records, lambda text: text[len(prefix):] if text.startswith(prefix) else text)
-    data['doc'] = 'Native C data routes and guarded compiler storage allocations.'
-    target = root / 'config/objects/data-carves.json'
-    temporary = target.with_suffix('.json.tmp')
-    temporary.write_text(json.dumps(data, indent=1) + '\n')
-    temporary.replace(target)
-    return str(target.relative_to(root))
+    """Retired 2026-10-31: there is one data-carve registry.
+
+    config/objects/data-carves.json is the registry workers, review and
+    publication write and the build reads; there is no private copy to
+    publish. Rebuilding its overlay allocation guards from gates/*-bss-manifest.json
+    here would drop records that only the registry holds, so refuse."""
+    raise SystemExit("tracked_inputs: --freeze-carves is retired; "
+                     "config/objects/data-carves.json is the only data-carve registry")
 
 
 def main(argv=None):

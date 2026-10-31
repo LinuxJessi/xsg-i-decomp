@@ -163,7 +163,7 @@ def snapshot(plan, candidates, output, lease):
             write(stem.with_suffix(suffix), path.read_bytes(), lease)
         bindings[tu] = old_mapping(root, tu, facts, obj, registry)
     for short, path in (('public', root / 'config/objects/data-carves.json'),
-                        ('private', root / 'config/tu/data-carves.json'),
+                        ('private', root / 'config/objects/data-carves.json'),
                         ('script', root / 'tools/tu/data_recover.py')):
         suffix = '.py' if short == 'script' else '.json'
         write(output / 'baseline' / (short + suffix), path.read_bytes(), lease)
@@ -556,7 +556,7 @@ def allocations(plan, output, folder, lease):
         print(json.dumps(dict(stage='allocation', tu=tu, locations=len(rows))), flush=True)
     lease.json(folder / 'registry.json', allocation_tus)
     for kind, path in (('public', root/'config/objects/data-carves.json'),
-                       ('private', root/'config/tu/data-carves.json')):
+                       ('private', root/'config/objects/data-carves.json')):
         lease.json(path, registries[kind])
 
 

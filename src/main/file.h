@@ -18,7 +18,7 @@ typedef union {
     } fields;
 } FileChecksumData;
 
-void FileVersionCheck(void);
+void FileVersionCheck(SaveDataHeader *save_data);
 
 void FileObjectDataClear(void);
 
@@ -48,29 +48,41 @@ typedef struct FileWorkBlock {
     unsigned char state; /* 0xff ends the file menu */
     unsigned char unmodeled_04;
     unsigned char result;
-    unsigned char unmodeled_06[3];
+    unsigned char menu_substate;
+    unsigned char dispatch_delay;
+    unsigned char unmodeled_08;
     signed char current_slot;
-    unsigned char unmodeled_0a[0x13 - 0x0a];
+    unsigned char unmodeled_0a[7];
+    signed char debug_value_11;
+    signed char debug_value_12;
     signed char device_selection;
-    unsigned char unmodeled_14;
+    signed char debug_value_14;
     signed char action_selection;
-    unsigned char unmodeled_16[0x18 - 0x16];
+    signed char debug_value_16;
+    signed char debug_value_17;
     signed char selected_panel;
-    unsigned char unmodeled_19;
+    signed char panel_count;
     signed char scroll_direction;
-    unsigned char unmodeled_1b[2];
+    signed char debug_value_1b;
+    signed char slot_count;
     signed char selected_slot;
     unsigned char unmodeled_1e[2];
-    unsigned short card_status[2];
+    union FileCardStatus {
+        unsigned short status[2];
+        unsigned int word;
+    } card;
     int card_number;
-    unsigned char unmodeled_28[0x38 - 0x28];
+    unsigned char unmodeled_28[8];
+    int available_blocks;
+    int directory_result;
     int hdd_result;
     int request_result;
-    unsigned char unmodeled_40[4];
+    unsigned short hdd_status;
+    unsigned char unmodeled_42[2];
     signed char use_hdd;
-    unsigned char unmodeled_45;
+    signed char scroll_repeat_count;
     signed char fast_scroll;
-    unsigned char unmodeled_47;
+    signed char scroll_repeat_direction;
     signed char hide_selection;
     unsigned char unmodeled_49[0x80 - 0x49];
 } FileWorkBlock;

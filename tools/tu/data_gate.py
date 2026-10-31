@@ -1330,7 +1330,7 @@ def allocation_packet(root, task, allocation_root=None):
 def owner_corrected_items(root, unit, ctx, tu_id, section, address):
     """Original map items of a verified owner-corrected run that holds `address`.
 
-    A verified owner correction (config/tu/data-carves.json basis.owner_correction)
+    A verified owner correction (config/objects/data-carves.json basis.owner_correction)
     moves an original item from its provisional map TU to this source TU. Its
     mapped identity then lives in the map TU's pieces; only items wholly inside
     the corrected run are returned (main/tu091 menutbl, 2026-10-06)."""
@@ -1433,7 +1433,7 @@ def current_allocation_scope(control_path, task, entry, record, ctx, original_el
                 map_items = [registered[0][1]]
                 verified_map_aliases = list(registered[0][2])
         if not map_items and root is not None and section not in ('.bss', '.sbss'):
-            # A verified owner correction (config/tu/data-carves.json) moves an
+            # A verified owner correction (config/objects/data-carves.json) moves an
             # original item from its provisional map TU to this source TU; the
             # mapped identity is then found in the map TU's pieces, and only
             # inside the corrected run (main/tu091 menutbl, 2026-10-06).

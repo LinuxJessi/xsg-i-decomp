@@ -5,8 +5,8 @@
  "toolchains": {
   "ee-gcc2_96-realconv-lp7": {
    "cc_dir": "tool:ee-gcc2.96-realconv-lp7",
-   "cc1_sha256": "575db2bbef59132765136aa2525722501d717abe8381bf706645962af6c6188f",
-   "note": "pinned release ee-gcc2.96-realconv-lp7 (cc1 sha 575db2bb...)",
+   "cc1_sha256": "58a63b84ed4385101b1135a71919a2516f2d6c61b80258b5917ccd47bc56b1f4",
+   "note": "pinned release ee-gcc2.96-realconv-lp7 (cc1 sha 58a63b84...)",
    "approved": "user 2026-09-11 (single GCC 2.96 cc1)"
   },
   "LA29-vsqrt": {

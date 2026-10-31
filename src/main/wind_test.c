@@ -113,6 +113,8 @@ static float crvx;
 
 static float crvy;
 
+static float wpow;
+
 static struct Actor *pAct;
 
 static float shake;
@@ -135,7 +137,117 @@ typedef struct WindTestDirectionalRecord {
     float direction_20[3];
 } WindTestDirectionalRecord;
 
-INCLUDE_ASM("asm/main/nonmatchings/wind_test", InitTest_002D9430);
+extern void GameResourceInit(int, int);
+
+extern void xglStudioInit(void);
+
+extern void xglStudioChange(int studio);
+
+extern void xglStudioMainCameraInit(void);
+
+extern void xglStudioGetCamera(StudioCamera **camera, int index);
+
+extern void ppInit(WindParticle *particle);
+
+extern void ppSetPos(WindParticle *particle, float x, float y, float z);
+
+extern void EXM_SetShakeTime(float time);
+
+extern void ACT_init(void);
+
+extern void ACT_resourceInit(void);
+
+extern void *ACT_create(int, int);
+
+extern void ACT_initMotion(struct Actor *actor);
+
+extern void ACT_loadMotion(struct Actor *actor, int, int);
+
+extern void ACT_loadResource(struct Actor *actor, int);
+
+extern void ACT_allocMatrix(struct Actor *actor, int);
+
+extern void ACT_setModelWrapper(struct Actor *actor, int);
+
+/* Actor prefix read and written by InitTest: the same layout act_2.h gives
+ * struct Actor through position (+0x10), rotation (+0x50) and scale (+0x60). */
+typedef struct WindActor {
+    u32 flags;
+    void (*update)(struct Actor *actor);
+    void (*draw)(struct Actor *actor);
+    u32 quadword_alignment_gap;
+    WindVectorBlock position;
+    unsigned char unmodeled_20[0x30];
+    WindVectorBlock rotation;
+    WindVectorBlock scale;
+} WindActor;
+
+static int InitTest(void)
+{
+    WindVectorBlock local;
+    WindVectorBlock rotationAndScale[2];
+    WindActor *actor;
+    float initialPower;
+    WindVectorBlock *localBlock = &local;
+
+    GameResourceInit(0x07000000, 0x06000000);
+    xglStudioInit();
+    xglStudioChange(0);
+    xglStudioMainCameraInit();
+    xglStudioGetCamera(&pCamera, 0);
+    pCamera->position.y = 2.0f;
+    pCamera->position.z = 2.0f;
+    pCamera->position.x = 0.0f;
+    ppInit(&cpos);
+    ppSetPos(&cpos, 0.0f, 1.0f, 3.0f);
+    cpos.gravity = 0.0f;
+    crx = 0.0f;
+    cry = 0.0f;
+    crvx = 0.0f;
+    crvy = 0.0f;
+    ACT_init();
+    ACT_resourceInit();
+    pAct = ACT_create(-1, 2);
+    initialPower = 0.1f;
+    ACT_initMotion(pAct);
+    ACT_loadMotion(pAct, 2, 1);
+    ACT_loadResource(pAct, 2);
+    ACT_allocMatrix(pAct, -1);
+    ACT_setModelWrapper(pAct, 0);
+    memset(localBlock, 0, 16);
+    rotationAndScale[0] = *(const WindVectorBlock *)&D_004CBB60;
+    rotationAndScale[1] = *(const WindVectorBlock *)&D_004CBB70;
+    local.vector.w = 1.0f;
+    actor = (WindActor *)pAct;
+    actor->position.words[0] = localBlock->words[0];
+    wtype = 2;
+    {
+        float value = wpos.gravity;
+
+        wpos.gravity = value;
+    }
+    actor->position.words[1] = localBlock->words[1];
+    {
+        float damping = wpos.damping;
+
+        wpos.damping = damping;
+    }
+    actor->rotation = rotationAndScale[0];
+    actor->scale = rotationAndScale[1];
+    ppInit(&wpos);
+    wpos.gravity = 0.0f;
+    ppSetPos(&wpos, 0.5f, 1.0f, 0.0f);
+    wpos.position.w = initialPower;
+    shake = initialPower;
+    EXM_SetPointWind(&wpos.position);
+    ppInit(&wvec);
+    wvec.gravity = 0.0f;
+    ppSetPos(&wvec, -0.05f, 0.0f, 0.0f);
+    wpos.position.w = 1.0f;
+    wpow = initialPower;
+    EXM_SetShakeTime(0.5f);
+    return 1;
+}
 
 static void MoveCamera(void)
 {

@@ -122,16 +122,19 @@ def merge_tu_carves(published, current):
 def effective_data_carves(root, build):
     """Retain published storage evidence and apply the current TU overrides.
 
-    Review and integration stage candidate runs in config/tu/data-carves.json.
-    The object registry also carries guarded overlay allocations and common-tail
-    placements; selecting either file alone can lose one side of that evidence.
-    Keep every run's original provenance and record both input files in the
-    generated registry consumed by the link and split steps.
+    Review and integration stage candidate runs in config/objects/data-carves.json,
+    which also carries the guarded overlay allocations and common-tail placements
+    (the only registry since 2026-10-31). Keep every run's original provenance and
+    record the input file in the generated registry consumed by the link and split
+    steps.
     """
     registry = dict(schema=data_carve.SCHEMA, tus={})
     inputs = []
-    for role, relative in (("published", data_carve.PUBLIC_REGISTRY),
-                           ("tu_override", data_carve.REGISTRY)):
+    # data_carve.REGISTRY is the published registry itself since 2026-10-31;
+    # read each distinct file once.
+    for role, relative in dict.fromkeys([("published", data_carve.PUBLIC_REGISTRY)]
+                                        + ([("tu_override", data_carve.REGISTRY)]
+                                           if data_carve.REGISTRY != data_carve.PUBLIC_REGISTRY else [])):
         path = root / relative
         if not path.is_file():
             continue

@@ -11,7 +11,7 @@ void xglMcWriteMapName(char *buffer, int slot);
 typedef struct McRequestArguments {
     int slot;
     const unsigned char *path;
-    void *buffer;
+    int buffer;
     int size;
 } McRequestArguments;
 

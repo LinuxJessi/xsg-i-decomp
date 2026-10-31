@@ -1075,6 +1075,8 @@ extern const struct MenuShopRowCountTable D_004C7820;
 
 extern const char *msg00_4_0036DB60[];
 
+extern const char *msg00_5_0036DB68[];
+
 static void MenuShopModelMain(TskObject *task, void *data);
 
 static inline unsigned char *MenuShopAlignBuffer(unsigned char *buffer,
@@ -2159,9 +2161,303 @@ static void MenuShopList(TskObject *task, struct MenuShopListDisplay *work)
     }
 }
 
-void MenuShopEx(void *task, void *data);
+typedef union MenuShopRibbonView { WindowDXRibbon draw; ERibbonSetData set; } MenuShopRibbonView;
 
-INCLUDE_ASM("asm/main/nonmatchings/menu_shop", MenuShopEx);
+static void MenuShopEx(TskObject *task, struct MenuShopExDisplay *work)
+{
+    MenuShopWorkData **shop = &MenuShopWork;
+    short ribbonX[2];
+    short rosterX[2];
+    short ribbonY[2];
+    short rosterY[2];
+    short totalX[1];
+    short totalY[1];
+    int i;
+    int j;
+    extern unsigned short *func_A1A428(int item);
+    extern int MenuWeaponEquipCheck(int unit, int item, int mode);
+    extern int MenuAccessoryEquipCheck(int unit, int item, int mode);
+
+    switch (task->state) {
+    case 0:
+        work->depth = 0x00fffff0;
+        for (i = 0; i < 2; i++) {
+            eRibbonSet((ERibbonSetData *)(void *)&work->headers[i].ribbon, 3);
+            work->headers[i].ribbon.x = 0x210;
+            work->headers[i].ribbon.y = 0;
+            work->headers[i].ribbon.width = 0x100;
+            work->headers[i].ribbon.height = 0x18;
+            work->headers[i].ribbon.x = 0x220;
+            work->headers[i].ribbon.y = 0x53 + 0x20 * i;
+            work->headers[i].ribbon.style = work->depth;
+            eTagFontSet((ETagFont *)(void *)&work->headers[i].label, msg00_5_0036DB68[i]);
+            work->headers[i].label.style = work->depth + 2;
+            eNumberSet((void *)&work->headers[i].number, 0);
+            work->headers[i].number.style = work->depth + 2;
+        }
+        for (i = 0; i < 2; i++) {
+            eRibbonSet((ERibbonSetData *)(void *)&work->parties[i].ribbon, 3);
+            work->parties[i].ribbon.width = 0x100;
+            work->parties[i].ribbon.style = work->depth;
+            work->parties[i].ribbon.x = 0x220;
+            work->parties[i].ribbon.y = 0x93;
+            eTagFontSet((ETagFont *)(void *)&work->parties[i].label, msg00_5_0036DB68[2]);
+            work->parties[i].label.style = work->depth + 2;
+        }
+        work->parties[0].ribbon.height = 0x30;
+        for (j = 0; j < (*shop)->partyCount; j++) {
+            eSpriteSet(&work->parties[0].sprites[j], MenuFaceEpidGet(*(short *)((char *)(*shop)->partyIds + (j << 1)), 1));
+            work->parties[0].sprites[j].depth = work->depth + 2;
+        }
+        work->parties[1].ribbon.height = 0x60;
+        for (j = 0; j < (*shop)->unitCount; j++) {
+            eSpriteSet(&work->parties[1].sprites[j], MenuFaceEpidGet(*(short *)((char *)(*shop)->unitIds + (j << 1)), 1));
+            work->parties[1].sprites[j].depth = work->depth + 2;
+        }
+        eRibbonSet((ERibbonSetData *)(void *)&work->equipment.ribbon, 3);
+        {
+            const char **labels;
+            short width, height, left, top;
+            int style;
+
+            left = 0x210;
+            {
+                const char *head = *(const char **)(void *)&work->equipment.ribbon;
+
+                *(const char **)(void *)&work->equipment.ribbon = head;
+            }
+            style = ((union { int value; short half[2]; } *)(void *)&work->depth)->value;
+            labels = msg00_5_0036DB68;
+            top = 0x93;
+            height = 0x18;
+            width = 0x100;
+            work->equipment.ribbon.x = left;
+            work->equipment.ribbon.width = width;
+            work->equipment.ribbon.style = style;
+            work->equipment.ribbon.height = height;
+            work->equipment.ribbon.y = top;
+            eTagFontSet((ETagFont *)(void *)&work->equipment.label, labels[3]);
+        }
+        work->equipment.label.style = work->depth + 2;
+        eNumberSet((void *)&work->equipment.number, 0);
+        work->equipment.number.style = work->depth + 2;
+        work->slideFlags = 0;
+        work->equipment.number.option = 0;
+        work->flags = 0;
+        work->equipment.number.places = 1;
+        break;
+    case 2:
+
+        for (i = 0; i < 2; i++) {
+            ribbonX[i] = 0x210;
+            ribbonY[i] = 0x53 + 0x20 * i;
+        }
+        rosterY[0] = 0x93;
+        rosterY[1] = 0x43;
+        rosterX[0] = 0x210;
+        rosterX[1] = 0x210;
+        totalX[0] = 0x210;
+        totalY[0] = 0xcb;
+
+        switch ((*shop)->state) {
+        case 0x30:
+        case 0x90:
+        case 0xa4:
+            if ((unsigned char)((*shop)->stateFlags & 1)) {
+                if ((*shop)->mode == 0)
+                    eTagFontSet((ETagFont *)(void *)&work->headers[0].label, msg00_5_0036DB68[0]);
+                else
+                    eTagFontSet((ETagFont *)(void *)&work->headers[0].label, msg00_5_0036DB68[4]);
+                work->slideFlags |= 2;
+            }
+            for (i = 0; i < 2; i++) {
+                ribbonX[i] = 0x130;
+                ribbonY[i] = 0x53 + 0x20 * i;
+                if (work->slideFlags & 2) {
+                    work->headers[i].ribbon.y = 0x53 + 0x20 * i;
+                    work->slideFlags &= ~2;
+                }
+            }
+            switch ((*shop)->category - 1) {
+            case 0:
+            case 1:
+            case 2:
+                work->equipment.ribbon.y = totalY[0] = 0xcb;
+                totalX[0] = 0x130;
+                eTagFontSet((ETagFont *)(void *)&work->parties[0].label, msg00_5_0036DB68[2]);
+                rosterX[0] = 0x130;
+                rosterY[0] = 0x93;
+                work->parties[0].ribbon.y = 0x93;
+                work->slideFlags |= 2;
+                break;
+            case 3:
+            case 4:
+            case 5:
+                work->equipment.ribbon.y = totalY[0] = 0xfb;
+                totalX[0] = 0x130;
+                eTagFontSet((ETagFont *)(void *)&work->parties[1].label, msg00_5_0036DB68[2]);
+                rosterX[1] = 0x130;
+                rosterY[1] = 0x93;
+                work->parties[1].ribbon.y = 0x93;
+                work->slideFlags |= 2;
+                break;
+            case 6:
+                ribbonX[0] = 0x210;
+                ribbonX[1] = 0x130;
+                ribbonY[1] = 0x118;
+                break;
+            }
+            break;
+        case 0xa0:
+        case 0xa2:
+            switch ((*shop)->category - 1) {
+            case 0:
+            case 1:
+            case 2:
+                rosterX[0] = 0x130;
+                rosterY[0] = 0xf0;
+                break;
+            case 3:
+            case 4:
+            case 5:
+                rosterX[1] = 0x130;
+                rosterY[1] = 0xe8;
+                break;
+            case 6:
+                ribbonX[1] = 0x130;
+                ribbonY[1] = 0x118;
+                break;
+            }
+            break;
+        }
+
+        for (i = 0; i < 2; i++) {
+            MoveSlide(&work->headers[i].ribbon.x, &ribbonX[i], 3.0f);
+            if (work->headers[i].ribbon.x == ribbonX[i])
+                MoveSlide(&work->headers[i].ribbon.y, &ribbonY[i], 3.0f);
+            eRibbonMain((ERibbonMainData *)(void *)&work->headers[i].ribbon);
+            work->headers[i].number.x = work->headers[i].ribbon.x + 0x40;
+            work->headers[i].number.y = work->headers[i].ribbon.y + 4;
+            work->headers[i].number.option = 0;
+            if (i == 0) {
+                if ((*shop)->mode == 0) {
+                    work->headers[i].number.places = 2;
+                    if ((*shop)->listIndex >= 0)
+                        work->headers[0].number.value = MenuBoxChk(MenuSortGet(0, (*shop)->listIndex));
+                    else
+                        work->headers[0].number.value = 0;
+                } else {
+                    work->headers[i].number.places = 6;
+                    if ((*shop)->listIndex >= 0)
+                        work->headers[0].number.value = MenuBoxMoneyGet(MenuSortGet(0, (*shop)->listIndex), 1);
+                    else
+                        work->headers[0].number.value = 0;
+                }
+            } else {
+                work->headers[i].number.places = 9;
+                if ((*shop)->listIndex >= 0)
+                    work->headers[i].number.value = dataMoneyBoxChk();
+                else
+                    work->headers[i].number.value = 0;
+            }
+            eNumberMain((ENumberMainData *)(void *)&work->headers[i].number);
+            work->headers[i].label.x = work->headers[i].number.x - 8;
+            work->headers[i].label.y = work->headers[i].ribbon.y + 4;
+            eTagFontMain((ETagFontMainData *)(void *)&work->headers[i].label);
+        }
+
+        for (i = 0; i < 2; i++) {
+            MoveSlide(&work->parties[i].ribbon.x, &rosterX[i], 3.0f);
+            if (work->parties[i].ribbon.x == rosterX[i])
+                MoveSlide(&work->parties[i].ribbon.y, &rosterY[i], 3.0f);
+            eRibbonMain((ERibbonMainData *)(void *)&work->parties[i].ribbon);
+            if (i == 0) {
+                for (j = 0; j < (*shop)->partyCount; j++) {
+                    int usable;
+
+                    usable = 0;
+                    if ((*shop)->modelId != 0) {
+                        switch (((short *)&(*shop)->itemId)[1]) {
+                        case 3:
+                            if (MenuWeaponEquipCheck(*(short *)((char *)(*shop)->partyIds + (j << 1)), (*shop)->modelId, 0))
+                                usable = 1;
+                            break;
+                        case 5:
+                            if (MenuAccessoryEquipCheck(*(short *)((char *)(*shop)->partyIds + (j << 1)), (*shop)->modelId, -1))
+                                usable = 1;
+                            break;
+                        case 4:
+                            usable = MenuWeaponEquipCheck(*(short *)((char *)(*shop)->partyIds + (j + j)), ((short *)func_A1A428((*shop)->modelId))[6], 0) != 0;
+                            break;
+                        }
+                    }
+                    if (usable == 1) {
+                        work->parties[i].sprites[j].blue = 0x80;
+                        work->parties[i].sprites[j].green = 0x80;
+                        work->parties[i].sprites[j].red = 0x80;
+                    } else {
+                        work->parties[i].sprites[j].blue = 0x40;
+                        work->parties[i].sprites[j].green = 0x40;
+                        work->parties[i].sprites[j].red = 0x40;
+                    }
+                    work->parties[i].sprites[j].x = work->parties[i].ribbon.x + (j % 4) * 20 + 0x40;
+                    work->parties[i].sprites[j].y = work->parties[i].ribbon.y + (j / 4) * 24;
+                    eSpriteMain(&work->parties[i].sprites[j]);
+                }
+            } else {
+                for (j = 0; j < (*shop)->unitCount; j++) {
+                    int usable;
+
+                    usable = 0;
+                    eSpriteSet(&work->parties[i].sprites[j], MenuFaceEpidGet(*(short *)((char *)(*shop)->unitIds + (j << 1)), 1));
+                    if ((*shop)->modelId != 0) {
+                        switch (((short *)&(*shop)->itemId)[1]) {
+                        case 3:
+                            if (MenuWeaponEquipCheck(*(short *)((char *)(*shop)->unitIds + (j << 1)), (*shop)->modelId, 0))
+                                usable = 1;
+                            break;
+                        case 5:
+                            if (MenuAccessoryEquipCheck(*(short *)((char *)(*shop)->unitIds + (j << 1)), (*shop)->modelId, -1))
+                                usable = 1;
+                            break;
+                        case 4:
+                            usable = MenuWeaponEquipCheck(*(short *)((char *)(*shop)->unitIds + (j << 1)), ((short *)func_A1A428((*shop)->modelId))[6], 0) != 0;
+                            break;
+                        }
+                    }
+                    if (usable == 1) {
+                        work->parties[i].sprites[j].blue = 0x80;
+                        work->parties[i].sprites[j].green = 0x80;
+                        work->parties[i].sprites[j].red = 0x80;
+                    } else {
+                        work->parties[i].sprites[j].blue = 0x40;
+                        work->parties[i].sprites[j].green = 0x40;
+                        work->parties[i].sprites[j].red = 0x40;
+                    }
+                    work->parties[i].sprites[j].x = work->parties[i].ribbon.x + (j & 1) * 64 + 0x40;
+                    work->parties[i].sprites[j].depth = work->parties[i].ribbon.style + 2;
+                    work->parties[i].sprites[j].y = work->parties[i].ribbon.y + (j / 2) * 32;
+                    eSpriteMain(&work->parties[i].sprites[j]);
+                }
+            }
+            work->parties[i].label.x = work->parties[i].sprites[0].x - 8;
+            work->parties[i].label.y = work->parties[i].ribbon.y + i * 28 + 16;
+            eTagFontMain((ETagFontMainData *)(void *)&work->parties[i].label);
+        }
+        MoveSlide(&work->equipment.ribbon.x, &totalX[0], 3.0f);
+        if ((&work->equipment)[i].ribbon.x == totalX[i])
+            MoveSlide(&work->equipment.ribbon.y, &totalY[0], 3.0f);
+        eRibbonMain((ERibbonMainData *)(void *)&work->equipment.ribbon);
+        work->equipment.number.x = work->equipment.ribbon.x + 0x40;
+        work->equipment.number.y = work->equipment.ribbon.y + 4;
+        work->equipment.number.value = (*shop)->canEquip;
+        eNumberMain((ENumberMainData *)(void *)&work->equipment.number);
+        work->equipment.label.x = work->equipment.number.x - 8;
+        work->equipment.label.y = work->equipment.ribbon.y + 4;
+        eTagFontMain((ETagFontMainData *)(void *)&work->equipment.label);
+        break;
+    }
+}
 
 static void MenuShopSeisan(TskObject *task, struct MenuShopSalePanel *work)
 {

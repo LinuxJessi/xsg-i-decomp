@@ -100,7 +100,7 @@ extern void nmlModelSetPartsVisible(MapPartListView *parts,
 
 extern Vector4 lightDir[6];
 
-extern Vector4 lightCol[6];
+extern RgVector lightCol[6];
 
 extern void xglLightIntensityParallel(void *light, int index,
                                       const Vector4 *intensity);
@@ -278,7 +278,7 @@ extern const char D_004C22F8[];
 
 void drawVector4(const Vector3 *vector, Matrix4 *matrix, int color_index);
 
-void drawCircle2(Matrix4 *matrix, int color_index, float radius);
+void drawCircle2(Matrix4 *matrix, float radius, int color_index);
 
 typedef struct CursorCameraRecordView {
     unsigned char unmodeled_00[0x0C];
@@ -499,7 +499,7 @@ typedef struct {
     Vector4 output[2];
 } DebugLineScratch;
 
-void drawCircle2(Matrix4 *matrix, int color_index, float radius)
+void drawCircle2(Matrix4 *matrix, float radius, int color_index)
 {
     int segment;
     int colour;
@@ -2043,7 +2043,359 @@ void initLight(void)
     xglLightIntensityAmbient(light, &lightCol[3]);
 }
 
-INCLUDE_ASM("asm/main/nonmatchings/db_light_write", updateLight);
+extern float lightSpeedTbl[4];
+extern int lightIndex;
+extern int lightColIndex;
+extern int lightSpeed;
+extern int lightStateOffset;
+extern void xglStudioFlushActiveCamera(void);
+extern const char D_004C2170[];
+extern const char D_004C2190[];
+extern const char D_004DA530[];
+extern const char D_004DA538[];
+extern const char D_004DA540[];
+extern const char D_004DA548[];
+
+
+/* The lighting editor copies direction into the bar position with doubleword
+   ld/sd pairs: the vector storage is eight-byte aligned. The union gives it
+   that alignment without a GNU attribute. */
+typedef union LightEditorVector {
+    Vector4 vector;
+    u64 doublewords[2];
+} LightEditorVector;
+typedef struct FloatLightEntry {
+    RgVector color;
+    RgVector direction;
+} FloatLightEntry;
+typedef struct FloatLight {
+    RgVector ambient_color;
+    FloatLightEntry lights[3];
+} FloatLight;
+
+void updateLight(int mode)
+{
+    const struct CursorPadKeyResult *keys =
+        (const struct CursorPadKeyResult *)(const void *)keyData;
+    Matrix4 matrix;
+    Matrix4 cameraMatrix;
+    Vector4 stick;
+    LightEditorVector direction;
+    Vector4 barScale;
+    LightEditorVector barPosition;
+    Vector4 translation;
+    char text[256];
+    Vector3 flat;
+    char dumpText[128];
+    float stickLength;
+    StudioLight *light;
+    FloatLight *dumpLight;
+    float horizontal;
+    float level;
+    StudioCamera *camera;
+    Vector4 *source;
+    float *component;
+    int baseX;
+    int i;
+    int j;
+    int k;
+
+    switch (mode) {
+    case 0:
+        PAD_getKey(keyData, 0, 0xf7ff);
+        break;
+    case 1:
+        PAD_getKey(keyData, 0, 0xf6ff);
+        break;
+    }
+
+    if ((keys->held & 0xa0) == 0) {
+        float limit;
+
+        limit = 1.0f;
+
+        if ((keys->pressed & 2) != 0) {
+            lightColIndex = 3;
+            lightIndex++;
+        }
+        if ((keys->pressed & 8) != 0) {
+            lightColIndex = 3;
+            lightIndex--;
+        }
+        if (lightIndex < 0)
+            lightIndex = 5;
+        lightIndex = lightIndex >= 6 ? 0 : lightIndex;
+        if (keys->pressed & 0x1000)
+            lightColIndex -= 1;
+        if (keys->pressed & 0x4000)
+            lightColIndex++;
+        if (lightColIndex < 0)
+            lightColIndex = 3;
+        if (lightColIndex >= 4)
+            lightColIndex = 0;
+        component = lightCol[lightIndex] + lightColIndex;
+        if (lightIndex == 5)
+            limit = 10.0f;
+        if (lightColIndex == 3) {
+            float total = 0.0f;
+
+            for (i = 0; i < 3; i++) {
+                float *value = lightCol[lightIndex] + i;
+
+                if (keys->held & 0x2000)
+                    *value += 0.01f;
+                if (keys->held & 0x8000)
+                    *value -= 0.01f;
+                level = *value;
+                if (level < 0.0f) {
+                    *value = 0.0f;
+                    level = *value;
+                }
+                if (limit < level) {
+                    *value = limit;
+                    level = limit;
+                }
+                total += level;
+            }
+            lightCol[lightIndex][3] = total / 3.0f;
+        } else {
+            float total;
+
+            if (keys->held & 0x2000)
+                *component += 0.01f;
+            if (keys->held & 0x8000)
+                *component -= 0.01f;
+            level = *component;
+            if (level < 0.0f) {
+                *component = 0.0f;
+                level = *component;
+            }
+            if (limit < level) {
+                *component = limit;
+                level = limit;
+            }
+            for (total = 0.0f, i = 0; i < 3; i++)
+                total += lightCol[lightIndex][i];
+            lightCol[lightIndex][3] = total / 3.0f;
+        }
+    } else if (keys->held & 0x20) {
+        if (keys->pressed & 8)
+            if (lightStateOffset != 0)
+                lightStateOffset = 0;
+            else
+                lightStateOffset = -380;
+        if (keys->pressed & 0x4000)
+            lightSpeed -= 1;
+        if (keys->pressed & 0x1000)
+            lightSpeed += 1;
+        lightSpeed &= 3;
+    }
+
+    source = &lightDir[lightIndex];
+    if ((keys->pressed & 0x200) != 0)
+        source->y = -source->y;
+
+    stick.x = (float)keys->flags[2];
+    stick.y = 0.0f;
+    stick.z = (float)keys->flags[3];
+    stick.w = 1.0f;
+    xglVectorLength(&stickLength, &stick);
+    xglVectorNormal(&stick, &stick);
+    if (stickLength > 40.0f && source->w != 0.0f) {
+        source->x += stick.x * lightSpeedTbl[lightSpeed];
+        source->z += stick.z * lightSpeedTbl[lightSpeed];
+        if (__builtin_sqrtf(source->x * source->x +
+                            source->z * source->z) > 1.0f) {
+            float angle = atan2f(source->x, source->z);
+            source->x = xglSin(angle);
+            source->z = xglCos(angle);
+        }
+    }
+
+    horizontal = 1.0f - (source->x * source->x + source->z * source->z);
+    direction.vector.x = source->x;
+    direction.vector.y = __builtin_sqrtf(horizontal);
+    direction.vector.z = source->z;
+    if (source->y < 0.0f)
+        direction.vector.y = -direction.vector.y;
+    xglVectorLength(&stickLength, &direction.vector);
+
+    xglStudioFlushActiveCamera();
+    camera = xglStudioGetActiveCamera();
+    translation.x = 0.0f;
+    translation.y = 0.0f;
+    translation.z = 5.0f;
+    translation.w = 1.0f;
+    __asm__ __volatile__(
+        "lq $2,0(%0)\n\t"
+        "sq $2,0(%1)\n\t"
+        "lq $2,16(%0)\n\t"
+        "sq $2,16(%1)\n\t"
+        "lq $2,32(%0)\n\t"
+        "sq $2,32(%1)\n\t"
+        "lq $2,48(%0)\n\t"
+        "sq $2,48(%1)"
+        :
+        : "r" (camera->cameraToWorldMatrix), "r" (cameraMatrix)
+        : "$2", "memory");
+    xglMatrixStackUnit();
+    xglMatrixStackMul((const float (*)[4])cameraMatrix);
+    xglMatrixStackTrans(&translation.x);
+    xglMatrixStackSave(cameraMatrix);
+    cameraMatrix[0][0] = 1.0f;
+    cameraMatrix[0][1] = 0.0f;
+    cameraMatrix[0][2] = 0.0f;
+    cameraMatrix[0][3] = 0.0f;
+    cameraMatrix[1][0] = 0.0f;
+    cameraMatrix[1][1] = 1.0f;
+    cameraMatrix[1][2] = 0.0f;
+    cameraMatrix[1][3] = 0.0f;
+    cameraMatrix[2][0] = 0.0f;
+    cameraMatrix[2][1] = 0.0f;
+    cameraMatrix[2][2] = 1.0f;
+    cameraMatrix[2][3] = 0.0f;
+    drawVector4((const Vector3 *)&direction.vector, &cameraMatrix, 0);
+
+    stick.x = lightCol[lightIndex][0];
+    stick.y = lightCol[lightIndex][1];
+    stick.z = lightCol[lightIndex][2];
+    stick.w = 1.0f;
+    switch (lightIndex) {
+    case 0:
+    case 1:
+    case 2:
+        xglStudioGetLight(&light);
+        xglLightIntensityParallel(light, lightIndex, &stick);
+        xglLightDirection(light, lightIndex, &direction.vector);
+        break;
+    case 3:
+        xglStudioGetLight(&light);
+        xglLightIntensityAmbient(light, &stick);
+        break;
+    case 4:
+        ClearEnv.color_r = (unsigned int)(stick.x * 255.0f);
+        ClearEnv.color_g = (unsigned int)(stick.y * 255.0f);
+        ClearEnv.color_b = (unsigned int)(stick.z * 255.0f);
+        break;
+    case 5:
+        GameLoopState.stage_color.x = lightCol[5][0];
+        GameLoopState.stage_color.y = lightCol[5][1];
+        GameLoopState.stage_color.z = lightCol[5][2];
+        break;
+    }
+
+    baseX = 192 + lightStateOffset / 2;
+    sprintf(text, D_004DA530, 1 + lightSpeed);
+    xglFontDebugPrintf(baseX, 160, text);
+    sprintf(text, D_004C2170, stick.x, stick.y, stick.z);
+    xglFontDebugPrintf(baseX, 170, text);
+    sprintf(text, D_004C2190, direction.vector.x, direction.vector.y, direction.vector.z);
+    xglFontDebugPrintf(baseX, 198, text);
+
+    baseX = 200 + lightStateOffset / 2;
+    xglFontDebugPrintf(baseX, 88, D_004DA538);
+    xglFontDebugPrintf(baseX + 4, 114, D_004DA540);
+    xglFontDebugPrintf(baseX, 140, D_004DA548);
+    stick.x = 116.0f;
+    stick.y = 56.0f;
+    stick.z = 1.0f;
+    stick.w = 1.0f;
+    direction.vector.x = (float)lightStateOffset + 196.0f;
+    direction.vector.y = 192.0f - (float)lightIndex * 51.0f;
+    direction.vector.z = 0.0f;
+    direction.vector.w = 1.0f;
+    xglMatrixStackUnit();
+    xglMatrixStackTrans(&direction.vector.x);
+    xglMatrixStackScale(&stick.x);
+    xglMatrixStackSave(matrix);
+    drawBox2(&matrix, 6);
+
+    stick.x = 6.0f;
+    stick.y = 6.0f;
+    stick.z = 1.0f;
+    stick.w = 1.0f;
+    direction.vector.x = (float)lightStateOffset + 196.0f;
+    direction.vector.y = 192.0f - (float)lightIndex * 51.0f + 12.0f -
+                  (float)lightColIndex * 12.0f;
+    direction.vector.z = 0.0f;
+    direction.vector.w = 1.0f;
+    xglMatrixStackUnit();
+    xglMatrixStackTrans(&direction.vector.x);
+    xglMatrixStackRotZ(3.14159265f / 4.0f);
+    xglMatrixStackScale(&stick.x);
+    xglMatrixStackSave(matrix);
+    drawBox2(&matrix, 6);
+
+    stick.x = 24.0f;
+    stick.y = 24.0f;
+    stick.z = 1.0f;
+    stick.w = 1.0f;
+    direction.vector.y = 192.0f;
+    direction.vector.x = (float)lightStateOffset + 166.0f;
+    direction.vector.z = 0.0f;
+    direction.vector.w = 1.0f;
+    for (k = 0; k < 6; k++) {
+        float scale;
+
+        source = &lightDir[k];
+        xglMatrixStackUnit();
+        xglMatrixStackTrans(&direction.vector.x);
+        xglMatrixStackScale(&stick.x);
+        xglMatrixStackSave(matrix);
+        drawCircle2(&matrix, 24.0f, 1);
+        if (0.0f != source->w) {
+            flat.x = source->x;
+            flat.y = -source->z;
+            flat.z = 0.0f;
+            if (source->y > 0.0f)
+                drawVector2(&flat, &matrix, 0);
+            else
+                drawVector2(&flat, &matrix, 2);
+        }
+        barPosition = direction;
+        barPosition.vector.x += 36.0f;
+        barPosition.vector.y += 16.0f;
+        barScale.z = 1.0f;
+        barScale.w = 1.0f;
+        barScale.y = 8.0f;
+        scale = 1.0f;
+        for (j = 0; j < 4; j++) {
+            barScale.x = lightCol[k][j] * 48.0f * scale;
+            xglMatrixStackUnit();
+            xglMatrixStackTrans(&barPosition.vector.x);
+            xglMatrixStackScale(&barScale.x);
+            xglMatrixStackSave(matrix);
+            if (j < 3)
+                drawRect2(&matrix, j);
+            else
+                drawRect2(&matrix, 6);
+            barPosition.vector.y -= 12.0f;
+        }
+        direction.vector.y -= 51.0f;
+    }
+
+    if (keys->pressed & 0x100) {
+        MapGameLoopStateView *state;
+
+        i = 0;
+        xglStudioGetLight((StudioLight **)&dumpLight);
+        sprintf(dumpText, D_004C2020, i, dumpLight->ambient_color[0],
+                dumpLight->ambient_color[1], dumpLight->ambient_color[2]);
+        state = &GameLoopState;
+        do {
+            sprintf(dumpText, D_004C2020, i + 1, dumpLight->lights[i].color[0],
+                    dumpLight->lights[i].color[1],
+                    dumpLight->lights[i].color[2]);
+            sprintf(dumpText, D_004C2050, i + 1, dumpLight->lights[i].direction[0],
+                    dumpLight->lights[i].direction[1],
+                    dumpLight->lights[i].direction[2]);
+            sprintf(dumpText, D_004C2088, state->stage_color.x,
+                    state->stage_color.y,
+                    state->stage_color.z);
+        } while (++i < 3);
+    }
+}
+
 
 void updateWind(WindRecord *wind)
 {

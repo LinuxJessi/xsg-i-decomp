@@ -2086,7 +2086,7 @@ def audit_nested_c(item, parent, tu, prelude, tu_rel, header_set, regions, obj_f
 
 RODATA_ANON = RODATA_LIKE
 # Sections whose anonymous cc1 constants (no original symbol names them) are
-# covered only inside a declared carve run (config/tu/data-carves.json) and only
+# covered only inside a declared carve run (config/objects/data-carves.json) and only
 # when the whole compiled section, its relocations resolved at the runs'
 # original addresses, equals the original bytes (`carved_section_bytes`). Under
 # -G8 the small string literals and address templates go to .sdata, which
@@ -2584,7 +2584,7 @@ def whole_ownership_data_row(args, source, primary):
         allocated=Path(first.get('derivation_input_path') or raw).resolve(),
         selected=Path(first['_audit_linked_data_object']).resolve(),
         linked=(Path(args.unit_dir)/'build'/(args.unit+'.rom.elf')).resolve(),
-        original=(ROOT/original_elf(args.unit)[1]['path']).resolve(),registry=ROOT/'config/tu/data-carves.json',
+        original=(ROOT/original_elf(args.unit)[1]['path']).resolve(),registry=ROOT/'config/objects/data-carves.json',
         unit_manifest=Path(args.unit_dir)/'tu-manifest.json',config_tu_build=ROOT/'config/tu-build.json',
         data_gate_tool=ROOT/'tools/tu/data_gate.py',data_carve_tool=ROOT/'tools/tu/data_carve.py')
     pins=contexts[args.tu_id]
@@ -2972,7 +2972,7 @@ def c_owned_sections(args, contract, tu_record, data_row=None):
                     manifest_ranges[sec] = own
             elif own == 'c' and sec != '.text':
                 owners[sec] = None
-    # A declared C-owned data run (config/tu/data-carves.json, tools/tu/data_carve.py):
+    # A declared C-owned data run (config/objects/data-carves.json, tools/tu/data_carve.py):
     # the jump tables and literals the TU's C functions generate, carved out of the
     # scaffold piece. Declared under this root (a worker's or reviewer's private
     # copy, or the published one), it is newer than config/tu-build.json, which
@@ -2984,7 +2984,7 @@ def c_owned_sections(args, contract, tu_record, data_row=None):
     verified_storage_by_section = {}
     storage_field_aliases_by_section = {}
     generated_aliases_by_section, symbol_aliases_by_section, anonymous_ranges_by_section = {}, {}, {}
-    carve_path = ROOT / 'config/tu/data-carves.json'
+    carve_path = ROOT / 'config/objects/data-carves.json'
     if getattr(args, 'tu_id', None) and carve_path.is_file():
         for sec, runs in ((json.loads(carve_path.read_text()).get('tus') or {}).get(args.tu_id) or {}).items():
             if runs:
@@ -3238,7 +3238,7 @@ def c_owned_sections(args, contract, tu_record, data_row=None):
         if rng:
             lo, hi = int(rng[0], 16), int(rng[1], 16)
             out[sec] = dict(lo=lo, hi=hi, alo=lo, ahi=hi, exact=True,
-                            source='config/tu/data-carves.json' if sec in carved else 'explicit',
+                            source='config/objects/data-carves.json' if sec in carved else 'explicit',
                             partial=partial.get(sec, False), runs=run_ranges.get(sec),
                             verified_names=sorted({name for item in (data_row or {}).get('verified_locations', [])
                                                    if item.get('section') == sec and lo <= int(item['address'], 16) < hi
@@ -3483,7 +3483,7 @@ def reviewed_initialized_zero_marker(args, section, original, spans, data_row, o
                             data_row.get('linked_data_object_sha256'))
     linked_path = current(Path(args.unit_dir)/'build/main.rom.elf',data_row.get('linked_elf_sha256'))
     original_path = current(Path(args.unit_dir)/'orig/SLUS_204.69')
-    registry_path = current(ROOT/'config/tu/data-carves.json')
+    registry_path = current(ROOT/'config/objects/data-carves.json')
     current(args.data_gate_report)
     current(args.candidate_manifest)
     current(Path(args.unit_dir)/'tu-manifest.carved.json')
@@ -4102,7 +4102,7 @@ def data_section_check(section, rng, elf, obj, scaffold_names):
         deltas.add(int(o['va'], 16) - x['value'])
         matched.append((x['value'], x['value'] + x['size'], o['name']))
     expected_names = {o['name'] for o in originals} | set(rng.get('verified_names') or [])
-    if rng.get('source') == 'config/tu/data-carves.json' and rng.get('verified_names'):
+    if rng.get('source') == 'config/objects/data-carves.json' and rng.get('verified_names'):
         by_name_defined = {name: values for name, values in by_name.items()}
         loc_address = {name: int(item['address'], 16)
                        for item in rng.get('verified_locations', [])
@@ -5674,12 +5674,12 @@ def _audit_body(args, result, checks, unit_dir, tu_c, tu_rel, contract, source_c
                                     for k, v in owned.items()}
         owned_names = set()
         for section, rng in owned.items():
-            if section in CARVED_ANON and rng.get('source') == 'config/tu/data-carves.json':
+            if section in CARVED_ANON and rng.get('source') == 'config/objects/data-carves.json':
                 rng['anon_bytes'] = carved_section_bytes(args, section, elf, data_obj)
             has_gate_spans = any(span.get('section') == section
                                  for span in (whole_ownership_row or {}).get('verified_location_spans', []))
             if (selected_data_path and section not in ('.bss', '.sbss') and data_row is not None and
-                    (rng.get('source') == 'config/tu/data-carves.json' or has_gate_spans)):
+                    (rng.get('source') == 'config/objects/data-carves.json' or has_gate_spans)):
                 ok, detail, accounted = linked_span_data_check(section, rng, elf, data_obj, whole_ownership_row, args)
             else:
                 ok, detail, accounted = data_section_check(section, rng, elf, obj, scaffold_names)
@@ -6512,7 +6512,7 @@ def data_attribute_proof_document(context,args):
     pins=document.get('gate_pins') or {}
     expected=dict(data=args.data_gate_report,elf=args.data_elf_gate_report,manifest=args.candidate_manifest,
                   control=context['report']['allocation_control_path'],
-                  config_data_carves=ROOT/'config/tu/data-carves.json',
+                  config_data_carves=ROOT/'config/objects/data-carves.json',
                   config_tu_build=ROOT/'config/tu-build.json',unit_manifest=context['unit_dir']/'tu-manifest.json')
     data_attribute_require(set(pins)==set(expected)|{'candidates'},'exact gate/config pin set required')
     for key,value in expected.items():
@@ -6644,7 +6644,7 @@ def data_attribute_registry(context, args):
     """Actual current registry; callers must still prove every physical byte."""
     for relative in ('tools/tu/data_carve.py','tools/tu/data_gate.py'):
         data_attribute_gate_bound_pin(context,ROOT/relative)
-    path = data_attribute_gate_bound_pin(context,ROOT / 'config/tu/data-carves.json')
+    path = data_attribute_gate_bound_pin(context,ROOT / 'config/objects/data-carves.json')
     registry = json.loads(path.read_text())
     data_attribute_require(args.unit == 'main' and registry.get('schema'), 'unsupported registry/unit')
     return registry
@@ -8033,7 +8033,7 @@ def verified_partial_data_attribute_view(context,args,tu,item,name,section,obj,e
                     computed=shared_gate.uncredited_character_scaffold_suffix(native,shared_carve,section,
                         slot[0],semantic[1],slot[1],context['raw_path'],context['selected_path'],context['linked_path'],
                         context['source'],context['assembly_path'],context['preprocessed_path'],
-                        ROOT/'config/tu/data-carves.json',tu_id=args.tu_id)
+                        ROOT/'config/objects/data-carves.json',tu_id=args.tu_id)
                     data_attribute_require(computed is not None,'shared typed-prefix mechanics refused auxiliary unknown suffix')
                     auxiliary_detail=dict(kind=('auxiliary_existing_C_owner_unknown_scaffold_suffix' if baseline_owner is not None
                                                else 'computed_uncredited_character_scaffold_suffix'),
@@ -8065,7 +8065,7 @@ def verified_partial_data_attribute_view(context,args,tu,item,name,section,obj,e
                     if key=='original':
                         data_attribute_require(tail['inputs'][key]['sha256']==context['hashes']['original_sha256'],
                                                'native suffix original copy differs from configured retail authority')
-                data_attribute_pin(tail['inputs']['registry'],ROOT/'config/tu/data-carves.json')
+                data_attribute_pin(tail['inputs']['registry'],ROOT/'config/objects/data-carves.json')
                 data_attribute_pin(tail['inputs']['unit_manifest'],context['unit_dir']/'tu-manifest.json')
             validated_tails.append(dict(mechanical_receipt=tail,auxiliary_computation=not any(tail is t for t in
                 context['row'].get('uncredited_original_item_tails',[])+context['row'].get('uncredited_scaffold_suffixes',[])),
