@@ -314,7 +314,29 @@ static RgCamera *_GetCameraBattleField(BattleField *pField, u32 index)
     return pField->camera[index];
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_battlemgr", _ClearBattleField);
+extern void DisposeRgCamera(RgCamera *camera);
+extern void RgGeomFree(RgGeom *geom);
+
+static void _ClearBattleField(BattleField *pField)
+{
+    u32 i;
+
+    if (pField == 0) {
+        assert_prog(D_00A54D50, D_00A54CC0, 0x107);
+    }
+    for (i = 0; i < (u32)pField->count; i++) {
+        if (pField->camera[i] != 0) {
+            DisposeRgCamera(pField->camera[i]);
+            pField->camera[i] = 0;
+        }
+        if (pField->screenBall[i] != 0) {
+            RgGeomFree(pField->screenBall[i]);
+            pField->screenBall[i] = 0;
+        }
+    }
+    pField->count = 0;
+    RgDrawCreateDrawStudioFullScreen(InstanceOfRgDraw());
+}
 
 extern RgGeomGroup *CreateRgGeomGroup(void);
 extern RgDraw *InstanceOfRgDraw(void);
@@ -349,8 +371,6 @@ static void _InitBattleField(BattleField *pField)
     RgDrawCreateDrawStudioFullScreen(InstanceOfRgDraw());
 }
 
-static void _ClearBattleField(BattleField *pField);
-
 static void _DestructBattleField(BattleField *pField)
 {
     if (pField == 0) {
@@ -380,8 +400,6 @@ static void _DisposeBattleField(BattleField *pField)
     RgHeapFree(InstanceOfRgHeap(), pField, D_00A54CC0, 0x13B);
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_battlemgr", _FullScreenBattleField);
-
 #include "ov12/rg_camera.h"
 extern RgDispGameInfo *CreateRgDispGameInfo(int dispTex);
 extern void RgDrawCreateDrawStudioDouble(RgDraw *pDraw);
@@ -401,6 +419,28 @@ extern void XrgSubVectorXYZ(RgVector destination, RgVector first,
 extern void RgGeomPointSetPos(RgGeomPoint *pPoint, RgVector position);
 extern void RgGeomPointMovePos(RgGeomPoint *pPoint, RgVector position);
 extern const char D_00A54D78[];
+
+static u32 _FullScreenBattleField(BattleField *pField)
+{
+    RgCamera *camera;
+
+    if (pField == 0) {
+        assert_prog(D_00A54D50, D_00A54CC0, 0x145);
+    }
+    if ((u32)pField->count >= 2U) {
+        assert_prog(D_00A54D78, D_00A54CC0, 0x146);
+    }
+    _ClearBattleField(pField);
+    pField->count = 1;
+    RgDrawCreateDrawStudioFullScreen(InstanceOfRgDraw());
+    pField->studio[0] = RgDrawGetStudio(InstanceOfRgDraw(), 0);
+    camera = _CreateBattleCamera(pField->studio[0]);
+    pField->camera[0] = camera;
+    pField->screenBall[0] = RgGeomGroupCreateBall(pField->geomGroup, camera);
+    RgGeomBallSetRadius(pField->screenBall[0], 1.5f);
+    RgCameraSetFarMode(camera, 0);
+    return 1;
+}
 
 static u32 _DoubleScreenBattleField(BattleField *pField)
 {

@@ -13,16 +13,23 @@ typedef struct RgStatus RgStatus;
 /* Opaque here: rg_robot_effect.c (ov12/tu010) owns the RgRobotEffect definition. */
 typedef struct RgRobotEffect RgRobotEffect;
 
+/* Opaque here: rg_weapon.c (ov12/tu026) owns the RgWeapon definition. */
+typedef struct RgWeapon RgWeapon;
+
 /* Number of equip sides a body carries (RgRobotGetWeapon's own range check,
  * ov12:0x00a51be0, "RG_EQUIP_TYPE_MIN <= (eSide) && (eSide) < RG_EQUIP_TYPE_NUM"). */
 #define RG_EQUIP_TYPE_NUM 3
+/* The back equip side: _IsBackWeaponReady (ov12:0x00a076d0) only reports a
+ * ready weapon for eType 2 (li $3, 2 at 0x00a07708) and reads that side's
+ * weapon slot, RgBody.weapon[2] (lw 0x78). */
+#define RG_EQUIP_TYPE_BACK 2
 
 /*
  * Homing-thread control block for a robot's ranged weapon lock-on.
  * _CreateHomingThread allocates it with RgHeapAlloc (size 0x18,
- * ov12:0x00a02594) and _InitHomingThread (still asm) zeroes it.
+ * ov12:0x00a02594) and _InitHomingThread zeroes it.
  * _StartHomingThread, _StopHomingThread, _GetStatHomingThread and
- * _GetSleepTimeHomingThread evidence every field but the unmodeled one:
+ * _GetSleepTimeHomingThread evidence every field but homingSpeed:
  *   +0x00 geometry   the geometry to home toward (sw 0($16),
  *                     ov12:0x00a02674)
  *   +0x04 target     the homing target object (sw 4($16),
@@ -40,15 +47,17 @@ typedef struct RgRobotEffect RgRobotEffect;
  *                     (ov12:0x00a02734) and _GetSleepTimeHomingThread
  *                     (ov12:0x00a02774), and advanced to 2 by
  *                     _StopHomingThread (ov12:0x00a026f4)
- * Byte 0x10 is untouched by any function of this allocation and stays
- * unmodeled.
+ *   +0x10 homingSpeed the rotation speed limit _PassTimeHomingThread passes
+ *                     as RgRobSubHoming's `speed` argument (lwc1 0x10($16)
+ *                     into $f12, ov12:0x00a02824); _InitHomingThread sets
+ *                     it to 4*pi (0x41490FDB, ov12:0x00a0253c)
  */
 typedef struct RgHomingThread {
     RgGeomPoint *geometry;          /* +0x00 */
     void *target;                   /* +0x04 */
     float actionTime;               /* +0x08 */
     float sleepTime;                /* +0x0c */
-    unsigned char unmodeled_10[4];  /* +0x10 */
+    float homingSpeed;              /* +0x10 */
     int state;                      /* +0x14 */
 } RgHomingThread;
 

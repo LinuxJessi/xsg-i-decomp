@@ -163,7 +163,23 @@ void RgDispLifeSetTimer(RgDispLife *pDisp, float timer)
     }
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_disp_life", RgDispLifeSetWin);
+static inline int _ClampWin(int count, int lo, int hi)
+{
+    if (count < lo) {
+        return lo;
+    }
+    return count > hi ? hi : count;
+}
+
+void RgDispLifeSetWin(RgDispLife *pDisp, int win1P, int win2P, int winnerMask)
+{
+    if (pDisp == 0) {
+        assert_prog(D_00A54838, D_00A54820, 0xEE);
+    }
+    pDisp->winCount[0] = _ClampWin(win1P, 0, 2);
+    pDisp->winCount[1] = _ClampWin(win2P, 0, 2);
+    pDisp->winnerMask = winnerMask;
+}
 
 extern void *RgBxxGetPic(struct RgBxx *bxx, const char *picture_name);
 extern const char D_00A54950[];

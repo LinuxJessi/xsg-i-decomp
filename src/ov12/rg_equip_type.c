@@ -80,7 +80,20 @@ const char *RgEquipTypeString(int eType)
     }
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_equip_type", _GetMountData);
+static RgEquipMount *_GetMountData(RgEquipRecord *pEquip, int eType)
+{
+    unsigned int mountIndex;
+
+    if (pEquip == 0) {
+        assert_prog(D_00A53E98, D_00A53E80, 296);
+    }
+    for (mountIndex = 0; mountIndex < pEquip->mountCount; mountIndex++) {
+        if (pEquip->mounts[mountIndex].type == eType) {
+            return &pEquip->mounts[mountIndex];
+        }
+    }
+    return 0;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov12/rg_equip_type", RgEquipMountPos);
 

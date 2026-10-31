@@ -265,6 +265,16 @@ typedef struct XrgPaint2D {
      */
     int reqCount;
     XrgPaint2DDrawReq *request;
+    /*
+     * The allocation site _InitPaint (0x00a4b750) records: it strcpy's
+     * CreateXrgPaint2D_sub's sourceFile argument to +0xD018 and stores
+     * its line argument at +0xD058 (sw at 0x00a4b7b0), which bounds the
+     * name buffer at 0x40 bytes. The last word up to XRG_PAINT2D_SIZE
+     * stays unmodeled.
+     */
+    char sourceFile[0xD058 - 0xD018];
+    int line;
+    unsigned char unmodeled_d05c[XRG_PAINT2D_SIZE - 0xD05C];
 } XrgPaint2D;
 
 /*

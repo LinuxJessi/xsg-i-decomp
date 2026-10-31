@@ -76,7 +76,7 @@ extern void _InitEnergyType(RgWeaponEnergyType *weapon,
 extern void _InitEssenceCommon(void *essence);
 static int _GetNumAttach(RgWeaponAttach *pAttach);
 extern void _CommonPassTime(RgWeapon *weapon, float dt);
-extern int _GetDefShotPosDir(RgWeaponShotRequest *info, RgVector position, RgVector direction);
+extern int _GetDefShotPosDir(RgWeapon *pWpn, RgVector position, RgVector direction);
 extern int RgRobotGetCharID(int robotId);
 extern void *RgRobotGetTarget(int robotId);
 extern int RgRobotIsConfused(int robotId);
@@ -134,9 +134,52 @@ static unsigned int _GetAllAttach(RgWeaponAttach *pAttach, RgShot **shots)
     return pAttach->m_uAttachNum;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_weapon", _AddShotAttach);
+/*
+ * Scaffold-owned (.rodata still owner: asm, config/tu-build.json
+ * data_ownership window 0x00a53642..0x00a53818): the assert_prog expression
+ * string _AddShotAttach's bound check cites. ov12:0x00a53670 holds
+ * "pAttach->m_uAttachNum < ATTACH_MAX".
+ */
+extern const char D_00A53670[];
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_weapon", _CheckAttach);
+static void _AddShotAttach(RgWeaponAttach *pAttach, RgShot *shot)
+{
+    if (pAttach == 0) {
+        assert_prog(D_00A53648, D_00A53658, 71);
+    }
+    if (shot == 0) {
+        return;
+    }
+    if (pAttach->m_uAttachNum >= ATTACH_MAX) {
+        assert_prog(D_00A53670, D_00A53658, 73);
+    }
+    pAttach->shots[pAttach->m_uAttachNum++] = shot;
+}
+
+extern int RgShotIsReleased(RgShot *shot);
+
+static void _CheckAttach(RgWeaponAttach *pAttach)
+{
+    RgShot *alive[ATTACH_MAX];
+    RgShot *shot;
+    unsigned int i;
+    unsigned int aliveNum;
+
+    if (pAttach == 0) {
+        assert_prog(D_00A53648, D_00A53658, 83);
+    }
+    aliveNum = 0;
+    for (i = 0; i < pAttach->m_uAttachNum; i++) {
+        shot = pAttach->shots[i];
+        if (RgShotIsReleased(shot) == 0) {
+            alive[aliveNum++] = shot;
+        }
+    }
+    for (i = 0; i < aliveNum; i++) {
+        pAttach->shots[i] = alive[i];
+    }
+    pAttach->m_uAttachNum = aliveNum;
+}
 
 void _CommonDispose(void)
 {
@@ -753,7 +796,16 @@ int RgWeaponGetEss(RgWeapon *weapon)
     return weapon->ess;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_weapon", RgWeaponGetAttachedShot);
+unsigned int RgWeaponGetAttachedShot(RgWeapon *weapon, RgShot **shots)
+{
+    if (weapon == 0) {
+        assert_prog(D_00A536F0, D_00A53658, 0x624);
+    }
+    if (shots == 0) {
+        return _GetNumAttach(&weapon->shotAttach);
+    }
+    return _GetAllAttach(&weapon->shotAttach, shots);
+}
 
 int RgWeaponIsActiveLockOnSys(RgWeapon *weapon)
 {
@@ -906,7 +958,18 @@ void RgWeaponSetFree(RgWeapon *weapon)
     }
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_weapon", RgWeaponDisp);
+extern void XrgActorDraw(XrgActor *actor);
+
+void RgWeaponDisp(RgWeapon *weapon)
+{
+    if (weapon == 0) {
+        assert_prog(D_00A536F0, D_00A53658, 0x6CD);
+    }
+    weapon->disp(weapon);
+    if (weapon->actor != 0) {
+        XrgActorDraw(weapon->actor);
+    }
+}
 
 void RgWeaponPassTime(RgWeapon *weapon, float dt)
 {
@@ -1024,7 +1087,17 @@ void _PlayShotMotion(RgWeapon *weapon)
     }
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_weapon", _GetDefShotPosDir);
+int _GetDefShotPosDir(RgWeapon *pWpn, RgVector position, RgVector direction)
+{
+    if (pWpn == 0) {
+        assert_prog(D_00A536F0, D_00A53658, 0x756);
+    }
+    if (pWpn->shotRequested == 0) {
+        return 0;
+    }
+    _GetDefShotPosDirFunc(pWpn, position, direction);
+    return 1;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov12/rg_weapon", _GetDefShotPosDirFunc);
 

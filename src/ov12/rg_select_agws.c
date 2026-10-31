@@ -204,11 +204,26 @@ static int _CheckEquipWeps(int *essences, int slot)
     return RgEquipCheckConfrict(equipData, slot);
 }
 
-static int s_aeCharTbl[6] = {0, 4, 2, 5, 3, 1};
+/*
+ * Character-select cursor layout: RG_ACTOR_CHAR_NUM character positions
+ * (s_aeCharTbl; also the number of character slots the weapon-name save
+ * area holds) plus one more, SEL_CHAR_CURSOR_NOP. That is the position
+ * _CharIDToCharCursor returns for an unknown character and
+ * _CharCursorToCharID maps back to -1 (RG_ACTOR_CHAR_NOP below);
+ * _InitSelectChar starts the cursor there and _SetSelectableSelectChar
+ * keeps it selectable (SEL_CHAR_CURSOR_NOP_BIT, the 0x40 in
+ * selectableMask).
+ */
+#define RG_ACTOR_CHAR_NUM 6
+#define SEL_CHAR_CURSOR_NOP RG_ACTOR_CHAR_NUM
+#define SEL_CHAR_CURSOR_NUM (RG_ACTOR_CHAR_NUM + 1)
+#define SEL_CHAR_CURSOR_NOP_BIT (1 << SEL_CHAR_CURSOR_NOP)
+
+static int s_aeCharTbl[RG_ACTOR_CHAR_NUM] = {0, 4, 2, 5, 3, 1};
 
 static int _CharCursorToCharID(int charCursor)
 {
-    if ((unsigned int) charCursor >= 6) {
+    if ((unsigned int) charCursor >= RG_ACTOR_CHAR_NUM) {
         return -1;
     }
     return s_aeCharTbl[charCursor];
@@ -218,12 +233,12 @@ static int _CharIDToCharCursor(int charID)
 {
     unsigned int i;
 
-    for (i = 0; i < 6; i++) {
+    for (i = 0; i < RG_ACTOR_CHAR_NUM; i++) {
         if (s_aeCharTbl[i] == charID) {
             return i;
         }
     }
-    return 6;
+    return SEL_CHAR_CURSOR_NOP;
 }
 
 extern void assert_prog(const char *expression, const char *source_file,
@@ -237,8 +252,8 @@ static void _InitSelectChar(SelChar *pSelChar)
     if (pSelChar == 0) {
         assert_prog(D_00A56650, D_00A56660, 0xD0);
     }
-    pSelChar->cursor = 6;
-    pSelChar->selectableMask = 0x40;
+    pSelChar->cursor = SEL_CHAR_CURSOR_NOP;
+    pSelChar->selectableMask = SEL_CHAR_CURSOR_NOP_BIT;
 }
 
 /* Defined above (scaffold); returns s_aeCharTbl[charCursor], or -1 past the table. */
@@ -260,9 +275,63 @@ static int _GetSelectCursor(SelChar *pSelChar)
     return pSelChar->cursor;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_select_agws", _SetSelectableSelectChar);
+static void _SetSelectableSelectChar(SelChar *pSelChar, unsigned int charIDMask)
+{
+    unsigned int i;
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_select_agws", _SetCharSelectChar);
+    if (pSelChar == 0) {
+        assert_prog(D_00A56650, D_00A56660, 0xE7);
+    }
+    pSelChar->selectableMask = 0;
+    for (i = 0; i < RG_ACTOR_CHAR_NUM; i++) {
+        if (charIDMask & (1 << i)) {
+            pSelChar->selectableMask |= 1 << _CharIDToCharCursor(i);
+        }
+    }
+    pSelChar->selectableMask |= SEL_CHAR_CURSOR_NOP_BIT;
+    if ((pSelChar->selectableMask & (1 << pSelChar->cursor)) == 0) {
+        for (i = 0; i < SEL_CHAR_CURSOR_NUM; i++) {
+            if (pSelChar->selectableMask & (1 << i)) {
+                pSelChar->cursor = i;
+                break;
+            }
+        }
+    }
+}
+
+extern const char D_00A56678[]; /* "eCharID != RG_ACTOR_CHAR_NOP" */
+
+/*
+ * ov12:0x00a568f0 "_GetSelectChar(&pSel->m_inChar) != RG_ACTOR_CHAR_NOP"
+ * (_TransitToWeaponSelect below) and ov12:0x00a56678 "eCharID !=
+ * RG_ACTOR_CHAR_NOP" (_SetCharSelectChar) are this allocation's own evidence
+ * for the original sentinel value _InitSelType resets SelType::charID to.
+ */
+#define RG_ACTOR_CHAR_NOP (-1)
+
+
+static void _SetCharSelectChar(SelChar *pSelChar, int charID)
+{
+    int cursor;
+    unsigned int i;
+
+    if (pSelChar == 0) {
+        assert_prog(D_00A56650, D_00A56660, 0xFE);
+    }
+    if (charID == RG_ACTOR_CHAR_NOP) {
+        assert_prog(D_00A56678, D_00A56660, 0xFF);
+    }
+    cursor = _CharIDToCharCursor(charID);
+    if (pSelChar->selectableMask & (1 << cursor)) {
+        pSelChar->cursor = cursor;
+        return;
+    }
+    for (i = 0; i < SEL_CHAR_CURSOR_NUM; i++) {
+        if (pSelChar->selectableMask & (1 << i)) {
+            pSelChar->cursor = i;
+        }
+    }
+}
 
 static int _IsExistItemUpper(SelChar *pSelChar)
 {
@@ -283,9 +352,57 @@ static int _IsExistItemLower(SelChar *pSelChar)
     return (pSelChar->selectableMask & ~((cursorBit - 1) | cursorBit)) != 0;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_select_agws", _GetSelectableSelectChar);
+static int _GetSelectableSelectChar(SelChar *pSelChar)
+{
+    int charMask;
+    unsigned int charID;
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_select_agws", _PassTimeSelectChar);
+    if (pSelChar == 0) {
+        assert_prog(D_00A56650, D_00A56660, 0x126);
+    }
+    charMask = 0;
+    for (charID = 0; charID < RG_ACTOR_CHAR_NUM; charID++) {
+        if ((pSelChar->selectableMask & (1 << _CharIDToCharCursor(charID))) != 0) {
+            charMask |= 1 << charID;
+        }
+    }
+    return charMask;
+}
+
+extern int XrgPadIsUp(void);
+extern int XrgPadIsDown(void);
+extern void XrgSoundSystemCursor(void);
+
+static void _PassTimeSelectChar(SelChar *pSelChar, float deltaTime)
+{
+    int cursor;
+    int oldCursor;
+    int step;
+
+    if (pSelChar == 0) {
+        assert_prog(D_00A56650, D_00A56660, 0x133);
+    }
+    cursor = pSelChar->cursor;
+    oldCursor = cursor;
+    if (XrgPadIsUp() != 0) {
+        step = -1;
+    } else {
+        step = XrgPadIsDown() != 0;
+    }
+    if (step != 0) {
+        do {
+            cursor += step;
+            if ((unsigned int) cursor >= SEL_CHAR_CURSOR_NUM) {
+                cursor = pSelChar->cursor;
+                break;
+            }
+        } while ((pSelChar->selectableMask & (1 << cursor)) == 0);
+    }
+    pSelChar->cursor = cursor;
+    if (cursor != oldCursor) {
+        XrgSoundSystemCursor();
+    }
+}
 
 extern const char D_00A56698[]; /* "pSelWep != NIL" */
 
@@ -647,7 +764,25 @@ static void _GetAllSelType(SelType *pSelType, int *out)
     }
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_select_agws", _GetAllNameOnCursorSelType);
+extern const char D_00A56788[]; /* "aszName != NIL" */
+
+/* One weapon name slot: _GetAllNameOnCursorSelType's own 0x20 stride. */
+#define WEP_NAME_SIZE 0x20
+
+static void _GetAllNameOnCursorSelType(SelType *pSelType, char *aszName)
+{
+    unsigned int i;
+
+    if (pSelType == 0) {
+        assert_prog(D_00A56758, D_00A56660, 0x25C);
+    }
+    if (aszName == 0) {
+        assert_prog(D_00A56788, D_00A56660, 0x25D);
+    }
+    for (i = 0; i < RG_EQUIP_TYPE_NUM; i++) {
+        _GetNameOnCursorSelWep(&pSelType->wepList[i], aszName + i * WEP_NAME_SIZE);
+    }
+}
 
 static void _CheckConfrictSelType(SelType *pSelType)
 {
@@ -662,14 +797,24 @@ static void _CheckConfrictSelType(SelType *pSelType)
     }
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_select_agws", _SetAllCursorByNameSelType);
+/* Still INCLUDE_ASM above: moves the list cursor to the entry named `name`. */
+static int _SetCursorByNameSelWep(SelWep *pSelWep, char *name);
 
-/*
- * ov12:0x00a568f0 "_GetSelectChar(&pSel->m_inChar) != RG_ACTOR_CHAR_NOP"
- * (_TransitToWeaponSelect below) is this allocation's own evidence for the
- * original sentinel value _InitSelType resets SelType::charID to.
- */
-#define RG_ACTOR_CHAR_NOP (-1)
+static void _SetAllCursorByNameSelType(SelType *pSelType, char *aszName)
+{
+    unsigned int i;
+
+    if (pSelType == 0) {
+        assert_prog(D_00A56758, D_00A56660, 0x272);
+    }
+    if (aszName == 0) {
+        assert_prog(D_00A56788, D_00A56660, 0x273);
+    }
+    for (i = 0; i < RG_EQUIP_TYPE_NUM; i++) {
+        _SetCursorByNameSelWep(&pSelType->wepList[i], aszName + i * WEP_NAME_SIZE);
+    }
+    _CheckConfrictSelType(pSelType);
+}
 
 static void _InitSelType(SelType *pSelType)
 {
@@ -687,11 +832,47 @@ static void _InitSelType(SelType *pSelType)
     pSelType->charID = RG_ACTOR_CHAR_NOP;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_select_agws", _InitByCharSelType);
+static void _InitByCharSelType(SelType *pSelType, int charID)
+{
+    unsigned int i;
+
+    if (pSelType == 0) {
+        assert_prog(D_00A56758, D_00A56660, 0x293);
+    }
+    _InitSelType(pSelType);
+    for (i = 0; i < RG_EQUIP_TYPE_NUM; i++) {
+        _InitCharTypeSelWep(&pSelType->wepList[i], charID, i);
+    }
+    pSelType->charID = charID;
+    _CheckConfrictSelType(pSelType);
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov12/rg_select_agws", _PassTimeSelType);
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_select_agws", _DetachWeaponIfConfrictSelType);
+static int _DetachWeaponIfConfrictSelType(SelType *pSelType)
+{
+    int eType;
+    unsigned int confrict;
+    int i;
+
+    if (pSelType == 0) {
+        assert_prog(D_00A56758, D_00A56660, 0x2CA);
+    }
+    eType = _EquipCurIDToEquipType(pSelType->cursor);
+    if (eType != RG_EQUIP_TYPE_INVALID) {
+        confrict = pSelType->confrict[eType];
+        if (confrict != 0) {
+            for (i = 0; i < RG_EQUIP_TYPE_NUM; i++) {
+                if (confrict & (1 << i)) {
+                    _SetCursorSelWep(&pSelType->wepList[i], 0);
+                }
+            }
+            _CheckConfrictSelType(pSelType);
+            return 1;
+        }
+    }
+    return 0;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov12/rg_select_agws", _InitWepListDisp);
 
@@ -763,13 +944,6 @@ extern const char D_00A56838[]; /* "pSelDat != NIL" */
  */
 extern void InitRgSelectAGWSData(int *confrict);
 
-/*
- * _InitByCharSelType (ov12:0x00a39458) is still INCLUDE_ASM; it tail-calls
- * _CheckConfrictSelType (ov12:0x00a39280, also unallocated), so its return
- * type follows that unresolved callee. This call's own result is unused.
- */
-static int _InitByCharSelType(SelType *pSelType, int charID);
-
 static void _InitSelectData(SelDat *pSelDat)
 {
     SelChar *pSelChar;
@@ -792,13 +966,6 @@ INCLUDE_ASM("asm/nonmatchings/ov12/rg_select_agws", _DumpSelect__);
 
 extern const char D_00A568C0[]; /* "pData != NIL" */
 
-/*
- * _GetSelectableSelectChar (ov12, still INCLUDE_ASM) is a sibling of the
- * accepted _SetSelectableSelectChar below; declare it so this caller does
- * not see an implicit declaration.
- */
-static int _GetSelectableSelectChar(SelChar *pSelChar);
-
 static void _SaveCharSelectData(SelDat *pSelDat, int *pData)
 {
     if (pSelDat == 0) {
@@ -812,27 +979,11 @@ static void _SaveCharSelectData(SelDat *pSelDat, int *pData)
 }
 
 /*
- * _GetAllNameOnCursorSelType (ov12, still INCLUDE_ASM) walks the weapon list
- * of every equip type and copies the name on each cursor into successive
- * WEP_NAME_SIZE-byte slots; declare it so this caller does not see an
- * implicit declaration.
- */
-static void _GetAllNameOnCursorSelType(SelType *pSelType, char *names);
-
-/*
- * Number of character slots the weapon-name save area holds, one per
- * character-select cursor position (_InitSelectChar's own initial cursor 6 is
- * the first value outside the range this bound tests).
- */
-#define RG_ACTOR_CHAR_NUM 6
-
-/*
  * Layout of one character's slot inside the save area _SaveToBaseData passes:
- * RG_EQUIP_TYPE_NUM weapon names of WEP_NAME_SIZE bytes each
- * (_GetAllNameOnCursorSelType's own 0x20 stride), the first slot starting two
+ * RG_EQUIP_TYPE_NUM weapon names of WEP_NAME_SIZE bytes each (defined with
+ * _GetAllNameOnCursorSelType above), the first slot starting two
  * words after the character data _SaveCharSelectData stores.
  */
-#define WEP_NAME_SIZE 0x20
 #define WEP_NAME_LIST_OFFSET 8
 
 /*
@@ -867,12 +1018,6 @@ static int _SaveWepSelectData(SelDat *pSelDat, int *pData)
 extern const char D_00A56838[]; /* "pSelDat != NIL" */
 extern const char D_00A568C0[]; /* "pData != NIL" */
 
-/*
- * _SetCharSelectChar/_SetSelectableSelectChar (above) are still INCLUDE_ASM;
- * declare them so this caller does not see an implicit declaration.
- */
-static void _SetCharSelectChar(SelChar *pSelChar, int charID);
-static void _SetSelectableSelectChar(SelChar *pSelChar, unsigned int charIDMask);
 
 static void _LoadCharSelectData(SelDat *pSelDat, int *pData)
 {
@@ -886,7 +1031,31 @@ static void _LoadCharSelectData(SelDat *pSelDat, int *pData)
     _SetSelectableSelectChar(&pSelDat->selChar, pData[1]);
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_select_agws", _LoadWepSelectData);
+/*
+ * Declared int for the same reason as _SaveWepSelectData below: the original
+ * enters _SetAllCursorByNameSelType with jal and returns through its own
+ * epilogue instead of tail-jumping to it.
+ */
+static int _LoadWepSelectData(SelDat *pSelDat, int *pData)
+{
+    SelType *pSelType;
+    int charID;
+
+    pSelType = &pSelDat->selType;
+    if (pSelDat == 0) {
+        assert_prog(D_00A56838, D_00A56660, 0x40E);
+    }
+    if (pData == 0) {
+        assert_prog(D_00A568C0, D_00A56660, 0x40F);
+    }
+    charID = _GetSelectChar(&pSelDat->selChar);
+    _InitByCharSelType(pSelType, charID);
+    if ((unsigned int) charID < RG_ACTOR_CHAR_NUM) {
+        _SetAllCursorByNameSelType(pSelType,
+                                   (char *) pData + WEP_NAME_LIST_OFFSET +
+                                       charID * RG_EQUIP_TYPE_NUM * WEP_NAME_SIZE);
+    }
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov12/rg_select_agws", _GetBaseSelectData);
 
@@ -923,13 +1092,6 @@ static void _DisposeSelectData(SelDat *pSelDat)
 
 extern const char D_00A568E0[]; /* "pSel != NIL" */
 extern const char D_00A568F0[]; /* "_GetSelectChar(&pSel->m_inChar) != RG_ACTOR_CHAR_NOP" */
-
-/*
- * _LoadWepSelectData (ov12, still INCLUDE_ASM) mirrors the accepted
- * _LoadCharSelectData(SelDat *, int *) shape; declare it so this caller does
- * not see an implicit declaration.
- */
-static void _LoadWepSelectData(SelDat *pSel, int *pData);
 
 static void _TransitToWeaponSelect(SelDat *pSel)
 {
@@ -998,10 +1160,9 @@ static int _GetPlayerModeSelectData(SelDat *pSel)
 extern void XrgPadSetID(int pad_id);
 
 /*
- * _PassTimeSelectChar/_PassTimeSelType (above) are still INCLUDE_ASM;
- * declare them so this caller does not see an implicit declaration.
+ * _PassTimeSelType (above) is still INCLUDE_ASM; declare it so this caller
+ * does not see an implicit declaration.
  */
-static void _PassTimeSelectChar(SelChar *pSelChar, float deltaTime);
 static void _PassTimeSelType(SelType *pSelType, float deltaTime);
 
 static void _PassTimeSelectData(SelDat *pSel, float deltaTime)
@@ -1049,7 +1210,30 @@ static void _GetSelectWeps(SelDat *pSel, int *essences, int *confricts)
     }
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_select_agws", _GetWepSelection);
+static int _GetWepSelection(SelDat *pSelDat, int *apCollects)
+{
+    SelWep *pSelWep;
+    int *essList;
+    unsigned int i;
+    int confrictMask;
+
+    confrictMask = 0;
+    for (i = 0; i < RG_EQUIP_TYPE_NUM; i++) {
+        pSelWep = _GetSelWepSelType(&pSelDat->selType, i);
+        if (pSelWep == 0) {
+            assert_prog(D_00A56698, D_00A56660, 0x4C0);
+        }
+        essList = _GetEssListSelWep(pSelWep);
+        if (_GetConfrictSelType(&pSelDat->selType, i) != 0) {
+            confrictMask |= 1 << i;
+            *apCollects = essList[0];
+        } else {
+            *apCollects = _GetEssSelWep(pSelWep);
+        }
+        apCollects++;
+    }
+    return confrictMask;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov12/rg_select_agws", _DrawPlayerMode);
 
@@ -1422,7 +1606,7 @@ void InitRgSelectAGWSData(int *pData)
     pData[0] = 0;
     pData[1] = 1;
     pNames = (unsigned char *) pData + WEP_NAME_LIST_OFFSET;
-    for (charID = 0; charID < 6; charID++) {
+    for (charID = 0; charID < RG_ACTOR_CHAR_NUM; charID++) {
         for (i = 0; i < RG_EQUIP_TYPE_NUM; i++) {
             pNames[charID * CHAR_WEP_RECORD_SIZE + i * WEP_NAME_LEN] = 0;
         }

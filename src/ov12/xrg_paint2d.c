@@ -168,7 +168,22 @@ INCLUDE_ASM("asm/nonmatchings/ov12/xrg_paint2d", _DrawNoTex);
 
 INCLUDE_ASM("asm/nonmatchings/ov12/xrg_paint2d", _DrawWithTex);
 
-INCLUDE_ASM("asm/nonmatchings/ov12/xrg_paint2d", _InitPaint);
+extern char *strcpy(char *destination, const char *source);
+static void _InitReq(XrgPaint2DDrawReq *req);
+
+static void _InitPaint(XrgPaint2D *paint, const char *sourceFile, int line)
+{
+    if (paint == 0) {
+        assert_prog(D_00A59098, D_00A59058, 701);
+    }
+    strcpy(paint->sourceFile, sourceFile);
+    paint->line = line;
+    paint->drawID = -2;
+    paint->reqCount = 0;
+    paint->request = &paint->req;
+    paint->prio = 3;
+    _InitReq(&paint->req);
+}
 
 static void _DestructPaint(XrgPaint2D *paint) {
     if (paint == 0) {
@@ -181,7 +196,6 @@ extern void *RgHeapAlloc(RgHeap *heap, unsigned int size, const char *source_fil
                         int line);
 extern void RgHeapFree(RgHeap *heap, void *ptr, const char *source_file,
                        int line);
-static void _InitPaint(XrgPaint2D *paint, const char *sourceFile, int line);
 
 XrgPaint2D *CreateXrgPaint2D_sub(const char *sourceFile, int line) {
     XrgPaint2D *paint;
@@ -231,11 +245,59 @@ void XrgPaint2DSetDrawPrio(XrgPaint2D *paint, int prio) {
     paint->prio = prio;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov12/xrg_paint2d", XrgPaint2DOffset2D);
+/*
+ * The three 2D anchor setters below store x through `req` but y through a
+ * fresh paint->request load: the original reloads the request pointer after
+ * the offsetMode store (lw -0x2FEC again before the +0x54 store), the same
+ * reload XrgPaint2DOffset3DForce documents.
+ *
+ * XRG_PAINT2D_SUBPIXEL_SHIFT converts whole pixels into the GS's 12.4
+ * subpixel units (x << 4); XRG_PAINT2D_SCREEN_CENTER_X/Y are the centre of
+ * the 512x448 screen (RgDrawView's own default screenRect) in pixels.
+ */
+#define XRG_PAINT2D_SUBPIXEL_SHIFT 4
+#define XRG_PAINT2D_SCREEN_CENTER_X (512 / 2)
+#define XRG_PAINT2D_SCREEN_CENTER_Y (448 / 2)
 
-INCLUDE_ASM("asm/nonmatchings/ov12/xrg_paint2d", XrgPaint2DOffset2DDot);
+void XrgPaint2DOffset2D(XrgPaint2D *paint, int x, int y)
+{
+    XrgPaint2DDrawReq *req;
 
-INCLUDE_ASM("asm/nonmatchings/ov12/xrg_paint2d", XrgPaint2DOffsetCenter);
+    if (paint == 0) {
+        assert_prog(D_00A59098, D_00A59058, 777);
+    }
+    req = paint->request;
+    req->offsetAnchor.i.x = x;
+    req->offsetMode = 1;
+    paint->request->offsetAnchor.i.y = y;
+}
+
+void XrgPaint2DOffset2DDot(XrgPaint2D *paint, int x, int y)
+{
+    XrgPaint2DDrawReq *req;
+
+    if (paint == 0) {
+        assert_prog(D_00A59098, D_00A59058, 786);
+    }
+    req = paint->request;
+    req->offsetAnchor.i.x = x << XRG_PAINT2D_SUBPIXEL_SHIFT;
+    req->offsetMode = 1;
+    paint->request->offsetAnchor.i.y = y << XRG_PAINT2D_SUBPIXEL_SHIFT;
+}
+
+void XrgPaint2DOffsetCenter(XrgPaint2D *paint)
+{
+    XrgPaint2DDrawReq *req;
+
+    if (paint == 0) {
+        assert_prog(D_00A59098, D_00A59058, 795);
+    }
+    req = paint->request;
+    req->offsetAnchor.i.x = XRG_PAINT2D_SCREEN_CENTER_X << XRG_PAINT2D_SUBPIXEL_SHIFT;
+    req->offsetMode = 1;
+    paint->request->offsetAnchor.i.y = XRG_PAINT2D_SCREEN_CENTER_Y
+                                       << XRG_PAINT2D_SUBPIXEL_SHIFT;
+}
 
 void XrgPaint2DOffset3D(XrgPaint2D *paint, const XrgPaint2DOffset *anchor)
 {
@@ -473,8 +535,6 @@ void InitXrgPaint2DLine3D(XrgPaint2DLine3D *line, float width)
 INCLUDE_ASM("asm/nonmatchings/ov12/xrg_paint2d", XrgPaint2DDrawLine);
 
 INCLUDE_ASM("asm/nonmatchings/ov12/xrg_paint2d", _Paint2DFlush);
-
-static void _InitReq(XrgPaint2DDrawReq *req);
 
 static void _Paint2DClearReq(XrgPaint2D *paint, void *pStudio) {
     if (paint == 0) {

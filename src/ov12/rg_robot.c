@@ -68,9 +68,18 @@ extern void RgHeapFree(void *heap, void *pointer, const char *source_file,
 extern void XrgSoundRing(int soundID, int count);
 extern float RgGeomPointGetWeight(RgGeomPoint *point);
 
-static void _InitHomingThread(RgHomingThread *thread);
-
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_robot", _InitHomingThread);
+static void _InitHomingThread(RgHomingThread *thread)
+{
+    if (thread == 0) {
+        assert_prog(D_00A51830, D_00A51840, 73);
+    }
+    thread->geometry = 0;
+    thread->target = 0;
+    thread->actionTime = 0;
+    thread->sleepTime = 0;
+    thread->homingSpeed = 4.0f * 3.1415927f;
+    thread->state = 0;
+}
 
 static RgHomingThread *_CreateHomingThread(void)
 {
@@ -324,10 +333,10 @@ INCLUDE_ASM("asm/nonmatchings/ov12/rg_robot", _ExecCmdInAttack);
 
 INCLUDE_ASM("asm/nonmatchings/ov12/rg_robot", _AttackPassTime);
 
-extern void RgWeaponShotStop(void *weapon);
+extern void RgWeaponShotStop(RgWeapon *weapon);
 extern char *RgWeaponGetEss(void *weapon);
-extern void RgWeaponPlayMotion(void *weapon, int motion);
-extern void RgWeaponRestartLockon(void *weapon);
+extern void RgWeaponPlayMotion(RgWeapon *weapon, int motion);
+extern void RgWeaponRestartLockon(RgWeapon *weapon);
 
 /*
  * Motion-ID table offset within the weapon-essence record RgWeaponGetEss
@@ -653,7 +662,7 @@ static void _BodyPlayMotionLoop(RgBody *body, int motion)
     }
 }
 
-extern void RgGeomRobotCalcLocal(RgGeomPoint *geometry, RgVector local[4]);
+extern void RgGeomRobotCalcLocal(RgGeomPoint *geometry, RgMatrix local);
 extern void RgRobSubAcceralate(RgGeomPoint *geometry, RgVector direction,
                                float scale);
 extern void XrgNegateVector(RgVector destination, RgVector source);
@@ -664,12 +673,13 @@ static void _BodyAdvanceForAttack(RgBody *body, float attackPower,
     RgGeomPoint *geometry;
     RgRobotSpec *spec;
     RgVector direction;
-    RgVector localFrame[4];
+    RgMatrix localFrame;
 
     geometry = body->geometry;
     spec = body->spec;
     RgGeomRobotCalcLocal(geometry, localFrame);
-    XrgNegateVector(direction, localFrame[2]);
+    /* row 2 of the local frame: the body's forward (z) axis */
+    XrgNegateVector(direction, &localFrame[8]);
     RgRobSubAcceralate(geometry, direction,
                        spec->accelRate * spec->attackAdvanceRate * 0.3f * attackFactor);
 }
@@ -813,7 +823,25 @@ INCLUDE_ASM("asm/nonmatchings/ov12/rg_robot", _BodyDropWeapon);
 
 INCLUDE_ASM("asm/nonmatchings/ov12/rg_robot", _BodyEquipWeapon);
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_robot", _BodySetSpareWeapon);
+/*
+ * spareWeapon[] holds the weapon handle as int (RgRobotSetSpareWeapon's
+ * weaponID); the slot being replaced is disposed as the weapon it is.
+ */
+extern void DisposeRgWeapon(RgWeapon *weapon);
+
+static void _BodySetSpareWeapon(RgBody *body, int eSide, int weaponID)
+{
+    if (body == 0) {
+        assert_prog(D_00A51A68, D_00A51840, 0xC3B);
+    }
+    if ((unsigned int) eSide >= RG_EQUIP_TYPE_NUM) {
+        assert_prog(D_00A51A88, D_00A51840, 0xC3C);
+    }
+    if (body->spareWeapon[eSide] != 0 && body->spareWeapon[eSide] != weaponID) {
+        DisposeRgWeapon((RgWeapon *) body->spareWeapon[eSide]);
+    }
+    body->spareWeapon[eSide] = weaponID;
+}
 
 static void _BodySetAutoHomingEnv(RgBody *body, int autoHomingEnv)
 {
@@ -918,7 +946,32 @@ INCLUDE_ASM("asm/nonmatchings/ov12/rg_robot", _BodyAutoHomingPassTime);
 
 INCLUDE_ASM("asm/nonmatchings/ov12/rg_robot", _BodyPassTime);
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_robot", _BodyDisp);
+extern void XrgActorSetLocal(XrgActor *actor, const RgMatrix matrix);
+extern void XrgActorDraw(XrgActor *actor);
+extern void RgWeaponDisp(RgWeapon *weapon);
+extern void RgRobotEffectDisp(RgRobotEffect *effect);
+
+static void _BodyDisp(RgRobotStatus *robotStatus, RgBody *body)
+{
+    RgMatrix localFrame;
+    unsigned int eSide;
+
+    if (body == 0) {
+        assert_prog(D_00A51A68, D_00A51840, 0xD0E);
+    }
+    _StatusDisp(robotStatus, body);
+    RgGeomRobotCalcLocal(body->geometry, localFrame);
+    if (body->actor != 0) {
+        XrgActorSetLocal(body->actor, localFrame);
+        XrgActorDraw(body->actor);
+    }
+    for (eSide = 0; eSide < RG_EQUIP_TYPE_NUM; eSide++) {
+        if (body->weapon[eSide] != 0) {
+            RgWeaponDisp(body->weapon[eSide]);
+        }
+    }
+    RgRobotEffectDisp(body->effect);
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov12/rg_robot", _InitBody);
 
@@ -1000,7 +1053,24 @@ static int _ExecRotateCmd(RgRobotStatus *status, RgBody *body, RgCmd *command)
     return 2;
 }
 
-INCLUDE_ASM("asm/nonmatchings/ov12/rg_robot", _IsBackWeaponReady);
+extern float RgWeaponGetShotNum(RgWeapon *weapon);
+
+static int _IsBackWeaponReady(RgBody *body, unsigned int eType)
+{
+    if (eType >= RG_EQUIP_TYPE_NUM) {
+        assert_prog(D_00A51A88, D_00A51840, 0xDD7);
+    }
+    if (eType != RG_EQUIP_TYPE_BACK) {
+        return 0;
+    }
+    if (body->weapon[RG_EQUIP_TYPE_BACK] == 0) {
+        return 0;
+    }
+    if (RgWeaponGetShotNum(body->weapon[RG_EQUIP_TYPE_BACK]) <= 0.0f) {
+        return 0;
+    }
+    return 1;
+}
 
 INCLUDE_ASM("asm/nonmatchings/ov12/rg_robot", _ExecShotOrAttackCmd);
 
@@ -1173,8 +1243,6 @@ static void _PassTimeRobot(RgStatus *pRobot, float deltaTime)
         _BodyPassTime(pRobot->robotStatus, body, deltaTime);
     _DullFlagsPassTime(pRobot, deltaTime);
 }
-
-static void _BodyDisp(RgRobotStatus *robotStatus, RgBody *body);
 
 static void _DispRobot(RgStatus *pRobot)
 {
