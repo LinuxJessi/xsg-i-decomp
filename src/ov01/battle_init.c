@@ -1678,7 +1678,7 @@ void spWepDispOffSub(BattleUnit *unit, int slot, int fade);
 void spWepDispOff(ScenarioBatExec *exec, int weapon)
 {
     int tecKind;
-    int wepSp;
+    struct WepSpEntry *wepSp;
     int weaponId;
     Actor *weaponActor;
 
@@ -2009,7 +2009,6 @@ extern void sefGetNullPosition(Vector4 *position, void *actor, int part, int fla
  * queued; 0x4 hides the cursor (objCurDraw); 0x8 marks a unit selection. */
 #define CURSOR_STATE_FLAG_QUEUED 0x2
 #define CURSOR_STATE_FLAG_HIDDEN 0x4
-#define CURSOR_STATE_FLAG_UNIT 0x8
 
 /*
  * The cursor task's per-frame step: run the queued command. A position
