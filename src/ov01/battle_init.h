@@ -27,8 +27,8 @@ typedef struct CursorCommand CursorCommand;
  * `lw $3,0x10($17)` from the cursor and its flags with `lw $2,0x0($3)`;
  * the state record also carries selectActive (+0x78) and the transform
  * block (+0x90..+0x110) the cursor functions read, each cited at its
- * member. No record size is claimed by either; unmodeled_00 spans just the
- * bytes before +0x10.
+ * member. The cursor record claims no size; unmodeled_00 spans just the
+ * bytes before +0x10 (the state record's modelled span ends at +0x110).
  */
 struct CursorObject {
     unsigned char unmodeled_00[0x10];
@@ -84,7 +84,8 @@ struct CursorCommand {
      * $2,$3,0x4` (0x00a0f834/0x00a0f83c); as int it compiled to `blezl`
      * and `slti`. */
     unsigned int selector;
-    int argument;
+    int argument;      /* +0x04: a position id, or a BattleUnit * (cast)
+                        * for the unit commands objCur handles */
     int word08;
     int word0c;
     int word10;

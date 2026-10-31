@@ -798,11 +798,10 @@ PlUnitEntry *plUnitTblGet(void) {
 
 /*
  * The party record's attack-slot table (src/main/party.h PartyDataPrefix:
- * attack_slots at +0x30): plUnitTblSet computes index*4 + 0x30 before adding
- * the record base (`addiu $4,$4,0x30` at 0x00a0b6b8, `addu $2,$2,$4` at
- * 0x00a0b6c0). A named slot pointer (&party->attackSlots[index]) instead adds
- * the base first and the 0x30 last; indexing the field in each store, partyId
- * first, gives the original's `sb` (0x00a0b6cc) ahead of the `sh`.
+ * attack_slots at +0x30), viewed with the offset inside the struct so that
+ * index*4 + 0x30 is added before the record base (`addiu $4,$4,0x30` at
+ * 0x00a0b6b8, `addu $2,$2,$4` at 0x00a0b6c0); partyId is stored first (`sb`
+ * at 0x00a0b6cc ahead of the `sh`).
  */
 typedef struct PartyAttackView {
     unsigned char unmodeled_00[0x30];
@@ -2113,7 +2112,8 @@ typedef struct CursorSelectList {
     BattleUnit *units[9]; /* +0x00..+0x23: the selectable units;
                            * curMove2Pos reads units[curIdx]->actor (`lw
                            * $3,0x0($2)`/`lw $5,0x14($3)` at 0x00a0fb48) */
-    void *entries[9]; /* +0x24..+0x47 */
+    void *entries[9]; /* +0x24..+0x47: unit pointers, or position ids
+                       * (cast) when posMode is set (curMove2Pos) */
     int count;         /* +0x48 */
     int curIdx;         /* +0x4C */
     int prevIdx;         /* +0x50 */
@@ -2124,8 +2124,8 @@ typedef struct CursorSelectList {
 } CursorSelectList;
 
 /*
- * The battle cursor's selection record (data still asm-owned, original ELF
- * symbol name): curSel/curMove2Pos work on it and curSelGrpSet/curSelGrpGet
+ * The battle cursor's selection record (original ELF symbol name):
+ * curSel/curMove2Pos work on it and curSelGrpSet/curSelGrpGet
  * own its group word.
  */
 static CursorSelectList curMove;
@@ -2305,8 +2305,6 @@ extern int frameCntGet(void);
  * `int packet[2]` record as void *, as objDispCur does. */
 extern void menuActCurPut(void *packet, ObjectTask *cursor, ObjectTask *unit, int frame);
 extern void monsNameDisp(void *packet, ObjectTask *unitTask, int x, int y, int isEnemy);
-int battleCtrlHelpGet(void);
-BattleUnit *actUnitGet(void);
 
 /*
  * Bit 0x40 of the target's work-record flags word (`lw $3,0x10($2)`/`lw
