@@ -143,7 +143,7 @@ struct CalcUnitParam {
     signed char bcLimit;        /* +0x3B: calcBc's own clamp ceiling */
     signed char bcValue;        /* +0x3C: calcBc's own running counter */
     signed char bpGauge;        /* +0x3D: calcBp's `lbu $2,0x3D($16)`/`sb`,
-                                 * compared as signed against 50 */
+                                 * the promoted sum is compared as signed against 50 (`slti`) and reduced with a signed modulo, which is what the field's signed type reproduces */
     short turnBias;             /* +0x3E: calcWct/calcTurnEnd */
     short waitCount;            /* +0x40: calcTurnEnd/calcWctDec */
     short waitCountBase;        /* +0x42: calcTurnEnd */

@@ -182,7 +182,6 @@ void calcPara2OrgSub(ObjectTask *unit) {
 
 INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcDeadReset);
 
-
 CalcUnitParam *calcUPGet(ObjectTask *unit)
 {
     return ((CalcActorRecord *)unit->work)->up;
@@ -1089,7 +1088,6 @@ int calcWctDec(ObjectTask *unit)
 
 INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcHitMotChk);
 
-
 INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcHitDmg);
 
 /*
@@ -1510,7 +1508,7 @@ extern void calcStatReset(ObjectTask *unit, int category, int mask, int useAltMa
  * by 20% per two units of its last decimal digit, down for odd damage, up
  * for even; (3, 2) cancels mode 3. A mode-1 hit also clears
  * CALC_ACTOR_FLAG_BIT4 from a target calcBattleChk refuses, ends statuses
- * (1, 0x2000) and (5, 0x2000), and ends (5, 0x4000) half the time.
+ * (1, 0x2000) and (5, 0x2000), and ends (5, 0x4000) when rnd(100) < 50 (50 of 101 outcomes).
  */
 /* calcRevHit (this TU, defined below): calcStat's own callee. */
 extern int calcRevHit(int hitMode);
@@ -1565,8 +1563,8 @@ INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcStatAtk);
 /*
  * A status-clearing technique (effectType 4, `lb $4,0x4($18)`) takes the
  * CALC_ACTOR_FLAG_BIT4 bit off a target calcBattleChk refuses and records
- * the category and bits it clears in the hit record; category 8 clears
- * every bit (`ori $2,$0,0xFFFF`). Any other technique records category 8,
+ * the category and bits it clears in the hit record; category 8 records
+ * the full mask (`ori $2,$0,0xFFFF`). Any other technique records category 8,
  * no bits, and returns 0.
  */
 int calcStatClr(ObjectTask *unit, TgtCmd *cmd, CalcHitInfo *hit)
