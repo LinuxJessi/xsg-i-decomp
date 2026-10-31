@@ -25343,11 +25343,6 @@
       "reason": "standalone ee-asm record: ACCEPTED_ASM(\"src/main/<tu>/\", name) from its tracked reviewed .s (not a generated nonmatching)",
       "state_hint": "exact_asm",
       "unit_record": "config/units/math-main-00229750-review12.json"
-     },
-     {
-      "reason": "standalone ee-asm record: ACCEPTED_ASM(\"src/main/<tu>/\", name) from its tracked reviewed .s (not a generated nonmatching)",
-      "state_hint": "exact_asm",
-      "unit_record": "config/units/math-spark-cont01-0022a950-quat.json"
      }
     ],
     "migration_hints_note": "The exact_asm hints of config/units/math-main-002297e8-review11.json, config/units/math-main-00229960-review11.json, config/units/math-spark-cont01-00229bc8.json were dropped on 2026-09-13 (task tu-retreat-integration-20260913b): those records were re-treated to C and are C records now, so there is no accepted assembly left for them to wire. tools/tu/gen_main.py emits that hint only for ee-asm records, so a regeneration agrees. It would, however, emit a `migration_rework` hint instead, because the frozen toolchain classification still records their probes as reproducing at -G0 while this TU's contract is -G8; that hint would be false - the published C reproduces the original bytes under the TU's own -G8 contract, which the whole-file gate and tools/tu_audit.py both prove - so it is deliberately not written here (same decision as main/tu257, tu-retreat-integration-20260912, and the batch-2 four, tu-retreat-integration-20260913a). config/units/math-spark-cont01-0022a950-quat.json keeps its exact_asm hint: it is still an ee-asm record, narrowed to xglQuaternionInterpolateLinear. The exact_asm hints of config/units/math-spark-cont01-0022a0f8-rots.json and config/units/math-spark-cont01-0022a3b0-stack.json were dropped on 2026-09-13 (task tu-retreat-integration-20260913c): those records were re-treated to C (main/tu100's remaining eighteen matrix-stack wrappers and three rotation helpers) and are C records now, so there is no accepted assembly left for them to wire.",
@@ -25696,7 +25691,7 @@
       ],
       "flags_recorded": true,
       "generated_data": [],
-      "language": "ee-asm",
+      "language": "c-asm",
       "probe_compilers_reproducing": [
        "2.96"
       ],
@@ -25706,17 +25701,17 @@
       "recorded_profile": null,
       "recorded_runner": null,
       "scope": null,
-      "source": "src/main/xgl_2/quat.s",
+      "source": "src/main/xgl_2.c",
       "source_functions": [
        "xglQuaternionInterpolateLinear"
       ],
-      "source_sha256": "f08f479c4614fe9e6f14b609a0c61ca3c94c5603690a864e980e906377021676",
       "text": {
        "sha256": "07b8c6480110bd7df84f0d9d5c34b7740bce84fbe847e950426b688f2c1c3aec",
        "size": 168,
        "va": "0x0022a9d0"
       },
-      "unit_record": "config/units/math-spark-cont01-0022a950-quat.json"
+      "unit_record": "config/units/math-spark-cont01-0022a950-quat.json",
+      "note": "re-treated 2026-10-31 (user order): the accepted ee-asm body src/main/xgl_2/quat.s was replaced by C with constrained inline asm in src/main/xgl_2.c (exact_c_with_asm, source class hardware); whole-file gate green refs/green/20261031T172751Z. The .s is deleted; the unit record stays the acceptance authority."
      },
      {
       "flags": [
@@ -27890,13 +27885,7 @@
     "all_functions_accepted": false,
     "all_functions_accepted_note": "every function has an accepted unit record; says nothing about the TU data (statics, strings) or completeness as C",
     "functions": 3,
-    "migration_hints": [
-     {
-      "reason": "standalone ee-asm record: ACCEPTED_ASM(\"src/main/<tu>/\", name) from its tracked reviewed .s (not a generated nonmatching)",
-      "state_hint": "exact_asm",
-      "unit_record": "config/units/io-main-00233980.json"
-     }
-    ],
+    "migration_hints": [],
     "of": 170,
     "records": [
      {
@@ -27906,7 +27895,7 @@
       ],
       "flags_recorded": true,
       "generated_data": [],
-      "language": "ee-asm",
+      "language": "c-asm",
       "probe_compilers_reproducing": [
        "2.96"
       ],
@@ -27916,17 +27905,17 @@
       "recorded_profile": null,
       "recorded_runner": null,
       "scope": null,
-      "source": "src/main/nml_model_set/nmlModelEntryEffect.s",
+      "source": "src/main/nml_model_set.c",
       "source_functions": [
        "nmlModelEntryEffect"
       ],
-      "source_sha256": "22dbfbc1478fb9e6752a7c5a911f7ed9fd0237398513cf0030c589007e8e30b6",
       "text": {
        "sha256": "412c17c1180cfec66b45c9cfb8871a4f4d6bf3121229d3f5d1adaae6cc4f4e60",
        "size": 1112,
        "va": "0x0023397c"
       },
-      "unit_record": "config/units/io-main-00233980.json"
+      "unit_record": "config/units/io-main-00233980.json",
+      "note": "re-treated 2026-10-31 (user order): the accepted ee-asm body src/main/nml_model_set/nmlModelEntryEffect.s was replaced by C with constrained inline asm in src/main/nml_model_set.c (exact_c_with_asm, source class hardware); whole-file gate green refs/green/20261031T172751Z. The .s is deleted; the unit record stays the acceptance authority."
      },
      {
       "flags": [
@@ -63583,11 +63572,6 @@
      {
       "reason": "standalone ee-asm record: ACCEPTED_ASM(\"src/main/<tu>/\", name) from its tracked reviewed .s (not a generated nonmatching)",
       "state_hint": "exact_asm",
-      "unit_record": "config/units/math-main-002e6698-review09.json"
-     },
-     {
-      "reason": "standalone ee-asm record: ACCEPTED_ASM(\"src/main/<tu>/\", name) from its tracked reviewed .s (not a generated nonmatching)",
-      "state_hint": "exact_asm",
       "unit_record": "config/units/math-main-w3-002e7f40.json"
      }
     ],
@@ -63860,7 +63844,7 @@
       ],
       "flags_recorded": true,
       "generated_data": [],
-      "language": "ee-asm",
+      "language": "c-asm",
       "probe_compilers_reproducing": [
        "2.96"
       ],
@@ -63870,17 +63854,17 @@
       "recorded_profile": null,
       "recorded_runner": null,
       "scope": null,
-      "source": "src/main/sef/sefCaclAllTarget.s",
+      "source": "src/main/sef.c",
       "source_functions": [
        "sefCaclAllTarget"
       ],
-      "source_sha256": "07ddbe95fc9e3f51b285282d7c85f80b9961cbaff4d7342db4d091aa3873e4cc",
       "text": {
        "sha256": "94f77c32be7b87600c71ed026633ec0635f9ce56c15171512461da738b84b501",
        "size": 160,
        "va": "0x002e6698"
       },
-      "unit_record": "config/units/math-main-002e6698-review09.json"
+      "unit_record": "config/units/math-main-002e6698-review09.json",
+      "note": "re-treated 2026-10-31 (user order): the accepted ee-asm body src/main/sef/sefCaclAllTarget.s was replaced by C with constrained inline asm in src/main/sef.c (exact_c_with_asm, source class hardware); whole-file gate green refs/green/20261031T172751Z. The .s is deleted; the unit record stays the acceptance authority."
      },
      {
       "flags": [
@@ -67789,11 +67773,6 @@
      {
       "reason": "standalone ee-asm record: ACCEPTED_ASM(\"src/main/<tu>/\", name) from its tracked reviewed .s (not a generated nonmatching)",
       "state_hint": "exact_asm",
-      "unit_record": "config/units/main-mmath-matrix-ops.json"
-     },
-     {
-      "reason": "standalone ee-asm record: ACCEPTED_ASM(\"src/main/<tu>/\", name) from its tracked reviewed .s (not a generated nonmatching)",
-      "state_hint": "exact_asm",
       "unit_record": "config/units/math-main-002ef160-review11.json"
      }
     ],
@@ -67857,7 +67836,7 @@
       ],
       "flags_recorded": true,
       "generated_data": [],
-      "language": "ee-asm",
+      "language": "c-asm",
       "probe_compilers_reproducing": [
        "2.96"
       ],
@@ -67867,17 +67846,17 @@
       "recorded_profile": null,
       "recorded_runner": null,
       "scope": null,
-      "source": "src/main/m_math/MMathSpecialVectorSub.s",
+      "source": "src/main/m_math.c",
       "source_functions": [
        "MMathSpecialVectorSub"
       ],
-      "source_sha256": "798294263fb5531adef84200d12cb8ca442bf579e8c9870f2284c1de5c9af1af",
       "text": {
        "sha256": "48213d73532f1dd7f7524a04fcd4390de18792dbd58933de04da60138de4b38d",
        "size": 80,
        "va": "0x002ef850"
       },
-      "unit_record": "config/units/main-mmath-matrix-ops.json"
+      "unit_record": "config/units/main-mmath-matrix-ops.json",
+      "note": "re-treated 2026-10-31 (user order): the accepted ee-asm body src/main/m_math/MMathSpecialVectorSub.s was replaced by C with constrained inline asm in src/main/m_math.c (exact_c_with_asm, source class hardware); whole-file gate green refs/green/20261031T172751Z. The .s is deleted; the unit record stays the acceptance authority."
      },
      {
       "flags": [
