@@ -255,14 +255,13 @@ int entryPhase20(void);
 int entryPhase25(void);
 
 /*
- * This TU's own declaration order of its static objects (pCreateUnit then
- * camEv then unitIdx) has to stay the same relative order the already
- * matched entryPhase26/30/31 established (their gate pass proved these
- * addresses); entryPhase20 needs camEv and unitIdx before their own
- * definitions further down, so each gets an early `extern` mention here,
- * in that same order, ahead of its real storage.
+ * entryPhase20 uses camEv and unitIdx, entryPhase25 pCreateUnit, before the
+ * lines next to their main users that declare them again; pCvUnit sits
+ * between them so the storage order (pCreateUnit, camEv, pCvUnit, unitIdx)
+ * the matched entryPhase26/30/31 fixed stays. Each is a tentative static
+ * definition.
  */
-extern ObjectTask *pCreateUnit;
+static ObjectTask *pCreateUnit;
 
 /*
  * camEv is a second camera-event request record: camEventExec's other
@@ -275,9 +274,9 @@ typedef struct EntryCamEvent {
     BattleUnit *unit;          /* +0x08 */
     unsigned char unmodeled_0c[4];
 } EntryCamEvent;
-extern EntryCamEvent camEv;
-extern ObjectTask *pCvUnit;
-extern int unitIdx;
+static EntryCamEvent camEv;
+static ObjectTask *pCvUnit;
+static int unitIdx;
 
 /*
  * This TU's own call site sets up only the event-record argument, unlike
@@ -469,10 +468,6 @@ int entryPhase35(void)
     return 1;
 }
 
-
-
-
-static ObjectTask *pCreateUnit;
 
 int entryPhase36(void)
 {
