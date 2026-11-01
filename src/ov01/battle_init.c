@@ -1453,14 +1453,6 @@ void syoukan1Sub(Syoukan1SubArgs *args, int reserved, int replacementCharaId)
     unitCmdSet(args->unit, &cmd);
 }
 
-/*
- * calcUPGet(unit)->linkedUnit's own CalcUnitParam (ov01/tu004 calc.c, still
- * asm there, not yet published to add these members) carries a short at
- * +0x44 inside calc.h's own unmodeled_44 span; the short at +0x38 is
- * already published as charaId.
- */
-#define CALC_PARAM_LINKED_UNK44_OFF 0x44
-
 void syoukan2Sub(ObjectTask **unit)
 {
     SyoukanCmdEntry cmd;
@@ -1468,7 +1460,7 @@ void syoukan2Sub(ObjectTask **unit)
     unitCmdClear(*unit);
 
     cmd.selector = 0x2B;
-    cmd.argument = *(short *)((char *)calcUPGet(*unit)->linkedUnit + CALC_PARAM_LINKED_UNK44_OFF);
+    cmd.argument = calcUPGet(*unit)->linkedUnit->posId;
     cmd.extra = calcUPGet(*unit)->linkedUnit->charaId;
     unitCmdSet(*unit, &cmd);
 
@@ -1937,45 +1929,34 @@ void statEffOff(ObjectTask *unit)
 extern ObjectTask *objEntry2(void *argument, void (*callback)(ObjectTask *task));
 extern void objStdInit(ObjectTask *task);
 
-/*
- * The enemy cursor's own task callbacks, both defined further down in this
- * TU: objCur (still asm) reaches the cursor's state record through
- * CURSOR_STATE_OFF exactly as objCurDraw right after it does.
- */
+/* The enemy cursor's own task callbacks, both defined further down in this TU. */
 void objCur(CursorObject *cursor);
 void objCurDraw(CursorObject *cursor);
 
 /*
- * Further evidenced words on the cursor's state record (CURSOR_STATE_OFF,
- * the object's own work pointer):
- *   state + 0x04 and state + 0x78 are cleared when the cursor is created;
- *   state + 0x80 is the target address curSel below compares and updates;
- *   state + 0x90 starts the three coordinate floats the caller supplies.
- * The 0x40 bit objEnCurCreate sets in the flags word at STATE_FLAGS_OFF is
- * the enemy-side bit objCurDraw reads back to pick objDispEnCur.
+ * state + 0x04 is cleared at creation and read nowhere else in this TU. The
+ * 0x40 bit set in flags is the enemy-side bit objCurDraw tests to pick
+ * objDispEnCur.
  */
 #define STATE_UNK04_OFF 0x04
-#define STATE_UNK78_OFF 0x78
-#define STATE_TARGET_OFF 0x80
-#define STATE_POS_OFF 0x90
 
 ObjectTask *objEnCurCreate(float x, float y, float z)
 {
     ObjectTask *task;
     CursorCommandState *state;
-    float *pos;
+    Vector4 *position;
 
     task = objEntry2(objCur, (void (*)(ObjectTask *))objCurDraw);
     state = task->work;
     objStdInit(task);
-    pos = (float *)((char *)state + STATE_POS_OFF);
-    pos[0] = x;
-    pos[1] = y;
-    pos[2] = z;
-    *(unsigned int *)((char *)state + STATE_FLAGS_OFF) |= 0x40;
+    position = &state->transform.fields.position;
+    position->x = x;
+    position->y = y;
+    position->z = z;
+    state->flags |= 0x40;
     *(int *)((char *)state + STATE_UNK04_OFF) = 0;
-    *(void **)((char *)state + STATE_TARGET_OFF) = 0;
-    *(int *)((char *)state + STATE_UNK78_OFF) = 0;
+    state->targetPosId = 0;
+    state->selectActive = 0;
     return task;
 }
 
@@ -2101,8 +2082,8 @@ void curCmdSet(CursorObject *cursor, const CursorCommand *command)
 }
 
 /*
- * Battle cursor selection list. entries[] holds the target address of each
- * selectable item, indexed by curIdx (word width, stride 4); count bounds
+ * Battle cursor selection list. entries[] holds the position id of each
+ * selectable unit, indexed by curIdx (word width, stride 4); count bounds
  * curIdx on both ends; prevIdx is a snapshot of curIdx taken on entry and
  * compared again after the target update to decide whether to play the
  * selection sound. units[] and entries[] are each sized to the gap their
@@ -2112,8 +2093,10 @@ typedef struct CursorSelectList {
     BattleUnit *units[9]; /* +0x00..+0x23: the selectable units;
                            * curMove2Pos reads units[curIdx]->actor (`lw
                            * $3,0x0($2)`/`lw $5,0x14($3)` at 0x00a0fb48) */
-    void *entries[9]; /* +0x24..+0x47: unit pointers, or position ids
-                       * (cast) when posMode is set (curMove2Pos) */
+    int entries[9]; /* +0x24..+0x47: each unit's CalcUnitParam.posId, stored
+                     * by curEnProcInit (`lw $4,0x44($2)`, `sw $4,0x20($3)`
+                     * with $3 = list + 4 + 4 * i); curMove2Pos uses it as
+                     * the dataPosTblGet index when posMode is set */
     int count;         /* +0x48 */
     int curIdx;         /* +0x4C */
     int prevIdx;         /* +0x50 */
@@ -2148,16 +2131,10 @@ extern void curMove2Pos(CursorObject *cursor, CursorSelectList *list);
  */
 extern int sndSysSePlay(int soundId);
 
-/*
- * +0x80 on the cursor's state record (CURSOR_STATE_OFF above): the target
- * address curMove2Pos last moved the cursor toward.
- */
-#define STATE_TARGET_OFF 0x80
-
 int curSel(CursorObject *cursor, CursorSelectList *list, int nextMask, int prevMask)
 {
     CursorCommandState *state;
-    void *target;
+    int posId;
 
     list->prevIdx = list->curIdx;
     if (dataPadRead(1) & nextMask) {
@@ -2172,10 +2149,10 @@ int curSel(CursorObject *cursor, CursorSelectList *list, int nextMask, int prevM
         }
     }
 
-    state = *(CursorCommandState **)((char *)cursor + CURSOR_STATE_OFF);
-    target = list->entries[list->curIdx];
-    if (*(void **)((char *)state + STATE_TARGET_OFF) != target) {
-        *(void **)((char *)state + STATE_TARGET_OFF) = target;
+    state = cursor->state;
+    posId = list->entries[list->curIdx];
+    if (state->targetPosId != posId) {
+        state->targetPosId = posId;
         curMove2Pos(cursor, list);
         if (list->curIdx != list->prevIdx) {
             sndSysSePlay(0xA);
@@ -2228,7 +2205,7 @@ void curMove2Pos(CursorObject *cursor, CursorSelectList *list)
             transform->fields.offset.y = 2.5f;
         }
     } else {
-        posId = (int)list->entries[list->curIdx];
+        posId = list->entries[list->curIdx];
         pos = dataPosTblGet(posId);
         x = pos->x;
         transform->fields.goal.x = x;
@@ -2369,15 +2346,12 @@ void objDispEnCur(CursorObject *cursor)
  * at 0x00a10698); the original body is empty, so neither is read.
  */
 void objDispCurSubPl(void *packet, CursorObject *cursor);
-/* Defined by ov01/tu008 (src/ov01/gr_gp_init.c). Declared here because
- * objDispCur calls them ahead of the declarations further down; without them
- * gcc 2.96 reports "type mismatch with previous implicit declaration". */
-extern void grGpInit(void *packet);
-extern void grPacketSend(void *packet);
+/* objDispCur's callees, declared ahead of their definitions further down in
+ * this TU; without them gcc 2.96 reports "type mismatch with previous implicit
+ * declaration". grGpInit, grPacketSend and objCmdPtrGet are declared above. */
 extern void curEnvMake(void *packet, int isAlly);
 extern void objDispCurSubEn(void *packet, CursorObject *cursor, int outOfLine);
 extern void curPutSub(void *packet, CursorObject *cursor);
-extern void *objCmdPtrGet(ObjectTask *task);
 extern int calcLineChk(ObjectTask *unit);
 
 /*
@@ -2483,9 +2457,6 @@ void curPutSub(void *packet, CursorObject *cursor)
  * reads it back, so the storage is left untyped here rather than restating
  * the owner's struct.
  */
-extern void grGpInit(void *packet);
-extern void grGsRegSet(void *packet, int reg, int value);
-extern void grPacketSend(void *packet);
 
 /*
  * dataXtxFileGet's own table entry (src/ov01/data_unit_org_get.c, still
