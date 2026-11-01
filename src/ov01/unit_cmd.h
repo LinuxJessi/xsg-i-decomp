@@ -252,7 +252,8 @@ extern void statEffOn(ObjectTask *unit);
  * transWepOut take BattleUnit *, this TU's UnitRecord *), so the one member
  * this TU touches is restated at the owner's offset: unitCmdFadeOut sets and
  * unitCmdFadeIn clears UNIT_WORK_STATUS_BLOCKED in it (lw/ori/sw 0xA8C($3)
- * at 0x00a06e7c, lw/and/sw 0xA8C($4) at 0x00a06dd4).
+ * at 0x00a06e7c, lw/and/sw 0xA8C($4) at 0x00a06dd4); unitDispOnOff does
+ * both.
  */
 struct UnitWork {
     unsigned char unmodeled_00[0xA8C];

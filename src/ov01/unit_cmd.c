@@ -1963,27 +1963,13 @@ void unitDispOffAll(void)
     unitDispOnOff(1);
 }
 
-extern void statEffOn(ObjectTask *unit);
-
-/*
- * calcUPGet(unit)+0x158, immediately before ov01/tu004 calc.c's own
- * published statEffUnits[8] table at +0x15C, holds a pointer to the same
- * kind of per-unit status-effect record statEffOn/statEffOff walk through
- * that table (src/ov01/battle_init.c, ov01/tu003's own published UnitWork,
- * include/ov01/battle_init.h). This TU does not own that record and cannot
- * complete a second UnitWork of its own, so only the touched flag word is
- * reached through a raw offset here.
- */
-#define CALC_UNIT_PARAM_STAT_EFF_TARGET_OFF 0x158
-#define UNIT_WORK_FLAGS_OFF 0xA8C
-
 void unitDispOnOff(int flag)
 {
     UnitRecord **table;
     int index;
     int count;
     UnitRecord *unit;
-    void *statEffTarget;
+    struct UnitWork *effectUnit;
 
     index = 0;
     count = unitTblGet(2, &table);
@@ -1993,16 +1979,16 @@ void unitDispOnOff(int flag)
             if (unit != 0) {
                 if (flag == 0) {
                     unit->motionActor->flags &= ~8;
-                    statEffTarget = *(void **)((char *)calcUPGet((ObjectTask *) unit) + CALC_UNIT_PARAM_STAT_EFF_TARGET_OFF);
-                    if (statEffTarget != 0) {
-                        *(unsigned int *)((char *)statEffTarget + UNIT_WORK_FLAGS_OFF) &= ~UNIT_WORK_STATUS_BLOCKED;
+                    effectUnit = calcUPGet((ObjectTask *) unit)->effectUnit;
+                    if (effectUnit != 0) {
+                        effectUnit->flags &= ~UNIT_WORK_STATUS_BLOCKED;
                     }
                     statEffOn((ObjectTask *) table[index]);
                 } else {
                     unit->motionActor->flags |= 8;
-                    statEffTarget = *(void **)((char *)calcUPGet((ObjectTask *) unit) + CALC_UNIT_PARAM_STAT_EFF_TARGET_OFF);
-                    if (statEffTarget != 0) {
-                        *(unsigned int *)((char *)statEffTarget + UNIT_WORK_FLAGS_OFF) |= UNIT_WORK_STATUS_BLOCKED;
+                    effectUnit = calcUPGet((ObjectTask *) unit)->effectUnit;
+                    if (effectUnit != 0) {
+                        effectUnit->flags |= UNIT_WORK_STATUS_BLOCKED;
                     }
                     statEffOff((ObjectTask *) table[index]);
                 }
