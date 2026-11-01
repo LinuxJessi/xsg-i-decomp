@@ -50,8 +50,8 @@ extern int calcBattleChk(ObjectTask *unit);
 extern int calcTrg2PE(ObjectTask *unit, int trgFlags);
 
 /*
- * calcWct/calcStatTurn/rnd: calcTurnEnd's own callees, defined later in
- * this TU (calcWct and rnd below, calcStatTurn still asm).
+ * calcWct/calcStatTurn/rnd: calcTurnEnd's own callees, all defined later
+ * in this TU.
  */
 extern int calcWct(ObjectTask *unit);
 extern void calcStatTurn(ObjectTask *unit);
@@ -190,7 +190,7 @@ CalcUnitParam *calcUPGet(ObjectTask *unit)
 INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcHpDmg);
 
 /*
- * calcTotalParaMenuSub (this TU, still asm, 0x00a11128): calcTotalParaMenu's
+ * calcTotalParaMenuSub (this TU, defined below, 0x00a11128): calcTotalParaMenu's
  * tail-called worker, given the same three arguments plus the per-charaId
  * table below.
  */
@@ -750,11 +750,13 @@ int calcEp(ObjectTask *unit, int delta)
 }
 
 /*
- * calcBc (this TU, defined below) is published as `int calcBc(BattleUnit *unit,
- * int delta)` and calcBp's extern was published as `(ObjectTask *unit, ...)`;
- * BattleUnit is include/ov01/battle_init.h's record. The cast at the call
- * bridges those two published declarations, as calcBc/calcBoost cast the other
- * way for calcUPGet.
+ * calcBc (this TU, defined below) takes a BattleUnit *, the record
+ * include/ov01/battle_init.h declares; calcBp's unit is an ObjectTask *,
+ * hence the cast at the call (calcBc/calcBoost cast the other way for
+ * calcUPGet). calcBc returns int, not void: its asm sets $2 = 1
+ * (`addiu $2,$0,0x1`, build/ov01/asm/nonmatchings/ov01/calc/calcBc.s) right
+ * before the epilogue on every path; calcBoost, its only caller, discards
+ * the result.
  */
 int calcBc(BattleUnit *unit, int delta);
 
@@ -916,11 +918,6 @@ int calcCounter(ObjectTask *unit, int tecId)
 INCLUDE_ASM("asm/nonmatchings/ov01/calc", calcBoostChk);
 
 extern int *actStockGet(void);
-/* calcBc returns int, not void: its original asm sets $2 = 1
- * (`addiu $2,$0,0x1`, build/ov01/asm/nonmatchings/ov01/calc/calcBc.s) right
- * before the epilogue on every path. calcBoost (below, this TU) is the only
- * caller and discards the result. */
-int calcBc(BattleUnit *unit, int delta);
 void decoEffCall(BattleUnit *unit, int effectId);
 int sndSysSePlay(int soundId);
 
@@ -2486,10 +2483,10 @@ int calcTrg2PE(ObjectTask *unit, int trgFlags)
     return 2;
 }
 
-/* calcStatIdx2Bit/calcStatReset: calcStatTurn's own callees, defined later
- * in this TU (calcStatIdx2Bit below) or still asm (calcStatReset). */
+/* calcStatIdx2Bit: calcStatTurn's own callee, defined later in this TU
+ * (calcStatReset, its other callee, is declared above calcStat and also
+ * defined below). */
 extern int calcStatIdx2Bit(int statIdx);
-extern void calcStatReset(ObjectTask *unit, int category, int mask, int useAltMask);
 
 void calcStatTurn(ObjectTask *unit)
 {
