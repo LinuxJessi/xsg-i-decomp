@@ -174,18 +174,25 @@ void menuBatObj(ObjectTask *task) {
 
 /*
  * unitLoad and unitActupdate test this bit of the battle actor's flags word
- * to tell an enemy-controlled unit from a player-controlled one
- * (src/ov01/unit_cmd.h documents it as ACTOR_FLAG_ENEMY); ov01/tu013 snd.c's
- * sndConvSe already reuses the same evidenced mask off calcUPGet(unit)->flags.
+ * (BattleActor.flags, not CalcUnitParam.flags) to tell an enemy-controlled
+ * unit from a player-controlled one (src/ov01/unit_cmd.h documents it as
+ * ACTOR_FLAG_ENEMY).
  */
 #define ACTOR_FLAG_ENEMY 0x40u
+
+/*
+ * CalcUnitParam.flags bit 0x40 marks an AGWS unit (src/ov01/data_unit_org_get.h's
+ * CALC_UNIT_FLAG_AGWS; src/ov01/calc.h spells the enumerator CALC_UNIT_FLAG_IS_AGWS).
+ * include/ov01/calc.h, the header this TU sees, exports neither, so the macro is restated.
+ */
+#define CALC_UNIT_FLAG_AGWS 0x40
 
 /*
  * The battle menu's command tables, one 0x10-byte row per menu line
  * (sll $2,$2,4 on menuSel); menuBatObjFree reads only the command id at +0x04
  * (lw $5,0x4($2)), which menuCmdExecChk checks and menuResultBat returns.
- * chaTbl serves units without CalcUnitParam flag 0x40, agwsTbl units with
- * it (lhu 0x1C; andi 0x40 selects %lo(agwsTbl_00A3F088)). Data still asm-owned.
+ * chaTbl serves units without CALC_UNIT_FLAG_AGWS, agwsTbl units with it
+ * (lhu 0x1C; andi 0x40 selects %lo(agwsTbl_00A3F088)). Data still asm-owned.
  */
 typedef struct MenuBatCmdEntry {
     unsigned char unmodeled_00[4];
@@ -215,7 +222,7 @@ void menuBatObjFree(ObjectTask *task)
     MenuBatCmdEntry *table;
 
     unit = ((MenuBatWork *)task->work)->unit;
-    if (calcUPGet(unit)->flags & ACTOR_FLAG_ENEMY) {
+    if (calcUPGet(unit)->flags & CALC_UNIT_FLAG_AGWS) {
         table = agwsTbl_00A3F088;
     } else {
         table = chaTbl_00A3F038;
@@ -694,20 +701,10 @@ void menuCritDispOn(int count)
     menuCritWorkGet(pCritObj)->flags &= ~MENU_CRIT_HIDDEN;
 }
 
-/*
- * The critical-indicator display object (data still asm-owned; original
- * ELF symbol name). Its work record's first word is a flag set; bit 2 (0x4) hides it.
- */
-extern ObjectTask *pCritObj;
-
 void menuCritDispOff(void)
 {
     menuCritWorkGet(pCritObj)->flags |= MENU_CRIT_HIDDEN;
 }
-
-
-
-
 /* The work slot holds the address of the indicator's MenuCritWork.
  * menuCritObj reads the slot once (lw $2,0x10($16) at 0x00A281F4) and so
  * keeps the record in a local; menuCritObjDraw loads it afresh before each
@@ -1434,7 +1431,6 @@ int menuTimeXGet(void) {
 
 extern BattleUnit *actUnitGet(void);
 void grGpInit(GrPacket *packet);
-void grPacketSend(GrPacket *packet);
 void menuPlStatPut(ObjectTask *task, GrPacket *packet, BattleUnit *unit);
 void menuStatNamePut(ObjectTask *task);
 
@@ -1478,9 +1474,9 @@ void menuStatObjDraw(ObjectTask *task) {
 extern CalcUnitParam *calcUPGet(ObjectTask *unit);
 
 
-/* An enemy unit, or one whose charaId falls in the boss range ov01/tu013
- * snd.c's sndConvSe documents (0xBB..0xC2), reports the linked unit's
- * charaId instead of its own. */
+/* A unit without CALC_UNIT_FLAG_AGWS whose charaId falls in the range
+ * ov01/tu013 snd.c's sndConvSe documents (0xBB..0xC2) reports the linked
+ * unit's charaId instead of its own. */
 int menuStatChrIdGet(ObjectTask *unit)
 {
     int charaId;
@@ -1488,7 +1484,7 @@ int menuStatChrIdGet(ObjectTask *unit)
 
     up = calcUPGet(unit);
     charaId = up->charaId;
-    if (!(calcUPGet(unit)->flags & ACTOR_FLAG_ENEMY)) {
+    if (!(calcUPGet(unit)->flags & CALC_UNIT_FLAG_AGWS)) {
         if (calcUPGet(unit)->charaId >= 0xBB) {
             if (calcUPGet(unit)->charaId < 0xC3) {
                 charaId = up->linkedUnit->charaId;
@@ -1687,7 +1683,6 @@ extern int menuChk(void);
 extern int calcTuigekiChk(ObjectTask *unit);
 extern int keyCmdChk(ObjectTask *unit, BattleUnit *target, int key);
 extern int battleCtrlHelpGet(void);
-extern void grPacketSend(GrPacket *packet);
 void keyGideDisp(GrPacket *packet, int x, int y, int button);
 void menuKeyGuideHelp(GrPacket *packet, ObjectTask *unit, int key, int x, int y);
 void menuKeyGuideVal(GrPacket *packet, ObjectTask *unit, int key, int x, int y);
@@ -1737,7 +1732,7 @@ void menuKeyGuideDisp(ObjectTask *guideTask, ObjectTask *unitTask, int phase)
     grGpInit(&packet);
     menuStatEnvMake(&packet);
     target = tgtUnitGet();
-    if (calcUPGet(unitTask)->flags & 0x40) {
+    if (calcUPGet(unitTask)->flags & CALC_UNIT_FLAG_AGWS) {
         lines = keyGuideTblAgws[phase].lines;
         buttons = keyGuideTblAgws[phase].buttons;
     } else {
@@ -1817,7 +1812,6 @@ extern const char **dataPlayerNameGet(int id);
 extern unsigned int strlen(const char *s);
 void menuGuideFrameDisp(void *packet, int x, int y, int width, int height);
 void menuFontEnvMake(void *packet);
-void menuStatEnvMake(void *packet);
 void menuFontPut(GrPacket *packet, int x, int y, const char *text);
 
 void monsNameDisp(void *packet, ObjectTask *unitTask, int x, int y, int isEnemy)
@@ -1904,7 +1898,7 @@ void menuKeyGuideVal(GrPacket *packet, ObjectTask *unit, int key, int x, int y)
         return;
     }
     tecId = keyCmd2tid(unit, key);
-    if ((calcUPGet(unit)->flags & 0x40) == 0) {
+    if ((calcUPGet(unit)->flags & CALC_UNIT_FLAG_AGWS) == 0) {
         if (tecId == 0) {
             return;
         }
